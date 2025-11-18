@@ -1,0 +1,62 @@
+<?php
+namespace Platform\Plugins\Trading\Src\Http\Controllers;
+use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentDataRepository;
+
+class InstrumentDataController extends Controller{
+    protected $instrumentDataRepository;
+
+    public function __construct(InstrumentDataRepository $instrumentDataRepository) {
+        $this->instrumentDataRepository = $instrumentDataRepository;
+    }
+
+    public function index(Request $request) {
+        $filter = $request->input('filter', []);
+        $select = $request->input('select', ['*']);
+        $perPage = $request->input('per_page', 15);
+
+        $data = $this->instrumentDataRepository->findAll($filter, $select, $perPage);
+        return response()->json($data);
+    }
+
+    public function showByPeriod($periodId) {
+        $perPage = request()->input('per_page', 15);
+        $data = $this->instrumentDataRepository->findByPeriod($periodId, $perPage);
+        if ($data) {
+            return response()->json($data);
+        }
+        return response()->json(['message' => 'Instrument data not found'], 404);
+    }
+
+    public function show($id) {
+        $data = $this->instrumentDataRepository->find($id);
+        if ($data) {
+            return response()->json($data);
+        }
+        return response()->json(['message' => 'Instrument data not found'], 404);
+    }
+
+    public function store(Request $request) {
+        $data = $request->all();
+        $instrumentData = $this->instrumentDataRepository->create($data);
+        return response()->json($instrumentData, 201);
+    }
+
+    public function update(Request $request, $id) {
+        $data = $request->all();
+        $instrumentData = $this->instrumentDataRepository->update($id, $data);
+        if ($instrumentData) {
+            return response()->json($instrumentData);
+        }
+        return response()->json(['message' => 'Instrument data not found'], 404);
+    }
+
+    public function destroy($id) {
+        $deleted = $this->instrumentDataRepository->delete($id);
+        if ($deleted) {
+            return response()->json(['message' => 'Instrument data deleted successfully']);
+        }
+        return response()->json(['message' => 'Instrument data not found'], 404);
+    }
+}
