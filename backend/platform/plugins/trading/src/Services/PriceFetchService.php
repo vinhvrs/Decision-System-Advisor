@@ -56,7 +56,7 @@ class PriceFetchService
             'monthly' => '1mo',
         ];
         if (!isset($map[$period])) return false;
-        $url = "https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval={$map[$period]}";
+        $url = "https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval={$map[$period]}&range=100y";
         Log::info("isset: " . (isset($map[$period]) ? 'yes' : 'no'));
         Log::info("Yahoo fetch URL: " . $url);
         try {

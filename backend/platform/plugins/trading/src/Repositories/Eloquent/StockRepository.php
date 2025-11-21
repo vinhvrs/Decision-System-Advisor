@@ -10,7 +10,7 @@ class StockRepository implements StockInterface {
         return StockAttribute::create($stock);
     }
 
-    public function find(int $id): ?StockAttribute {
+    public function find(string $id): ?StockAttribute {
         return StockAttribute::find($id);
     }
 
@@ -30,7 +30,7 @@ class StockRepository implements StockInterface {
         return $query->paginate($perPage);
     }
 
-    public function update(int $id, array $stock): ?StockAttribute {
+    public function update(string $id, array $stock): ?StockAttribute {
         $attribute = StockAttribute::find($id);
         if ($attribute) {
             $attribute->update($stock);
@@ -39,7 +39,16 @@ class StockRepository implements StockInterface {
         return null;
     }
 
-    public function delete(int $id): bool {
+    public function createOrUpdate(array $stock): StockAttribute {
+        return StockAttribute::updateOrCreate(
+            [
+                'instrument_id' => $stock['instrument_id'],
+            ],
+            $stock
+        );
+    }
+
+    public function delete(string $id): bool {
         $attribute = StockAttribute::find($id);
         if ($attribute) {
             return (bool)$attribute->delete();

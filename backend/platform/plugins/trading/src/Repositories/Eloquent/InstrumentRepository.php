@@ -20,12 +20,12 @@ class InstrumentRepository implements InstrumentInterface {
         return Instruments::create($instrument);
     }
 
-    public function find(int $id): ?Instruments {
+    public function find(string $id): ?Instruments {
         return Instruments::find($id);
     }
 
     public function findAll($filter, $select, $perPage): LengthAwarePaginator {
-        $query = Instruments::query()->orderByDesc('updated_at');
+        $query = Instruments::query()->orderBy('symbol', 'asc');
 
         if (!empty($filter)) {
             foreach ($filter as $field => $value) {
@@ -40,7 +40,7 @@ class InstrumentRepository implements InstrumentInterface {
         return $query->paginate($perPage);
     }
 
-    public function update(int $id, array $instrument): ?Instruments {
+    public function update(string $id, array $instrument): ?Instruments {
         $inst = Instruments::find($id);
         if ($inst) {
             $inst->update($instrument);
@@ -49,7 +49,7 @@ class InstrumentRepository implements InstrumentInterface {
         return null;
     }
 
-    public function delete(int $id): bool {
+    public function delete(string $id): bool {
         $inst = Instruments::find($id);
         if ($inst) {
             return (bool)$inst->delete();
