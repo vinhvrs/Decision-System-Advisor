@@ -70,7 +70,7 @@ class InstrumentPeriodsController extends Controller{
     }
 
     public function show($id) {
-        $instrumentPeriod = $this->instrumentPeriodsRepository->find($id);
+        $instrumentPeriod = $this->instrumentPeriodsRepository->findAll(['instrument_id' => $id], ['*'], 20);
 
         if (!$instrumentPeriod) {
             return response()->json(['message' => 'Instrument Period not found'], 404);

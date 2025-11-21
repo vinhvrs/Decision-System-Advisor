@@ -21,8 +21,8 @@ class HistoryFetchService
      */
     public function fetchFullHistory(string $symbol): array|bool
     {
-        $url = "https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval=1d&range=max";
-
+        $url = "https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval=1d&range=100y";
+        
         Log::info("Yahoo FULL history URL: $url");
 
         try {

@@ -9,7 +9,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
         return InstrumentData::create($instrumentData);
     }
 
-    public function find(int $id): ?InstrumentData {
+    public function find(string $id): ?InstrumentData {
         return InstrumentData::find($id);
     }
 
@@ -35,7 +35,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
         return $query->paginate($perPage);
     }
 
-    public function update(int $id, array $instrumentData): ?InstrumentData {
+    public function update(string $id, array $instrumentData): ?InstrumentData {
         $inst = InstrumentData::find($id);
         if ($inst) {
             $inst->update($instrumentData);
@@ -44,7 +44,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
         return null;
     }
 
-    public function delete(int $id): bool {
+    public function delete(string $id): bool {
         $inst = InstrumentData::find($id);
         if ($inst) {
             return (bool)$inst->delete();

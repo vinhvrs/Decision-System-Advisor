@@ -15,6 +15,7 @@ class FetchDataController extends Controller
 {
     public function fetch($periodId, PriceFetchService $service)
     {
+        set_time_limit(0);
         $period = InstrumentPeriods::find($periodId);
         if (!$period) {
             return response()->json(['error' => 'Period not found'], 404);
