@@ -79,7 +79,9 @@ class InstrumentController extends Controller{
         $instruments = $this->instrumentRepository->findAll(
             $request->input('filter', []),
             $request->input('select', ['*']),
-            $request->input('per_page', 15)
+            $request->input('per_page', 15),
+            $request->input('page', 1),
+            $request->input('order_by', 'symbol')
         );
         return response()->json($instruments);
     }

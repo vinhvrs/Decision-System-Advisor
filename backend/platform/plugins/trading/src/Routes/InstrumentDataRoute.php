@@ -3,7 +3,7 @@ namespace Platform\Plugins\Trading\Src\Routes;
 
 use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentDataController;
-use Platform\Plugins\Trading\Src\Http\Controllers\FetchDataController;
+use Platform\Plugins\Trading\Src\Http\Controllers\CollectData\GetInstrumentData;
 
 Route::prefix('/instruments')->group(function () {
     Route::get('/data', [InstrumentDataController::class, 'index']);
@@ -12,6 +12,6 @@ Route::prefix('/instruments')->group(function () {
     Route::post('/data', [InstrumentDataController::class, 'store']);
     Route::put('/data/{id}', [InstrumentDataController::class, 'update']);
     Route::delete('/data/{id}', [InstrumentDataController::class, 'destroy']);
-    // Route::post('/data/fetch/{periodId}', [FetchDataController::class, 'fetch']);
-    // Route::post('/data/import/{periodId}', [FetchDataController::class, 'importData']);
+    Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
+    Route::post('/data/import/{periodId}', [GetInstrumentData::class, 'importData']);
 });

@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentController;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentPeriodsController;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentDataController;
-use Platform\Plugins\Trading\Src\Http\Controllers\FetchDataController;
+use Platform\Plugins\Trading\Src\Http\Controllers\CollectData\GetInstrumentData;
 
 Route::prefix('/instruments')->group(function () {
     Route::get('/periods', [InstrumentPeriodsController::class, 'index']);
@@ -13,6 +13,8 @@ Route::prefix('/instruments')->group(function () {
     Route::post('/periods', [InstrumentPeriodsController::class, 'store']);
     Route::put('/periods/{id}', [InstrumentPeriodsController::class, 'update']);
     Route::delete('/periods/{id}', [InstrumentPeriodsController::class, 'destroy']);
+    Route::post('/periods/generate', [InstrumentPeriodsController::class, 'generate']);
+
     
     Route::get('/data', [InstrumentDataController::class, 'index']);
     Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
@@ -20,8 +22,9 @@ Route::prefix('/instruments')->group(function () {
     Route::post('/data', [InstrumentDataController::class, 'store']);
     Route::put('/data/{id}', [InstrumentDataController::class, 'update']);
     Route::delete('/data/{id}', [InstrumentDataController::class, 'destroy']);
-    Route::post('/data/fetch/{periodId}', [FetchDataController::class, 'fetch']);
-    Route::post('/data/import/{periodId}', [FetchDataController::class, 'importData']);
+    Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
+    Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);
+    Route::post('/data/import/{instrumentId}', [GetInstrumentData::class, 'importData']);
     
     Route::get('/', [InstrumentController::class, 'index']);
     Route::get('/{id}', [InstrumentController::class, 'show']);

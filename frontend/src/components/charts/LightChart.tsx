@@ -8,20 +8,18 @@ import {
   CandlestickSeries,
 } from "lightweight-charts";
 
-interface LightChartProps {
+interface Props {
   symbol: string;
-  data: {
-    time: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-  }[];
+  data: any[];
+  onLoadMore?: () => void;
 }
 
-export default function LightChart({ symbol, data }: LightChartProps) {
+export default function LightChart({ symbol, data, onLoadMore }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
 
+  /** INIT CHART ONCE */
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -36,6 +34,7 @@ export default function LightChart({ symbol, data }: LightChartProps) {
         vertLines: { color: "#eee" },
         horzLines: { color: "#eee" },
       },
+      crosshair: { mode: 1 },
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -47,16 +46,65 @@ export default function LightChart({ symbol, data }: LightChartProps) {
       wickDownColor: "#f44336",
     });
 
-    candleSeries.setData(data as any[]);
-
-    const handleResize = () => {
-      chart.applyOptions({ width: containerRef.current!.clientWidth });
-    };
-    window.addEventListener("resize", handleResize);
+    chartRef.current = chart;
+    seriesRef.current = candleSeries;
 
     return () => {
-      window.removeEventListener("resize", handleResize);
       chart.remove();
+    };
+  }, []);
+
+  /** UPDATE DATA WITHOUT JUMPING */
+  useEffect(() => {
+    if (!seriesRef.current || !chartRef.current) return;
+    if (!data.length) return;
+
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+
+    const currentRange = chart.timeScale().getVisibleLogicalRange();
+    const scrollPos = chart.timeScale().scrollPosition();
+
+    const isPrepend = data[0].time < series._data?.[0]?.time;
+
+    if (isPrepend) {
+      const prevRightBar = chart.timeScale().coordinateToLogical(0);
+
+      requestAnimationFrame(() => {
+        series.setData(data);
+        chart.timeScale().setVisibleLogicalRange({
+          from: (currentRange?.from ?? 0) + 1000,
+          to: (currentRange?.to ?? 0) + 1000,
+        });
+      });
+    } else {
+      // append
+      requestAnimationFrame(() => series.setData(data));
+    }
+  }, [data]);
+
+  /** LOAD MORE WHEN SCROLL LEFT */
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    const chart = chartRef.current;
+
+    const handler = () => {
+      const range = chart.timeScale().getVisibleRange();
+      if (!range) return;
+
+      const leftTime = range.from;
+      const earliest = data[0]?.time;
+
+      if (earliest && leftTime - earliest < 500) {
+        onLoadMore?.();
+      }
+    };
+
+    chart.timeScale().subscribeVisibleTimeRangeChange(handler);
+
+    return () => {
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(handler);
     };
   }, [data]);
 

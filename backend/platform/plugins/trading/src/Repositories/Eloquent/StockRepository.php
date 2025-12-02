@@ -14,6 +14,10 @@ class StockRepository implements StockInterface {
         return StockAttribute::find($id);
     }
 
+    public function findByField(string $field, $value): ?StockAttribute {
+        return StockAttribute::where($field, $value)->first();
+    }
+
     public function findAll($filter, $select, $perPage): LengthAwarePaginator {
         $query = StockAttribute::query()->orderByDesc('updated_at');
 

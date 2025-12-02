@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 class KnowledgeChunk extends Model
 {
     protected $table = 'knowledge_chunks';
+    protected $keyType = 'string';
 
     protected $fillable = [
         'knowledge_id',

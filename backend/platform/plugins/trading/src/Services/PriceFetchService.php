@@ -57,12 +57,9 @@ class PriceFetchService
         ];
         if (!isset($map[$period])) return false;
         $url = "https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval={$map[$period]}&range=100y";
-        Log::info("isset: " . (isset($map[$period]) ? 'yes' : 'no'));
-        Log::info("Yahoo fetch URL: " . $url);
         try {
             $raw = $this->client->get($url)->getBody()->getContents();
             $json = json_decode($raw, true);
-            Log::info("Yahoo fetch raw response: " . $raw);
 
             if (!isset($json['chart']['result'][0])) return false;
 
