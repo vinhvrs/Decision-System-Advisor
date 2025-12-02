@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 class KnowledgeDoc extends Model
 {
     protected $table = 'knowledge_docs';
+    protected $keyType = 'string';
 
     protected $fillable = [
         'title',
@@ -14,7 +15,8 @@ class KnowledgeDoc extends Model
         'source',
         'author',
         'language',
-        'created_at',
-        'updated_at',
     ];
+
+    public $timestamps = true;
+
 }

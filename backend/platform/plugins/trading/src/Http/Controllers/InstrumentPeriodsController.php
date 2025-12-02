@@ -11,7 +11,7 @@ class InstrumentPeriodsController extends Controller{
     protected $instrumentPeriodsRepository;
     protected $instrumentRepository;
 
-    protected array $periods = ['daily', 'weekly', 'monthly'];
+    protected array $periods = ['daily', 'weekly', 'monthly', 'yearly'];
 
     public function __construct(InstrumentPeriodsRepository $instrumentPeriodsRepository, InstrumentRepository $instrumentRepository) {
         $this->instrumentPeriodsRepository = $instrumentPeriodsRepository;
@@ -23,7 +23,7 @@ class InstrumentPeriodsController extends Controller{
                 set_time_limit(0);
 
         // Lấy toàn bộ instruments KHÔNG phân trang
-        $instruments = $this->instrumentRepository->findAll([], ['*'], 99999);
+        $instruments = $this->instrumentRepository->findAll([], ['*'], 99999, 1, null)->items();
 
         $createdCount = 0;
 

@@ -1,7 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react-hooks/immutability */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import SelectDropdown from "../../sections/Dropdown";
 import LightChart from "./LightChart";
@@ -9,9 +11,9 @@ import { Instrument } from "../../types/Instrument";
 import { InstrumentPeriod } from "../../types/InstrumentPeriod";
 
 export default function InstrumentSelectionPage() {
-  /** --------------------------------------------
-   * FIXED DEFAULT AAPL + PERIODS (3 periods)
-   ---------------------------------------------*/
+  /** --------------------------------------------------------
+   * FIXED DEFAULT AAPL + 3 PERIODS
+   ---------------------------------------------------------*/
   const AAPL_INSTRUMENT: Instrument = {
     id: "d094f426-1e91-4f3f-8ca0-e043a3a5d5e5",
     name: "Apple Inc.",
@@ -45,142 +47,169 @@ export default function InstrumentSelectionPage() {
     },
   ];
 
-  /** --------------------------------------------
+  /** --------------------------------------------------------
    * STATES
-   ---------------------------------------------*/
+   ---------------------------------------------------------*/
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [periods, setPeriods] = useState<InstrumentPeriod[]>(AAPL_PERIODS);
 
-  const [candles, setCandles] = useState<
-    { time: number; open: number; high: number; low: number; close: number }[]
-  >([]);
+  const [candles, setCandles] = useState<any[]>([]);
+  const [candlePage, setCandlePage] = useState(1);
 
   const [selectedInstrument, setSelectedInstrument] =
     useState<Instrument | null>(AAPL_INSTRUMENT);
 
   const [selectedPeriod, setSelectedPeriod] =
-    useState<InstrumentPeriod | null>(AAPL_PERIODS[0]); // default DAILY
+    useState<InstrumentPeriod | null>(AAPL_PERIODS[0]);
 
-  /** --------------------------------------------
-   * STEP 1 — FETCH AAPL DAILY FIRST (PRIORITY)
-   ---------------------------------------------*/
-  useEffect(() => {
-    async function initDefault() {
-      try {
-        const list = (await InstrumentService.getInstrumentDataByPeriod(
-          AAPL_PERIODS[0].id,
-          100000,
-          1,
-          ["timestamp", "open", "high", "low", "close"]
-        )) as any[];
+  const loadingMoreCandles = useRef(false);
+  const throttleRef = useRef(0);
 
-        const formatted = list
-          .filter((d: any) => d.timestamp)
-          .map((d: any) => ({
-            time: Math.floor(
-              new Date(d.timestamp.replace(" ", "T")).getTime() / 1000
-            ),
-            open: parseFloat(d.open),
-            high: parseFloat(d.high),
-            low: parseFloat(d.low),
-            close: parseFloat(d.close),
-          }))
-          .sort((a, b) => a.time - b.time);
-
-        setCandles(formatted || []);
-      } catch (err) {
-        console.error("Error loading default AAPL chart:", err);
-      }
-    }
-
-    initDefault();
-  }, []);
-
-  /** --------------------------------------------
-   * STEP 2 — FETCH INSTRUMENT LIST AFTER CHART DONE
-   ---------------------------------------------*/
-  useEffect(() => {
-    async function fetchInstruments() {
-      const res = (await InstrumentService.getInstruments(
-        30000,
-        1,
-        ["id", "name", "symbol"]
-      )) as Instrument[];
-      setInstruments(res);
-    }
-    fetchInstruments();
-  }, []);
-
-  /** --------------------------------------------
-   * WHEN USER SELECTS ANOTHER INSTRUMENT → LOAD PERIODS
-   ---------------------------------------------*/
-  useEffect(() => {
-    if (!selectedInstrument) return;
-
-    async function loadPeriods() {
-      if (selectedInstrument?.symbol === "AAPL") {
-        setPeriods(AAPL_PERIODS);
-        setSelectedPeriod(AAPL_PERIODS[0]);
-        return;
-      }
-
-      const res = (await InstrumentService.getPeriodsById(
-        selectedInstrument?.id || ""
-      )) as InstrumentPeriod[];
-
-      setPeriods(res);
-
-      // Auto-set period = daily if available
-      const daily = res.find((p) => p.period.toLowerCase() === "daily");
-      setSelectedPeriod(daily || res[0] || null);
-    }
-
-    loadPeriods();
-  }, [selectedInstrument]);
-
-  /** --------------------------------------------
-   * WHEN SELECTING PERIOD → FETCH CHART
-   ---------------------------------------------*/
-  useEffect(() => {
-    if (!selectedPeriod) return;
-
-    async function fetchCandleData() {
-      const list = (await InstrumentService.getInstrumentDataByPeriod(
-        selectedPeriod?.id || "",
-        100000,
-        1,
-        ["timestamp", "open", "high", "low", "close"]
-      )) as any[];
-
-      const formatted = list
-        .filter((d: any) => d.timestamp)
-        .map((d: any) => ({
-          time: Math.floor(
-            new Date(d.timestamp.replace(" ", "T")).getTime() / 1000
-          ),
+  /** --------------------------------------------------------
+   * FORMAT + FIX TIMESTAMP KEY
+   ---------------------------------------------------------*/
+  function normalizeCandles(list: any[]) {
+    return list
+      .filter((d: any) => d.timestamp || d.timestamps)
+      .map((d: any) => {
+        const ts = d.timestamp || d.timestamps; // SUPPORT BOTH
+        return {
+          time: Math.floor(new Date(ts.replace(" ", "T")).getTime() / 1000),
           open: parseFloat(d.open),
           high: parseFloat(d.high),
           low: parseFloat(d.low),
           close: parseFloat(d.close),
-        }))
-        .sort((a, b) => a.time - b.time);
+        };
+      })
+      .sort((a, b) => a.time - b.time); // REQUIRED BY LIGHTWEIGHT-CHARTS
+  }
 
-      setCandles(formatted || []);
+  /** --------------------------------------------------------
+   * FETCH CANDLE PAGE (ALWAYS SORT ASC)
+   ---------------------------------------------------------*/
+  async function loadCandlePage(page: number) {
+    try {
+      const raw = await InstrumentService.getInstrumentDataByPeriod(
+        selectedPeriod?.id || "",
+        1000,
+        page,
+        ["timestamp", "timestamps", "open", "high", "low", "close"]
+      );
+
+      const formatted = normalizeCandles(raw);
+
+      if (page === 1) {
+        setCandles(formatted);
+      } else {
+        // PREPEND + RESORT
+        setCandles((prev) => {
+          const merged = [...formatted, ...prev];
+          merged.sort((a, b) => a.time - b.time);
+          return merged;
+        });
+      }
+    } catch (error) {
+      console.error("Candle load error:", error);
+    }
+  }
+
+  /** --------------------------------------------------------
+   * LOAD DEFAULT AAPL DAILY
+   ---------------------------------------------------------*/
+  useEffect(() => {
+    async function init() {
+      await loadCandlePage(1);
+    }
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** --------------------------------------------------------
+   * LOAD MORE WHEN SCROLL LEFT
+   ---------------------------------------------------------*/
+  function loadMoreCandles() {
+    const now = Date.now();
+    if (now - throttleRef.current < 300) return;
+    throttleRef.current = now;
+
+    if (loadingMoreCandles.current) return;
+    loadingMoreCandles.current = true;
+
+    const nextPage = candlePage + 1;
+    setCandlePage(nextPage);
+
+    loadCandlePage(nextPage).finally(() => {
+      loadingMoreCandles.current = false;
+    });
+  }
+
+  /** --------------------------------------------------------
+   * FETCH INSTRUMENT LIST
+   ---------------------------------------------------------*/
+  useEffect(() => {
+    async function loadInstruments() {
+      const res = await InstrumentService.getInstruments(30000, 1, [
+        "id",
+        "symbol",
+        "name",
+      ]);
+      setInstruments(res);
+    }
+    loadInstruments();
+  }, []);
+
+  /** --------------------------------------------------------
+   * WHEN CHANGE STOCK → LOAD PERIODS + RESET CHART
+   ---------------------------------------------------------*/
+  useEffect(() => {
+    if (!selectedInstrument) return;
+
+    async function loadPeriodsFn() {
+      let fetched: InstrumentPeriod[];
+
+      if (selectedInstrument?.symbol === "AAPL") {
+        fetched = AAPL_PERIODS;
+      } else {
+        fetched = await InstrumentService.getPeriodsById(
+          selectedInstrument?.id || ""
+        );
+      }
+
+      setPeriods(fetched);
+
+      const daily = fetched.find((p) => p.period === "daily");
+      setSelectedPeriod(daily || fetched[0] || null);
+
+      resetCandles();
     }
 
-    fetchCandleData();
+    loadPeriodsFn();
+  }, [selectedInstrument]);
+
+  /** --------------------------------------------------------
+   * RESET + RELOAD CHART WHEN CHANGE PERIOD
+   ---------------------------------------------------------*/
+  function resetCandles() {
+    setCandles([]);
+    setCandlePage(1);
+    setTimeout(() => loadCandlePage(1), 50);
+  }
+
+  useEffect(() => {
+    if (!selectedPeriod) return;
+    resetCandles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod]);
 
-  /** --------------------------------------------
-   * UI RENDER
-   ---------------------------------------------*/
+  /** --------------------------------------------------------
+   * UI
+   ---------------------------------------------------------*/
   return (
     <main className="p-10 space-y-8">
       <h1 className="text-3xl font-bold">Market Chart</h1>
 
-      {/* DROPDOWNS */}
       <div className="flex gap-8">
-        {/* INSTRUMENT DROPDOWN */}
+        {/* STOCK DROPDOWN */}
         <SelectDropdown
           options={instruments.map((i) => ({
             id: i.id,
@@ -195,10 +224,9 @@ export default function InstrumentSelectionPage() {
               : null
           }
           placeholder="Select instrument"
-          onSelect={(val) => {
-            const found = instruments.find((i) => i.id === val.id);
+          onSelect={(v) => {
+            const found = instruments.find((i) => i.id === v.id);
             setSelectedInstrument(found || null);
-            setCandles([]);
           }}
         />
 
@@ -214,8 +242,8 @@ export default function InstrumentSelectionPage() {
               : null
           }
           placeholder="Select period"
-          onSelect={(val) => {
-            const found = periods.find((p) => p.id === val.id);
+          onSelect={(v) => {
+            const found = periods.find((p) => p.id === v.id);
             setSelectedPeriod(found || null);
           }}
         />
@@ -223,10 +251,11 @@ export default function InstrumentSelectionPage() {
 
       {/* CHART */}
       <div className="mt-10">
-        {candles.length > 0 ? (
+        {candles.length ? (
           <LightChart
             symbol={selectedInstrument?.symbol || "AAPL"}
             data={candles}
+            onLoadMore={loadMoreCandles}
           />
         ) : (
           <p className="text-gray-400 text-center py-10 text-lg">

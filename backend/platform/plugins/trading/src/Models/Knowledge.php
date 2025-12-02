@@ -6,15 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 class Knowledge extends Model
 {
     protected $table = 'knowledge';
-
+    protected $keyType = 'string';
     protected $fillable = [
         'topic',
         'content',
         'author',
-        'slug',
-        'created_at',
-        'updated_at',
+        'url_slug',
+        'published_at'
     ];
+
+    public $timestamps = true;
 
     public function chunks()
     {

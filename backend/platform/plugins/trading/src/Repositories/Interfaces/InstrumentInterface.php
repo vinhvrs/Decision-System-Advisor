@@ -8,7 +8,7 @@ interface InstrumentInterface {
 
     public function find(string $id): ?Instruments;
 
-    public function findAll($filter, $select, $perPage);
+    public function findAll($filter, $select, $perPage, $page, $orderBy);
 
     public function update(string $id, array $instrument): ?Instruments;
     public function delete(string $id): bool;

@@ -10,5 +10,5 @@ Route::prefix('/instruments')->group(function () {
     Route::post('/periods', [InstrumentPeriodsController::class, 'store']);
     Route::put('/periods/{id}', [InstrumentPeriodsController::class, 'update']);
     Route::delete('/periods/{id}', [InstrumentPeriodsController::class, 'destroy']);
-    // Route::post('/periods/generate', [InstrumentPeriodsController::class, 'generate']);
+    Route::post('/periods/generate', [InstrumentPeriodsController::class, 'generate']);
 });

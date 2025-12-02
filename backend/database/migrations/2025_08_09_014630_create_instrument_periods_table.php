@@ -10,7 +10,7 @@ return new class extends Migration
         Schema::create('instrument_periods', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('instrument_id');
-            $table->enum('period', ['1second', '5seconds', '10seconds', '30seconds', '1minute', '5minutes', '15minutes', '30minutes', '1hour', '2hour', '5hour', 'daily', 'weekly', 'monthly'])
+            $table->enum('period', ['1second', '5seconds', '10seconds', '30seconds', '1minute', '5minutes', '15minutes', '30minutes', '1hour', '2hour', '5hour', 'daily', 'weekly', 'monthly', 'yearly'])
                 ->default('daily');
             $table->string('market', 50);
             $table->string('slug')->unique();

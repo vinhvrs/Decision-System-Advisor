@@ -113,6 +113,19 @@ class StockController extends Controller
         $attribute = $this->stockRepository->find($id);
         return response()->json($attribute);
     }
+
+    public function showByName($name)
+    {
+        $attribute = $this->stockRepository->findByField('name', $name);
+        return response()->json($attribute);
+    }
+
+    public function showBySymbol($symbol)
+    {
+        $attribute = $this->stockRepository->findByField('symbol', $symbol);
+        return response()->json($attribute);
+    }
+
     public function store(Request $request)
     {
         $data = $request->only(['instrument_id', 'attribute_name', 'attribute_value']);

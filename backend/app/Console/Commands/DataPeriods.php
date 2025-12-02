@@ -1,9 +1,10 @@
 <?php
+
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
 use Platform\Plugins\Trading\Src\Models\InstrumentData;
+use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
 use Platform\Plugins\Trading\Src\Models\Instruments;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -12,119 +13,85 @@ use Carbon\Carbon;
 class DataPeriods extends Command
 {
     protected $signature = 'data:periods';
-
-    protected $description = 'Fetch and store data periods for instruments';
-
-    public function backup($symbol)
-    {
-        $response = Http::get("https://query2.finance.yahoo.com/v8/finance/chart/$symbol?", [
-            'interval' => '1d',
-            'period1' => '0',
-            'period2' => '1758307200'
-        ]);
-        if ($response->successful()) {
-            $data = $response->json();
-            $timestampsData = [];
-
-            $result = $data['chart']['result'][0];
-            $timestamps = $result['timestamp'];
-            $quotes = $result['indicators']['quote'][0];
-
-            foreach ($timestamps as $i => $ts) {
-                $timestampsData[] = [
-                    'timestamps' => Carbon::createFromTimestamp($ts, 'UTC')
-                        ->format('Y-m-d H:i:s'),
-                    'open' => $quotes['open'][$i],
-                    'high' => $quotes['high'][$i],
-                    'low' => $quotes['low'][$i],
-                    'close' => $quotes['close'][$i],
-                    'volume' => $quotes['volume'][$i],
-                ];
-            }
-
-            if (!empty($timestampsData)) {
-                return json_encode($timestampsData);
-            } else {
-                $this->error("Failed to fetch data for symbol: $symbol");
-                return [];
-            }
-        }
-
-    }
+    protected $description = 'Fetch and store new data periods for instruments only if newer than latest timestamp';
 
     public function handle()
     {
-        Log::info('[Schedule] schedule() method called');
-
-        $this->info('📡 DataPeriods is running...');
+        Log::info('[Schedule] Incremental DataPeriods started');
+        $this->info('📡 Incremental update of data periods...');
 
         $instruments = Instruments::all();
-        $symbols = $instruments->pluck('symbol')->toArray();
-        $alpha_key = env('ALPHA_VANTAGE_API_KEY');
-        $source = 'alpha_vantage';
-        $data = [];
 
-        foreach ($symbols as $symbol) {
-            $this->info("Fetching data periods for symbol: $symbol");
+        foreach ($instruments as $instrument) {
+            $symbol = $instrument->symbol;
+            $this->info("Checking $symbol...");
 
-            // $response = Http::get("https://www.alphavantage.co/query", [
-            //     'function' => 'TIME_SERIES_DAILY',
-            //     'symbol' => $symbol,
-            //     'outputsize' => 'full',
-            //     'apikey' => $alpha_key,
-            // ]);
-            // if ($response["Times Series (Daily)"]) {
-            //     $response = $response["Times Series (Daily)"];
-            // } else {
-            //     $this->error("Failed to fetch data for symbol: $symbol");
-            //     $this->error("We have detected your API key as $alpha_key and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.");
-                $source = 'yahoo_finance';
-                $response = $this->backup($symbol);
+            // Create or get InstrumentPeriod
+            $period = InstrumentPeriods::firstOrCreate([
+                'instrument_id' => $instrument->id,
+                'period' => 'daily',
+                'market' => 'stock',
+                'slug' => strtolower($symbol) . '-daily',
+                'prefix' => strtolower($symbol),
+            ]);
+            $period->save();
 
-            // }
+            // Get latest timestamp from DB
+            $latest = InstrumentData::where('instrument_period_id', $period->id)
+                ->orderByDesc('timestamps')
+                ->first();
 
-            if (empty($response)) {
-                $this->error("No data found for symbol: $symbol");
+            $period1 = $latest
+                ? Carbon::parse($latest->timestamps)->timestamp
+                : Carbon::createFromDate(2000, 1, 1)->timestamp;
+
+            $period2 = now()->timestamp;
+
+            // Fetch from Yahoo
+            $url = "https://query2.finance.yahoo.com/v8/finance/chart/$symbol";
+            $response = Http::get($url, [
+                'interval' => '1d',
+                'period1' => $period1,
+                'period2' => $period2,
+            ]);
+
+            if (!$response->successful()) {
+                $this->error("❌ Failed to fetch $symbol");
                 continue;
             }
 
-            $data = json_decode($response, true);
-
-            if (isset($data)) {
-                $period = InstrumentPeriods::firstOrCreate([
-                    'instrument_id' => $instruments->where('symbol', $symbol)->first()->id,
-                    'period' => 'daily',
-                    'market' => 'stock',
-                    'slug' => strtolower($symbol) . '-daily',
-                    'prefix' => strtolower($symbol),
-                ]);
-
-                $period->save();
-                $periodId = InstrumentPeriods::where('slug', strtolower($symbol) . '-daily')->first()->id;
-
-                foreach ($data as $date) {
-                    InstrumentData::updateOrCreate(
-                        [
-                            'timestamps' => $date['timestamps'],
-                            'instrument_period_id' => $periodId,
-                        ],
-                        [
-                            'source' => 'alpha_vantage',
-                            'open' => $date['open'],
-                            'high' => $date['high'],
-                            'low' => $date['low'],
-                            'close' => $date['close'],
-                            'volume' => $date['volume'],
-                            'slug' => strtolower($symbol) . '-' . $date['timestamps'],
-                        ]
-                    );
-                }
-                $this->info("Data fetched successfully for symbol: $symbol");
-
-            } else {
-                $this->error("Failed to fetch data for symbol: $symbol");
+            $data = $response->json();
+            if (!isset($data['chart']['result'][0]['timestamp'])) {
+                $this->warn("⚠️ No new data for $symbol");
+                continue;
             }
+
+            $timestamps = $data['chart']['result'][0]['timestamp'];
+            $quotes = $data['chart']['result'][0]['indicators']['quote'][0];
+
+            foreach ($timestamps as $i => $ts) {
+                $timestamp = Carbon::createFromTimestamp($ts, 'UTC')->format('Y-m-d H:i:s');
+
+                InstrumentData::updateOrCreate(
+                    [
+                        'instrument_period_id' => $period->id,
+                        'timestamps' => $timestamp,
+                    ],
+                    [
+                        'open' => $quotes['open'][$i] ?? null,
+                        'high' => $quotes['high'][$i] ?? null,
+                        'low' => $quotes['low'][$i] ?? null,
+                        'close' => $quotes['close'][$i] ?? null,
+                        'volume' => $quotes['volume'][$i] ?? null,
+                        'source' => 'yahoo_finance',
+                        'slug' => strtolower($symbol) . '-' . $timestamp,
+                    ]
+                );
+            }
+
+            $this->info("✅ Updated $symbol with new data");
         }
-        $this->info('✅ DataPeriods completed.');
+
+        $this->info('🎯 DataPeriods incremental update complete.');
     }
 }

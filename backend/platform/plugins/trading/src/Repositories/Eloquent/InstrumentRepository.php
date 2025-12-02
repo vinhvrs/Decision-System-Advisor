@@ -24,20 +24,30 @@ class InstrumentRepository implements InstrumentInterface {
         return Instruments::find($id);
     }
 
-    public function findAll($filter, $select, $perPage): LengthAwarePaginator {
-        $query = Instruments::query()->orderBy('symbol', 'asc');
+    public function findAll($filter, $select, $perPage, $page, $orderBy): LengthAwarePaginator
+    {
+        if ($orderBy === null || $orderBy === '' || $orderBy === 'symbol') {
+            $orderBy = 'symbol';
+        } else {
+            if ($orderBy === 'date'){ 
+                $orderBy = 'updated_at';
+            }
+        }
+        $query = Instruments::query()
+            ->orderBy($orderBy, $orderBy === 'updated_at' ? 'desc' : 'asc')
+            ->forPage($page, $perPage);
 
         if (!empty($filter)) {
             foreach ($filter as $field => $value) {
-                $query->where($field, 'LIKE', "%$value%");
+                $query->where("instruments.$field", 'LIKE', "%$value%");
             }
         }
 
         if (!empty($select)) {
-            $query->select($select);
+            $query->addSelect($select);
         }
 
-        return $query->paginate($perPage);
+        return $query->paginate($perPage, ['*'], 'page', $page);
     }
 
     public function update(string $id, array $instrument): ?Instruments {
