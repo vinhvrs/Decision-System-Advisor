@@ -5,8 +5,13 @@ import { instrumentMapper, instrumentDataMapper, instrumentPeriodMapper } from "
 export const InstrumentService = {
     getInstruments: async (limit: number = 10, page: number = 1, select?: Array<string>) => {
         try {
+            const instrumentList = localStorage.getItem('instrumentList');
+            if (instrumentList) {
+                return JSON.parse(instrumentList);
+            }
             const response = await api.get(`/instruments?per_page=${limit}&page=${page}${select ? select.map(s => `&select[]=${s}`).join('') : ''}`);
             const data = instrumentMapper(response.data.data);
+            localStorage.setItem('instrumentList', JSON.stringify(data));
             return data;
         } catch (error) {
             console.error("Error fetching instruments:", error);

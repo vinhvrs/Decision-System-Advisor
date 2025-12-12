@@ -7,6 +7,7 @@ use Platform\Plugins\Trading\Src\Repositories\Eloquent\StockRepository;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentRepository;
 use Platform\Plugins\Trading\Src\Services\StockService;
 use Platform\Plugins\Trading\Src\Models\StockAttribute;
+use Illuminate\Support\Facades\Log;
 
 class StockController extends Controller
 {
@@ -35,8 +36,10 @@ class StockController extends Controller
         $result = $this->stockService->calculate($symbol);
         // Convert response -> array
         $resultArr = $result->getData(true);
+        Log::info("Importing stock attributes for symbol: " . $symbol, $resultArr);
 
         if (!isset($resultArr['data']) || !is_array($resultArr['data'])) {
+            Log::error("Invalid data format received for symbol: " . $symbol, $resultArr);
             return response()->json(['error' => 'Invalid data format'], 500);
         }
 
@@ -116,13 +119,25 @@ class StockController extends Controller
 
     public function showByName($name)
     {
-        $attribute = $this->stockRepository->findByField('name', $name);
+        $instrument_id = $this->instrumentRepository->likeByField('name', $name)->id ?? null;
+        $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
+        if (!$attribute || $attribute->updated_at->diffInHours(now()) >= 1) {
+            $this->importAttributes(new Request(), $instrument_id);
+            Log::info("Importing attributes for instrument_id: " . $instrument_id);
+            $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
+        }
         return response()->json($attribute);
     }
 
     public function showBySymbol($symbol)
     {
-        $attribute = $this->stockRepository->findByField('symbol', $symbol);
+        $instrument_id = $this->instrumentRepository->findByField('symbol', $symbol)->id ?? null;
+        $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
+        if (!$attribute || $attribute->updated_at->diffInHours(now()) >= 1) {
+            $this->importAttributes(new Request(), $instrument_id);
+            Log::info("Importing attributes for instrument_id: " . $instrument_id);
+            $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
+        }
         return response()->json($attribute);
     }
 

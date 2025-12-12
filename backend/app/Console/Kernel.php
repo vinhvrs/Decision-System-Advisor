@@ -13,6 +13,14 @@ class Kernel extends ConsoleKernel
         FetchStockAttributes::class,
         DataPeriods::class,
     ];
+    protected $middlewareGroups = [
+        'api' => [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            'throttle:api',
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        ],
+    ];
+
     protected function schedule(Schedule $schedule): void
     {
         Log::info('✅ schedule() method in Kernel is being called.');

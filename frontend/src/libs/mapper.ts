@@ -2,7 +2,7 @@ import { Instrument, InstrumentAPI } from "../types/Instrument";
 import { InstrumentPeriod, InstrumentPeriodAPI } from "../types/InstrumentPeriod";
 import { InstrumentData, InstrumentDataAPI } from "../types/InstrumentData";
 import { Stock, StockAPI } from "../types/Stock";
-
+import { User, UserAPI } from "../types/User";
 
 export function instrumentMapper(apiData: InstrumentAPI[]): Instrument[] {
     return apiData.map(data => ({
@@ -69,3 +69,12 @@ export function stockMapper(apiData: StockAPI[]): Stock[] {
     }));
 }
     
+export function userMapper(apiData: UserAPI): User {
+    return {
+        id: apiData.id,
+        name: apiData.name,
+        username: apiData.username,
+        email: apiData.email,
+        phone: apiData.phone,
+    };
+}
