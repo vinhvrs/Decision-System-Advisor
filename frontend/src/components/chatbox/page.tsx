@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
 import { Send, MessageCircle, X } from "lucide-react";
+import { AdviceService } from "@/src/services/Advice.service";
 
 export default function ChatBox() {
   const [open, setOpen] = useState(false);
@@ -10,10 +12,59 @@ export default function ChatBox() {
     { from: "bot", text: "Hello! How can I help you with trading today?" },
   ]);
 
+  const handleMessage = (message: string) => {
+    if (!message.trim()) return;
+    const symbolPrefix = "symbol:";
+    const namePrefix = "name:";
+    const askPrefix = "ask:";
+    const newsPrefix = "news:";
+    let symbol = '';
+    let name = '';
+    let question = '';
+    let news = '';
+    if (message.includes(symbolPrefix)) {
+      symbol = message.substring(symbolPrefix.length).trim();
+    }
+    if (message.includes(namePrefix)) {
+      name = message.substring(namePrefix.length).trim();
+    }
+    if (message.includes(askPrefix)) {
+      question = message.substring(askPrefix.length).trim();
+    }
+    if (message.includes(newsPrefix)) {
+      news = message.substring(newsPrefix.length).trim();
+    }
+    AdviceService.askingAdvice(symbol, name, question)
+      .then((advice: { symbol?: { data: string }; name?: { data: string } }) => {
+        const adviceText =
+          advice.name || advice.symbol || "No advice found.";
+        setMessages((prev) => [
+          ...prev,
+          {
+            from: "bot",
+            text: `Advice for ${symbol.toUpperCase()}: ${adviceText}`,
+          },
+        ]);
+        setMessages((prev) => [
+          ...prev,
+          { from: "bot", text: (advice as any).explain || "" },
+        ]);
+      })
+      .catch((error) => {
+        setMessages((prev) => [
+          ...prev,
+          { from: "bot", text: `Error provide advice for ${symbol.toUpperCase()}.` },
+        ]);
+      });
+    console.log("Handling message:", message);
+    return;
+  }
+
   const sendMessage = () => {
     if (!input.trim()) return;
 
     setMessages((prev) => [...prev, { from: "user", text: input }]);
+    handleMessage(input);
 
     setTimeout(() => {
       setMessages((prev) => [
@@ -56,11 +107,10 @@ export default function ChatBox() {
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`w-fit max-w-[80%] px-3 py-2 rounded-lg text-sm ${
-                  msg.from === "user"
+                className={`w-fit max-w-[80%] px-3 py-2 rounded-lg text-sm ${msg.from === "user"
                     ? "ml-auto bg-blue-600"
                     : "bg-gray-700 text-gray-200"
-                }`}
+                  }`}
               >
                 {msg.text}
               </div>

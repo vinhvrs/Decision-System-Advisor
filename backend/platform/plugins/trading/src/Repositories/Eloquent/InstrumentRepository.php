@@ -24,6 +24,14 @@ class InstrumentRepository implements InstrumentInterface {
         return Instruments::find($id);
     }
 
+    public function findByField(string $field, $value): ?Instruments {
+        return Instruments::where($field, $value)->first();
+    }
+
+    public function likeByField(string $field, $value): ?Instruments {
+        return Instruments::where($field, 'LIKE', "%$value%")->first();
+    }
+
     public function findAll($filter, $select, $perPage, $page, $orderBy): LengthAwarePaginator
     {
         if ($orderBy === null || $orderBy === '' || $orderBy === 'symbol') {

@@ -13,7 +13,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
         return InstrumentData::find($id);
     }
 
-    public function findByPeriod($periodId, $perPage = 15): ?LengthAwarePaginator {
+    public function findByPeriod($periodId, $perPage): ?LengthAwarePaginator {
         return InstrumentData::where('instrument_period_id', $periodId)
             ->orderByDesc('timestamps')
             ->paginate($perPage);

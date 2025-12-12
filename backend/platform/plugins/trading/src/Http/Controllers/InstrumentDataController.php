@@ -21,6 +21,7 @@ class InstrumentDataController extends Controller{
     }
 
     public function showByPeriod($periodId) {
+        set_time_limit(0);
         $perPage = request()->input('per_page', 15);
         $data = $this->instrumentDataRepository->findByPeriod($periodId, $perPage);
         if ($data) {
