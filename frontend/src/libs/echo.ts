@@ -1,29 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import Echo from "laravel-echo";
-import Pusher from "pusher-js";
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
 
-declare global {
-  interface Window {
-    Echo: Echo<any>;
-    Pusher: typeof Pusher;
-  }
+if (typeof window !== 'undefined') {
+  (window as any).Pusher = Pusher;
 }
 
-export function initEcho() {
-  if (typeof window === "undefined") return;
-  if (window.Echo) return window.Echo;
+export function createEcho() {
+  if (typeof window === 'undefined') return null;
 
-  window.Pusher = Pusher;
+  return new Echo({
+    broadcaster: 'reverb',
+    key: process.env.NEXT_PUBLIC_REVERB_KEY, // ← key bạn đã dùng khi khởi tạo Reverb
 
-  window.Echo = new Echo({
-    broadcaster: "reverb",
-    key: process.env.NEXT_PUBLIC_REVERB_APP_KEY,
-    wsHost: process.env.NEXT_PUBLIC_REVERB_HOST,
-    wsPort: Number(process.env.NEXT_PUBLIC_REVERB_PORT),
-    wssPort: Number(process.env.NEXT_PUBLIC_REVERB_PORT),
+    cluster: 'mt1', // ← Reverb không dùng, không ảnh hưởng
+    wsHost: process.env.NEXT_PUBLIC_REVERB_HOST || '127.0.0.1',
+    wsPort: parseInt(process.env.NEXT_PUBLIC_REVERB_PORT || '6001'),
+    
+    // wsPath: process.env.NEXT_PUBLIC_REVERB_PATH || '/app',
     forceTLS: false,
-    enabledTransports: ["ws"],
+    encrypted: false,
+    disableStats: true,
+    enabledTransports: ['ws'],
   });
-
-  return window.Echo;
 }

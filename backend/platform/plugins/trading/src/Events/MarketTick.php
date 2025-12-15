@@ -2,30 +2,59 @@
 
 namespace Platform\Plugins\Trading\Src\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\Channel;
 
-class MarketTick implements ShouldBroadcast
+class MarketTick implements ShouldBroadcastNow
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
-    public array $tick;
+    public array $candle = [];
 
     public function __construct(array $tick)
     {
-        $this->tick = $tick;
+        \Log::debug('MarketTick::__construct payload', $tick);
+
+        $symbol = $tick['symbol'] ?? null;
+        $price = $tick['price'] ?? null;
+        $time = $tick['time'] ?? now()->timestamp;
+
+        if (!$symbol || !$price) {
+            \Log::warning("MarketTick missing required fields: ", compact('symbol', 'price', 'time'));
+        }
+
+        $this->candle = [
+            'symbol' => $tick['symbol'] ?? 'aapl',
+            'time' => $tick['time'] ?? null,
+            'open' => $tick['price'] ?? null,
+            'high' => $tick['price'] ?? null,
+            'low' => $tick['price'] ?? null,
+            'close' => $tick['price'] ?? null,
+        ];
     }
 
     public function broadcastOn(): Channel
     {
-        return new Channel('market.' . $this->tick['symbol']);
+        $symbol = strtolower($this->candle['symbol'] ?? 'aapl');
+        \Log::info("Broadcasting MarketTick for symbol: {$symbol}");
+        return new Channel("ohlc.{$symbol}.daily");
     }
 
     public function broadcastAs(): string
     {
-        return 'tick';
+        \Log::info("MarketTick broadcastAs called");
+        return 'candle';
+    }
+
+    public function broadcastWith(): array
+    {
+        \Log::info("MarketTick broadcastWith called", $this->candle);
+        return [
+            'candle' => $this->candle,
+        ];
     }
 }

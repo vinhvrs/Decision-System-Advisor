@@ -141,7 +141,7 @@ ws.on("message", async (data) => {
         const frames = ["1m", "daily", "weekly", "monthly", "yearly"];
         frames.forEach(tf => {
             const candle = tickToOHLC(tick, tf);
-            console.log(`📊 ${tf}`, candle);
+            // console.log(`📊 ${tf}`, candle);
         });
 
         // ===== REALTIME (giữ nguyên) =====
