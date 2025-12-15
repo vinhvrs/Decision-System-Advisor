@@ -3,6 +3,7 @@ import { InstrumentPeriod, InstrumentPeriodAPI } from "../types/InstrumentPeriod
 import { InstrumentData, InstrumentDataAPI } from "../types/InstrumentData";
 import { Stock, StockAPI } from "../types/Stock";
 import { User, UserAPI } from "../types/User";
+import { News, NewsApi } from "../types/News";
 
 export function instrumentMapper(apiData: InstrumentAPI[]): Instrument[] {
     return apiData.map(data => ({
@@ -77,4 +78,15 @@ export function userMapper(apiData: UserAPI): User {
         email: apiData.email,
         phone: apiData.phone,
     };
+}
+
+export function newsMapper(apiData: NewsApi[]): News[] {
+    return apiData.map(data => ({
+        id: data.id,
+        topic: data.topic,
+        content: data.content,
+        author: data.author,
+        url_slug: data.url_slug,
+        published_at: data.published_at,
+    }));
 }
