@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\StockController;
 
 Route::prefix('/advices')->group(function () {
+    Route::get('/stocks/indicator/{symbol}', [StockController::class, 'indicatorSummary']);
     Route::get('/stocks/calculate/{instrumentId}', [StockController::class, 'calculateAttribute']);
     Route::post('/stocks/import/{instrumentId}', [StockController::class, 'importAttributes']);
 
