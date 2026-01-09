@@ -44,7 +44,6 @@ export default function LightChart({
 
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-
   // candle cuối cùng (để update realtime)
   const lastCandleRef = useRef<any>(null);
 
@@ -57,7 +56,7 @@ export default function LightChart({
   useEffect(() => {
 
     console.log("📈 Init LightChart", symbol);
-    console.log("📈 Initial data points:", data.length);
+    console.log("📈 Initial data points:", data[data.length-1]);
         if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
@@ -102,7 +101,7 @@ export default function LightChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, []);
+  }, [lastCandleRef, symbol]);
 
   /* =========================================================
    * SET HISTORY DATA (setData) – không jump

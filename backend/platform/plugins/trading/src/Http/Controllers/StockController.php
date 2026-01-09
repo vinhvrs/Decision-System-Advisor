@@ -100,6 +100,21 @@ class StockController extends Controller
         ]);
     }
 
+    public function indicatorSummary(Request $request, string $symbol)
+    {
+        $period = $request->query('period', 'daily');
+
+        // Validate period
+        $allowed = ['daily', 'weekly', 'monthly', 'yearly'];
+        if (!in_array($period, $allowed, true)) {
+            return response()->json([
+                'error' => 'Invalid period',
+                'allowed_periods' => $allowed,
+            ], 422);
+        }
+        // StockService already returns JsonResponse
+        return $this->stockService->indicatorSummary($symbol, $period);
+    }
 
     public function index(Request $request)
     {

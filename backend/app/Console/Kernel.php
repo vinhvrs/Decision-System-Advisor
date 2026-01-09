@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 class Kernel extends ConsoleKernel
 {
     protected $commands = [
-        FetchStockAttributes::class,
+        // FetchStockAttributes::class,
         DataPeriods::class,
     ];
     protected $middlewareGroups = [
@@ -25,11 +25,11 @@ class Kernel extends ConsoleKernel
     {
         Log::info('✅ schedule() method in Kernel is being called.');
 
-        $schedule->command('stocks:fetch')
-            ->everyMinute()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground();
+        // $schedule->command('stocks:fetch')
+        //     ->everyMinute()
+        //     ->evenInMaintenanceMode()
+        //     ->withoutOverlapping()
+        //     ->runInBackground();
 
         $schedule->command('data:periods')
             ->everyFifteenSeconds()

@@ -88,16 +88,24 @@ export const AdviceService = {
             let symbolResponse;
             if (symbol) {
                 symbolResponse = await api.get(`/advices/stocks/symbol/${symbol}`);
+                console.log("Fetched advice by symbol:", symbolResponse.data);
             }
             let nameResponse;
             if (name) {
                 nameResponse = await api.get(`/advices/stocks/name/${name}`);
+                console.log("Fetched advice by name:", nameResponse.data);
             }
-            const symbolData = symbolResponse?.data;
+            let type = 'Expert Analysis';
+            if (!symbolResponse?.data.recommendation && !nameResponse?.data.recommendation && symbol) {
+                symbolResponse = await api.get(`/advices/stocks/indicator/${symbol}`);
+                type = 'RSI Indicator';
+                console.log("Fetched advice by indicator for symbol:", symbolResponse.data);
+            }
+            const symbolData = { ...symbolResponse?.data, type };
             const nameData = nameResponse?.data;
             const payload = {
-                symbol: symbolData?.recommendation,
-                name: nameData?.recommendation,
+                symbol: symbolData?.recommendation || 'Hold',
+                name: nameData?.recommendation || 'Hold',
                 question: (question as any)?.answer,
                 explain: symbol ? AdviceService.generateExplanation(symbolData) : name ? AdviceService.generateExplanation(nameData) : undefined
             };
@@ -106,6 +114,12 @@ export const AdviceService = {
             console.error("Error asking advice:", error);
             throw error;
         }
+    },
+
+    similar: async (symbol: string) => {
+        const similarResponse = await api.get(`/similar-signals/generate/${symbol}`);
+        const similarData = similarResponse?.data.data;
+        return similarData;
     },
 
     generateExplanation: (payload: any) => {
@@ -120,14 +134,17 @@ export const AdviceService = {
       recommendation,
       num_analysts_eps,
       num_analysts_revenue,
+      type
     } = payload;
+
+    console.log("Generating explanation with payload:", payload);
 
     const revenue = revenue_avg / 1_000_000;
     const ebitda = ebitda_avg / 1_000_000;
     const ebit = ebit_avg / 1_000_000;
     const netIncome = net_income_avg / 1_000_000;
     const eps = parseFloat(eps_avg || '0');
-    const confidence = parseFloat(confidence_score || '0');
+    const confidence = parseFloat(confidence_score ||'0');
     const analysts = Math.max(num_analysts_eps || 0, num_analysts_revenue || 0);
 
     const rec = recommendation?.toUpperCase() || 'HOLD';
@@ -176,8 +193,12 @@ export const AdviceService = {
     }
 
     // Kết luận
-    const explanation = `${emoji} As of ${date}, the forecast indicates revenue: ${revenue.toFixed(2)}M, EBITDA: ${ebitda.toFixed(2)}M, EBIT: ${ebit.toFixed(2)}M, and net income: ${netIncome.toFixed(2)}M. ${reasoning.join('. ')}. ${tone}`;
+    //const explanation = `${emoji} As of ${date}, the forecast indicates revenue: ${revenue.toFixed(2)}M, EBITDA: ${ebitda.toFixed(2)}M, EBIT: ${ebit.toFixed(2)}M, and net income: ${netIncome.toFixed(2)}M. ${reasoning.join('. ')}. ${tone}`;
 
+    const explanation = `This recommendation was made based on the latest financial forecasts as of <b>${date}</b>, indicating expected revenue of <b>${revenue.toFixed(2)}M</b>, EBITDA of <b>${ebitda.toFixed(2)}M</b>, EBIT of <b>${ebit.toFixed(2)}M</b>, and net income of <b>${netIncome.toFixed(2)}M</b>. ${reasoning.join('. ')}. ${tone}`;
+    if (type === 'RSI Indicator') {
+      return `Based on the RSI indicator analysis, the stock is currently in an overbought/oversold condition which may impact its short-term price movements.`;
+    }
     return explanation;
   }
 };

@@ -6,7 +6,8 @@ export const AuthService = {
     register: async (data: any) => {
         try {
             const response = await api.post(`/auth/register`, data);
-            const mappedData = userMapper(response.data.data);
+            const mappedData = userMapper(response.data);
+            console.log("Registered user data:", mappedData);
             return mappedData;
         } catch (error) {
             console.error("Error during registration:", error);
