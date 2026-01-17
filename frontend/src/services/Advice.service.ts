@@ -87,17 +87,17 @@ export const AdviceService = {
             }
             let symbolResponse;
             if (symbol) {
-                symbolResponse = await api.get(`/advices/stocks/symbol/${symbol}`);
+                symbolResponse = await api.get(`/stocks/advices/symbol/${symbol}`);
                 console.log("Fetched advice by symbol:", symbolResponse.data);
             }
             let nameResponse;
             if (name) {
-                nameResponse = await api.get(`/advices/stocks/name/${name}`);
+                nameResponse = await api.get(`/stocks/advices/name/${name}`);
                 console.log("Fetched advice by name:", nameResponse.data);
             }
             let type = 'Expert Analysis';
             if (!symbolResponse?.data.recommendation && !nameResponse?.data.recommendation && symbol) {
-                symbolResponse = await api.get(`/advices/stocks/indicator/${symbol}`);
+                symbolResponse = await api.get(`/stocks/advices/indicator/${symbol}`);
                 type = 'RSI Indicator';
                 console.log("Fetched advice by indicator for symbol:", symbolResponse.data);
             }

@@ -14,13 +14,16 @@ class DataPeriods extends Command
 {
     protected $signature = 'data:periods';
     protected $description = 'Fetch and store new data periods for instruments only if newer than latest timestamp';
+    private $symbols = [
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA',
+        'META', 'NVDA', 'JPM', 'V', 'UNH',];
 
     public function handle()
     {
         Log::info('[Schedule] Incremental DataPeriods started');
         $this->info('📡 Incremental update of data periods...');
 
-        $instruments = Instruments::all();
+        $instruments = Instruments::query()->whereIn('symbol', $this->symbols)->get();
 
         foreach ($instruments as $instrument) {
             $symbol = $instrument->symbol;

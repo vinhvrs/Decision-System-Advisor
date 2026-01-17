@@ -1,200 +1,172 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
-import newsService from "../../../services/News.service"; 
-import { News } from "../../../types/News";
 import Link from "next/link";
+import newsService from "../../../services/News.service";
+import { News } from "../../../types/News";
 
-interface PaginationData {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    perPage: number;
-}
-
-interface NewsResponse {
-    data: News[]; 
-    pagination: PaginationData;
-}
+type NewsLaravelResponse = {
+  current_page: number;
+  data: News[];
+  per_page: number;
+  next_page_url: string | null;
+};
 
 export default function NewsListPage() {
-    const [newsItems, setNewsItems] = useState<News[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+  const [items, setItems] = useState<News[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const perPage = 10; 
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(15);
 
-    useEffect(() => {
-        const fetchNews = async () => {
-            setIsLoading(true);
-            setError(null);
-            
-            try {
-                const responseData: NewsResponse = await newsService.getAllNews(
-                    { page: currentPage, per_page: perPage }
-                );
+  const [isLoading, setIsLoading] = useState(true); // first load
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-                if (responseData && Array.isArray(responseData.data) && responseData.pagination) {
-                    setNewsItems(responseData.data);
-                    setTotalPages(responseData.pagination.totalPages);
-                } else {
-                    throw new Error("Dữ liệu phân trang nhận được không hợp lệ.");
-                }
-            } catch (err) {
-                console.error("Lỗi khi tải tin tức từ API:", err);
-                setError("Không thể tải tin tức. Vui lòng kiểm tra kết nối API.");
-                setNewsItems([]); 
-                setTotalPages(1);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+  const [hasMore, setHasMore] = useState(true); // chỉ cần next hay không
 
-        fetchNews();
-    }, [currentPage]);
+  // ===== fetch page (append) =====
+  const fetchPage = async (targetPage: number, mode: "replace" | "append") => {
+    try {
+      if (mode === "replace") setIsLoading(true);
+      else setIsLoadingMore(true);
 
-    const handlePageChange = (page: number) => {
-        if (page > 0 && page <= totalPages) {
-            setCurrentPage(page);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    };
+      setError(null);
 
-    // LOGIC TẠO DÃY SỐ TRANG THÔNG MINH (1 2 3 ... N)
-    const getPaginationRange = (current: number, total: number, maxVisible: number = 5): Array<number | string> => {
-        if (total <= maxVisible) {
-            return Array.from({ length: total }, (_, i) => i + 1);
-        }
+      const rawResponse = await newsService.getAllNews({
+        page: targetPage,
+        per_page: perPage,
+      });
 
-        const start = 1;
-        const end = total;
-        const pages: Array<number | string> = [];
-        const boundary = Math.floor(maxVisible / 2);
+      const res: NewsLaravelResponse = {
+        current_page: rawResponse.pagination.currentPage,
+        data: rawResponse.data,
+        per_page: rawResponse.pagination.perPage,
+        next_page_url: rawResponse.pagination.currentPage < rawResponse.pagination.totalPages ? "next" : null,
+      };
 
-        let startRange = Math.max(2, current - boundary);
-        let endRange = Math.min(total - 1, current + boundary);
+      const batch = Array.isArray(res.data) ? res.data : [];
+      setPerPage(res.per_page || perPage);
 
-        if (current <= boundary + 1) { 
-            endRange = maxVisible - 1;
-        } else if (current >= total - boundary) { 
-            startRange = total - maxVisible + 2;
-        }
-        
-        pages.push(start);
+      if (mode === "replace") {
+        setItems(batch);
+      } else {
+        setItems((prev) => {
+          // tránh duplicate nếu API có thể trả trùng
+          const map = new Map<string, News>();
+          prev.forEach((x) => map.set(x.id || x.url_slug, x));
+          batch.forEach((x) => map.set(x.id || x.url_slug, x));
+          return Array.from(map.values());
+        });
+      }
 
-        if (startRange > 2) {
-            pages.push('...');
-        }
+      // quyết định còn trang sau không
+      // ưu tiên dùng next_page_url
+      if (res.next_page_url) {
+        setHasMore(true);
+      } else {
+        // fallback: nếu batch < per_page => hết
+        setHasMore(batch.length >= (res.per_page || perPage));
+      }
 
-        for (let i = startRange; i <= endRange; i++) {
-            pages.push(i);
-        }
+      setPage(res.current_page || targetPage);
+    } catch (e) {
+      console.error("News fetch error:", e);
+      setError("Không thể tải tin tức. Vui lòng kiểm tra kết nối API.");
+      if (mode === "replace") setItems([]);
+      setHasMore(false);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
 
-        if (endRange < total - 1) {
-            pages.push('...');
-        }
+  // ===== initial load =====
+  useEffect(() => {
+    fetchPage(1, "replace");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-        if (!pages.includes(end)) {
-            pages.push(end);
-        }
-        
-        return pages.filter((value, index, self) => 
-            self.indexOf(value) === index && !(value === '...' && self[index - 1] === '...')
-        );
-    };
+  // ===== load more =====
+  const loadMore = () => {
+    if (isLoadingMore || !hasMore) return;
+    fetchPage(page + 1, "append");
+  };
 
-    const pageRange = getPaginationRange(currentPage, totalPages);
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold tracking-tight text-white">News</h1>
+        <p className="mt-2 text-white/60">Market headlines — TradingView vibe</p>
+        <div className="mt-6 h-px w-full bg-white/10" />
+      </div>
 
-    return (
-        <div className="container mx-auto p-4 max-w-4xl">
-            <h1 className="text-3xl font-bold mb-6 border-b pb-2 text-gray-800">
-                📢 Tổng hợp Tin tức
-            </h1>
-
-            {isLoading ? (
-                <p className="text-blue-500 font-semibold p-4">Đang tải tin tức...</p>
-            ) : error ? (
-                <p className="text-red-600 font-semibold p-4 border border-red-300 bg-red-50 rounded-lg">
-                    {error}
-                </p>
-            ) : newsItems.length === 0 ? (
-                <p className="text-gray-500 font-semibold">
-                    Không có tin tức nào được đăng tải.
-                </p>
-            ) : (
-                <>
-                    <ul className="space-y-6 mb-8">
-                        {newsItems.map((item) => (
-                            <li
-                                key={item.id || item.url_slug} 
-                                className="p-5 border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition duration-300 bg-white"
-                            >
-                                <Link 
-                                    href={`/news/${item.url_slug}`} 
-                                    className="block"
-                                >
-                                    <h2 className="text-xl font-bold text-blue-600 hover:text-blue-800 transition duration-300">
-                                        {item.topic}
-                                    </h2>
-                                    <p className="text-sm text-gray-500 mt-2">
-                                        Tác giả: {item.author} | Ngày: {new Date(item.published_at).toLocaleDateString("vi-VN")}
-                                    </p>
-                                    <p className="mt-3 text-gray-700 leading-relaxed">
-                                        {item.content.substring(0, 150)}...
-                                    </p>
-                                    <span className="mt-2 inline-block text-sm text-blue-500 hover:underline">
-                                        Xem chi tiết »
-                                    </span>
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-
-                    {/* HIỂN THỊ PHÂN TRANG HOÀN CHỈNH */}
-                    {totalPages > 1 && (
-                        <div className="flex justify-center items-center space-x-2">
-                            {/* Nút Previous (<) */}
-                            <button
-                                onClick={() => handlePageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
-                                className={`h-10 w-10 flex items-center justify-center border rounded-lg text-sm transition ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-blue-600 hover:bg-blue-50'}`}
-                                aria-label="Trang trước"
-                            >
-                                &lt;
-                            </button>
-
-                            {/* Các nút số trang và dấu '...' */}
-                            {pageRange.map((page, index) => (
-                                page === '...' ? (
-                                    <span key={`dots-${index}`} className="px-2 py-2 text-gray-500">
-                                        ...
-                                    </span>
-                                ) : (
-                                    <button
-                                        key={page}
-                                        onClick={() => handlePageChange(Number(page))}
-                                        className={`h-10 w-10 flex items-center justify-center border rounded-lg text-sm transition ${Number(page) === currentPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
-                                    >
-                                        {page}
-                                    </button>
-                                )
-                            ))}
-
-                            {/* Nút Next (>) */}
-                            <button
-                                onClick={() => handlePageChange(currentPage + 1)}
-                                disabled={currentPage === totalPages || totalPages === 0}
-                                className={`h-10 w-10 flex items-center justify-center border rounded-lg text-sm transition ${currentPage === totalPages || totalPages === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-blue-600 hover:bg-blue-50'}`}
-                                aria-label="Trang sau"
-                            >
-                                &gt;
-                            </button>
-                        </div>
-                    )}
-                </>
-            )}
+      {isLoading ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-white/80">
+          Đang tải tin tức...
         </div>
-    );
+      ) : error ? (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5 text-red-200">
+          {error}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-white/70">
+          Không có tin tức nào.
+        </div>
+      ) : (
+        <>
+          <ul className="space-y-4">
+            {items.map((item) => (
+              <li
+                key={item.id || item.url_slug}
+                className="group rounded-2xl border border-white/10 bg-white/5 p-5 transition
+                           hover:bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+              >
+                <Link href={`/news/${item.url_slug}`} className="block">
+                  <h2 className="text-xl font-bold text-white transition group-hover:text-blue-300">
+                    {item.topic}
+                  </h2>
+
+                  <p className="mt-2 text-sm text-white/50">
+                    {item.author ? `Tác giả: ${item.author} • ` : ""}
+                    Ngày:{" "}
+                    {item.published_at
+                      ? new Date(item.published_at as any).toLocaleString("vi-VN")
+                      : "—"}
+                  </p>
+
+                  <p className="mt-3 text-white/75 leading-relaxed">
+                    {(item.content || "").substring(0, 160)}...
+                  </p>
+
+                  <span className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-400 group-hover:underline">
+                    Xem chi tiết <span className="text-base leading-none">›</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* ✅ Only Next page (Load more) */}
+          <div className="mt-10 flex justify-center">
+            {hasMore ? (
+              <button
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className={[
+                  "h-11 rounded-full px-6 text-sm font-semibold transition",
+                  "border border-white/10 bg-white/5 text-white/85 hover:bg-white/10 hover:text-white",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                ].join(" ")}
+              >
+                {isLoadingMore ? "Loading..." : "Load more"}
+              </button>
+            ) : (
+              <div className="text-sm text-white/45">You’re all caught up.</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
