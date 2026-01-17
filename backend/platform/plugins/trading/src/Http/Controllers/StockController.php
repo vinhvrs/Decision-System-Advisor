@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\StockRepository;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentRepository;
 use Platform\Plugins\Trading\Src\Services\StockService;
-use Platform\Plugins\Trading\Src\Models\StockAttribute;
 use Illuminate\Support\Facades\Log;
 
 class StockController extends Controller
@@ -22,98 +21,10 @@ class StockController extends Controller
         $this->instrumentRepository = $instrumentRepository;
     }
 
-    public function calculateAttribute(Request $request, string $instrumentId)
+    public function expertAdvices(Request $request, string $symbol)
     {
-        $symbol = $this->instrumentRepository->find($instrumentId)->symbol;
-        $result = $this->stockService->calculate($symbol);
+        $result = $this->stockService->ExpertAdvices($symbol);
         return $result;
-    }
-    public function importAttributes(Request $request, string $instrumentId)
-    {
-        $symbol = $this->instrumentRepository->find($instrumentId)->symbol;
-
-        // StockService trả về JsonResponse
-        $result = $this->stockService->calculate($symbol);
-        // Convert response -> array
-        $resultArr = $result->getData(true);
-        Log::info("Importing stock attributes for symbol: " . $symbol, $resultArr);
-
-        if (!isset($resultArr['data']) || !is_array($resultArr['data'])) {
-            Log::error("Invalid data format received for symbol: " . $symbol, $resultArr);
-            return response()->json(['error' => 'Invalid data format'], 500);
-        }
-
-        $rawData = $resultArr['data'];
-        $data = $rawData['details'] ?? [];
-        if (empty($data)) {
-            return response()->json(['error' => 'No data to import'], 500);
-        }
-        // Fillable
-        $fillable = (new StockAttribute)->getFillable();
-
-        $payload = [];
-
-        foreach ($fillable as $field) {
-
-            // Auto-generate
-            if ($field === 'id')
-                continue;
-
-            if ($field === 'instrument_id') {
-                $payload[$field] = $instrumentId;
-                continue;
-            }
-
-            if ($field === 'date') {
-                $payload[$field] = now()->toDateString();
-                continue;
-            }
-
-            // ⭐ FIX: Xử lý riêng recommendation
-            if ($field === 'recommendation') {
-
-                $rec = $data['recommendation'] ?? 'Hold';
-
-                // Nếu API trả object => lấy giá trị đầu tiên
-                if (is_array($rec)) {
-                    $rec = reset($rec);
-                }
-
-                // Nếu vẫn không phải string => fallback
-                if (!is_string($rec)) {
-                    $rec = 'Hold';
-                }
-
-                $payload[$field] = $rec;
-                continue;
-            }
-
-            // Normal fields
-            $payload[$field] = $data[$field] ?? 0;
-        }
-
-        $record = $this->stockRepository->createOrUpdate($payload);
-
-        return response()->json([
-            'imported' => true,
-            'data' => $record
-        ]);
-    }
-
-    public function indicatorSummary(Request $request, string $symbol)
-    {
-        $period = $request->query('period', 'daily');
-
-        // Validate period
-        $allowed = ['daily', 'weekly', 'monthly', 'yearly'];
-        if (!in_array($period, $allowed, true)) {
-            return response()->json([
-                'error' => 'Invalid period',
-                'allowed_periods' => $allowed,
-            ], 422);
-        }
-        // StockService already returns JsonResponse
-        return $this->stockService->indicatorSummary($symbol, $period);
     }
 
     public function index(Request $request)
@@ -137,7 +48,6 @@ class StockController extends Controller
         $instrument_id = $this->instrumentRepository->likeByField('name', $name)->id ?? null;
         $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
         if (!$attribute || $attribute->updated_at->diffInHours(now()) >= 1) {
-            $this->importAttributes(new Request(), $instrument_id);
             Log::info("Importing attributes for instrument_id: " . $instrument_id);
             $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
         }
@@ -149,7 +59,6 @@ class StockController extends Controller
         $instrument_id = $this->instrumentRepository->findByField('symbol', $symbol)->id ?? null;
         $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
         if (!$attribute || $attribute->updated_at->diffInHours(now()) >= 1) {
-            $this->importAttributes(new Request(), $instrument_id);
             Log::info("Importing attributes for instrument_id: " . $instrument_id);
             $attribute = $this->stockRepository->findByField('instrument_id', $instrument_id);
         }

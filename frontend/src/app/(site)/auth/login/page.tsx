@@ -2,7 +2,7 @@
 'use client'; 
 
 import React, { useState } from 'react';
-import { AuthService } from '../../../services/Auth.service'; 
+import { AuthService } from '../../../../services/Auth.service'; 
 
 type AuthMode = 'login' | 'register';
 

@@ -3,8 +3,9 @@
 @tailwind utilities;
 
 :root {
+  /* light default */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111827;
 }
 
 @theme inline {
@@ -14,10 +15,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0B1220; /* dark bg */
+    --foreground: #E5E7EB; /* light text */
   }
 }
 
