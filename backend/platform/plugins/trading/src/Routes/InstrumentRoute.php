@@ -17,6 +17,7 @@ Route::prefix('/instruments')->group(function () {
 
     
     Route::get('/data', [InstrumentDataController::class, 'index']);
+    Route::get('/data/period/classify/{symbol}', [InstrumentDataController::class, 'classifyPeriods']);
     Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
     Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
     Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);
