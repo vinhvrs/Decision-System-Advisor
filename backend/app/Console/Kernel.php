@@ -27,11 +27,11 @@ class Kernel extends ConsoleKernel
     {
         Log::info('✅ schedule() method in Kernel is being called.');
 
-        $schedule->command('stocks:fetch')
-            ->everyMinute()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground();
+        // $schedule->command('stocks:fetch')
+        //     ->everyMinute()
+        //     ->evenInMaintenanceMode()
+        //     ->withoutOverlapping()
+        //     ->runInBackground();
 
         $schedule->command('data:periods')
             ->everyFifteenSeconds()
@@ -39,10 +39,10 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-        $schedule->command('news:fetch')
-            ->everyFiveMinutes()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground();
+        // $schedule->command('news:fetch')
+        //     ->everyFiveMinutes()
+        //     ->evenInMaintenanceMode()
+        //     ->withoutOverlapping()
+        //     ->runInBackground();
     }
 }
