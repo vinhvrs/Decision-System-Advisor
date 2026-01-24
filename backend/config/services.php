@@ -39,4 +39,10 @@ return [
         'key' => env('FMP_API_KEY'),
     ],
 
+    'elastic' => [
+        'host' => env('ELASTIC_HOST', 'http://127.0.0.1:9200'),
+        'index' => env('ELASTIC_INDEX', 'dsa_entities'),
+    ],
+
+
 ];

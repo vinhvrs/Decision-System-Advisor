@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/static-components */
 "use client";
 
 import Link from "next/link";
@@ -8,6 +9,41 @@ import { Search, Globe } from "lucide-react";
 import heroBg from '../../../assets/images/hero.jpg';
 
 export default function LandingPage() {
+  function MiniChart({ title, value, change, color }: { title: string; value: string; change: string; color: string }) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 h-40 flex flex-col justify-between">
+        <div>
+          <p className="text-xs text-white/60 mb-1">{title}</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-bold">{value}</span>
+            <span className={`text-[10px] ${color}`}>{change}</span>
+          </div>
+        </div>
+        <div className="h-12 w-full bg-white/5 rounded"></div> {/* Placeholder chart */}
+      </div>
+    );
+  }
+
+  function IndexRow({ name, symbol, value, change, isDown = false }: { name: string; symbol: string; value: string; change: string; isDown?: boolean }) {
+    return (
+      <div className="flex items-center justify-between group cursor-pointer">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
+            {symbol.substring(0, 2)}
+          </div>
+          <div>
+            <p className="text-sm font-semibold group-hover:text-blue-400 transition">{name}</p>
+            <p className="text-[10px] text-white/40 uppercase">{symbol}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-mono">{value}</p>
+          <p className={`text-[10px] ${isDown ? 'text-red-400' : 'text-green-400'}`}>{change}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       {/* ===== Topbar ===== */}
@@ -103,6 +139,62 @@ export default function LandingPage() {
             <div className="mt-4 text-sm text-white/60">
               $0 forever, no credit card needed
             </div>
+          </div>
+        </div>
+      </section>
+      {/* ===== Market Overview Section ===== */}
+      <section className="bg-[#0B1220] py-12 px-4">
+        <div className="mx-auto max-w-7xl">
+          {/* Layout Grid chính */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {/* Cột trái & giữa: Biểu đồ lớn (S&P 500) */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 h-[500px] flex flex-col">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-1 rounded">500</span>
+                      <h3 className="text-xl font-bold">S&P 500 <span className="text-white/40 font-normal ml-1 text-sm uppercase">SPX</span></h3>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-bold">6,915.62</span>
+                      <span className="text-sm text-green-400">+0.03%</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Chỗ này bạn có thể nhúng Iframe TradingView hoặc Chart.js */}
+                <div className="flex-1 w-full bg-gradient-to-t from-green-500/10 to-transparent rounded-lg border-b border-green-500/30 relative overflow-hidden">
+                  {/* Giả lập đường line chart */}
+                  <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+                    <path d="M0 80 Q 100 20 200 60 T 400 30 T 600 80 T 800 40 T 1000 60" fill="none" stroke="#22c55e" strokeWidth="2" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* 3 Biểu đồ nhỏ phía dưới */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <MiniChart title="Crypto market cap" value="2.99 T" change="+1.98%" color="text-green-400" />
+                <MiniChart title="US Dollar index" value="97.456" change="-0.44%" color="text-red-400" />
+                <MiniChart title="US 10-year yield" value="4.242%" change="+1.71%" color="text-green-400" />
+              </div>
+            </div>
+
+            {/* Cột phải: Danh sách Major Indices */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <h3 className="text-lg font-bold mb-6">Major indices</h3>
+              <div className="space-y-6">
+                <IndexRow name="Nasdaq 100" symbol="NDX" value="25,605.47" change="+0.34%" />
+                <IndexRow name="Japan 225" symbol="NI225" value="53,846.82" change="+0.29%" />
+                <IndexRow name="SSE Composite" symbol="000001" value="4,136.16" change="+0.33%" />
+                <IndexRow name="FTSE 100" symbol="UKX" value="10,143.44" change="-0.07%" isDown />
+                <IndexRow name="DAX" symbol="DAX" value="24,900.71" change="+0.18%" />
+              </div>
+              <button className="mt-8 text-blue-400 text-sm font-medium hover:underline">
+                See all major indices &gt;
+              </button>
+            </div>
+
           </div>
         </div>
       </section>
