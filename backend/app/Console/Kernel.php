@@ -5,6 +5,7 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Console\Commands\FetchStockAttributes;
 use App\Console\Commands\DataPeriods;
 use App\Console\Commands\FetchNews;
+use App\Console\Commands\SmoothTest;
 use Illuminate\Support\Facades\Log;
 
 
@@ -14,6 +15,7 @@ class Kernel extends ConsoleKernel
         // FetchStockAttributes::class,
         DataPeriods::class,
         FetchNews::class,
+        SmoothTest::class,
     ];
     protected $middlewareGroups = [
         'api' => [
@@ -44,5 +46,11 @@ class Kernel extends ConsoleKernel
         //     ->evenInMaintenanceMode()
         //     ->withoutOverlapping()
         //     ->runInBackground();
+
+        $schedule->command('smooth:test')
+            ->everyMinute()
+            ->evenInMaintenanceMode()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 }
