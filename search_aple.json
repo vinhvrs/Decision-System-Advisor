@@ -1,0 +1,19 @@
+﻿{
+  "size": 3,
+  "query": {
+    "bool": {
+      "filter": [
+        { "term": { "type": "company" } }
+      ],
+      "should": [
+        {
+          "multi_match": {
+            "query": "aple",
+            "fields": ["symbol^6", "name^3", "aliases^2", "fuzzy_aliases"],
+            "fuzziness": "AUTO"
+          }
+        }
+      ]
+    }
+  }
+}

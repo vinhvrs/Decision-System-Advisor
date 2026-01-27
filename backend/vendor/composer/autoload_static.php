@@ -119,6 +119,9 @@ class ComposerStaticInit88970a0117c062eed55fa8728fc43833
             'Psr\\Clock\\' => 10,
             'Psr\\Cache\\' => 10,
             'Platform\\Plugins\\Trading\\Src\\' => 29,
+            'Platform\\Plugins\\Systemcore\\Src\\' => 32,
+            'Platform\\Plugins\\DataImport\\Src\\' => 32,
+            'Platform\\Plugins\\Advisor\\Src\\' => 29,
             'PhpParser\\' => 10,
             'PhpOption\\' => 10,
             'ParagonIE\\Sodium\\' => 17,
@@ -427,6 +430,18 @@ class ComposerStaticInit88970a0117c062eed55fa8728fc43833
         array (
             0 => __DIR__ . '/../..' . '/platform/plugins/trading/src',
         ),
+        'Platform\\Plugins\\Systemcore\\Src\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/platform/plugins/systemcore/src',
+        ),
+        'Platform\\Plugins\\DataImport\\Src\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/platform/plugins/dataImport/src',
+        ),
+        'Platform\\Plugins\\Advisor\\Src\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/platform/plugins/advisor/src',
+        ),
         'PhpParser\\' => 
         array (
             0 => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser',
@@ -620,9 +635,10 @@ class ComposerStaticInit88970a0117c062eed55fa8728fc43833
     );
 
     public static $classMap = array (
-        'App\\Console\\Commands\\ConsumeWebSocket' => __DIR__ . '/../..' . '/app/Console/Commands/ConsumeWebSocket.php',
         'App\\Console\\Commands\\DataPeriods' => __DIR__ . '/../..' . '/app/Console/Commands/DataPeriods.php',
+        'App\\Console\\Commands\\FetchNews' => __DIR__ . '/../..' . '/app/Console/Commands/FetchNews.php',
         'App\\Console\\Commands\\FetchStockAttributes' => __DIR__ . '/../..' . '/app/Console/Commands/FetchStockAttributes.php',
+        'App\\Console\\Commands\\SmoothTest' => __DIR__ . '/../..' . '/app/Console/Commands/SmoothTest.php',
         'App\\Console\\Kernel' => __DIR__ . '/../..' . '/app/Console/Kernel.php',
         'App\\Events\\TestEvent' => __DIR__ . '/../..' . '/app/Events/TestEvent.php',
         'App\\Http\\Controllers\\Controller' => __DIR__ . '/../..' . '/app/Http/Controllers/Controller.php',
@@ -5661,7 +5677,20 @@ class ComposerStaticInit88970a0117c062eed55fa8728fc43833
         'PhpParser\\PrettyPrinter\\Standard' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/PrettyPrinter/Standard.php',
         'PhpParser\\Token' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Token.php',
         'PhpToken' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/PhpToken.php',
+        'Platform\\Plugins\\Advisor\\Src\\DTO\\SmoothContext' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/DTO/SmoothContext.php',
+        'Platform\\Plugins\\Advisor\\Src\\DTO\\SmoothResult' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/DTO/SmoothResult.php',
+        'Platform\\Plugins\\Advisor\\Src\\LanguageSmoother' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/LanguageSmoother.php',
+        'Platform\\Plugins\\Advisor\\Src\\Providers\\RouteServiceProvider' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Providers/RouteServiceProvider.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\ApplyStylePreset' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/ApplyStylePreset.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\ComposeResponse' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/ComposeResponse.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\DetectIntent' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/DetectIntent.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\FixTypos' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/FixTypos.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\NormalizeEntities' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/NormalizeEntities.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\NormalizeText' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/NormalizeText.php',
+        'Platform\\Plugins\\Advisor\\Src\\Rules\\PostProcess' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Rules/PostProcess.php',
+        'Platform\\Plugins\\Advisor\\Src\\Services\\EntityResolverService' => __DIR__ . '/../..' . '/platform/plugins/advisor/src/Services/EntityResolverService.php',
         'Platform\\Plugins\\Trading\\Src\\Events\\MarketTick' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Events/MarketTick.php',
+        'Platform\\Plugins\\Trading\\Src\\Http\\Controllers\\AnalysistController' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Http/Controllers/AnalysistController.php',
         'Platform\\Plugins\\Trading\\Src\\Http\\Controllers\\AuthController' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Http/Controllers/AuthController.php',
         'Platform\\Plugins\\Trading\\Src\\Http\\Controllers\\CollectData\\GetInstrumentData' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Http/Controllers/CollectData/GetInstrumentData.php',
         'Platform\\Plugins\\Trading\\Src\\Http\\Controllers\\CollectData\\GetNewsData' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Http/Controllers/CollectData/GetNewsData.php',
@@ -5683,20 +5712,24 @@ class ComposerStaticInit88970a0117c062eed55fa8728fc43833
         'Platform\\Plugins\\Trading\\Src\\Models\\Users' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Models/Users.php',
         'Platform\\Plugins\\Trading\\Src\\Providers\\BroadcastServiceProvider' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Providers/BroadcastServiceProvider.php',
         'Platform\\Plugins\\Trading\\Src\\Providers\\TradingServiceProvider' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Providers/TradingServiceProvider.php',
+        'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\IndicatorMathRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/IndicatorMathRepository.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\InstrumentDataRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/InstrumentDataRepository.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\InstrumentPeriodsRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/InstrumentPeriodsRepository.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\InstrumentRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/InstrumentRepository.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\KnowledgeRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/KnowledgeRepository.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\StockRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/StockRepository.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Eloquent\\UserRepository' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Eloquent/UserRepository.php',
+        'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\IndicatorMathInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/IndicatorMathInterface.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\InstrumentDataInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/InstrumentDataInterface.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\InstrumentInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/InstrumentInterface.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\InstrumentPeriodsInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/InstrumentPeriodsInterface.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\KnowledgeInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/KnowledgeInterface.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\StockInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/StockInterface.php',
         'Platform\\Plugins\\Trading\\Src\\Repositories\\Interfaces\\UserInterface' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Repositories/Interfaces/UserInterface.php',
+        'Platform\\Plugins\\Trading\\Src\\Services\\AnalysistService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/AnalysistService.php',
         'Platform\\Plugins\\Trading\\Src\\Services\\HistoryFetchService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/HistoryFetchService.php',
         'Platform\\Plugins\\Trading\\Src\\Services\\NewsFetchService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/NewsFetchService.php',
+        'Platform\\Plugins\\Trading\\Src\\Services\\PeriodClassifyService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/PeriodClassifyService.php',
         'Platform\\Plugins\\Trading\\Src\\Services\\PriceFetchService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/PriceFetchService.php',
         'Platform\\Plugins\\Trading\\Src\\Services\\SimilarSignalService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/SimilarSignalService.php',
         'Platform\\Plugins\\Trading\\Src\\Services\\StockService' => __DIR__ . '/../..' . '/platform/plugins/trading/src/Services/StockService.php',

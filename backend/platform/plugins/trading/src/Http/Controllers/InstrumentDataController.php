@@ -3,6 +3,7 @@ namespace Platform\Plugins\Trading\Src\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentDataRepository;
+use Platform\Plugins\Trading\Src\Services\PeriodClassifyService;
 
 class InstrumentDataController extends Controller{
     protected $instrumentDataRepository;
@@ -59,5 +60,13 @@ class InstrumentDataController extends Controller{
             return response()->json(['message' => 'Instrument data deleted successfully']);
         }
         return response()->json(['message' => 'Instrument data not found'], 404);
+    }
+
+    // Additional method to classify periods
+    public function classifyPeriods(Request $request, $symbol) {
+        $data = $request->all();
+        $service = new PeriodClassifyService($this->instrumentDataRepository);
+        $classifiedData = $service->classifyPeriods($symbol, $data['basePeriod'] ?? 'daily');
+        return response()->json($classifiedData);
     }
 }

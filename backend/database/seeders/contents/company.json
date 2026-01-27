@@ -1,0 +1,68 @@
+{
+  "version": "1.1",
+  "updated_at": "2026-01-22",
+  "market": "US",
+  "type": "company_to_symbol",
+  "items": [
+    {
+      "company": "Apple",
+      "symbol": "AAPL",
+      "aliases": ["Apple Inc", "Apple Inc."],
+      "fuzzy_aliases": ["aple", "appel", "apl", "applee", "appl"]
+    },
+    {
+      "company": "Microsoft",
+      "symbol": "MSFT",
+      "aliases": ["Microsoft Corp", "Microsoft Corporation"],
+      "fuzzy_aliases": ["microsft", "microsoftt", "micro soft", "msfot", "msf"]
+    },
+    {
+      "company": "Amazon",
+      "symbol": "AMZN",
+      "aliases": ["Amazon.com", "Amazon.com Inc", "Amazon.com, Inc."],
+      "fuzzy_aliases": ["amzon", "amazn", "amazoncom", "amzon.com", "amason"]
+    },
+    {
+      "company": "Alphabet (Google)",
+      "symbol": "GOOGL",
+      "aliases": ["Google", "Alphabet", "Alphabet Inc", "Alphabet Inc."],
+      "fuzzy_aliases": ["googl", "gooogle", "gogle", "alhpabet", "alphbet"]
+    },
+    {
+      "company": "Meta (Facebook)",
+      "symbol": "META",
+      "aliases": ["Meta Platforms", "Meta Platforms Inc", "Facebook"],
+      "fuzzy_aliases": ["metaa", "facebok", "fbk", "met platforms", "meta platfroms"]
+    },
+    {
+      "company": "Tesla",
+      "symbol": "TSLA",
+      "aliases": ["Tesla Inc", "Tesla, Inc."],
+      "fuzzy_aliases": ["telsa", "tesal", "tsl", "teslaa", "tes"]
+    },
+    {
+      "company": "NVIDIA",
+      "symbol": "NVDA",
+      "aliases": ["Nvidia Corp", "NVIDIA Corp", "NVIDIA Corporation"],
+      "fuzzy_aliases": ["nvdia", "nvida", "nvida", "nvdaa", "nvd"]
+    },
+    {
+      "company": "Berkshire Hathaway",
+      "symbol": "BRK.B",
+      "aliases": ["Berkshire", "Berkshire Hathaway Inc", "BRK-B", "BRK.B"],
+      "fuzzy_aliases": ["berkshre", "berkshire hathway", "brkb", "brk b", "brk-bb"]
+    },
+    {
+      "company": "JPMorgan Chase",
+      "symbol": "JPM",
+      "aliases": ["JPMorgan", "JPMorgan Chase & Co", "JPMorgan Chase & Co."],
+      "fuzzy_aliases": ["jp morgan", "jpmorgan chace", "jpmorgon", "jpmg", "jpmrgan"]
+    },
+    {
+      "company": "Johnson & Johnson",
+      "symbol": "JNJ",
+      "aliases": ["J&J", "Johnson and Johnson"],
+      "fuzzy_aliases": ["johnson n johnson", "jonson and jonson", "jnj.", "j and j", "johnsonjohnson"]
+    }
+  ]
+}

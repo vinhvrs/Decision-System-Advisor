@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -12,16 +13,18 @@ export default function ChatBox() {
     { from: "bot", text: "Hello! How can I help you with trading today?" },
   ]);
 
-  const handleMessage = (message: string) => {
+  const handleMessage = async (message: string) => {
     if (!message.trim()) return;
     const symbolPrefix = "symbol:";
     const namePrefix = "name:";
     const askPrefix = "ask:";
     const newsPrefix = "news:";
+
     let symbol = '';
     let name = '';
     let question = '';
     let news = '';
+
     if (message.includes(symbolPrefix)) {
       symbol = message.substring(symbolPrefix.length).trim();
     }
@@ -34,7 +37,40 @@ export default function ChatBox() {
     if (message.includes(newsPrefix)) {
       news = message.substring(newsPrefix.length).trim();
     }
-    AdviceService.askingAdvice(symbol, name, question)
+
+    if (message.includes("similar:")) {
+      const simSymbol = message.substring("similar:".length).trim();
+      const similarStocks = await AdviceService.similar(simSymbol);
+      const payload = similarStocks?.data ?? similarStocks;
+
+      const moments = payload?.top_matches ?? [];
+      const header = `Similar moments for ${simSymbol.toUpperCase()} (top ${moments.length}):`;
+      setMessages((prev) => [...prev, { from: "bot", text: header }]);
+
+      if (moments.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          { from: "bot", text: `No similar moments found for ${simSymbol.toUpperCase()}.` },
+        ]);
+      } else {
+        const formatted = moments.map((m: any, idx: number) => {
+          const dist = typeof m.distance === "number" ? m.distance.toFixed(4) : m.distance;
+          const ret =
+            typeof m.return_after === "number"
+              ? `${(m.return_after * 100).toFixed(2)}%`
+              : m.return_after;
+
+          return {
+            from: "bot" as const,
+            text: `#${idx + 1}\n${m.start_date} → ${m.end_date}\nDistance: ${dist}\nReturn after: ${ret}`,
+          };
+        });
+
+        setMessages((prev) => [...prev, ...formatted]);
+      }
+
+    } else  {
+      await AdviceService.askingAdvice(symbol, name, question)
       .then((advice: { symbol?: { data: string }; name?: { data: string } }) => {
         const adviceText =
           advice.name || advice.symbol || "No advice found.";
@@ -57,6 +93,7 @@ export default function ChatBox() {
         ]);
       });
     console.log("Handling message:", message);
+    }
     return;
   }
 
