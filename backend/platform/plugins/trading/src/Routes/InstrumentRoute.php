@@ -17,14 +17,16 @@ Route::prefix('/instruments')->group(function () {
 
     
     Route::get('/data', [InstrumentDataController::class, 'index']);
+    Route::get('/data/period/classify/{symbol}', [InstrumentDataController::class, 'classifyPeriods']);
     Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
+    Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
+    Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);
+    Route::post('/data/import/{instrumentId}', [GetInstrumentData::class, 'importData']);
     Route::get('/data/{id}', [InstrumentDataController::class, 'show']);
     Route::post('/data', [InstrumentDataController::class, 'store']);
     Route::put('/data/{id}', [InstrumentDataController::class, 'update']);
     Route::delete('/data/{id}', [InstrumentDataController::class, 'destroy']);
-    Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
-    Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);
-    Route::post('/data/import/{instrumentId}', [GetInstrumentData::class, 'importData']);
+    
     
     Route::get('/', [InstrumentController::class, 'index']);
     Route::get('/{id}', [InstrumentController::class, 'show']);

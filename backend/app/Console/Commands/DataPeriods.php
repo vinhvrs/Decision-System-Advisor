@@ -8,90 +8,390 @@ use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
 use Platform\Plugins\Trading\Src\Models\Instruments;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class DataPeriods extends Command
 {
     protected $signature = 'data:periods';
-    protected $description = 'Fetch and store new data periods for instruments only if newer than latest timestamp';
+    protected $description = 'Incremental DAILY from Yahoo + chained aggregation: daily->weekly->monthly->yearly (low transfer).';
+
+    private array $symbols = [
+        'AAPL',
+        'MSFT', 'GOOGL', 'AMZN', 'TSLA',
+        'BRK-B', 'NVDA', 'META', 'UNH', 'JNJ',
+        'V', 'PG', 'JPM', 'HD', 'MA',
+    ];
+
+    // Backfill window for incremental rebuild (tùy bạn chỉnh)
+    private int $dailyBackfillDays     = 20;
+    private int $weeklyBackfillWeeks   = 16;
+    private int $monthlyBackfillMonths = 18;
+    private int $yearlyBackfillYears   = 8;
+
+    // “baseline” cho logic DB (không dùng để gọi Yahoo)
+    private string $minValidPeriodStart = '1000-01-01';
+
+    // ---------- core ----------
 
     public function handle()
     {
-        Log::info('[Schedule] Incremental DataPeriods started');
-        $this->info('📡 Incremental update of data periods...');
+        Log::info('[Schedule] DataPeriods started', ['db' => DB::connection()->getDatabaseName()]);
 
-        $instruments = Instruments::all();
+        $instruments = Instruments::query()->whereIn('symbol', $this->symbols)->get();
 
         foreach ($instruments as $instrument) {
-            $symbol = $instrument->symbol;
-            $this->info("Checking $symbol...");
+            $symbol = strtoupper((string)$instrument->symbol);
+            if ($symbol === '') continue;
 
-            // Create or get InstrumentPeriod
-            $period = InstrumentPeriods::firstOrCreate([
-                'instrument_id' => $instrument->id,
-                'period' => 'daily',
-                'market' => 'stock',
-                'slug' => strtolower($symbol) . '-daily',
-                'prefix' => strtolower($symbol),
-            ]);
-            $period->save();
+            [$daily, $weekly, $monthly, $yearly] = $this->ensurePeriods((string)$instrument->id, $symbol);
 
-            // Get latest timestamp from DB
-            $latest = InstrumentData::where('instrument_period_id', $period->id)
-                ->orderByDesc('timestamps')
-                ->first();
+            $latest = $this->getLatestTimestampsInDb((string)$daily->id, (string)$weekly->id, (string)$monthly->id, (string)$yearly->id);
 
-            $period1 = $latest
-                ? Carbon::parse($latest->timestamps)->timestamp
-                : Carbon::createFromDate(2000, 1, 1)->timestamp;
-
-            $period2 = now()->timestamp;
-
-            // Fetch from Yahoo
-            $url = "https://query2.finance.yahoo.com/v8/finance/chart/$symbol";
-            $response = Http::get($url, [
-                'interval' => '1d',
-                'period1' => $period1,
-                'period2' => $period2,
+            Log::info('[LatestTs]', [
+                'symbol' => $symbol,
+                'daily' => $latest['daily_latest'],
+                'weekly' => $latest['weekly_latest'],
+                'monthly' => $latest['monthly_latest'],
+                'yearly' => $latest['yearly_latest'],
             ]);
 
-            if (!$response->successful()) {
-                $this->error("❌ Failed to fetch $symbol");
-                continue;
-            }
+            // 1) DAILY incremental
+            $insertedDaily = $this->updateDailyFromYahoo($symbol, (string)$daily->id, $latest['daily_latest']);
+            Log::info("[Daily] $symbol upserted=$insertedDaily");
 
-            $data = $response->json();
-            if (!isset($data['chart']['result'][0]['timestamp'])) {
-                $this->warn("⚠️ No new data for $symbol");
-                continue;
-            }
+            // refresh latest after daily
+            $latestAfter = $this->getLatestTimestampsInDb((string)$daily->id, (string)$weekly->id, (string)$monthly->id, (string)$yearly->id);
 
-            $timestamps = $data['chart']['result'][0]['timestamp'];
-            $quotes = $data['chart']['result'][0]['indicators']['quote'][0];
+            // 2) Chained aggregates
+            $this->refreshWeeklyFromDaily($symbol, (string)$daily->id, (string)$weekly->id, $latestAfter['weekly_latest']);
+            $this->refreshMonthlyFromWeekly($symbol, (string)$weekly->id, (string)$monthly->id, $latestAfter['monthly_latest']);
+            $this->refreshYearlyFromMonthly($symbol, (string)$monthly->id, (string)$yearly->id, $latestAfter['yearly_latest']);
 
-            foreach ($timestamps as $i => $ts) {
-                $timestamp = Carbon::createFromTimestamp($ts, 'UTC')->format('Y-m-d H:i:s');
-
-                InstrumentData::updateOrCreate(
-                    [
-                        'instrument_period_id' => $period->id,
-                        'timestamps' => $timestamp,
-                    ],
-                    [
-                        'open' => $quotes['open'][$i] ?? null,
-                        'high' => $quotes['high'][$i] ?? null,
-                        'low' => $quotes['low'][$i] ?? null,
-                        'close' => $quotes['close'][$i] ?? null,
-                        'volume' => $quotes['volume'][$i] ?? null,
-                        'source' => 'yahoo_finance',
-                        'slug' => strtolower($symbol) . '-' . $timestamp,
-                    ]
-                );
-            }
-
-            $this->info("✅ Updated $symbol with new data");
+            Log::info("[Agg] Updated weekly/monthly/yearly for $symbol");
         }
 
-        $this->info('🎯 DataPeriods incremental update complete.');
+        Log::info('[Schedule] DataPeriods finished');
+        return self::SUCCESS;
+    }
+
+    // ---------- periods ----------
+
+    private function ensurePeriods(string $instrumentId, string $symbol): array
+    {
+        // stable keys only
+        $daily = InstrumentPeriods::firstOrCreate([
+            'instrument_id' => $instrumentId,
+            'period' => 'daily',
+            'market' => 'stock',
+        ]);
+        $weekly = InstrumentPeriods::firstOrCreate([
+            'instrument_id' => $instrumentId,
+            'period' => 'weekly',
+            'market' => 'stock',
+        ]);
+        $monthly = InstrumentPeriods::firstOrCreate([
+            'instrument_id' => $instrumentId,
+            'period' => 'monthly',
+            'market' => 'stock',
+        ]);
+        $yearly = InstrumentPeriods::firstOrCreate([
+            'instrument_id' => $instrumentId,
+            'period' => 'yearly',
+            'market' => 'stock',
+        ]);
+
+        // non-key fields update
+        $daily->update(['slug' => strtolower($symbol) . '-daily', 'prefix' => strtolower($symbol)]);
+        $weekly->update(['slug' => strtolower($symbol) . '-weekly', 'prefix' => strtolower($symbol)]);
+        $monthly->update(['slug' => strtolower($symbol) . '-monthly', 'prefix' => strtolower($symbol)]);
+        $yearly->update(['slug' => strtolower($symbol) . '-yearly', 'prefix' => strtolower($symbol)]);
+
+        return [$daily, $weekly, $monthly, $yearly];
+    }
+
+    // ---------- timestamps helpers ----------
+
+    private function strictCarbon($ts): ?Carbon
+    {
+        if ($ts instanceof \DateTimeInterface) {
+            try { return Carbon::instance($ts); } catch (\Throwable $e) { return null; }
+        }
+        if (is_int($ts) || (is_string($ts) && ctype_digit($ts))) {
+            try { return Carbon::createFromTimestamp((int)$ts, 'UTC'); } catch (\Throwable $e) { return null; }
+        }
+        if (is_string($ts)) {
+            $ts = trim($ts);
+            if ($ts === '') return null;
+            try { return Carbon::parse($ts); } catch (\Throwable $e) { return null; }
+        }
+        \Log::error('strictCarbon: unsupported type', ['type' => gettype($ts), 'value' => $ts]);
+        return null;
+    }
+
+    private function normalizeDbTimestamp($value): ?string
+    {
+        $c = $this->strictCarbon($value);
+        return $c ? $c->format('Y-m-d H:i:s') : null;
+    }
+
+    private function getLatestTimestampsInDb(string $dailyId, string $weeklyId, string $monthlyId, string $yearlyId): array
+    {
+        $dailyLatest = DB::table('instrument_data')->where('instrument_period_id', $dailyId)->max('timestamps');
+        $weeklyLatest = DB::table('instrument_data')->where('instrument_period_id', $weeklyId)->max('timestamps');
+        $monthlyLatest = DB::table('instrument_data')->where('instrument_period_id', $monthlyId)->max('timestamps');
+        $yearlyLatest = DB::table('instrument_data')->where('instrument_period_id', $yearlyId)->max('timestamps');
+        $periodStarts = DB::table('instrument_data')
+                        ->where('instrument_period_id', $dailyId)
+                        ->min('timestamps');
+        $periodStarts = Carbon::parse($periodStarts ?? now());
+
+        $weeklyLatest = $weeklyLatest
+            ? $this->strictCarbon($weeklyLatest)
+            : $periodStarts->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+        $monthlyLatest = $monthlyLatest
+            ? $this->strictCarbon($monthlyLatest)
+            : $periodStarts->copy()->startOfMonth()->startOfDay();
+        $yearlyLatest = $yearlyLatest
+            ? $this->strictCarbon($yearlyLatest)
+            : $periodStarts->copy()->startOfYear()->startOfDay();
+
+        return [
+            'daily_latest' => $this->normalizeDbTimestamp($dailyLatest),
+            'weekly_latest' => $this->normalizeDbTimestamp($weeklyLatest),
+            'monthly_latest' => $this->normalizeDbTimestamp($monthlyLatest),
+            'yearly_latest' => $this->normalizeDbTimestamp($yearlyLatest),
+        ];
+    }
+
+    // ---------- DAILY from Yahoo ----------
+
+    private function updateDailyFromYahoo(string $symbol, string $dailyPeriodId, ?string $latestDailyTs): int
+    {
+        // DB baseline = year 1000, nhưng Yahoo period1 phải >= 0
+        $base = $latestDailyTs
+            ? Carbon::parse($latestDailyTs)->copy()->subDays($this->dailyBackfillDays)
+            : Carbon::createFromDate(1970, 1, 1);
+
+        $period1 = max(0, (int)$base->timestamp);
+        $period2 = max(0, (int)now()->timestamp);
+
+        $url = "https://query2.finance.yahoo.com/v8/finance/chart/$symbol";
+        $response = Http::get($url, [
+            'interval' => '1d',
+            'period1' => $period1,
+            'period2' => $period2,
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning("[Daily] Yahoo fetch failed for $symbol", ['status' => $response->status()]);
+            return 0;
+        }
+
+        $json = $response->json();
+        $result = $json['chart']['result'][0] ?? null;
+        if (!$result) return 0;
+
+        $timestamps = $result['timestamp'] ?? [];
+        $quotes = $result['indicators']['quote'][0] ?? [];
+        if (empty($timestamps) || empty($quotes)) return 0;
+
+        $count = 0;
+        foreach ($timestamps as $i => $ts) {
+            if (!is_int($ts) && !ctype_digit((string)$ts)) continue;
+
+            $timestampStr = Carbon::createFromTimestamp((int)$ts, 'UTC')->format('Y-m-d 14:30:00');
+            $close = $quotes['close'][$i] ?? null;
+            if ($close === null) continue;
+
+            InstrumentData::updateOrCreate(
+                [
+                    'instrument_period_id' => $dailyPeriodId,
+                    'timestamps' => $timestampStr,
+                ],
+                [
+                    'open' => $quotes['open'][$i] ?? null,
+                    'high' => $quotes['high'][$i] ?? null,
+                    'low' => $quotes['low'][$i] ?? null,
+                    'close' => $close,
+                    'volume' => $quotes['volume'][$i] ?? null,
+                    'source' => 'yahoo_finance',
+                    'slug' => strtolower($symbol) . '-' . $timestampStr,
+                ]
+            );
+            $count++;
+        }
+
+        return $count;
+    }
+
+    // ---------- Aggregation (stream-like, low transfer) ----------
+
+    private function refreshWeeklyFromDaily(string $symbol, string $dailyId, string $weeklyId, ?string $latestWeeklyTs): void
+    {
+        // start range: if null -> from first daily record; else backfill weeks
+        $start = Carbon::parse($latestWeeklyTs);
+            //? Carbon::parse($latestWeeklyTs)->copy()->subWeeks($this->weeklyBackfillWeeks)->startOfWeek(Carbon::MONDAY)->startOfDay()
+            //: $this->getFirstTimestampOrNull($dailyId)?->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+
+        if (!$start) return;
+
+        $rows = InstrumentData::query()
+            ->where('instrument_period_id','=', $dailyId)
+            ->where('timestamps', '>=', $start->format('Y-m-d H:i:s'))
+            ->orderBy('timestamps')
+            ->get(['timestamps as timestamp', 'open', 'high', 'low', 'close', 'volume']);
+
+        if ($rows->isEmpty()) return;
+
+        $groups = [];
+        foreach ($rows as $r) {
+            $t = $this->strictCarbon($r->timestamp);
+            if (!$t) continue;
+            $k = $t->copy()->startOfWeek(Carbon::MONDAY)->format('Y-m-d');
+            if ($k < $this->minValidPeriodStart) continue;
+            $groups[$k][] = $r;
+        }
+
+        foreach ($groups as $k => $bucket) {
+            $first = $bucket[0];
+            $last = $bucket[count($bucket) - 1];
+
+            $open  = (float)($first->open ?? 0);
+            $close = (float)($last->close ?? 0);
+            $high  = (float)max(array_map(fn($x) => (float)($x->high ?? 0), $bucket));
+            $low   = (float)min(array_map(fn($x) => (float)($x->low ?? 0), $bucket));
+            $vol   = (float)array_sum(array_map(fn($x) => (float)($x->volume ?? 0), $bucket));
+
+            InstrumentData::updateOrCreate(
+                [
+                    'instrument_period_id' => $weeklyId,
+                    'timestamps' => $k,
+                ],
+                [
+                    'open' => $open,
+                    'high' => $high,
+                    'low' => $low,
+                    'close' => $close,
+                    'volume' => $vol,
+                    'source' => 'aggregated_from_daily',
+                    'slug' => strtolower($symbol) . '-' . $k,
+                ]
+            );
+        }
+    }
+
+    private function refreshMonthlyFromWeekly(string $symbol, string $weeklyId, string $monthlyId, ?string $latestMonthlyTs): void
+    {
+        $start = Carbon::parse($latestMonthlyTs);
+            // ? Carbon::parse($latestMonthlyTs)->copy()->subMonths($this->monthlyBackfillMonths)->startOfMonth()->startOfDay()
+            // : $this->getFirstTimestampOrNull($weeklyId)?->copy()->startOfMonth()->startOfDay();
+
+        if (!$start) return;
+
+        $rows = InstrumentData::where('instrument_period_id', $weeklyId)
+            ->where('timestamps', '>=', $start->format('Y-m-d'))
+            ->orderBy('timestamps')
+            ->get(['timestamps as timestamp', 'open', 'high', 'low', 'close', 'volume']);
+
+        if ($rows->isEmpty()) return;
+
+        $groups = [];
+        foreach ($rows as $r) {
+            $t = $this->strictCarbon($r->timestamp);
+            if (!$t) continue;
+            $k = $t->copy()->startOfMonth()->format('Y-m-d');
+            if ($k < $this->minValidPeriodStart) continue;
+            $groups[$k][] = $r;
+        }
+
+        foreach ($groups as $k => $bucket) {
+            $first = $bucket[0];
+            $last = $bucket[count($bucket) - 1];
+
+            $open  = (float)($first->open ?? 0);
+            $close = (float)($last->close ?? 0);
+            $high  = (float)max(array_map(fn($x) => (float)($x->high ?? 0), $bucket));
+            $low   = (float)min(array_map(fn($x) => (float)($x->low ?? 0), $bucket));
+            $vol   = (float)array_sum(array_map(fn($x) => (float)($x->volume ?? 0), $bucket));
+
+            InstrumentData::updateOrCreate(
+                [
+                    'instrument_period_id' => $monthlyId,
+                    'timestamps' => $k,
+                ],
+                [
+                    'open' => $open,
+                    'high' => $high,
+                    'low' => $low,
+                    'close' => $close,
+                    'volume' => $vol,
+                    'source' => 'aggregated_from_weekly',
+                    'slug' => strtolower($symbol) . '-' . $k,
+                ]
+            );
+        }
+    }
+
+    private function refreshYearlyFromMonthly(string $symbol, string $monthlyId, string $yearlyId, ?string $latestYearlyTs): void
+    {
+        $start = Carbon::parse($latestYearlyTs);
+            // ? Carbon::parse($latestYearlyTs)->copy()->subYears($this->yearlyBackfillYears)->startOfYear()->startOfDay()
+            // : $this->getFirstTimestampOrNull($monthlyId)?->copy()->startOfYear()->startOfDay();
+
+        if (!$start) return;
+
+        $rows = InstrumentData::where('instrument_period_id', $monthlyId)
+            ->where('timestamps', '>=', $start->format('Y-m-d'))
+            ->orderBy('timestamps')
+            ->get(['timestamps as timestamp', 'open', 'high', 'low', 'close', 'volume']);
+
+        if ($rows->isEmpty()) return;
+
+        $groups = [];
+        foreach ($rows as $r) {
+            $t = $this->strictCarbon($r->timestamp);
+            if (!$t) continue;
+            $k = $t->copy()->startOfYear()->format('Y-m-d');
+            if ($k < $this->minValidPeriodStart) continue;
+            $groups[$k][] = $r;
+        }
+
+        foreach ($groups as $k => $bucket) {
+            $first = $bucket[0];
+            $last = $bucket[count($bucket) - 1];
+
+            $open  = (float)($first->open ?? 0);
+            $close = (float)($last->close ?? 0);
+            $high  = (float)max(array_map(fn($x) => (float)($x->high ?? 0), $bucket));
+            $low   = (float)min(array_map(fn($x) => (float)($x->low ?? 0), $bucket));
+            $vol   = (float)array_sum(array_map(fn($x) => (float)($x->volume ?? 0), $bucket));
+
+            InstrumentData::updateOrCreate(
+                [
+                    'instrument_period_id' => $yearlyId,
+                    'timestamps' => $k,
+                ],
+                [
+                    'open' => $open,
+                    'high' => $high,
+                    'low' => $low,
+                    'close' => $close,
+                    'volume' => $vol,
+                    'source' => 'aggregated_from_monthly',
+                    'slug' => strtolower($symbol) . '-' . $k,
+                ]
+            );
+        }
+    }
+
+    private function getFirstTimestampOrNull(string $periodId): ?Carbon
+    {
+        $first = DB::table('instrument_data')
+            ->where('instrument_period_id', $periodId)
+            ->orderBy('timestamps', 'asc')
+            ->value('timestamps');
+
+        return $this->strictCarbon($first);
     }
 }

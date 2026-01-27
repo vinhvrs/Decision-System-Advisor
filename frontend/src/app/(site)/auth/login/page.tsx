@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'; 
 
 import React, { useState } from 'react';
-import { AuthService } from '../../../services/Auth.service'; 
+import { AuthService } from '../../../../services/Auth.service'; 
 
 type AuthMode = 'login' | 'register';
 
@@ -143,10 +144,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchMode }) => {
       alert('Đăng ký thành công! Vui lòng đăng nhập.');
       onSwitchMode('login'); // Chuyển sang màn hình Đăng nhập sau khi đăng ký
 
-    } catch (err: any) {
+    } catch (err) {
       console.error("Lỗi đăng ký:", err);
       // Giả định API trả về lỗi trong cấu trúc err.response.data.message
-      const errorMessage = err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+      const errorMessage = (err as any).response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
       setError(errorMessage);
     } finally {
       setIsLoading(false);

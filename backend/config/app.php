@@ -159,6 +159,7 @@ return [
          */
         App\Providers\AppServiceProvider::class,
         Platform\Plugins\Trading\Src\Providers\TradingServiceProvider::class,
+        Platform\Plugins\Advisor\Src\Providers\RouteServiceProvider::class,
     ],
 
 ];

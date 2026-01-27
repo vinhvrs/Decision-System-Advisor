@@ -64,7 +64,8 @@ function normalizeCandles(
         date.setUTCHours(0, 0, 0, 0);
       }
 
-      const time = Math.floor(new Date(ts.replace(" ", "T")).getTime());
+      // const time = Math.floor(new Date(ts.replace(" ", "T")).getTime());
+      const time = date.getTime();
 
       if (!uniqueMap.has(time)) {
         uniqueMap.set(time, {
@@ -237,47 +238,54 @@ export default function InstrumentSelectionPage() {
   }, [selectedPeriod]);
 
   /** --------------------------------------------------------
-   * REALTIME REVERB SUBSCRIBE
-   ---------------------------------------------------------*/
+  * REALTIME REVERB SUBSCRIBE (theo selectedInstrument + selectedPeriod)
+  ---------------------------------------------------------*/
   useEffect(() => {
-  const echo = createEcho();
-  if (!echo) return;
+    if (!selectedInstrument || !selectedPeriod) return;
 
-  echoRef.current = echo;
+    const echo = createEcho();
+    if (!echo) return;
 
-  const symbol = 'aapl';
-  const period = 'daily';
-  const channelName = `ohlc.${symbol}.${period}`;
+    echoRef.current = echo;
 
-  // ⬇️ ĐỢI SOCKET CONNECT
-  const pusher = echo.connector.pusher;
+    const symbol = (selectedPeriod?.prefix || selectedInstrument.symbol || "aapl").toLowerCase();
+    const timeframe = mapPeriodToTimeframe(selectedPeriod.period); // daily/weekly/monthly/yearly
+    const channelName = `ohlc.${symbol}.${timeframe}`;
 
-  pusher.connection.bind('connected', () => {
-    console.log('✅ Reverb connected');
+    const pusher = echo.connector.pusher;
 
-    echo.channel(channelName).listen('.candle', (e: any) => {
-      console.log('🔥 Realtime candle:', e.candle);
-      setRealtimeCandle(e.candle);
-    });
+    const onConnected = () => {
+      console.log("✅ Reverb connected");
 
-    console.log('📡 Subscribed to', channelName);
-  });
+      echo.channel(channelName).listen(".candle", (e: any) => {
+        // backend có thể gửi trực tiếp {time, open, high, low, close}
+        // hoặc bọc trong { candle: {...} }
+        const candle = e?.candle ?? e;
 
-  return () => {
-    echo.leave(channelName);
-    pusher.connection.unbind('connected');
-  };
-}, []);
+        console.log("🔥 Realtime candle:", candle);
+        setRealtimeCandle(candle);
+      });
+
+      console.log("📡 Subscribed to", channelName);
+    };
+
+    pusher.connection.bind("connected", onConnected);
+
+    return () => {
+      echo.leave(channelName);
+      pusher.connection.unbind("connected", onConnected);
+    };
+  }, [selectedInstrument?.symbol, selectedPeriod?.id]);
 
 
   /** --------------------------------------------------------
    * UI
    ---------------------------------------------------------*/
   return (
-    <main className="p-10 space-y-8">
+    <main className="p-10 space-y-8 text-white">
       <h1 className="text-3xl font-bold">Market Chart</h1>
 
-      <div className="flex gap-8">
+      <div className="flex gap-8 text-black">
         <SelectDropdown
           options={instruments.map((i) => ({
             id: i.id,
@@ -316,13 +324,14 @@ export default function InstrumentSelectionPage() {
         />
       </div>
 
-      <div className="mt-10">
+      <div className="mt-10 ">
         {candles.length ? (
           <LightChart
             symbol={selectedInstrument?.symbol || "AAPL"}
             data={candles}
             realtimeCandle={realtimeCandle}
             onLoadMore={loadMoreCandles}
+            period={selectedPeriod?.period as any}
           />
         ) : (
           <p className="text-gray-400 text-center py-10 text-lg">

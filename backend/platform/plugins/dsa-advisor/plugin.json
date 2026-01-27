@@ -1,7 +1,0 @@
-{
-  "name": "DSA Advisor",
-  "namespace": "Modules\DsaAdvisor\",
-  "provider": "Modules\DsaAdvisor\Providers\DsaAdvisorServiceProvider",
-  "author": "vinhvrs",
-  "version": "1.0.0"
-}

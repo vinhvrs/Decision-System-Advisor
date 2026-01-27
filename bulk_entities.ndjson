@@ -1,0 +1,20 @@
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"AAPL","name":"Apple","aliases":["Apple Inc","Apple Inc."],"fuzzy_aliases":["aple","appel","apl","applee","appl"],"priority":10}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"MSFT","name":"Microsoft","aliases":["Microsoft Corp","Microsoft Corporation"],"fuzzy_aliases":["microsft","microsoftt","micro soft","msfot","msf"],"priority":10}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"AMZN","name":"Amazon","aliases":["Amazon.com","Amazon.com Inc","Amazon.com, Inc."],"fuzzy_aliases":["amzon","amazn","amazoncom","amason"],"priority":9}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"GOOGL","name":"Alphabet (Google)","aliases":["Google","Alphabet","Alphabet Inc","Alphabet Inc."],"fuzzy_aliases":["googl","gooogle","gogle","alhpabet","alphbet"],"priority":9}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"META","name":"Meta (Facebook)","aliases":["Meta Platforms","Meta Platforms Inc","Facebook"],"fuzzy_aliases":["metaa","facebok","fbk","meta platfroms"],"priority":8}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"TSLA","name":"Tesla","aliases":["Tesla Inc","Tesla, Inc."],"fuzzy_aliases":["telsa","tesal","tsl","teslaa","tes"],"priority":8}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"NVDA","name":"NVIDIA","aliases":["Nvidia Corp","NVIDIA Corporation"],"fuzzy_aliases":["nvdia","nvida","nvdaa","nvd"],"priority":9}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"BRK.B","name":"Berkshire Hathaway","aliases":["Berkshire","Berkshire Hathaway Inc","BRK-B","BRK.B"],"fuzzy_aliases":["berkshre","berkshire hathway","brkb","brk b"],"priority":7}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"JPM","name":"JPMorgan Chase","aliases":["JPMorgan","JPMorgan Chase & Co","JPMorgan Chase & Co."],"fuzzy_aliases":["jp morgan","jpmorgan chace","jpmorgon","jpmg"],"priority":7}
+{"index":{"_index":"dsa_entities"}}
+{"type":"company","symbol":"JNJ","name":"Johnson & Johnson","aliases":["J&J","Johnson and Johnson"],"fuzzy_aliases":["johnson n johnson","jonson and jonson","j and j","johnsonjohnson"],"priority":7}

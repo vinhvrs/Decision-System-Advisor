@@ -2,5 +2,5 @@
 
 return [
     App\Providers\AppServiceProvider::class,
-    App\Providers\BroadcastServiceProvider::class,
+    Platform\Plugins\Trading\Src\Providers\BroadcastServiceProvider::class,
 ];

@@ -6,7 +6,8 @@ export const AuthService = {
     register: async (data: any) => {
         try {
             const response = await api.post(`/auth/register`, data);
-            const mappedData = userMapper(response.data.data);
+            const mappedData = userMapper(response.data);
+            console.log("Registered user data:", mappedData);
             return mappedData;
         } catch (error) {
             console.error("Error during registration:", error);
@@ -29,13 +30,15 @@ export const AuthService = {
 
     logout: async () => {
         try {
-            const response = await api.post(`/auth/logout`, {
+            const response = await api.post(`/auth/logout`,{}, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Accept': "application/json",
                 },
             });
             localStorage.removeItem('token');
-            return response.data;
+            localStorage.removeItem('user');
+            return "Logged out successfully";
         } catch (error) {
             console.error("Error during logout:", error);
             throw error;

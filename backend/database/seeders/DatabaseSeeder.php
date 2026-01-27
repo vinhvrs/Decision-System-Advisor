@@ -16,12 +16,15 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::factory()->create([
-            'id' => (string) Str::uuid(),
-            'username' => 'testuser', 
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => bcrypt('123456'),
+        // User::factory()->create([
+        //     'id' => (string) Str::uuid(),
+        //     'username' => 'testuser',
+        //     'name' => 'Test User',
+        //     'email' => 'test@example.com',
+        //     'password' => bcrypt('123456'),
+        // ]);
+        $this->call([
+            StockEntitySeeder::class,
         ]);
     }
 }
