@@ -12,7 +12,7 @@ return new class extends Migration
             $table->string('topic', 255);
             $table->string('content');
             $table->string('author', 100)->nullable();
-            $table->string('url_slug')->unique();
+            $table->string('url_slug')->nullable();
             $table->timestamp('published_at')->nullable();
             $table->timestamps();
             $table->index(['topic', 'author']);
