@@ -31,6 +31,18 @@ class NewsService {
         }
     }
 
+    // Fetch a single news item by Slug
+    async getBySlug(slug: string) {
+        try {
+            const response = await api.get(`/news/get-by-slug/${slug}`);
+            console.log('Fetched news by slug:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching news with slug ${slug}:`, error);
+            throw error;
+        }
+    }
+
     // Create a new news item
     async createNews(newsData: Record<string, unknown>) {
         try {
