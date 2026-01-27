@@ -41,11 +41,11 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-        // $schedule->command('news:fetch')
-        //     ->everyFiveMinutes()
-        //     ->evenInMaintenanceMode()
-        //     ->withoutOverlapping()
-        //     ->runInBackground();
+        $schedule->command('news:fetch')
+            ->hourly()
+            ->evenInMaintenanceMode()
+            ->withoutOverlapping()
+            ->runInBackground();
 
         $schedule->command('smooth:test')
             ->everyMinute()
