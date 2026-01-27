@@ -39,6 +39,10 @@ class KnowledgeRepository implements KnowledgeInterface {
         return $query->paginate($perPage);
     }
 
+    public function findBySlug(string $slug): ?Knowledge {
+        return Knowledge::where('url_slug', $slug)->first();
+    }
+
     public function update(string $id, array $knowledge): ?Knowledge {
         $know = Knowledge::find($id);
         if ($know) {

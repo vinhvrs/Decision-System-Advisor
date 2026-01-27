@@ -4,6 +4,8 @@ import Card from "../../sections/Card";
 import TradingChart from "../../components/charts/page";
 import ChatBox from "../../components/chatbox/page";
 import NewsCard from "../../components/news/NewsCard";
+import HotNews from "../../components/news/HotNews";
+import GainLoss from "../../components/gainloss/GainLoss";
 import Heatmap from "../../components/analyze/heatmap/page";
 
 export default function HomePage() {
@@ -147,64 +149,12 @@ export default function HomePage() {
 
       {/* ================= Hot News ================= */}
       <section className="px-6 py-16 bg-[#0b1220]">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">🔥 Hot Market News</h2>
-            <a href="/news" className="text-sm text-blue-400 hover:underline">
-              View all
-            </a>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="p-5 rounded-2xl bg-[#161D2C]/80 border border-white/10 hover:border-blue-500/40 transition"
-              >
-                <p className="text-xs text-white/40 mb-2">Reuters · 2h ago</p>
-                <h3 className="text-sm font-semibold line-clamp-3">
-                  Apple shares rise as AI-driven iPhone demand exceeds expectations
-                </h3>
-                <span className="inline-block mt-3 text-xs text-green-400">
-                  Bullish
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <HotNews />
       </section>
 
       {/* ================= Gain / Loss ================= */}
       <section className="px-6 py-16 bg-[#0b1220]">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* Gainers */}
-          <div className="rounded-2xl bg-[#161D2C]/80 border border-white/10 p-6">
-            <h3 className="font-bold mb-4 text-green-400">Top Gainers</h3>
-            <ul className="space-y-3 text-sm">
-              {["NVDA", "AAPL", "TSLA"].map((s) => (
-                <li key={s} className="flex justify-between">
-                  <span>{s}</span>
-                  <span className="text-green-400">+4.32%</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Losers */}
-          <div className="rounded-2xl bg-[#161D2C]/80 border border-white/10 p-6">
-            <h3 className="font-bold mb-4 text-red-400">Top Losers</h3>
-            <ul className="space-y-3 text-sm">
-              {["META", "NFLX", "BABA"].map((s) => (
-                <li key={s} className="flex justify-between">
-                  <span>{s}</span>
-                  <span className="text-red-400">-3.18%</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-        </div>
+        <GainLoss />
       </section>
 
       {/* ================= Heatmap ================= */}
