@@ -1,16 +1,42 @@
 <?php
 
 return [
-    'news_search' => [
-        'latest news on', 'news about', 'headlines for', 'updates on',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Intent definitions
+    |--------------------------------------------------------------------------
+    | intent_name => [keywords...]
+    */
+
+    'news_request' => [
+        'news',
+        'headline',
+        'update',
     ],
-    'price_check' => [
-        'price of', 'quote for', 'how much is', 'current price',
+
+    'price_request' => [
+        'price',
+        'value',
+        'quote',
     ],
-    'compare' => [
-        'compare', 'vs', 'difference between',
+
+    'indicator_request' => [
+        'indicator',
+        'macd',
+        'rsi',
+        'ohlcv',
     ],
-    'explain_term' => [
-        'what is', 'explain', 'meaning of',
+
+    'buy_decision' => [
+        'buy',
+        'entry',
+        'long',
+    ],
+
+    'sell_decision' => [
+        'sell',
+        'exit',
+        'short',
     ],
 ];

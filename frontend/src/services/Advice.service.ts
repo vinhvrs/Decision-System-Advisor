@@ -5,7 +5,7 @@ import { stockMapper } from "../libs/mapper";
 export const AdviceService = {
     getAdvices: async (limit: number = 10, page: number = 1, select?: Array<string>) => {
         try {
-            const response = await api.get(`/advices/stocks?per_page=${limit}&page=${page}${select ? select.map(s => `&select[]=${s}`).join('') : ''}`);
+            const response = await api.get(`/stocks?per_page=${limit}&page=${page}${select ? select.map(s => `&select[]=${s}`).join('') : ''}`);
             const data = stockMapper(response.data.data);
             return data;
         } catch (error) {
@@ -27,7 +27,7 @@ export const AdviceService = {
 
     getAdviceBySymbol: async (symbol: string) => {
         try {
-            const response = await api.get(`/advices/stocks/symbol/${symbol}`);
+            const response = await api.get(`/stocks/symbol/${symbol}`);
             const data = stockMapper(response.data.data);
             return data;
         } catch (error) {
@@ -38,7 +38,7 @@ export const AdviceService = {
 
     getAdviceByName: async (name: string) => {
         try {
-            const response = await api.get(`/advices/stocks/name/${name}`);
+            const response = await api.get(`/stocks/name/${name}`);
             const data = stockMapper(response.data.data);
             return data;
         } catch (error) {
@@ -60,7 +60,7 @@ export const AdviceService = {
 
     updateAdvice: async (id: string, data: any) => {
         try {
-            const response = await api.put(`/advices/stocks/${id}`, data);
+            const response = await api.put(`/stocks/${id}`, data);
             const mappedData = stockMapper(response.data.data);
             return mappedData;
         } catch (error) {
@@ -71,7 +71,7 @@ export const AdviceService = {
 
     deleteAdvice: async (id: string) => {
         try {
-            const response = await api.delete(`/advices/stocks/${id}`);
+            const response = await api.delete(`/stocks/${id}`);
             const mappedData = stockMapper(response.data.data);
             return mappedData;
         } catch (error) {
@@ -87,17 +87,17 @@ export const AdviceService = {
             }
             let symbolResponse;
             if (symbol) {
-                symbolResponse = await api.get(`/stocks/advices/symbol/${symbol}`);
+                symbolResponse = await api.get(`/stocks/symbol/${symbol}`);
                 console.log("Fetched advice by symbol:", symbolResponse.data);
             }
             let nameResponse;
             if (name) {
-                nameResponse = await api.get(`/stocks/advices/name/${name}`);
+                nameResponse = await api.get(`/stocks/name/${name}`);
                 console.log("Fetched advice by name:", nameResponse.data);
             }
             let type = 'Expert Analysis';
             if (!symbolResponse?.data.recommendation && !nameResponse?.data.recommendation && symbol) {
-                symbolResponse = await api.get(`/stocks/advices/indicator/${symbol}`);
+                symbolResponse = await api.get(`/stocks/indicator/${symbol}`);
                 type = 'RSI Indicator';
                 console.log("Fetched advice by indicator for symbol:", symbolResponse.data);
             }

@@ -2,30 +2,38 @@
 
 namespace Platform\Plugins\Advisor\Src\Rules;
 
+use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
+
 class NormalizeEntities
 {
-    public function handle(string $text, array &$entities): string
+    public function handle(string $text, SmoothContext $ctx): string
     {
-        // Convert $aapl -> AAPL
-        $text = preg_replace_callback('/\$(\w{2,6})\b/', fn($m) => strtoupper($m[1]), $text) ?? $text;
+        $tokens   = $ctx->get('tokens', []);
+        $semantic = $ctx->get('semantic', []);
+        $tree     = $ctx->get('sentence_tree', []);
 
-        // Basic ticker detection (heuristic)
-        if (preg_match_all('/\b([A-Za-z]{2,6})\b/', $text, $m)) {
-            $candidates = array_unique($m[1]);
-            $tickers = [];
+        $tickers    = [];
+        $indicators = [];
 
-            foreach ($candidates as $c) {
-                $t = strtoupper($c);
-                if (!in_array($t, ['THE','AND','FOR','WITH','THIS','THAT','WHAT','NEWS','PRICE','ABOUT'])) {
-                    // if you want stricter, check against a whitelist of tickers
-                    $tickers[] = $t;
-                }
+        $features = array_keys($semantic['features'] ?? []);
+
+        foreach ($tokens as $token) {
+            // feature → indicator
+            if (in_array($token, $features)) {
+                $indicators[] = strtoupper($token);
+                continue;
             }
 
-            if ($tickers) {
-                $entities['tickers'] = array_values(array_unique($tickers));
+            // tree target → ticker
+            if ($token === ($tree['target'] ?? null)) {
+                $tickers[] = strtoupper($token);
             }
         }
+
+        $ctx->set('entities', [
+            'tickers'    => array_values(array_unique($tickers)),
+            'indicators' => array_values(array_unique($indicators)),
+        ]);
 
         return $text;
     }

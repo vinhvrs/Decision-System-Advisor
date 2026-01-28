@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages */
 import Image from "next/image";
 import bgImg from "../../assets/images/bg-landingpage.jpg";
 import Card from "../../sections/Card";
@@ -146,6 +147,8 @@ export default function HomePage() {
 
         </div>
       </section>
+
+      <ChatBox />
 
       {/* ================= Hot News ================= */}
       <section className="px-6 py-16 bg-[#0b1220]">

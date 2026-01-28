@@ -15,13 +15,36 @@ class SmoothTest extends Command
     {
         $s = new LanguageSmoother();
 
-        $in = $s->smooth("give me news nvda today no image full text, include ohclv!!!", new SmoothContext('in','standard','en'));
+        $in = $s->smooth(
+            "give me news nvda today no image full text, include ohclv!!!",
+            new SmoothContext(
+                direction: 'in',
+                stylePreset: 'standard',
+                locale: 'en',
+                debug: true      // 👈 BẬT LOG
+            )
+        );
         $this->info('IN cleanText: ' . $in->cleanText);
         $this->info('IN intent: ' . ($in->intent ?? 'null'));
         $this->info('IN entities: ' . json_encode($in->entities));
 
-        $out = $s->smooth("nvda marketcap is huge   and volitility is high", new SmoothContext('out','concise','en'));
-        $this->info('OUT cleanText: ' . $out->cleanText);
+        if (isset($in->entities['tickers'])) {
+            $ctxOut = new SmoothContext(
+                direction: 'out',
+                stylePreset: 'standard',
+                locale: 'en',
+                debug: true      // 👈 BẬT LOG
+            );
+            $ctxOut->memory = [
+                'intent' => $in->intent,
+                'entities' => $in->entities,
+            ];
+
+            $out = $s->smooth("Market data placeholder", $ctxOut);
+            $this->info('OUT cleanText: ' . $out->cleanText);
+        } else {
+            $this->error('Tickers data is missing in entities.');
+        }
 
         return 0;
     }
