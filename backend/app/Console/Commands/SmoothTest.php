@@ -16,7 +16,7 @@ class SmoothTest extends Command
         $s = new LanguageSmoother();
 
         $in = $s->smooth(
-            "give me news nvda today no image full text, include ohclv!!!",
+            "give me the full text analysis of AAPL and MSFT stock prices today, please",
             new SmoothContext(
                 direction: 'in',
                 stylePreset: 'standard',

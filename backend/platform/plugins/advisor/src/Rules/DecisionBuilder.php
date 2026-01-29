@@ -1,51 +1,32 @@
 <?php
 
-namespace Platform\Plugins\Advisor\Src\Services;
+namespace Platform\Plugins\Advisor\Src\Rules;
 
-use Platform\Plugins\Advisor\Src\DTO\Decision;
 use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
 
 class DecisionBuilder
 {
-    public function build(SmoothContext $ctx): Decision
+    public function handle(string $text, SmoothContext $ctx): string
     {
-        $tree = $ctx->memory['sentence_tree'] ?? [];
+        $intent   = $ctx->memory['intent'] ?? 'unknown';
+        $entities = $ctx->memory['entities'] ?? [];
+        $tree     = $ctx->memory['sentence_tree'] ?? [];
+        $semantic = $ctx->memory['semantic'] ?? [];
 
-        $d = new Decision();
+        $ctx->memory['decision'] = [
+            'intent' => $intent,
+            'entity' => [
+                'tickers'    => $entities['tickers'] ?? [],
+                'indicators' => $entities['indicators'] ?? [],
+            ],
+            'modifiers' => [
+                'negated'     => $tree['modifiers']['negated'] ?? [],
+                'constraints' => $semantic['constraints'] ?? [],
+                'features'    => $semantic['features'] ?? [],
+            ],
+            'confidence' => 0.9,
+        ];
 
-        /* ---------- INTENT ---------- */
-        $d->intent = match ($tree['action'] ?? null) {
-            'news'    => 'GET_NEWS',
-            'price'   => 'GET_PRICE',
-            'compare' => 'COMPARE',
-            'advice'  => 'INVEST_ADVICE',
-            default   => 'GENERAL_QUERY',
-        };
-
-        /* ---------- ENTITY ---------- */
-        if (!empty($tree['target'])) {
-            $d->entity['symbol'] = strtoupper($tree['target']);
-        }
-
-        /* ---------- MODIFIERS ---------- */
-        if (!empty($tree['modifiers']['negated'])) {
-            $d->modifiers['negated'] = true;
-        }
-
-        if (in_array('full_text', $tree['modifiers']['positive'] ?? [], true)) {
-            $d->modifiers['short'] = false;
-        }
-
-        if (in_array('analysis', $tree['modifiers']['negated'] ?? [], true)) {
-            $d->modifiers['noAnalysis'] = true;
-        }
-
-        /* ---------- CONFIDENCE ---------- */
-        $d->confidence =
-            ($d->entity['symbol'] ? 0.4 : 0.0) +
-            ($d->intent !== 'GENERAL_QUERY' ? 0.4 : 0.0) +
-            (!empty($tree['features']) ? 0.2 : 0.0);
-
-        return $d;
+        return $text;
     }
 }

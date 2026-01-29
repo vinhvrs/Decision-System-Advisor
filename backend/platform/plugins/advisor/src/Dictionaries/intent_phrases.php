@@ -15,10 +15,18 @@ return [
         'update',
     ],
 
+    'analysis_request' => [
+        'analysis',
+        'analyze',
+        'price analysis',
+        'stock analysis',
+    ],
+
     'price_request' => [
         'price',
-        'value',
-        'quote',
+        'prices',
+        'stock price',
+        'stock prices',
     ],
 
     'indicator_request' => [
