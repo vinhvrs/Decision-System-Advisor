@@ -37,4 +37,13 @@ class GetNewsData extends Controller
         $this->newsFetchService->storeNewsItems($newsItems, $this->knowledgeRepository);
         return response()->json(['message' => 'News data fetched and stored successfully'], 200);
     }
+
+    public function getNewsBySlug($slug)
+    {
+        $knowledge = $this->knowledgeRepository->findBySlug($slug);
+        if ($knowledge) {
+            return response()->json($knowledge);
+        }
+        return response()->json(['error' => 'News article not found'], 404);
+    }
 }

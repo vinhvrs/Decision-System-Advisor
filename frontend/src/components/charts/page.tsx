@@ -10,6 +10,9 @@ import LightChart from "./LightChart";
 import { Instrument } from "../../types/Instrument";
 import { InstrumentPeriod } from "../../types/InstrumentPeriod";
 import { createEcho } from "@/src/libs/echo";
+import { get, set } from "idb-keyval";
+import { IDB_KEYS } from "@/src/libs/idbKeys";
+
 
 /* ============================================================
  * HELPERS
@@ -123,6 +126,9 @@ export default function InstrumentSelectionPage() {
   const [selectedPeriod, setSelectedPeriod] =
     useState<InstrumentPeriod | null>(AAPL_PERIODS[0]);
 
+  const [selectedIndicator, setSelectedIndicator] =
+    useState<{ id: string; label: string } | null>(null);
+
   const loadingMoreCandles = useRef(false);
   const throttleRef = useRef(0);
 
@@ -195,9 +201,39 @@ export default function InstrumentSelectionPage() {
    * LOAD INSTRUMENTS
    ---------------------------------------------------------*/
   useEffect(() => {
-    InstrumentService.getInstruments(30000, 1, ["id", "symbol", "name"])
-      .then(setInstruments);
+    const loadInstruments = async () => {
+      try {
+        const cached = await get(IDB_KEYS.INSTRUMENTS);
+
+        if (cached?.length) {
+          console.log("⚡ Instruments from IndexedDB");
+          setInstruments(cached);
+
+          const aapl = cached.find((i: Instrument) => i.symbol === "AAPL");
+          setSelectedInstrument(aapl || cached[0]);
+          return;
+        }
+
+        console.log("📡 Fetch instruments from API");
+        const res = await InstrumentService.getInstruments(
+          30000,
+          1,
+          ["id", "symbol", "name"]
+        );
+
+        setInstruments(res);
+        await set(IDB_KEYS.INSTRUMENTS, res);
+
+        const aapl = res.find((i: { symbol: string; }) => i.symbol === "AAPL");
+        setSelectedInstrument(aapl || res[0]);
+      } catch (err) {
+        console.error("Instrument load error:", err);
+      }
+    };
+
+    loadInstruments();
   }, []);
+
 
   /** --------------------------------------------------------
    * CHANGE STOCK
@@ -205,22 +241,38 @@ export default function InstrumentSelectionPage() {
   useEffect(() => {
     if (!selectedInstrument) return;
 
-    async function loadPeriodsFn() {
-      const fetched =
-        selectedInstrument?.symbol === "AAPL"
-          ? AAPL_PERIODS
-          : await InstrumentService.getPeriodsById(selectedInstrument?.id ?? "");
+    const loadPeriods = async () => {
+      const key = IDB_KEYS.PERIODS(selectedInstrument.id);
 
-      setPeriods(fetched);
+      try {
+        const cached = await get(key);
 
-      const daily = fetched.find((p) => p.period === "daily");
-      setSelectedPeriod(daily || fetched[0] || null);
+        if (cached?.length) {
+          setPeriods(cached);
 
-      resetCandles();
-    }
+          const daily =
+            cached.find((p: { period: string }) => p.period === "daily") ||
+            cached[0];
 
-    loadPeriodsFn();
-  }, [selectedInstrument]);
+          setSelectedPeriod(daily);
+          return;
+        }
+
+        const res = await InstrumentService.getPeriodsById(selectedInstrument.id);
+        setPeriods(res);
+        await set(key, res);
+
+        const daily =
+          res.find((p: { period: string }) => p.period === "daily") ||
+          res[0];
+
+        setSelectedPeriod(daily);
+      } catch (e) {
+        console.error("Period load error:", e);
+      }
+    };
+    loadPeriods();
+  }, [selectedInstrument?.id]);
 
   /** --------------------------------------------------------
    * RESET WHEN CHANGE PERIOD
@@ -248,21 +300,21 @@ export default function InstrumentSelectionPage() {
 
     echoRef.current = echo;
 
-    const symbol = (selectedPeriod?.prefix || selectedInstrument.symbol || "aapl").toLowerCase();
-    const timeframe = mapPeriodToTimeframe(selectedPeriod.period); // daily/weekly/monthly/yearly
-    const channelName = `ohlc.${symbol}.${timeframe}`;
+    const symbol = (
+      selectedPeriod.prefix ||
+      selectedInstrument.symbol
+    ).toLowerCase();
 
+    const timeframe = selectedPeriod.period; // ✅ LẤY TRỰC TIẾP
+
+    const channelName = `ohlc.${symbol}.${timeframe}`;
     const pusher = echo.connector.pusher;
 
     const onConnected = () => {
       console.log("✅ Reverb connected");
 
       echo.channel(channelName).listen(".candle", (e: any) => {
-        // backend có thể gửi trực tiếp {time, open, high, low, close}
-        // hoặc bọc trong { candle: {...} }
         const candle = e?.candle ?? e;
-
-        console.log("🔥 Realtime candle:", candle);
         setRealtimeCandle(candle);
       });
 
@@ -275,7 +327,8 @@ export default function InstrumentSelectionPage() {
       echo.leave(channelName);
       pusher.connection.unbind("connected", onConnected);
     };
-  }, [selectedInstrument?.symbol, selectedPeriod?.id]);
+  }, [selectedInstrument?.id, selectedPeriod?.id]);
+
 
 
   /** --------------------------------------------------------
@@ -283,8 +336,6 @@ export default function InstrumentSelectionPage() {
    ---------------------------------------------------------*/
   return (
     <main className="p-10 space-y-8 text-white">
-      <h1 className="text-3xl font-bold">Market Chart</h1>
-
       <div className="flex gap-8 text-black">
         <SelectDropdown
           options={instruments.map((i) => ({
@@ -319,6 +370,25 @@ export default function InstrumentSelectionPage() {
           placeholder="Select period"
           onSelect={(v) => {
             const found = periods.find((p) => p.id === v.id);
+            setSelectedPeriod(found || null);
+          }}
+        />
+
+        <SelectDropdown
+          options={[
+            { id: "macd", label: "MACD" },
+            { id: "rsi", label: "RSI" },
+            { id: "stochastic", label: "Stochastic" },
+            { id: "bollinger", label: "Bollinger Bands" },
+          ]}
+          selected={
+            selectedIndicator
+              ? { id: selectedIndicator.id, label: selectedIndicator.label }
+              : null
+          }
+          placeholder="Indicator"
+          onSelect={(v) => {
+            const found = periods.find((p) => p.period === v.id);
             setSelectedPeriod(found || null);
           }}
         />
