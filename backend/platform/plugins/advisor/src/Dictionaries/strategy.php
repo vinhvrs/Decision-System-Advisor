@@ -43,4 +43,20 @@ return [
         'require_data' => false,
         'allow_llm' => true,
     ],
+
+    'verbs' => [
+        'give', 'show', 'get', 'tell', 'list', 'provide', 'apply'
+    ],
+    'fillers' => [
+        'me', 'please', 'today', 'now', 'full', 'text', 'include'
+    ],
+    'negations' => [
+        'no', 'not', 'without'
+    ],
+    'domain_nouns' => [
+        'stock','stocks','price','prices','analysis','text'
+    ],
+    'stopwords' => [
+        'the','of','and','or','to','for','in','on','at','with'
+    ],
 ];

@@ -4,7 +4,7 @@ namespace Platform\Plugins\Advisor\Src\Rules;
 
 use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
 
-class DecisionBuilder
+class DecisionBuilderService
 {
     public function handle(string $text, SmoothContext $ctx): string
     {
