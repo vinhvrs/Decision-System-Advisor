@@ -2,15 +2,16 @@
 
 namespace Platform\Plugins\Advisor\Src\Rules;
 
+use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
+
 class NormalizeText
 {
-    public function handle(string $text): string
+    public function handle(string $text, SmoothContext $ctx): string
     {
-        $text = trim($text);
-        $text = preg_replace('/\s+/', ' ', $text) ?? '';
-        $text = preg_replace('/([!?.,])\1+/', '$1', $text) ?? '';
-        $text = str_replace(["\u{201C}", "\u{201D}"], '"', $text);
-        $text = str_replace(["\u{2018}", "\u{2019}"], "'", $text);
-        return $text;
+        // normalize whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        // trim
+        return trim($text);
     }
 }

@@ -2,17 +2,24 @@
 
 namespace Platform\Plugins\Advisor\Src\Rules;
 
+use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
+
 class FixTypos
 {
-    public function __construct(private array $typos) {}
+    public function __construct(
+        protected array $typos = []
+    ) {}
 
-    public function handle(string $text): string
+    public function handle(string $text, SmoothContext $ctx): string
     {
-        // word-boundary replace
-        foreach ($this->typos as $wrong => $right) {
-            $pattern = '/\b' . preg_quote($wrong, '/') . '\b/i';
-            $text = preg_replace($pattern, $right, $text);
+        foreach ($this->typos as $wrong => $correct) {
+            $text = preg_replace(
+                '/\b' . preg_quote($wrong, '/') . '\b/i',
+                $correct,
+                $text
+            );
         }
+
         return $text;
     }
 }

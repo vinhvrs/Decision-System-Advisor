@@ -10,6 +10,21 @@ class SmoothResult
         public ?string $intent = null,
         public array $entities = [],
         public array $constraints = [],
-        public array $notes = [],
+        public array $notes = []
     ) {}
+
+    /**
+     * Convert to array (useful for API / debug)
+     */
+    public function toArray(): array
+    {
+        return [
+            'original_text' => $this->originalText,
+            'clean_text'    => $this->cleanText,
+            'intent'        => $this->intent,
+            'entities'      => $this->entities,
+            'constraints'   => $this->constraints,
+            'notes'         => $this->notes,
+        ];
+    }
 }

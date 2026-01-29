@@ -1,16 +1,50 @@
 <?php
 
 return [
-    'news_search' => [
-        'latest news on', 'news about', 'headlines for', 'updates on',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Intent definitions
+    |--------------------------------------------------------------------------
+    | intent_name => [keywords...]
+    */
+
+    'news_request' => [
+        'news',
+        'headline',
+        'update',
     ],
-    'price_check' => [
-        'price of', 'quote for', 'how much is', 'current price',
+
+    'analysis_request' => [
+        'analysis',
+        'analyze',
+        'price analysis',
+        'stock analysis',
     ],
-    'compare' => [
-        'compare', 'vs', 'difference between',
+
+    'price_request' => [
+        'price',
+        'prices',
+        'stock price',
+        'stock prices',
     ],
-    'explain_term' => [
-        'what is', 'explain', 'meaning of',
+
+    'indicator_request' => [
+        'indicator',
+        'macd',
+        'rsi',
+        'ohlcv',
+    ],
+
+    'buy_decision' => [
+        'buy',
+        'entry',
+        'long',
+    ],
+
+    'sell_decision' => [
+        'sell',
+        'exit',
+        'short',
     ],
 ];
