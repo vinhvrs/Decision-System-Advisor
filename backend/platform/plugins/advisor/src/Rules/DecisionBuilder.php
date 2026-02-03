@@ -6,24 +6,48 @@ use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
 
 class DecisionBuilder
 {
+    protected array $strategies;
+
+    public function __construct()
+    {
+        $this->strategies = config('language_smooth.response_strategy', []);
+    }
+
     public function handle(string $text, SmoothContext $ctx): string
     {
-        $intent   = $ctx->memory['intent'] ?? 'unknown';
+        $intent   = $ctx->memory['intent']   ?? 'unknown';
         $entities = $ctx->memory['entities'] ?? [];
-        $tree     = $ctx->memory['sentence_tree'] ?? [];
-        $semantic = $ctx->memory['semantic'] ?? [];
 
+        // 1️⃣ Resolve strategy
+        $strategy = $this->strategies[$intent]
+            ?? $this->strategies['unknown']
+            ?? [
+                'mode' => 'fallback',
+                'require_data' => false,
+                'allow_llm' => true,
+            ];
+        
+        // 2️⃣ Validate required data
+        if (($strategy['require_data'] ?? false) === true) {
+            if (empty($entities['tickers'])) {
+                $ctx->memory['decision'] = [
+                    'intent' => $intent,
+                    'entities' => $entities,
+                    'strategy' => $strategy,
+                    'error' => 'missing_ticker',
+                    'confidence' => 0.2,
+                ];
+
+                // ⚠️ KHÔNG trả text
+                return $text;
+            }
+        }
+
+        // 3️⃣ Store final decision
         $ctx->memory['decision'] = [
-            'intent' => $intent,
-            'entity' => [
-                'tickers'    => $entities['tickers'] ?? [],
-                'indicators' => $entities['indicators'] ?? [],
-            ],
-            'modifiers' => [
-                'negated'     => $tree['modifiers']['negated'] ?? [],
-                'constraints' => $semantic['constraints'] ?? [],
-                'features'    => $semantic['features'] ?? [],
-            ],
+            'intent'   => $intent,
+            'entities' => $entities,
+            'strategy' => $strategy,
             'confidence' => 0.9,
         ];
 

@@ -3,23 +3,24 @@
 namespace Platform\Plugins\Advisor\Src\Rules;
 
 use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
+use Platform\Plugins\Advisor\Src\Services\StrategyResolverService;
 
 class TokenizeText
 {
     public function handle(string $text, SmoothContext $ctx): string
     {
-        // normalize basic
-        $normalized = strtolower($text);
+        $tokens = preg_split('/\W+/', strtolower($text)) ?: [];
 
-        // split by non-alphanumeric
-        $tokens = preg_split('/[^a-z0-9]+/', $normalized);
+        $resolver = app(StrategyResolverService::class);
+        $stopwords = $resolver->getStopwords();
 
-        // keep everything meaningful (NO stopword removal here)
-        $tokens = array_values(array_filter($tokens, fn ($t) => $t !== ''));
+        $tokens = array_values(array_filter(
+            $tokens,
+            fn($t) => $t !== '' && !in_array($t, $stopwords, true)
+        ));
 
-        // store raw tokens
-        $ctx->set('tokens', $tokens);
+        $ctx->memory['tokens'] = $tokens;
 
-        return $normalized;
+        return $text;
     }
 }

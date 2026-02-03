@@ -4,6 +4,7 @@ namespace Platform\Plugins\Trading\Src\Repositories\Eloquent;
 use Platform\Plugins\Trading\Src\Models\StockAttribute;
 use Platform\Plugins\Trading\Src\Repositories\Interfaces\StockInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class StockRepository implements StockInterface {
     public function create(array $stock): StockAttribute {
@@ -34,9 +35,22 @@ class StockRepository implements StockInterface {
         return $query->paginate($perPage);
     }
 
+    public function getCurrentPrice(string $symbol, string $period = 'daily'): ?float
+    {
+        $price = DB::table('instrument_data as d')
+            ->join('instrument_periods as ip', 'ip.id', '=', 'd.instrument_period_id')
+            ->join('instruments as i', 'i.id', '=', 'ip.instrument_id')
+            ->where('i.symbol', $symbol)
+            ->where('ip.period', $period ?? 'daily')
+            ->orderByDesc('d.created_at')
+            ->value('d.close') ?? 0.0;
+
+        return is_numeric($price) ? (float)$price : null;
+    }
+
     public function update(string $id, array $stock): ?StockAttribute {
         $attribute = StockAttribute::find($id);
-        if ($attribute) {
+        if ($attribute instanceof StockAttribute) {
             $attribute->update($stock);
             return $attribute;
         }
@@ -54,7 +68,7 @@ class StockRepository implements StockInterface {
 
     public function delete(string $id): bool {
         $attribute = StockAttribute::find($id);
-        if ($attribute) {
+        if ($attribute instanceof StockAttribute) {
             return (bool)$attribute->delete();
         }
         return false;

@@ -100,7 +100,7 @@ class LanguageSmoother
                 originalText: $original,
                 cleanText: $text,
                 intent: $ctx->memory['decision']['intent'] ?? null,
-                entities: $ctx->memory['decision']['entity'] ?? [],
+                entities: $ctx->memory['decision']['entities'] ?? [],
                 constraints: $ctx->memory['decision']['modifiers'] ?? [],
                 notes: [
                     'tokens'        => $ctx->memory['tokens'] ?? [],
@@ -134,7 +134,7 @@ class LanguageSmoother
             originalText: $original,
             cleanText: $text,
             intent: $ctx->memory['decision']['intent'] ?? null,
-            entities: $ctx->memory['decision']['entity'] ?? [],
+            entities: $ctx->memory['decision']['entities'] ?? [],
             constraints: ['stylePreset' => $ctx->stylePreset],
             notes: []
         );

@@ -11,4 +11,6 @@ Route::prefix('/analysist/indicators')->group(function () {
     Route::get('/{symbol}/macd', [AnalysistController::class, 'MACD']);
     Route::get('/{symbol}/bollinger-bands', [AnalysistController::class, 'BollingerBands']);
     Route::get('/{symbol}/stochastic-oscillator', [AnalysistController::class, 'StochasticOscillator']);
+    Route::get('/{symbol}/summary', [AnalysistController::class, 'IndicatorSummary']);
+    Route::post('/aggregator', [AnalysistController::class, 'Aggregator']);
 });
