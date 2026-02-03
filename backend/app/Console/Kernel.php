@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 class Kernel extends ConsoleKernel
 {
     protected $commands = [
-        // FetchStockAttributes::class,
+            // FetchStockAttributes::class,
         DataPeriods::class,
         FetchNews::class,
         SmoothTest::class,
@@ -39,18 +39,20 @@ class Kernel extends ConsoleKernel
             ->everyFifteenSeconds()
             ->evenInMaintenanceMode()
             ->withoutOverlapping()
-            ->runInBackground();
+            ->runInBackground()
+            ->onOneServer()
+            ->before(function () {
+                \Artisan::call('data:periods');
+            });
 
         $schedule->command('news:fetch')
             ->hourly()
             ->evenInMaintenanceMode()
             ->withoutOverlapping()
-            ->runInBackground();
-
-        $schedule->command('smooth:test')
-            ->everyMinute()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground();
+            ->runInBackground()
+            ->onOneServer()
+            ->before(function () {
+                \Artisan::call('news:fetch');
+            });
     }
 }
