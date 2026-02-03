@@ -8,7 +8,9 @@ use App\Http\Controllers\Controller;
 
 class ElasticEntityController extends Controller
 {
-    public function __construct(private readonly ElasticsearchEntityService $es) {}
+    public function __construct(private readonly ElasticsearchEntityService $es)
+    {
+    }
 
     // POST /api/entities/import
     public function import(Request $request)

@@ -8,11 +8,13 @@ class BuildSemanticDictionary
 {
     protected array $intentPhrases;
     protected array $indicators;
+    protected array $negations;
 
     public function __construct(array $intentPhrases)
     {
         $this->intentPhrases = $intentPhrases;
-        $this->indicators    = require __DIR__ . '/../Dictionaries/indicator.php';
+        $this->indicators = require __DIR__ . '/../Dictionaries/indicator.php';
+        $this->negations = config('language_smooth.negations', ['no', 'not', 'without']);
     }
 
     public function handle(string $text, SmoothContext $ctx): string
@@ -20,9 +22,9 @@ class BuildSemanticDictionary
         $tokens = $ctx->get('tokens', []);
 
         $semantic = [
-            'actions'     => [],
+            'actions' => [],
             'constraints' => [],
-            'features'    => [],
+            'features' => [],
         ];
 
         foreach ($tokens as $i => $token) {
@@ -35,7 +37,7 @@ class BuildSemanticDictionary
             }
 
             // NEGATION
-            if ($token === 'no' && isset($tokens[$i + 1])) {
+            if (in_array($token, $this->negations) && isset($tokens[$i + 1])) {
                 $semantic['constraints'][$tokens[$i + 1]] = false;
             }
 

@@ -5,9 +5,11 @@ namespace Illuminate\Database\Schema;
 use Closure;
 use Illuminate\Container\Container;
 use Illuminate\Database\Connection;
+use Illuminate\Database\PostgresConnection;
 use Illuminate\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
+use RuntimeException;
 
 class Builder
 {
@@ -30,7 +32,7 @@ class Builder
     /**
      * The Blueprint resolver callback.
      *
-     * @var \Closure(string, \Closure, string): \Illuminate\Database\Schema\Blueprint|null
+     * @var \Closure(\Illuminate\Database\Connection, string, \Closure|null): \Illuminate\Database\Schema\Blueprint
      */
     protected $resolver;
 
@@ -323,6 +325,38 @@ class Builder
     }
 
     /**
+     * Execute a table builder callback if the given table has a given index.
+     *
+     * @param  string  $table
+     * @param  string|array  $index
+     * @param  \Closure  $callback
+     * @param  string|null  $type
+     * @return void
+     */
+    public function whenTableHasIndex(string $table, string|array $index, Closure $callback, ?string $type = null)
+    {
+        if ($this->hasIndex($table, $index, $type)) {
+            $this->table($table, fn (Blueprint $table) => $callback($table));
+        }
+    }
+
+    /**
+     * Execute a table builder callback if the given table doesn't have a given index.
+     *
+     * @param  string  $table
+     * @param  string|array  $index
+     * @param  \Closure  $callback
+     * @param  string|null  $type
+     * @return void
+     */
+    public function whenTableDoesntHaveIndex(string $table, string|array $index, Closure $callback, ?string $type = null)
+    {
+        if (! $this->hasIndex($table, $index, $type)) {
+            $this->table($table, fn (Blueprint $table) => $callback($table));
+        }
+    }
+
+    /**
      * Get the data type for the given column name.
      *
      * @param  string  $table
@@ -608,6 +642,38 @@ class Builder
     }
 
     /**
+     * Create the vector extension on the schema if it does not exist.
+     *
+     * @param  string|null  $schema
+     * @return void
+     */
+    public function ensureVectorExtensionExists($schema = null)
+    {
+        $this->ensureExtensionExists('vector', $schema);
+    }
+
+    /**
+     * Create a new extension on the schema if it does not exist.
+     *
+     * @param  string  $name
+     * @param  string|null  $schema
+     * @return void
+     */
+    public function ensureExtensionExists($name, $schema = null)
+    {
+        if (! $this->getConnection() instanceof PostgresConnection) {
+            throw new RuntimeException('Extensions are only supported by Postgres.');
+        }
+
+        $name = $this->getConnection()->getSchemaGrammar()->wrap($name);
+
+        $this->getConnection()->statement(match (filled($schema)) {
+            true => "create extension if not exists {$name} schema {$this->getConnection()->getSchemaGrammar()->wrap($schema)}",
+            false => "create extension if not exists {$name}",
+        });
+    }
+
+    /**
      * Execute the blueprint to build / modify the table.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
@@ -698,7 +764,7 @@ class Builder
     /**
      * Set the Schema Blueprint resolver callback.
      *
-     * @param  \Closure(string, \Closure, string): \Illuminate\Database\Schema\Blueprint|null  $resolver
+     * @param  \Closure(\Illuminate\Database\Connection, string, \Closure|null): \Illuminate\Database\Schema\Blueprint  $resolver
      * @return void
      */
     public function blueprintResolver(Closure $resolver)

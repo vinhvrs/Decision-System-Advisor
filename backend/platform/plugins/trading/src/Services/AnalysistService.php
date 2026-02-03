@@ -15,6 +15,32 @@ class AnalysistService
         $this->indicatorMath = $indicatorMath;
     }
 
+    public function Indicator_Summary(string $symbol, string $period = 'daily')
+    {
+        $sma = $this->Indicator_SMA($symbol, $period, 14)->getData(true);
+        $ema = $this->Indicator_EMA($symbol, $period, 14)->getData(true);
+        $rsi = $this->Indicator_RSI($symbol, $period, 14)->getData(true);
+        $macd = $this->Indicator_MACD($symbol, $period, 12, 26, 9)->getData(true);
+        $rsi = $this->Indicator_RSI($symbol, $period, 14)->getData(true);
+        $stochastic = $this->Indicator_StochasticOscillator($symbol, $period, 14, 3)->getData(true);
+        $boillinger = $this->Indicator_BollingerBands($symbol, $period, 2.0, 20)->getData(true);
+        $price = $this->stockRepository->getCurrentPrice($symbol, $period);
+        $summary = [
+            'symbol' => strtoupper($symbol),
+            'period' => $period,
+            'indicators' => [
+                'sma' => $sma,
+                'ema' => $ema,
+                'rsi' => $rsi,
+                'macd' => $macd,
+                'stochastic' => $stochastic,
+                'bollinger_bands' => $boillinger,
+            ],
+            'price' => $price,
+        ];
+        return response()->json($summary);
+    }
+
     public function Indicator_SMA(string $symbol, string $period = 'daily', int $n = 14)
     {
         $closes = $this->indicatorMath->getLastCandles($symbol, $period, 300);
