@@ -16,7 +16,7 @@ class SmoothTest extends Command
         $s = new LanguageSmoother();
 
         $in = $s->smooth(
-            "give me the full text analysis of AAPL and MSFT stock prices today, please",
+            "give me the full text analysis of AAPL and MSFT stock prices today without explanation, please",
             new SmoothContext(
                 direction: 'in',
                 stylePreset: 'standard',
@@ -36,6 +36,7 @@ class SmoothTest extends Command
                 debug: true      // 👈 BẬT LOG
             );
             $ctxOut->memory = [
+                'text' => $in->cleanText,
                 'intent' => $in->intent,
                 'entities' => $in->entities,
             ];
