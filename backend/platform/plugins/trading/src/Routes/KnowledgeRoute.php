@@ -7,7 +7,8 @@ use Platform\Plugins\Trading\Src\Http\Controllers\CollectData\GetNewsData;
 
 Route::prefix('/news')->group(function () {
     Route::get('/fetch', [GetNewsData::class, 'fetchNewsData']);
-    Route::get('/search', [GetNewsData::class, 'fetchNewsByKeyword']);
+    Route::get('/fetch-by-keyword', [GetNewsData::class, 'fetchNewsByKeyword']);
+    Route::get('/search', [GetNewsData::class, 'getNewsByWords']);
     Route::get('/get-by-slug/{slug}', [GetNewsData::class, 'getNewsBySlug']);
 
 

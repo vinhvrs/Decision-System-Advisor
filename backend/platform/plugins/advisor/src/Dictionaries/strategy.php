@@ -45,7 +45,7 @@ return [
     ],
 
     'verbs' => [
-        'give', 'show', 'get', 'tell', 'list', 'provide', 'apply'
+        'give', 'show', 'get', 'tell', 'list', 'provide', 'apply', 'share', 'fetch', 'read', 'look up', 'analyze', 'explain', 'predict', 'forecast', 'advise', 'recommend', 'bring'
     ],
     'fillers' => [
         'me', 'please', 'today', 'now', 'full', 'text', 'include'

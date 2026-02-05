@@ -38,6 +38,14 @@ class GetNewsData extends Controller
         return response()->json(['message' => 'News data fetched and stored successfully'], 200);
     }
 
+    public function getNewsByWords(Request $request)
+    {
+        $words = $request->input('q', '');
+        $perPage = $request->input('per_page', 10);
+        $newsArticles = $this->knowledgeRepository->findByWords($words, $perPage);
+        return response()->json($newsArticles);
+    }
+
     public function getNewsBySlug($slug)
     {
         $knowledge = $this->knowledgeRepository->findBySlug($slug);

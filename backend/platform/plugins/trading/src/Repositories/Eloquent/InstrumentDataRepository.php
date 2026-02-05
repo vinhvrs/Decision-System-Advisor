@@ -48,7 +48,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
     }
 
     public function update(string $id, array $instrumentData): ?InstrumentData {
-        $inst = InstrumentData::find($id);
+        $inst = InstrumentData::query()->find($id);
         if ($inst) {
             $inst->update($instrumentData);
             return $inst;
@@ -57,7 +57,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
     }
 
     public function delete(string $id): bool {
-        $inst = InstrumentData::find($id);
+        $inst = InstrumentData::query()->find($id);
         if ($inst) {
             return (bool)$inst->delete();
         }

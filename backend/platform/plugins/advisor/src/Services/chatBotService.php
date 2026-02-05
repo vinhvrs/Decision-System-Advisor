@@ -4,44 +4,105 @@ namespace Platform\Plugins\Advisor\Src\Services;
 
 use Platform\Plugins\Advisor\Src\LanguageSmoother;
 use Platform\Plugins\Advisor\Src\DTO\SmoothContext;
+use Platform\Plugins\Trading\Src\Repositories\Eloquent\KnowledgeRepository;
+use Platform\Plugins\Trading\Src\Repositories\Eloquent\StockRepository;
+use Platform\Plugins\Advisor\Src\Services\ResponseComposerService;
+use Platform\Plugins\Trading\Src\Services\AnalysistService;
+use Platform\Plugins\Trading\Src\Services\IndicatorAggregatorService;
 use Illuminate\Support\Facades\Log;
 
 class ChatBotService
 {
     public function __construct(
         private readonly LanguageSmoother $smoother,
-    ) {}
+        private readonly KnowledgeRepository $knowledgeRepository,
+        private readonly StockRepository $stockRepository,
+        private readonly IndicatorAggregatorService $indicatorAggregatorService,
+        private readonly AnalysistService $analysistService,
+        private readonly ResponseComposerService $responseComposerService,
+    ) {
+    }
+
+    /* =========================================================
+     | PUBLIC ENTRY POINTS
+     ========================================================= */
 
     /**
-     * Main entry: process user message -> return smooth response + metadata
+     * Chat-only (text response)
      */
-    public function chat(string $message, array $options = []): array
+    public function chat(array $data): array
     {
-        // 1) Smooth inbound (normalize, entity, intent)
+        $message = $data['message'];
+        $options = $this->extractOptions($data);
+
+        /* =========================
+         | 1) NLP INBOUND
+         ========================= */
         $in = $this->smoother->smooth(
             $message,
-            new SmoothContext(direction: 'in', stylePreset: 'standard', locale: 'en')
+            new SmoothContext(
+                direction: 'in',
+                stylePreset: $options['stylePreset'],
+                locale: 'en'
+            )
         );
 
-        \Log::info('ChatBotService::chat IN', [
+        // 🔎 READ-ONLY NLP OUTPUT
+        $sentenceTree = $in->notes['sentence_tree'] ?? [];
+        $decisionNote = $in->notes['decision'] ?? [];
+
+        $negatedTargets = $sentenceTree['modifiers']['negated'] ?? [];
+        $constraints = $in->constraints ?? [];
+
+        Log::info('ChatBotService::chat IN', [
             'cleanText' => $in->cleanText,
-            'intent'    => $in->intent,
-            'entities'  => $in->entities,
+            'intent' => $in->intent,
+            'entities' => $in->entities,
+            'negated' => $negatedTargets,
+            'constraints' => $constraints,
         ]);
 
-        // 2) Router (demo). Bạn thay bằng logic gọi API/DB/LLM thật
-        [$rawReply, $meta] = $this->route($in->cleanText, $in->intent, $in->entities, $options);
+        /* =========================
+         | 2) ROUTE
+         ========================= */
+        [$rawReply, $meta] = $this->route(
+            $in->cleanText,
+            $in->intent,
+            $in->entities,
+            $options
+        );
 
-        // 3) Smooth outbound (human-like response composer + postprocess)
+        /**
+         * 🔐 IMPORTANT:
+         * If router already returns a structured object
+         * → DO NOT pass through NLP outbound
+         */
+        if (is_array($rawReply)) {
+            return [
+                'reply' => $rawReply,
+                'debug' => [
+                    'intent' => $in->intent,
+                    'entities' => $in->entities,
+                    'negated' => $negatedTargets,
+                    'constraints' => $constraints,
+                    'meta' => $meta,
+                ],
+            ];
+        }
+
+        /* =========================
+         | 3) NLP OUTBOUND (TEXT ONLY)
+         ========================= */
         $out = $this->smoother->smooth(
             $rawReply,
             new SmoothContext(
                 direction: 'out',
-                stylePreset: $options['stylePreset'] ?? 'standard',
+                stylePreset: $options['stylePreset'],
                 locale: 'en',
                 memory: [
-                    'profile' => $options['profile'] ?? 'spoken_professional',
-                    'intent'  => $in->intent,
+                    'profile' => $options['profile'],
+                    'intent' => $in->intent,
+                    'constraints' => $constraints,
                 ]
             )
         );
@@ -49,66 +110,251 @@ class ChatBotService
         return [
             'reply' => $out->cleanText,
             'debug' => [
-                'cleanText' => $in->cleanText,
-                'intent'    => $in->intent,
-                'entities'  => $in->entities,
-                'meta'      => $meta,
+                'intent' => $in->intent,
+                'entities' => $in->entities,
+                'negated' => $negatedTargets,
+                'constraints' => $constraints,
+                'meta' => $meta,
             ],
         ];
     }
 
     /**
-     * Very simple router stub. Replace with your real tool calls:
-     * - news_search: call NewsService
-     * - price_check: call MarketService
-     * - explain_term: call KnowledgeBase/RAG
+     * Analysis / advisory API (JSON)
      */
-    private function route(string $cleanText, ?string $intent, array $entities, array $options): array
+    public function analysis(array $data)
     {
-        $intent = $intent ?? 'default';
+        $chat = $this->chat($data);
 
-        // demo reply by intent
+        $intent = $chat['debug']['intent'] ?? 'fallback';
+        $entities = $chat['debug']['entities'] ?? [];
+        $tickers = $entities['tickers'] ?? [];
+
+        // 🔐 Chỉ những intent này mới được chạy analysis engine
+        $analysisIntents = [
+            'analysis_request',
+            'buy_decision',
+            'sell_decision',
+        ];
+
+        if (!in_array($intent, $analysisIntents, true)) {
+            return response()->json([
+                'type' => 'chat',
+                'response' => $chat['reply'],
+            ]);
+        }
+
+        if (empty($tickers)) {
+            return response()->json([
+                'type' => 'chat',
+                'response' => "Which ticker should I analyze?",
+            ]);
+        }
+
+        $results = $this->analyzeTickers(
+            $tickers,
+            $data['period'] ?? 'daily',
+            $this->extractOptions($data),
+            $chat['debug']['constraints'] ?? []
+        );
+
+        return response()->json([
+            'type' => count($results) > 1 ? 'advice_multi' : 'advice',
+            'period' => $data['period'] ?? 'daily',
+            'results' => $results,
+        ]);
+    }
+
+    /**
+     * Direct advisory (single symbol)
+     */
+    public function advise(array $data)
+    {
+        $results = $this->analyzeTickers(
+            [$data['symbol']],
+            $data['period'] ?? 'daily',
+            $this->extractOptions($data),
+            []
+        );
+
+        return response()->json($results[0] ?? []);
+    }
+
+    /* =========================================================
+     | CORE ANALYSIS ENGINE (SINGLE SOURCE OF TRUTH)
+     ========================================================= */
+
+    private function analyzeTickers(
+        array $tickers,
+        string $period,
+        array $options,
+        array $constraints = []
+    ): array {
+        $results = [];
+
+        foreach ($tickers as $rawSymbol) {
+            $symbol = strtoupper($rawSymbol);
+
+            try {
+                $summary = $this->analysistService
+                    ->Indicator_Summary($symbol, $period)
+                    ->getData(true);
+
+                $decision = $this->indicatorAggregatorService->aggregate(
+                    $summary,
+                    (float) $summary['price']
+                );
+
+                $response = $this->responseComposerService->compose(
+                    $decision,
+                    [
+                        'profile' => $options['profile'],
+                        'style' => $options['stylePreset'],
+                        'constraints' => $constraints, // 👈 explanation on/off
+                    ]
+                );
+
+                $results[] = [
+                    'symbol' => $symbol,
+                    'response' => $response,
+                ];
+            } catch (\Throwable $e) {
+                Log::error("Advisor failed for {$symbol}", [
+                    'error' => $e->getMessage(),
+                ]);
+
+                $results[] = [
+                    'symbol' => $symbol,
+                    'error' => 'Unable to retrieve advisory data at this time.',
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /* =========================================================
+     | ROUTER
+     ========================================================= */
+
+    private function route(
+        string $cleanText,
+        ?string $intent,
+        array $entities,
+        array $options
+    ): array {
         return match ($intent) {
-            'news_search' => [
-                $this->replyNews($cleanText, $entities),
-                ['intent' => 'news_search'],
+            'news_request' => [
+                $this->replyNews($entities),
+                ['intent' => 'news_request'],
             ],
-            'price_check' => [
-                $this->replyPrice($cleanText, $entities),
-                ['intent' => 'price_check'],
+
+            'price_request' => [
+                $this->replyPrice($entities),
+                ['intent' => 'price_request'],
             ],
-            'compare' => [
-                "I can compare the two assets if you tell me which criteria you care about (valuation, growth, risk, or recent news).",
-                ['intent' => 'compare'],
+
+            'buy_decision' => [
+                $this->replyDecision($entities, 'buy', $options),
+                ['intent' => 'buy_decision'],
             ],
+
+            'sell_decision' => [
+                $this->replyDecision($entities, 'sell', $options),
+                ['intent' => 'sell_decision'],
+            ],
+
             default => [
-                "I can help with market news, prices, comparisons, or explanations. What would you like to do?",
-                ['intent' => 'default'],
+                "I can help with market news, prices, analysis, or explanations. What would you like to do?",
+                ['intent' => 'fallback'],
             ],
         };
     }
 
-    private function replyNews(string $cleanText, array $entities): string
-    {
-        $ticker = $entities['tickers'][0] ?? null;
+    /* =========================================================
+     | REPLY HELPERS (array ONLY)
+     ========================================================= */
 
-        if (!$ticker) {
-            return "Which ticker or company should I search the news for?";
+    private function replyNews(array $entities): array
+    {
+        $tickers = $entities['tickers'] ?? [];
+
+        if (empty($tickers)) {
+            return [
+                'type' => 'chat',
+                'response' => [
+                    'message' => 'Which ticker or company should I search the news for?',
+                ],
+            ];
         }
 
-        // TODO: replace by real News API fetch + summarization
-        return "Here are the latest updates for {$ticker}. (Demo) I can also filter by trusted sources and timeframe if you want.";
+        $articles = $this->knowledgeRepository->findByWords($tickers, 5);
+
+        return [
+            'type' => 'news',
+            'response' => [
+                'summary' => 'Here are the latest updates about ' . implode(', ', $tickers) . '.',
+                'items' => collect($articles->items())->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'topic' => $item->topic,
+                        'excerpt' => str($item->content)->limit(300),
+                        'published_at' => $item->published_at,
+                    ];
+                })->values(),
+            ],
+        ];
     }
 
-    private function replyPrice(string $cleanText, array $entities): string
+    private function replyPrice(array $entities): string
     {
-        $ticker = $entities['tickers'][0] ?? null;
+        $tickers = $entities['tickers'] ?? [];
+        \Log::info('ChatBotService::replyPrice', ['tickers' => $tickers]);
 
-        if (!$ticker) {
-            return "Which ticker should I check the price for (e.g., AAPL, NVDA)?";
+        foreach ($tickers as $symbol) {
+            $price = $this->stockRepository->getCurrentPrice($symbol);
+            if ($price !== null) {
+                return "The current price for {$symbol} is \${$price}.";
+            }
         }
 
-        // TODO: replace by real market data fetch
-        return "The current price for {$ticker} is not connected yet (Demo). Do you want real-time or close price?";
+        return "Price data is not available at the moment.";
+    }
+
+    private function replyDecision(
+        array $entities,
+        string $action,
+        array $options
+    ): string {
+        $tickers = $entities['tickers'] ?? [];
+
+        if (empty($tickers)) {
+            return "Which ticker are you considering to {$action}?";
+        }
+
+        $results = $this->analyzeTickers($tickers, 'daily', $options);
+
+        $messages = [];
+        foreach ($results as $r) {
+            if (isset($r['error'])) {
+                $messages[] = "{$r['symbol']}: {$r['error']}";
+            } else {
+                $messages[] = "{$r['symbol']}:\n{$r['response']}";
+            }
+        }
+
+        return implode("\n\n", $messages);
+    }
+
+    /* =========================================================
+     | UTIL
+     ========================================================= */
+
+    private function extractOptions(array $data): array
+    {
+        return [
+            'profile' => $data['profile'] ?? 'spoken_professional',
+            'stylePreset' => $data['stylePreset'] ?? 'standard',
+        ];
     }
 }
