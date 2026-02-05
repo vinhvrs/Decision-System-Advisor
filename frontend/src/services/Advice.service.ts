@@ -1,8 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import api from "../libs/api";
+import chatbot from "../libs/chatbot";
 import { stockMapper } from "../libs/mapper";
 
 export const AdviceService = {
+    handleChatbot: async (message: string) => {
+        try {
+            const response = await chatbot.post("/chat", { "message": message });
+            return response.data;
+        }
+        catch (error) {
+            console.error("Error in chatbot communication:", error);
+            throw error;
+        }
+    },
+
     getAdvices: async (limit: number = 10, page: number = 1, select?: Array<string>) => {
         try {
             const response = await api.get(`/stocks?per_page=${limit}&page=${page}${select ? select.map(s => `&select[]=${s}`).join('') : ''}`);

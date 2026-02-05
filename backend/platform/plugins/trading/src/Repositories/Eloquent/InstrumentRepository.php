@@ -59,7 +59,7 @@ class InstrumentRepository implements InstrumentInterface {
     }
 
     public function update(string $id, array $instrument): ?Instruments {
-        $inst = Instruments::find($id);
+        $inst = Instruments::query()->find($id);
         if ($inst) {
             $inst->update($instrument);
             return $inst;
@@ -68,7 +68,7 @@ class InstrumentRepository implements InstrumentInterface {
     }
 
     public function delete(string $id): bool {
-        $inst = Instruments::find($id);
+        $inst = Instruments::query()->find($id);
         if ($inst) {
             return (bool)$inst->delete();
         }

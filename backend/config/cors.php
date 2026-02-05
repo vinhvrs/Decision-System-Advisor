@@ -12,7 +12,7 @@ return [
     | your application so that it is used when running Artisan tasks.
     |
     */
-    'paths' => ['api/*'],
+    'paths' => ['api/*', 'chatbot/*'],
     'allowed_methods' => ['*'],
     'allowed_origins' => ['http://localhost:3000'], // NextJS
     'allowed_headers' => ['*'],
