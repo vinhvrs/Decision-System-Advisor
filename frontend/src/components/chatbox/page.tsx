@@ -28,43 +28,101 @@ export default function ChatBox() {
 
     try {
       const payload = await AdviceService.handleChatbot(message);
+      console.log("Chatbot payload:", payload);
+      let botMessages: { from: "bot"; text: string }[] = [];
 
-      const results = payload.results as Array<any>;
+      /* =================================================
+       | CASE 1: NORMAL CHAT
+       ================================================= */
+      if (payload.type === "chat") {
+        botMessages.push({
+          from: "bot",
+          text:
+            typeof payload.response === "string"
+              ? payload.response
+              : payload.response?.message ?? "🤖",
+        });
+      }
 
-      const botMessages = results.map((result) => {
-        const highlights = result.response.highlights?.length
-          ? result.response.highlights.map((h: string) => `• ${h}`).join("\n")
-          : "";
-
-        const warnings = result.response.warnings?.length
-          ? result.response.warnings.map((w: string) => `• ${w}`).join("\n")
-          : "• None";
+      /* =================================================
+       | CASE 2: NEWS
+       ================================================= */
+      else if (payload.type === "news") {
+        const summary = payload.response.summary ?? "Latest updates:";
+        const items = payload.response.items ?? [];
 
         const text = [
-          `📊 Recommend Order Analysis: ${result.response.recommendation}`,
+          `📰 ${summary}`,
           "",
-          highlights,
-          "",
-          result.response.message,
-          "",
-          "⚠️ Warning:",
-          warnings,
-          "",
-          `Confidence: ${result.response.confidence}%`,
-        ].join("\n");
+          ...items.map(
+            (item: any, idx: number) =>
+              `${idx + 1}. ${item.topic}\n${item.excerpt}`
+          ),
+        ].join("\n\n");
 
-        return {
-          from: "bot" as const,
+        botMessages.push({
+          from: "bot",
           text,
-        };
-      });
+        });
+      }
 
-      // remove "Typing…" and append all bot messages
+      /* =================================================
+       | CASE 3 & 4: ADVICE / ADVICE_MULTI
+       ================================================= */
+      else if (
+        payload.type === "advice" ||
+        payload.type === "advice_multi"
+      ) {
+        const results = payload.results ?? [];
+
+        botMessages = results.map((result: any) => {
+          const highlights = result.response.highlights?.length
+            ? result.response.highlights.map((h: string) => `• ${h}`).join("\n")
+            : "";
+
+          const warnings = result.response.warnings?.length
+            ? result.response.warnings.map((w: string) => `• ${w}`).join("\n")
+            : "• None";
+
+          const text = [
+            `📊 ${result.symbol} — Recommendation: ${result.response.recommendation}`,
+            "",
+            highlights,
+            "",
+            result.response.message,
+            "",
+            "⚠️ Warning:",
+            warnings,
+            "",
+            `Confidence: ${result.response.confidence}%`,
+          ]
+            .filter(Boolean)
+            .join("\n");
+
+          return {
+            from: "bot" as const,
+            text,
+          };
+        });
+      }
+
+      /* =================================================
+       | UNKNOWN FALLBACK
+       ================================================= */
+      else {
+        botMessages.push({
+          from: "bot",
+          text: "🤔 I received an unknown response type.",
+        });
+      }
+
+      // remove "Typing…" and append bot messages
       setMessages((prev) => [
         ...prev.slice(0, -1),
         ...botMessages,
       ]);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setMessages((prev) => [
         ...prev.slice(0, -1),
         {

@@ -130,20 +130,23 @@ class ChatBotService
         $entities = $chat['debug']['entities'] ?? [];
         $tickers = $entities['tickers'] ?? [];
 
-        // 🔐 Chỉ những intent này mới được chạy analysis engine
-        $analysisIntents = [
-            'analysis_request',
-            'buy_decision',
-            'sell_decision',
-        ];
+        $analysisIntents = ['analysis_request', 'buy_decision', 'sell_decision'];
 
+        // ✅ NOT analysis intent → return chat reply directly
         if (!in_array($intent, $analysisIntents, true)) {
+            // ✅ if reply is structured object (news/definition/...)
+            if (is_array($chat['reply'])) {
+                return response()->json($chat['reply']);
+            }
+
+            // ✅ normal text chat
             return response()->json([
                 'type' => 'chat',
                 'response' => $chat['reply'],
             ]);
         }
 
+        // analysis intent but no ticker
         if (empty($tickers)) {
             return response()->json([
                 'type' => 'chat',
@@ -278,7 +281,7 @@ class ChatBotService
     private function replyNews(array $entities): array
     {
         $tickers = $entities['tickers'] ?? [];
-
+        \Log::info('ChatBotService::replyNews', ['tickers' => $tickers]);
         if (empty($tickers)) {
             return [
                 'type' => 'chat',
