@@ -6,6 +6,7 @@ use App\Console\Commands\FetchStockAttributes;
 use App\Console\Commands\DataPeriods;
 use App\Console\Commands\FetchNews;
 use App\Console\Commands\SmoothTest;
+use App\Console\Commands\LiquidityRebuild;
 use Illuminate\Support\Facades\Log;
 
 
@@ -16,6 +17,7 @@ class Kernel extends ConsoleKernel
         DataPeriods::class,
         FetchNews::class,
         SmoothTest::class,
+        LiquidityRebuild::class,
     ];
     protected $middlewareGroups = [
         'api' => [
@@ -28,6 +30,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         Log::info('✅ schedule() method in Kernel is being called.');
+
+        $schedule->command('liquidity:rebuild')
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
 
         // $schedule->command('stocks:fetch')
         //     ->everyMinute()

@@ -57,6 +57,8 @@ return [
         'stock','stocks','price','prices','analysis','text'
     ],
     'stopwords' => [
-        'the','of','and','or','to','for','in','on','at','with'
+        'the','of','and','or','to','for','in','on','at','with','by','is','are','was','were','be','been','a','an','that','this','these','those','as','from','but','if','then','so','such',
+        'should','could','would','can','will','may','might','must',
+        'i','you','he','she','it','we','they','my','your','his','her','its','our','their',
     ],
 ];
