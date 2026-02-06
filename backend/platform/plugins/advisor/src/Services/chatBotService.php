@@ -129,7 +129,6 @@ class ChatBotService
         $intent = $chat['debug']['intent'] ?? 'fallback';
         $entities = $chat['debug']['entities'] ?? [];
         $tickers = $entities['tickers'] ?? [];
-
         $analysisIntents = ['analysis_request', 'buy_decision', 'sell_decision'];
 
         // ✅ NOT analysis intent → return chat reply directly
@@ -342,12 +341,18 @@ class ChatBotService
             if (isset($r['error'])) {
                 $messages[] = "{$r['symbol']}: {$r['error']}";
             } else {
-                $messages[] = "{$r['symbol']}:\n{$r['response']}";
+                // ✅ CHỈ LẤY MESSAGE (string)
+                $text = is_array($r['response'])
+                    ? ($r['response']['message'] ?? '')
+                    : $r['response'];
+
+                $messages[] = "{$r['symbol']}:\n{$text}";
             }
         }
 
         return implode("\n\n", $messages);
     }
+
 
     /* =========================================================
      | UTIL
