@@ -71,6 +71,20 @@ class LiquidityService
             ['withscores' => true]
         );
     }
+    
+    /**
+     * Get bottom N symbols by liquidity (Thanh khoản thấp nhất)
+     */
+    public function bottomDaily(int $limit = 100): array
+    {
+        // zrange lấy từ score thấp đến cao
+        return Redis::connection()->zrange(
+            $this->rankingKey,
+            0,
+            $limit - 1,
+            ['withscores' => true]
+        );
+    }
 
     /**
      * Check if symbol is in top liquidity

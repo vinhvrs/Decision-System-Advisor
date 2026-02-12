@@ -7,17 +7,21 @@ use App\Console\Commands\DataPeriods;
 use App\Console\Commands\FetchNews;
 use App\Console\Commands\SmoothTest;
 use App\Console\Commands\LiquidityRebuild;
+use App\Console\Commands\HeatmapRebuild;
+use App\Console\Commands\FetchMarketNews;
 use Illuminate\Support\Facades\Log;
 
 
 class Kernel extends ConsoleKernel
 {
     protected $commands = [
-            // FetchStockAttributes::class,
+        // FetchStockAttributes::class,
         DataPeriods::class,
-        FetchNews::class,
+        //FetchNews::class,
+        FetchMarketNews::class,
         SmoothTest::class,
         LiquidityRebuild::class,
+        HeatmapRebuild::class,
     ];
     protected $middlewareGroups = [
         'api' => [
@@ -35,12 +39,10 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->withoutOverlapping();
 
-        // $schedule->command('stocks:fetch')
-        //     ->everyMinute()
-        //     ->evenInMaintenanceMode()
-        //     ->withoutOverlapping()
-        //     ->runInBackground();
-
+        $schedule->command('heatmap:rebuild')
+            ->everyTenMinutes()
+            ->withoutOverlapping();
+            
         $schedule->command('data:periods')
             ->everyFifteenSeconds()
             ->evenInMaintenanceMode()
