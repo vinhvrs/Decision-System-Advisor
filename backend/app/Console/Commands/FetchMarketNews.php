@@ -10,7 +10,7 @@ use Carbon\Carbon;
 
 class FetchMarketNews extends Command
 {
-    protected $signature = 'news:fetch {company?} {ticker?} {--top10}';
+    protected $signature = 'news:market-fetch {company?} {ticker?} {--top10}';
 
     protected $description = 'Fetch GDELT news and store into knowledge_docs and knowledge_chunks';
 
@@ -64,91 +64,121 @@ class FetchMarketNews extends Command
      */
     private function fetchCompany($company, $ticker)
     {
-        $query = urlencode("\"{$company} Inc\" AND (earnings OR stock OR shares OR NASDAQ OR NYSE)");
+        $startYear = 2015;
+        $currentYear = now()->year;
 
-        $url = "https://api.gdeltproject.org/api/v2/doc/doc?q={$query}&mode=ArtList&format=json&maxrecords=30&timespan=1d&sourcelang=english&sort=datedesc";
+        for ($year = $startYear; $year <= $currentYear; $year++) {
 
-        $response = Http::timeout(30)->get($url);
+            $this->info("Fetching {$ticker} - Year {$year}");
 
-        if (!$response->ok()) {
-            $this->error("GDELT fetch failed for {$ticker}");
-            return;
-        }
+            $startDate = Carbon::create($year, 1, 1)->format('Ymd000000');
+            $endDate = Carbon::create($year, 12, 31)->format('Ymd235959');
 
-        $data = $response->json();
+            $query = urlencode("\"{$company}\" AND (earnings OR stock OR shares OR NASDAQ OR NYSE)");
 
-        if (!isset($data['articles'])) {
-            $this->warn("No articles returned for {$ticker}");
-            return;
-        }
+            // $url = "https://api.gdeltproject.org/api/v2/doc/doc?" .
+            //     "query={$query}" .
+            //     "&mode=ArtList" .
+            //     "&format=json" .
+            //     "&maxrecords=250" .
+            //     "&startdatetime={$startDate}" .
+            //     "&enddatetime={$endDate}" .
+            //     "&sourcelang=english" .
+            //     "&sort=datedesc";
 
-        foreach ($data['articles'] as $article) {
+            $url = "https://api.gdeltproject.org/api/v2/doc/doc?"
+            .  "query={$query}"
+            .  "sourcelang:eng"
+            .  "&mode=ArtList"
+            .  "&maxrecords=250"
+            .  "&format=json"
+            .  "&startdatetime={$startDate}"
+            .  "&enddatetime={$endDate}";
+            
+            \Log::info("GDELT Fetch URL: {$url}");
 
-            if (empty($article['url']) || empty($article['title']) || empty($article['seendate'])) {
+            $response = Http::timeout(60)->get($url);
+
+            if (!$response->ok()) {
+                $this->warn("Failed {$ticker} {$year}");
                 continue;
             }
 
-            // tránh duplicate theo URL
-            $exists = DB::table('knowledge_docs')
-                ->where('source', $article['url'])
-                ->exists();
+            $data = $response->json();
 
-            if ($exists)
-                continue;
-
-            try {
-                $eventDate = Carbon::createFromFormat(
-                    'Ymd\THis\Z',
-                    $article['seendate'],
-                    'UTC'
-                );
-            } catch (\Exception $e) {
+            if (!isset($data['articles'])) {
+                $this->warn("No data {$ticker} {$year}");
                 continue;
             }
 
-            $docId = (string) Str::uuid();
-            $content = trim($article['title']);
+            foreach ($data['articles'] as $article) {
 
-            // Insert into knowledge_docs
-            DB::table('knowledge_docs')->insert([
-                'id' => $docId,
-                'title' => 'news:' . $content,
-                'content' => $content,
-                'category' => 'article',
-                'source' => $article['url'],
-                'author' => $article['domain'] ?? 'unknown',
-                'language' => $article['language'] ?? 'English',
-                'created_at' => $eventDate,
-                'updated_at' => now()
-            ]);
+                if (empty($article['url']) || empty($article['title']) || empty($article['seendate'])) {
+                    continue;
+                }
 
-            // Insert into knowledge_chunks
-            DB::table('knowledge_chunks')->insert([
-                'id' => (string) Str::uuid(),
-                'knowledge_id' => null,
-                'docs_id' => $docId,
-                'chunk_index' => 0,
-                'content' => $content,
-                'source' => $article['domain'] ?? 'unknown',
-                'token' => str_word_count($content),
-                'vector' => null,
-                'data' => json_encode([
-                    'ticker' => $ticker,
-                    'company' => $company,
-                    'event_date' => $eventDate->toISOString(),
-                    'source_type' => 'gdelt',
-                    'event_scope' => 'company',
-                    'impact_window' => [
-                        'start' => $eventDate->copy()->subDay()->toDateString(),
-                        'end' => $eventDate->copy()->addDay()->toDateString()
-                    ],
-                    'status' => 'raw_news'
-                ]),
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
+                $exists = DB::table('knowledge_docs')
+                    ->where('source', $article['url'])
+                    ->exists();
+
+                if ($exists)
+                    continue;
+
+                try {
+                    $eventDate = Carbon::createFromFormat(
+                        'Ymd\THis\Z',
+                        $article['seendate'],
+                        'UTC'
+                    );
+                } catch (\Exception $e) {
+                    continue;
+                }
+
+                $docId = (string) Str::uuid();
+                $content = trim($article['title']);
+
+                DB::table('knowledge_docs')->insert([
+                    'id' => $docId,
+                    'title' => 'news:' . $content,
+                    'content' => $content,
+                    'category' => 'article',
+                    'source' => $article['url'],
+                    'author' => $article['domain'] ?? 'unknown',
+                    'language' => $article['language'] ?? 'English',
+                    'created_at' => $eventDate,
+                    'updated_at' => now()
+                ]);
+
+                DB::table('knowledge_chunks')->insert([
+                    'id' => (string) Str::uuid(),
+                    'knowledge_id' => null,
+                    'docs_id' => $docId,
+                    'chunk_index' => 0,
+                    'content' => $content,
+                    'source' => $article['domain'] ?? 'unknown',
+                    'token' => str_word_count($content),
+                    'vector' => null,
+                    'data' => json_encode([
+                        'ticker' => $ticker,
+                        'company' => $company,
+                        'event_date' => $eventDate->toISOString(),
+                        'source_type' => 'gdelt',
+                        'event_scope' => 'company',
+                        'impact_window' => [
+                            'start' => $eventDate->copy()->subDay()->toDateString(),
+                            'end' => $eventDate->copy()->addDay()->toDateString()
+                        ],
+                        'status' => 'raw_news'
+                    ]),
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+
+            sleep(2); // tránh rate limit
         }
 
-        $this->info("Inserted news for {$ticker}");
+        $this->info("Finished {$ticker}");
     }
+
 }

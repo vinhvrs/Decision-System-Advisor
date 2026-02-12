@@ -9,6 +9,7 @@ use App\Console\Commands\SmoothTest;
 use App\Console\Commands\LiquidityRebuild;
 use App\Console\Commands\HeatmapRebuild;
 use App\Console\Commands\FetchMarketNews;
+use App\Console\Commands\FetchCompanyProfile;
 use Illuminate\Support\Facades\Log;
 
 
@@ -17,6 +18,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         // FetchStockAttributes::class,
         DataPeriods::class,
+        FetchCompanyProfile::class,
         //FetchNews::class,
         FetchMarketNews::class,
         SmoothTest::class,
