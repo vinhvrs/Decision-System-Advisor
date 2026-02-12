@@ -71,7 +71,7 @@ export default function Header() {
   const renderAuthButtons = () => (
     <>
       <Link
-        href="/auth?mode=login"
+        href="/auth/login"
         className="flex items-center gap-1 text-sm font-medium text-white/80 hover:text-white transition"
       >
         <LogIn size={16} />
@@ -79,7 +79,7 @@ export default function Header() {
       </Link>
 
       <Link
-        href="/auth?mode=register"
+        href="/auth/login"
         className="hidden sm:inline-flex items-center gap-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition"
       >
         <UserPlus size={16} />
@@ -172,14 +172,14 @@ export default function Header() {
           {!user && (
             <div className="flex gap-4 p-3 border-t border-white/10 mt-2">
               <Link
-                href="/auth?mode=login"
+                href="/auth/login"
                 className="flex items-center gap-2 text-sm font-medium text-white/80 hover:text-white"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <LogIn size={18} /> Đăng nhập
               </Link>
               <Link
-                href="/auth?mode=register"
+                href="/auth/login"
                 className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300"
                 onClick={() => setIsMenuOpen(false)}
               >
