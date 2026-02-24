@@ -10,6 +10,7 @@ use App\Console\Commands\LiquidityRebuild;
 use App\Console\Commands\HeatmapRebuild;
 use App\Console\Commands\FetchMarketNews;
 use App\Console\Commands\FetchCompanyProfile;
+use App\Console\Commands\TestQdrantSemantic;
 use Illuminate\Support\Facades\Log;
 
 
@@ -24,6 +25,7 @@ class Kernel extends ConsoleKernel
         SmoothTest::class,
         LiquidityRebuild::class,
         HeatmapRebuild::class,
+        TestQdrantSemantic::class,
     ];
     protected $middlewareGroups = [
         'api' => [

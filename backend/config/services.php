@@ -44,5 +44,8 @@ return [
         'index' => env('ELASTIC_INDEX', 'dsa_entities'),
     ],
 
+    'embedding' => [
+        'url' => env('EMBEDDING_SERVICE_URL', 'http://127.0.1:8000'),
+    ],
 
 ];

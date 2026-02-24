@@ -76,16 +76,6 @@ class FetchMarketNews extends Command
 
             $query = urlencode("\"{$company}\" AND (earnings OR stock OR shares OR NASDAQ OR NYSE)");
 
-            // $url = "https://api.gdeltproject.org/api/v2/doc/doc?" .
-            //     "query={$query}" .
-            //     "&mode=ArtList" .
-            //     "&format=json" .
-            //     "&maxrecords=250" .
-            //     "&startdatetime={$startDate}" .
-            //     "&enddatetime={$endDate}" .
-            //     "&sourcelang=english" .
-            //     "&sort=datedesc";
-
             $url = "https://api.gdeltproject.org/api/v2/doc/doc?"
             .  "query={$query}"
             .  "sourcelang:eng"
