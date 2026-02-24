@@ -9,6 +9,8 @@ use Platform\Plugins\Trading\Src\Repositories\Eloquent\StockRepository;
 use Platform\Plugins\Advisor\Src\Services\ResponseComposerService;
 use Platform\Plugins\Trading\Src\Services\AnalysistService;
 use Platform\Plugins\Trading\Src\Services\IndicatorAggregatorService;
+use Platform\Plugins\Advisor\Src\Services\EmbeddingService;
+use Platform\Plugins\Advisor\Src\Services\Context\QdrantRetriever;
 use Illuminate\Support\Facades\Log;
 
 class ChatBotService
@@ -20,6 +22,8 @@ class ChatBotService
         private readonly IndicatorAggregatorService $indicatorAggregatorService,
         private readonly AnalysistService $analysistService,
         private readonly ResponseComposerService $responseComposerService,
+        private readonly EmbeddingService $embeddingService,
+        private readonly QdrantRetriever $qdrantRetriever,
     ) {
     }
 
@@ -281,6 +285,7 @@ class ChatBotService
     {
         $tickers = $entities['tickers'] ?? [];
         \Log::info('ChatBotService::replyNews', ['tickers' => $tickers]);
+
         if (empty($tickers)) {
             return [
                 'type' => 'chat',
@@ -290,20 +295,51 @@ class ChatBotService
             ];
         }
 
-        $articles = $this->knowledgeRepository->findByWords($tickers, 5);
+        // ✅ Use first ticker for filter (can extend to multi later)
+        $symbol = strtoupper($tickers[0]);
+
+        // ✅ Build a semantic query (simple & stable)
+        $query = "latest news about {$symbol}";
+
+        // 1) embed -> vector(384)
+        $embed = $this->embeddingService->embed($query);
+        $vector = $embed['vector'] ?? $embed ?? null;
+
+        if (empty($vector) || !is_array($vector)) {
+            return [
+                'type' => 'chat',
+                'response' => [
+                    'message' => 'Embedding service is not available at the moment.',
+                ],
+            ];
+        }
+
+        // 2) qdrant search (vector + filter symbol)
+        $hits = $this->qdrantRetriever->search($vector, 5, $symbol);
+
+        // If your QdrantService still returns full JSON, unwrap here:
+        // $hits = $hits['result'] ?? $hits;
+
+        // 3) map to UI items
+        $items = collect($hits)->map(function ($hit) {
+            $p = $hit['payload'] ?? [];
+
+            return [
+                'id' => $hit['id'] ?? ($p['chunk_id'] ?? null),
+                'topic' => $p['title'] ?? $p['source'] ?? 'News',
+                'excerpt' => $p['content'] ?? null, // may be null if you didn't store content in payload
+                'published_at' => $p['published_at'] ?? null,
+                'source' => $p['source'] ?? null,
+                'url' => $p['url'] ?? null,
+                'score' => $hit['score'] ?? null,
+            ];
+        })->values();
 
         return [
             'type' => 'news',
             'response' => [
-                'summary' => 'Here are the latest updates about ' . implode(', ', $tickers) . '.',
-                'items' => collect($articles->items())->map(function ($item) {
-                    return [
-                        'id' => $item->id,
-                        'topic' => $item->topic,
-                        'excerpt' => str($item->content)->limit(300),
-                        'published_at' => $item->published_at,
-                    ];
-                })->values(),
+                'summary' => "Here are the most relevant updates about {$symbol}.",
+                'items' => $items,
             ],
         ];
     }
