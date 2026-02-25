@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Platform\Plugins\Advisor\Src\Services\QdrantService;
+use Platform\Plugins\Advisor\Src\Services\Context\QdrantRetriever;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -11,7 +13,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(QdrantService::class, function () {
+            return QdrantService::fromEnv();
+        });
+
+        $this->app->singleton(QdrantRetriever::class, function ($app) {
+            return new QdrantRetriever($app->make(QdrantService::class));
+        });
     }
 
     /**

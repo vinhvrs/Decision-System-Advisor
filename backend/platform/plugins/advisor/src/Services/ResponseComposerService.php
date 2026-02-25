@@ -9,26 +9,34 @@ class ResponseComposerService
 
     public function __construct()
     {
-        // Load dictionaries
         $this->phrases    = config('advisor.phrases');
         $this->connectors = config('advisor.connectors');
     }
-
-    /* ======================================================
-     * PUBLIC API
-     * ====================================================== */
 
     public function compose(array $decision, array $options = []): array
     {
         $profile = $options['profile'] ?? 'spoken_professional';
         $style   = $options['style']   ?? 'standard';
 
+        // ✅ Prefer reasons from Aggregator (new pipeline)
+        $highlights = $this->mergeReasons(
+            $decision['highlights'] ?? [],
+            $this->buildHighlights($decision) // fallback old logic
+        );
+
+        $warnings = $this->mergeReasons(
+            $decision['warnings'] ?? [],
+            $this->buildWarnings($decision) // fallback old logic
+        );
+
         return [
-            'recommendation' => $decision['recommendation'],
-            'confidence'     => $decision['confidence_score'],
+            'recommendation' => $decision['recommendation'] ?? 'HOLD',
+            'confidence'     => (int)($decision['confidence_score'] ?? 0),
             'message'        => $this->buildMessage($decision, $profile, $style),
-            'highlights'     => $this->buildHighlights($decision),
-            'warnings'       => $this->buildWarnings($decision),
+
+            // ✅ now not empty if aggregator provided them
+            'highlights'     => $highlights,
+            'warnings'       => $warnings,
         ];
     }
 
@@ -40,46 +48,40 @@ class ResponseComposerService
     {
         $segments = [];
 
-        /* 1️⃣ PREFIX */
         $segments[] = $this->pick(
             $this->phrases['prefix'][$profile]
             ?? $this->phrases['prefix']['default']
+            ?? ['Based on the current technical setup']
         );
 
-        /* 2️⃣ RECOMMENDATION CORE */
+        $rec = $d['recommendation'] ?? 'HOLD';
         $segments[] = $this->pick(
-            $this->phrases['recommendation'][$d['recommendation']]
+            $this->phrases['recommendation'][$rec]
+            ?? [$rec]
         );
 
-        /* 3️⃣ CONNECTOR */
-        $segments[] = $this->pick($this->connectors['neutral']);
+        $segments[] = $this->pick($this->connectors['neutral'] ?? ['At the same time']);
 
-        /* 4️⃣ TREND */
         $trend = $d['technical_summary']['trend'] ?? null;
         if ($trend && isset($this->phrases['trend'][$trend])) {
             $segments[] = $this->pick($this->phrases['trend'][$trend]);
         }
 
-        /* 5️⃣ MOMENTUM */
         $momentum = $d['technical_summary']['momentum'] ?? null;
         if ($momentum && isset($this->phrases['momentum'][$momentum])) {
             $segments[] = $this->pick($this->phrases['momentum'][$momentum]);
         }
 
-        /* 6️⃣ VOLATILITY (OPTIONAL) */
         $volatility = $d['technical_summary']['volatility'] ?? null;
         if ($volatility && isset($this->phrases['volatility'][$volatility])) {
             $segments[] = $this->pick($this->phrases['volatility'][$volatility]);
         }
 
-        /* 7️⃣ FOLLOW-UP (OPTIONAL) */
         if ($style !== 'concise' && !empty($this->phrases['follow_up'])) {
             $segments[] = $this->pick($this->phrases['follow_up']);
         }
 
-        $response = ucfirst(
-            rtrim(implode(', ', array_filter($segments)), ', ')
-        ) . '.';
+        $response = ucfirst(rtrim(implode(', ', array_filter($segments)), ', ')) . '.';
         $response = preg_replace('/,+/', ',', $response);
         $response = preg_replace('/\.\.+/', '.', $response);
 
@@ -87,59 +89,78 @@ class ResponseComposerService
     }
 
     /* ======================================================
-     * HIGHLIGHTS (POSITIVE SIGNALS)
+     * HIGHLIGHTS (fallback rules)
+     * Supports signal strength -2..+2
      * ====================================================== */
 
     private function buildHighlights(array $d): array
     {
         $out = [];
 
-        // SMA + EMA bullish
-        if (
-            ($d['signals']['sma'] ?? 0) === 1 &&
-            ($d['signals']['ema'] ?? 0) === 1
-        ) {
+        $sma = (int)($d['signals']['sma'] ?? 0);
+        $ema = (int)($d['signals']['ema'] ?? 0);
+
+        // ✅ old rule was === 1; now accept >= 1
+        if ($sma >= 1 && $ema >= 1) {
             $out[] = $this->pick([
                 'Price remains above key moving averages.',
                 'Moving averages continue to support the prevailing trend.',
             ]);
         }
 
-        // Bullish trend
-        if (($d['technical_summary']['trend'] ?? '') === 'bullish') {
-            $out[] = $this->pick(
-                $this->phrases['trend']['bullish']
-            );
+        $trend = $d['technical_summary']['trend'] ?? '';
+        if ($trend === 'bullish' && isset($this->phrases['trend']['bullish'])) {
+            $out[] = $this->pick($this->phrases['trend']['bullish']);
         }
 
         return array_values(array_filter($out));
     }
 
     /* ======================================================
-     * WARNINGS (RISK SIGNALS)
+     * WARNINGS (fallback rules)
+     * Supports signal strength -2..+2
      * ====================================================== */
 
     private function buildWarnings(array $d): array
     {
         $warnings = [];
 
-        // Stochastic overbought
-        if (($d['signals']['stochastic'] ?? 0) === -1) {
+        $sto = (int)($d['signals']['stochastic'] ?? 0);
+        $bb  = (int)($d['signals']['bollinger'] ?? 0);
+
+        // ✅ old rule was === -1; now accept <= -1
+        if ($sto <= -1) {
             $warnings[] = $this->pick([
                 'Short-term momentum suggests potential overbought conditions.',
                 'Stochastic readings indicate limited upside in the near term.',
             ]);
         }
 
-        // Bollinger upper band
-        if (($d['signals']['bollinger'] ?? 0) === -1) {
+        if ($bb <= -1) {
             $warnings[] = $this->pick([
                 'Price is approaching the upper Bollinger Band.',
                 'Upside may be capped within the current volatility range.',
             ]);
         }
 
-        return $warnings;
+        return array_values(array_filter($warnings));
+    }
+
+    /* ======================================================
+     * MERGE + CLEAN
+     * ====================================================== */
+
+    private function mergeReasons(array $primary, array $fallback): array
+    {
+        // normalize strings + remove empties
+        $primary = array_values(array_filter(array_map('strval', $primary)));
+        $fallback = array_values(array_filter(array_map('strval', $fallback)));
+
+        // merge (primary first)
+        $merged = array_values(array_unique(array_merge($primary, $fallback)));
+
+        // keep concise
+        return array_slice($merged, 0, 6);
     }
 
     /* ======================================================
@@ -148,10 +169,7 @@ class ResponseComposerService
 
     private function pick(array $items): ?string
     {
-        if (empty($items)) {
-            return null;
-        }
-
+        if (empty($items)) return null;
         return $items[array_rand($items)];
     }
 }
