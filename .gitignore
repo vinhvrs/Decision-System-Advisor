@@ -21,6 +21,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/backend/.env
+/backend/.env.local
 /backend/vendor
 /backend/node_modules
 ./backend/vendor
