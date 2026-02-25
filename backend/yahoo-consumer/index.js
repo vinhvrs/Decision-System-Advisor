@@ -6,7 +6,7 @@ import axios from "axios";
 
 // ===== CONFIG =====
 const YAHOO_WSS = "wss://streamer.finance.yahoo.com";
-const SYMBOLS = ["AAPL"];
+const SYMBOLS = ["AAPL", "GOOG", "MSFT", "AMZN", "TSLA", "META", "NVDA", "JPM", "V", "DIS"];
 const LARAVEL_ENDPOINT = "http://127.0.0.1:1111/api/market/tick";
 
 // ===== LOAD PROTO =====

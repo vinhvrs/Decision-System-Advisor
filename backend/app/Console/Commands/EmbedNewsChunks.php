@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Console\Commands;
 
@@ -66,22 +66,22 @@ class EmbedNewsChunks extends Command
             // 2) upsert to qdrant
             $symbol = $meta['symbol'] ?? $meta['ticker'] ?? null;
 
-$payload = [
-    'chunk_id' => (string) $chunk->id,
-    'docs_id' => (string) ($chunk->docs_id ?? ($meta['docs_id'] ?? null)),
-    'knowledge_id' => $chunk->knowledge_id ? (string) $chunk->knowledge_id : null,
+            $payload = [
+                'chunk_id' => (string) $chunk->id,
+                'docs_id' => (string) ($chunk->docs_id ?? ($meta['docs_id'] ?? null)),
+                'knowledge_id' => $chunk->knowledge_id ? (string) $chunk->knowledge_id : null,
 
-    'type' => $meta['type'] ?? 'news',
-    'symbol' => $symbol, // ✅ filter luôn theo symbol, nhưng lấy từ ticker nếu cần
+                'type' => $meta['type'] ?? 'news',
+                'symbol' => $symbol, // ✅ filter luôn theo symbol, nhưng lấy từ ticker nếu cần
 
-    'title' => $meta['title'] ?? null,
-    'url' => $meta['url'] ?? null,
-    'source' => $chunk->source ?? ($meta['source'] ?? null),
+                'title' => $meta['title'] ?? null,
+                'url' => $meta['url'] ?? null,
+                'source' => $chunk->source ?? ($meta['source'] ?? null),
 
-    // event_date đang có sẵn trong data của bạn
-    'published_at' => $meta['published_at'] ?? $meta['event_date'] ?? null,
-    'tags' => $meta['tags'] ?? [],
-];
+                // event_date đang có sẵn trong data của bạn
+                'published_at' => $meta['published_at'] ?? $meta['event_date'] ?? null,
+                'tags' => $meta['tags'] ?? [],
+            ];
 
             try {
                 $this->qdrant->upsert($chunk->id, $vector, $payload);
@@ -92,16 +92,16 @@ $payload = [
 
             // 3) save back to mysql (optional but ok)
             $meta['vector_model'] = $emb['model'] ?? null;
-            $meta['vector_dim']   = $dim;
-            $meta['vector_at']    = now()->toISOString();
-            $meta['status']       = 'embedded';
-            $meta['qdrant']       = ['collection' => env('QDRANT_COLLECTION'), 'point_id' => (string)$chunk->id];
+            $meta['vector_dim'] = $dim;
+            $meta['vector_at'] = now()->toISOString();
+            $meta['status'] = 'embedded';
+            $meta['qdrant'] = ['collection' => env('QDRANT_COLLECTION'), 'point_id' => (string) $chunk->id];
 
             DB::table('knowledge_chunks')
                 ->where('id', $chunk->id)
                 ->update([
                     'vector' => json_encode($vector),
-                    'data'   => json_encode($meta)
+                    'data' => json_encode($meta)
                 ]);
 
             $this->info("✓ Embedded + Upserted {$chunk->id}");

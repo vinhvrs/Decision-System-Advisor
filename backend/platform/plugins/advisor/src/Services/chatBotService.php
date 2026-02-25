@@ -289,48 +289,89 @@ class ChatBotService
         if (empty($tickers)) {
             return [
                 'type' => 'chat',
-                'response' => [
-                    'message' => 'Which ticker or company should I search the news for?',
-                ],
+                'response' => ['message' => 'Which ticker or company should I search the news for?'],
             ];
         }
 
-        // ✅ Use first ticker for filter (can extend to multi later)
         $symbol = strtoupper($tickers[0]);
-
-        // ✅ Build a semantic query (simple & stable)
         $query = "latest news about {$symbol}";
 
-        // 1) embed -> vector(384)
+        // 1) embed -> vector
         $embed = $this->embeddingService->embed($query);
         $vector = $embed['vector'] ?? $embed ?? null;
 
-        if (empty($vector) || !is_array($vector)) {
+        if (!is_array($vector) || empty($vector)) {
             return [
                 'type' => 'chat',
+                'response' => ['message' => 'Embedding service is not available at the moment.'],
+            ];
+        }
+
+        // 2) qdrant search (already returns result array)
+        $hits = $this->qdrantRetriever->search($vector, 5, $symbol);
+
+        if (empty($hits)) {
+            return [
+                'type' => 'news',
                 'response' => [
-                    'message' => 'Embedding service is not available at the moment.',
+                    'summary' => "No relevant news found for {$symbol}.",
+                    'items' => [],
                 ],
             ];
         }
 
-        // 2) qdrant search (vector + filter symbol)
-        $hits = $this->qdrantRetriever->search($vector, 5, $symbol);
-
-        // If your QdrantService still returns full JSON, unwrap here:
-        // $hits = $hits['result'] ?? $hits;
-
-        // 3) map to UI items
-        $items = collect($hits)->map(function ($hit) {
+        // 3) collect chunk ids from qdrant (payload.chunk_id preferred)
+        $chunkIds = collect($hits)->map(function ($hit) {
             $p = $hit['payload'] ?? [];
+            return $p['chunk_id'] ?? ($hit['id'] ?? null);
+        })->filter()->unique()->values()->all();
+
+        // 4) query DB: knowledge_chunks + knowledge
+        // ⚠️ adjust selected fields if your knowledge table uses url_slug instead of url
+        $rows = \DB::table('knowledge_chunks as kc')
+            ->leftJoin('knowledge as k', 'k.id', '=', 'kc.knowledge_id')
+            ->whereIn('kc.id', $chunkIds)
+            ->select([
+                'kc.id as chunk_id',
+                'kc.knowledge_id',
+                'kc.docs_id',
+                'kc.content as chunk_content',
+                'kc.source as chunk_source',
+                'k.topic as topic',
+                'k.url_slug as url_slug',
+                'k.published_at as published_at',
+                'k.created_at as created_at',
+            ])
+            ->get()
+            ->keyBy('chunk_id');
+
+        // 5) build items in qdrant order
+        $items = collect($hits)->map(function ($hit) use ($rows) {
+            $p = $hit['payload'] ?? [];
+            $chunkId = $p['chunk_id'] ?? ($hit['id'] ?? null);
+            $row = $chunkId ? ($rows[$chunkId] ?? null) : null;
+
+            $topic = $row?->topic ?? ($p['title'] ?? ($p['source'] ?? 'News'));
+
+            // best excerpt: chunk_content (DB) > payload.content (if ever added)
+            $content = $row?->chunk_content ?? ($p['content'] ?? null);
+
+            // best source: DB chunk_source > payload.source
+            $source = $row?->chunk_source ?? ($p['source'] ?? null);
+
+            // published_at may be null; fallback created_at
+            $publishedAt = $row?->published_at ?? $row?->created_at ?? ($p['published_at'] ?? null);
+
+            // if you want full URL later: build from url_slug
+            $url = $row?->url_slug ?? ($p['url'] ?? null);
 
             return [
-                'id' => $hit['id'] ?? ($p['chunk_id'] ?? null),
-                'topic' => $p['title'] ?? $p['source'] ?? 'News',
-                'excerpt' => $p['content'] ?? null, // may be null if you didn't store content in payload
-                'published_at' => $p['published_at'] ?? null,
-                'source' => $p['source'] ?? null,
-                'url' => $p['url'] ?? null,
+                'id' => $chunkId,
+                'topic' => $topic,
+                'excerpt' => $content ? str($content)->limit(300)->toString() : null,
+                'published_at' => $publishedAt,
+                'source' => $source,
+                'url' => $url,
                 'score' => $hit['score'] ?? null,
             ];
         })->values();
