@@ -9,8 +9,6 @@ Route::post('/market/tick', function (Request $request) {
         'time'   => 'required|numeric',
     ]);
 
-    \Log::info('🔥 Received tick:', $tick);
-
     broadcast(new MarketTick($tick));
 
     return response()->json(['status' => 'ok']);
