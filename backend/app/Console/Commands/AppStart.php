@@ -19,6 +19,12 @@ class AppStart extends Command
             // Laravel server
             new Process(['php', 'artisan', 'serve', '--port=1111'], base_path()),
 
+            // Redis
+            new Process(['php', 'artisan', 'redis:init'], base_path()),
+
+            // Python Analyzer
+            new Process(['python', '-m', 'uvicorn', 'app:app', '--host', '0.0.0.0', '--port', '8000'], base_path('embedding')),
+
             // Scheduler
             new Process(['php', 'artisan', 'schedule:work'], base_path()),
 
@@ -27,7 +33,7 @@ class AppStart extends Command
 
             // Yahoo consumer
             new Process(['npm', 'run', 'dev'], base_path('yahoo-consumer')),
-
+ 
             // Frontend
             new Process(['npm', 'run', 'dev'], base_path('../frontend')),
         ];
@@ -36,7 +42,7 @@ class AppStart extends Command
             $process->start();
         }
 
-        // giữ process sống
+        // keep process live
         while (true) {
             foreach ($processes as $process) {
                 if (!$process->isRunning()) {

@@ -17,8 +17,6 @@ class MarketTick implements ShouldBroadcastNow
 
     public function __construct(array $tick)
     {
-        \Log::debug('MarketTick::__construct payload', $tick);
-
         $symbol = $tick['symbol'] ?? null;
         $price = $tick['price'] ?? null;
         $time = $tick['time'] ?? now()->timestamp;
@@ -46,13 +44,11 @@ class MarketTick implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        \Log::info("MarketTick broadcastAs called");
         return 'candle';
     }
 
     public function broadcastWith(): array
     {
-        \Log::info("MarketTick broadcastWith called", $this->candle);
         return [
             'candle' => $this->candle,
         ];
