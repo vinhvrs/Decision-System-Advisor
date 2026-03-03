@@ -8,332 +8,196 @@ from typing import Dict, Set, Optional, List, Any
 import pymysql
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-
-# Realtime Yahoo WS decoder (protobuf handled inside)
-# pip install yliveticker
 from yliveticker import YLiveTicker
+from dotenv import load_dotenv
 
-
-# =========================================================
-# Config
-# =========================================================
-APP_NAME = "Yahoo Realtime WS Proxy"
-YAHOO_WS_URL = os.getenv("YAHOO_WS_URL", "wss://streamer.finance.yahoo.com/?version=2")
-
-TOP_N = int(os.getenv("TOP_N", "20"))
-ORDER_BY = os.getenv("ORDER_BY", "liquidity").lower()  # liquidity | volume
-SYMBOL_REFRESH_SEC = int(os.getenv("SYMBOL_REFRESH_SEC", "300"))
-
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASS = os.getenv("DB_PASS", "root")
-DB_NAME = os.getenv("DB_NAME", "dsa")
-
-# CORS for React dev/prod
-CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
-
+# --- Khởi tạo môi trường ---
+load_dotenv()
 
 # =========================================================
-# DB Helpers
+# Configuration
 # =========================================================
-def db_conn():
-    return pymysql.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASS,
-        database=DB_NAME,
-        charset="utf8mb4",
-        autocommit=True,
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+TOP_N = int(os.getenv("TOP_N", 10))
+DB_CONFIG = {
+    "host": os.getenv("DB_HOST", "127.0.0.1"),
+    "user": os.getenv("DB_USER", "root"),
+    "password": os.getenv("DB_PASS", "root"),
+    "database": os.getenv("DB_NAME", "dsa"),
+    "cursorclass": pymysql.cursors.DictCursor
+}
 
-
-def load_top_symbols_from_snapshot(limit: int = 20) -> List[str]:
-    """
-    Pull 'most active' symbols from instrument_snapshot.
-
-    instrument_snapshot columns:
-      - symbol, volume, liquidity, updated_at
-
-    If multiple rows per symbol exist, this query takes latest row per symbol,
-    then orders by liquidity/volume.
-    """
-    order_clause = "COALESCE(s.liquidity,0) DESC, COALESCE(s.volume,0) DESC" if ORDER_BY == "liquidity" else \
-                   "COALESCE(s.volume,0) DESC, COALESCE(s.liquidity,0) DESC"
-
-    conn = db_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT s.symbol
-                FROM instrument_snapshot s
-                JOIN (
-                    SELECT symbol, MAX(updated_at) AS max_updated
-                    FROM instrument_snapshot
-                    WHERE symbol IS NOT NULL AND symbol <> ''
-                    GROUP BY symbol
-                ) t
-                  ON s.symbol = t.symbol AND s.updated_at = t.max_updated
-                ORDER BY {order_clause}, s.symbol ASC
-                LIMIT %s
-            """, (limit,))
-            rows = cur.fetchall() or []
-            return [r["symbol"].upper() for r in rows if r.get("symbol")]
-    finally:
-        conn.close()
-
+app = FastAPI(title="Yahoo Realtime Production Proxy")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # =========================================================
-# FastAPI app
+# Connection Manager (The Heart of Production System)
 # =========================================================
-app = FastAPI(title=APP_NAME)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[o.strip() for o in CORS_ALLOW_ORIGINS if o.strip()],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health")
-def health():
-    return {"ok": True, "service": APP_NAME}
-
-
-@app.get("/symbols")
-def symbols():
-    """
-    Returns current server-side subscribed symbols (top active from DB).
-    React can call this to show default watchlist.
-    """
-    return {"symbols": sorted(list(state.symbols))}
-
-
-# =========================================================
-# Connection Manager (clients)
-# =========================================================
-class WSManager:
+class ConnectionManager:
     def __init__(self):
-        self.clients: Set[WebSocket] = set()
-        self.client_filters: Dict[WebSocket, Set[str]] = {}  # per-client symbol filter
-
-    async def connect(self, ws: WebSocket):
-        await ws.accept()
-        self.clients.add(ws)
-        self.client_filters[ws] = set()  # empty = receive all
-
-    def disconnect(self, ws: WebSocket):
-        self.clients.discard(ws)
-        self.client_filters.pop(ws, None)
-
-    def set_filter(self, ws: WebSocket, symbols: List[str]):
-        self.client_filters[ws] = {s.upper() for s in symbols if s}
-
-    async def broadcast(self, payload: Dict[str, Any]):
-        """
-        Broadcast JSON payload to all clients (with optional per-client symbol filter).
-        """
-        if not self.clients:
-            return
-
-        msg_symbol = (payload.get("symbol") or "").upper()
-        dead: List[WebSocket] = []
-
-        for ws in list(self.clients):
-            filt = self.client_filters.get(ws, set())
-            if filt and msg_symbol and msg_symbol not in filt:
-                continue
-            try:
-                await ws.send_text(json.dumps(payload, ensure_ascii=False))
-            except Exception:
-                dead.append(ws)
-
-        for ws in dead:
-            self.disconnect(ws)
-
-
-manager = WSManager()
-
-
-# =========================================================
-# Yahoo Streamer State + Background Thread
-# =========================================================
-class StreamState:
-    def __init__(self):
-        self.symbols: Set[str] = set()
+        # Lưu các kết nối đang hoạt động: {WebSocket: Set[Symbols]}
+        self.active_connections: Dict[WebSocket, Set[str]] = {}
+        self.yahoo_ticker = None
+        self.stop_event = threading.Event()
+        self.loop = None
+        
+        # Danh sách các mã "gốc" từ DB (để luôn có data nền)
+        self.base_symbols: Set[str] = set()
+        # Danh sách tổng tất cả các mã đang được stream từ Yahoo
+        self.current_streaming_symbols: Set[str] = set()
         self._lock = threading.Lock()
 
-    def set_symbols(self, symbols: List[str]):
+    def get_all_needed_symbols(self) -> List[str]:
+        """Lấy tất cả các mã mà toàn bộ client đang yêu cầu + mã từ DB"""
         with self._lock:
-            self.symbols = {s.upper() for s in symbols if s}
+            all_symbols = self.base_symbols.copy()
+            for client_symbols in self.active_connections.values():
+                all_symbols.update(client_symbols)
+            return list(all_symbols)
 
-    def get_symbols(self) -> List[str]:
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
         with self._lock:
-            return sorted(list(self.symbols))
+            self.active_connections[websocket] = set()
+        print(f"✅ New Client. Total clients: {len(self.active_connections)}")
 
+    def disconnect(self, websocket: WebSocket):
+        with self._lock:
+            self.active_connections.pop(websocket, None)
+        print(f"❌ Client Left. Remaining: {len(self.active_connections)}")
+        if not self.active_connections:
+            self.stop_engine()
 
-state = StreamState()
+    def update_subscription(self, websocket: WebSocket, symbols: List[str]):
+        """Cập nhật bộ lọc cho client và kiểm tra xem có cần khởi động lại Yahoo không"""
+        new_symbols = {s.upper() for s in symbols if s}
+        
+        with self._lock:
+            self.active_connections[websocket] = new_symbols
+        
+        # Kiểm tra xem có mã nào mới mà Yahoo chưa stream không
+        current_all = set(self.get_all_needed_symbols())
+        if not current_all.issubset(self.current_streaming_symbols):
+            print("🔄 New symbols detected. Restarting Yahoo Stream to include them...")
+            self.start_or_restart_engine()
 
+    def start_or_restart_engine(self):
+        """Khởi động hoặc khởi động lại luồng Yahoo với danh sách mã mới"""
+        self.stop_engine()
+        self.stop_event.clear()
+        
+        needed = self.get_all_needed_symbols()
+        if not needed:
+            return
 
-def _normalize_yahoo_msg(raw: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    yliveticker returns a dict-like message.
-    Normalize fields to a stable JSON contract for React.
+        self.current_streaming_symbols = set(needed)
+        self.loop = asyncio.get_running_loop()
+        
+        thread = threading.Thread(target=self._yahoo_worker, args=(needed,), daemon=True)
+        thread.start()
 
-    Common fields (may vary):
-      - id / symbol
-      - price
-      - time / timestamp
-      - change / changePercent
-      - dayHigh/dayLow/open/prevClose/volume
-    """
-    sym = (raw.get("id") or raw.get("symbol") or "").upper()
+    def stop_engine(self):
+        self.stop_event.set()
+        if self.yahoo_ticker:
+            try: self.yahoo_ticker.stop()
+            except: pass
+        self.yahoo_ticker = None
 
-    payload = {
-        "type": "quote",
-        "symbol": sym,
-        "ts": int(time.time() * 1000),  # server receive time (ms)
-        "data": raw,                    # keep full raw for debugging/UI flexibility
-    }
-    return payload
-
-
-def yahoo_thread(loop: asyncio.AbstractEventLoop, stop_event: threading.Event):
-    """
-    Runs in a dedicated thread.
-    1) Pull top symbols from DB (instrument_snapshot)
-    2) Connect to Yahoo WS using yliveticker
-    3) Push updates into asyncio loop -> broadcast to React clients
-    """
-    ticker: Optional[YLiveTicker] = None
-    last_refresh = 0
-
-    def on_msg(msg: Dict[str, Any]):
-        payload = _normalize_yahoo_msg(msg)
-        asyncio.run_coroutine_threadsafe(manager.broadcast(payload), loop)
-
-    while not stop_event.is_set():
-        # refresh watchlist periodically
-        if (time.time() - last_refresh) > SYMBOL_REFRESH_SEC or not state.get_symbols():
-            try:
-                symbols = load_top_symbols_from_snapshot(limit=TOP_N)
-                if symbols:
-                    state.set_symbols(symbols)
-                last_refresh = time.time()
-            except Exception as e:
-                asyncio.run_coroutine_threadsafe(
-                    manager.broadcast({"type": "error", "message": f"load_symbols_failed: {str(e)}"}),
-                    loop
-                )
-                time.sleep(3)
-                continue
-
-        symbols = state.get_symbols()
-        if not symbols:
-            time.sleep(2)
-            continue
+    def _yahoo_worker(self, symbols_to_fetch: List[str]):
+        print(f"🚀 Engine active: Streaming {len(symbols_to_fetch)} symbols")
+        
+        def on_msg(ws, msg):
+            if self.stop_event.is_set(): return
+            
+            payload = {
+                "type": "quote",
+                "symbol": msg.get('id', '').upper(),
+                "price": msg.get('price'),
+                "change": msg.get('changePercent'),
+                "volume": int(msg.get('volume') or msg.get('dayVolume') or 0),
+                "ts": int(time.time() * 1000)
+            }
+            # Gửi dữ liệu về luồng chính của FastAPI
+            asyncio.run_coroutine_threadsafe(self._broadcast(payload), self.loop)
 
         try:
-            # create or recreate streamer
-            ticker = YLiveTicker(on_msg, symbols=symbols, url=YAHOO_WS_URL)
-            ticker.start()
-
-            # keep alive until need refresh
-            while not stop_event.is_set():
-                # if refresh due, restart ticker to apply new symbols
-                if (time.time() - last_refresh) > SYMBOL_REFRESH_SEC:
-                    break
+            self.yahoo_ticker = YLiveTicker(on_msg, symbols_to_fetch)
+            self.yahoo_ticker.start()
+            while not self.stop_event.is_set():
                 time.sleep(1)
-
         except Exception as e:
-            asyncio.run_coroutine_threadsafe(
-                manager.broadcast({"type": "error", "message": f"yahoo_stream_failed: {str(e)}"}),
-                loop
-            )
-            time.sleep(3)
+            print(f"❌ Engine Error: {e}")
 
-        finally:
-            try:
-                if ticker:
-                    ticker.stop()
-            except Exception:
-                pass
-            ticker = None
+    async def _broadcast(self, payload: dict):
+        msg_symbol = payload['symbol']
+        msg_str = json.dumps(payload)
+        
+        # Chỉ gửi dữ liệu đến những client đã đăng ký mã đó
+        tasks = []
+        for ws, subscribed_symbols in list(self.active_connections.items()):
+            if msg_symbol in subscribed_symbols:
+                tasks.append(self._send_safe(ws, msg_str))
+        
+        if tasks:
+            await asyncio.gather(*tasks)
 
+    async def _send_safe(self, ws: WebSocket, data: str):
+        try:
+            await ws.send_text(data)
+        except:
+            self.disconnect(ws)
 
-stop_event = threading.Event()
-bg_thread: Optional[threading.Thread] = None
+manager = ConnectionManager()
 
-
-@app.on_event("startup")
-async def on_startup():
-    """
-    Start background thread that listens Yahoo WebSocket and broadcasts to clients.
-    """
-    global bg_thread
-    loop = asyncio.get_running_loop()
-
-    # initial symbols load
+# =========================================================
+# Logic tải danh sách mã mặc định từ DB
+# =========================================================
+def load_db_symbols():
     try:
-        symbols = load_top_symbols_from_snapshot(limit=TOP_N)
-        state.set_symbols(symbols)
-    except Exception:
-        state.set_symbols([])
-
-    bg_thread = threading.Thread(target=yahoo_thread, args=(loop, stop_event), daemon=True)
-    bg_thread.start()
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    stop_event.set()
-
+        conn = pymysql.connect(**DB_CONFIG)
+        with conn.cursor() as cur:
+            cur.execute("SELECT symbol FROM instrument_snapshot ORDER BY liquidity DESC LIMIT %s", (TOP_N,))
+            symbols = {r['symbol'].upper() for r in cur.fetchall()}
+            manager.base_symbols = symbols
+            print(f"📊 DB Loaded: {len(symbols)} baseline symbols.")
+    except Exception as e:
+        print(f"⚠️ DB Load fail, using defaults. Error: {e}")
+        manager.base_symbols = {"BTC-USD", "NVDA", "AAPL", "TSLA"}
+    finally:
+        if 'conn' in locals(): conn.close()
 
 # =========================================================
-# WebSocket endpoint for React
+# API Routes
 # =========================================================
+@app.on_event("startup")
+async def startup_event():
+    load_db_symbols()
+    # Không start engine ngay, đợi client đầu tiên kết nối
+
 @app.websocket("/ws/quotes")
-async def ws_quotes(ws: WebSocket):
-    """
-    React connects here:
-      ws://<host>:<port>/ws/quotes
-
-    Optional: client can send:
-      { "type": "subscribe", "symbols": ["AAPL","NVDA"] }
-    to filter only those symbols for that client.
-    """
-    await manager.connect(ws)
-
-    # send handshake info
-    await ws.send_text(json.dumps({
-        "type": "hello",
-        "symbols_default": state.get_symbols(),
-        "note": "send {type:'subscribe', symbols:[...]} to filter per-client"
-    }, ensure_ascii=False))
-
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
     try:
         while True:
-            msg = await ws.receive_text()
+            # Client gửi: {"type": "subscribe", "symbols": ["NVDA", "AAPL"]}
+            raw_data = await websocket.receive_text()
             try:
-                data = json.loads(msg)
-            except Exception:
-                await ws.send_text(json.dumps({"type": "error", "message": "invalid_json"}, ensure_ascii=False))
-                continue
-
-            if data.get("type") == "subscribe":
-                symbols = data.get("symbols") or []
-                manager.set_filter(ws, symbols)
-                await ws.send_text(json.dumps({"type": "subscribed", "symbols": [s.upper() for s in symbols]}, ensure_ascii=False))
-            elif data.get("type") == "ping":
-                await ws.send_text(json.dumps({"type": "pong"}, ensure_ascii=False))
-            else:
-                await ws.send_text(json.dumps({"type": "error", "message": "unknown_command"}, ensure_ascii=False))
-
+                data = json.loads(raw_data)
+                if data.get("type") == "subscribe":
+                    symbols = data.get("symbols", [])
+                    manager.update_subscription(websocket, symbols)
+            except:
+                pass
     except WebSocketDisconnect:
-        manager.disconnect(ws)
-    except Exception:
-        manager.disconnect(ws)
+        manager.disconnect(websocket)
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "online",
+        "active_clients": len(manager.active_connections),
+        "streaming_count": len(manager.current_streaming_symbols)
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

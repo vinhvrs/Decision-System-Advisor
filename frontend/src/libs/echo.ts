@@ -15,7 +15,7 @@ export function createEcho() {
 
     cluster: 'mt1', // ← Reverb không dùng, không ảnh hưởng
     wsHost: process.env.NEXT_PUBLIC_REVERB_HOST || '127.0.0.1',
-    wsPort: parseInt(process.env.NEXT_PUBLIC_REVERB_PORT || '6001'),
+    wsPort: parseInt(process.env.NEXT_PUBLIC_REVERB_PORT || '8000'),
     
     // wsPath: process.env.NEXT_PUBLIC_REVERB_PATH || '/app',
     forceTLS: false,

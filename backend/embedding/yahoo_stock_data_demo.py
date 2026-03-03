@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import yfinance as yf
 import pymysql
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -23,17 +23,21 @@ class DSATurbo:
                 cursorclass=pymysql.cursors.DictCursor,
                 autocommit=False
             )
+            print("✅ Kết nối database thành công.")
         except Exception as e:
             print(f"❌ Kết nối DB thất bại: {e}")
             exit(1)
 
     def fetch_symbols(self):
+        """Lấy Top 20 mã có Liquidity hoặc Volume cao nhất"""
         with self.conn.cursor() as cur:
+            # Sắp xếp theo Liquidity trước, sau đó tới Volume để lấy mã chất lượng nhất
             sql = """
                 SELECT i.id, i.symbol 
                 FROM instrument_snapshot s
                 JOIN instruments i ON s.instrument_id = i.id
-                ORDER BY s.updated_at DESC
+                ORDER BY s.liquidity DESC, s.volume DESC
+                LIMIT 20
             """
             cur.execute(sql)
             rows = cur.fetchall()
@@ -57,19 +61,14 @@ class DSATurbo:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
-            # Lấy 60 ngày để đảm bảo nến Tuần/Tháng hiện tại khớp giá
+            # Lấy 60 ngày dữ liệu
             df = ticker.history(period="60d", interval="1d", auto_adjust=True)
             if df.empty: return
 
             daily_values = []
             for dt, row in df.iterrows():
-                # QUAN TRỌNG: Chuẩn hóa mốc thời gian về 14:30:00 (giờ chốt phiên chuẩn)
-                # Điều này giúp UI hiển thị đồng nhất nhưng Slug vẫn là duy nhất theo ngày
                 date_str = dt.strftime('%Y-%m-%d')
                 db_timestamp = f"{date_str} 14:30:00" 
-                
-                # SLUG CHỈ THEO NGÀY: Chìa khóa để chống Duplicate 2 khung giờ trong 1 ngày
-                # Nếu Yahoo trả về nến lúc 15:00, nó sẽ UPDATE vào nến 14:30 của ngày đó
                 day_slug = f"{symbol.lower()}-{date_str}"
                 
                 daily_values.append((
@@ -92,7 +91,7 @@ class DSATurbo:
             self.aggregate_for_symbol(symbol, p_ids, df)
 
         except Exception as e:
-            print(f" ❌ Lỗi {symbol}: {e}")
+            print(f" ❌ Lỗi khi cập nhật {symbol}: {e}")
             self.conn.rollback()
 
     def aggregate_for_symbol(self, symbol, p_ids, df):
@@ -106,7 +105,6 @@ class DSATurbo:
                 agg_values = []
                 for ts, row in agg.iterrows():
                     date_str = ts.strftime('%Y-%m-%d')
-                    # Slug cho các khung lớn: aapl-2026-03-01-weekly
                     slug = f"{symbol.lower()}-{date_str}-{p_type}"
                     
                     agg_values.append((
@@ -126,11 +124,16 @@ class DSATurbo:
 
     def run(self):
         instruments = self.fetch_symbols()
-        print(f"🚀 Bắt đầu Turbo Sync v5 cho {len(instruments)} mã...")
+        print(f"🚀 Bắt đầu Sync cho Top {len(instruments)} mã có thanh khoản cao nhất...")
+        
         for idx, inst in enumerate(instruments):
             s_time = time.time()
-            self.update_stock(inst['id'], inst['symbol'].upper())
-            print(f"✅ [{idx+1}] {inst['symbol']} ({time.time()-s_time:.2f}s)")
+            symbol = inst['symbol'].upper()
+            self.update_stock(inst['id'], symbol)
+            print(f"✅ [{idx+1}/20] {symbol} ({time.time()-s_time:.2f}s)")
+        
+        self.conn.close()
+        print("✨ Hoàn tất cập nhật dữ liệu vào Database.")
 
 if __name__ == "__main__":
     DSA_TURBO = DSATurbo()
