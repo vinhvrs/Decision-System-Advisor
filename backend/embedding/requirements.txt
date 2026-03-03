@@ -3,3 +3,12 @@ uvicorn
 pydantic
 sentence-transformers
 torch
+feedparser 
+requests 
+pymysql 
+beautifulsoup4
+pandas
+dotenv
+yliveticker
+websocket-client
+protobuf==3.20.3
