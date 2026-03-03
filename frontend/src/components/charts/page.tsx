@@ -9,9 +9,9 @@ import SelectDropdown from "../../sections/Dropdown";
 import LightChart from "./LightChart";
 import { Instrument } from "../../types/Instrument";
 import { InstrumentPeriod } from "../../types/InstrumentPeriod";
-import { createEcho } from "@/src/libs/echo";
 import { get, set } from "idb-keyval";
 import { IDB_KEYS } from "@/src/libs/idbKeys";
+import { SimpleSocket } from "@/src/libs/socket";
 
 
 /* ============================================================
@@ -118,7 +118,6 @@ export default function InstrumentSelectionPage() {
   const [candlePage, setCandlePage] = useState(1);
 
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
-  const echoRef = useRef<any>(null);
 
   const [selectedInstrument, setSelectedInstrument] =
     useState<Instrument | null>(AAPL_INSTRUMENT);
@@ -290,46 +289,40 @@ export default function InstrumentSelectionPage() {
   }, [selectedPeriod]);
 
   /** --------------------------------------------------------
-  * REALTIME REVERB SUBSCRIBE (theo selectedInstrument + selectedPeriod)
+  * REALTIME WEBSOCKET (PYTHON SERVER)
   ---------------------------------------------------------*/
   useEffect(() => {
     if (!selectedInstrument || !selectedPeriod) return;
 
-    const echo = createEcho();
-    if (!echo) return;
+    // Khởi tạo socket tới FastAPI (Cổng 8000 như bạn đã chạy)
+    const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data) => {
+      if ((data as { type: string }).type === "quote") {
+        setRealtimeCandle({
+          time: (data as { ts: number }).ts,     // Timestamp ms từ Python
+          open: (data as { price: number }).price,  // Hoặc data.open tùy server gửi gì
+          high: (data as { price: number }).price,
+          low: (data as { price: number }).price,
+          close: (data as { price: number }).price,
+        });
+      }
+    });
 
-    echoRef.current = echo;
+    socket.connect();
 
-    const symbol = (
-      selectedPeriod.prefix ||
-      selectedInstrument.symbol
-    ).toLowerCase();
-
-    const timeframe = selectedPeriod.period; // ✅ LẤY TRỰC TIẾP
-
-    const channelName = `ohlc.${symbol}.${timeframe}`;
-    const pusher = echo.connector.pusher;
-
-    const onConnected = () => {
-      console.log("✅ Reverb connected");
-
-      echo.channel(channelName).listen(".candle", (e: any) => {
-        const candle = e?.candle ?? e;
-        setRealtimeCandle(candle);
+    // Gửi lệnh subscribe sau một khoảng ngắn để đợi socket open
+    const timer = setTimeout(() => {
+      socket.send({
+        type: "subscribe",
+        symbols: [selectedInstrument.symbol]
       });
-
-      console.log("📡 Subscribed to", channelName);
-    };
-
-    pusher.connection.bind("connected", onConnected);
+    }, 500);
 
     return () => {
-      echo.leave(channelName);
-      pusher.connection.unbind("connected", onConnected);
+      clearTimeout(timer);
+      socket.disconnect();
+      setRealtimeCandle(null);
     };
   }, [selectedInstrument?.id, selectedPeriod?.id]);
-
-
 
   /** --------------------------------------------------------
    * UI

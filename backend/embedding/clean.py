@@ -2,7 +2,9 @@ import pymysql
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from datetime import date, timedelta
 
+# Load cấu hình
 env_path = Path(__file__).resolve().parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
@@ -14,25 +16,55 @@ conn = pymysql.connect(
     autocommit=True
 )
 
-def cleanup_2026():
-    total_deleted = 0
-    batch_size = 5000 # Mỗi lần xóa 5k dòng để tránh Timeout
+def get_date_list(start_date, end_date):
+    """Tạo danh sách các ngày từ start đến end theo định dạng -YYYY-MM-DD-"""
+    days = []
+    curr = start_date
+    while curr <= end_date:
+        days.append(f"-{curr.strftime('%Y-%m-%d')}-")
+        curr += timedelta(days=1)
+    return days
+
+def cleanup_by_day():
+    total_deleted_all = 0
+    batch_size = 5000 
     
-    print("🧹 Bắt đầu dọn dẹp dữ liệu lỗi từ 2026...")
-    
-    with conn.cursor() as cur:
-        while True:
-            # Lệnh xóa từng đợt
-            sql = "DELETE FROM instrument_data WHERE slug REGEXP '-2026-(01|02|03)-' LIMIT %s"
-            affected = cur.execute(sql, (batch_size,))
-            
-            total_deleted += affected
-            if affected == 0:
-                break
+    # Cấu hình khoảng thời gian muốn xóa (Ví dụ: từ tháng 1 đến tháng 3 năm 2026)
+    start = date(2026, 1, 1)
+    end = date(2026, 3, 31)
+    dates_to_clean = get_date_list(start, end)
+
+    print(f"🚀 Bắt đầu dọn dẹp dữ liệu từ {start} đến {end}...")
+
+    try:
+        with conn.cursor() as cur:
+            for day_pattern in dates_to_clean:
+                day_deleted = 0
+                print(f"📅 Đang xử lý ngày: {day_pattern}")
                 
-            print(f"✅ Đã xóa {total_deleted} dòng...")
+                while True:
+                    # Sử dụng LIKE thay cho REGEXP sẽ nhanh hơn nếu có index ở cột slug
+                    sql = "DELETE FROM instrument_data WHERE slug LIKE %s LIMIT %s"
+                    affected = cur.execute(sql, (f"%{day_pattern}%", batch_size))
+                    
+                    day_deleted += affected
+                    total_deleted_all += affected
+                    
+                    if affected == 0:
+                        break
+                    
+                    print(f"   Batch: Đã xóa {day_deleted} dòng của ngày này...")
+                
+                if day_deleted > 0:
+                    print(f"✅ Hoàn tất ngày {day_pattern}: Xóa {day_deleted} dòng.")
+                    
+    except Exception as e:
+        print(f"❌ Có lỗi xảy ra: {e}")
+    finally:
+        conn.close()
             
-    print(f"✨ Hoàn tất! Tổng cộng đã dọn dẹp {total_deleted} bản ghi lỗi.")
+    print(f"---")
+    print(f"✨ TỔNG KẾT: Đã dọn dẹp thành công {total_deleted_all} bản ghi.")
 
 if __name__ == "__main__":
-    cleanup_2026()
+    cleanup_by_day()
