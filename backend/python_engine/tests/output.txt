@@ -1,0 +1,59 @@
+=== SYSTEM TEST REPORT - 2026-03-05 10:48:05 ===
+
+USER REQUEST: Don't show me AAPL, analyze AMZN instead
+EXTRACTED SYMBOL: AMZN
+REDIS STATUS: Data Found
+TECHNICAL SUMMARY: {
+  "rsi": 64.45,
+  "macd": {
+    "val": -0.3866,
+    "signal": -1.65
+  },
+  "ma_trend": "bearish"
+}
+SIGNALS: {
+  "action": "NEUTRAL",
+  "reason": "No strong signal",
+  "confidence_score": 50
+}
+--------------------------------------------------
+USER REQUEST: I don't need the RSI of GOOG
+EXTRACTED SYMBOL: GOOGL
+REDIS STATUS: Data Found
+TECHNICAL SUMMARY: {
+  "rsi": 34.83,
+  "macd": {
+    "val": -3.0358,
+    "signal": -2.868
+  },
+  "ma_trend": "bearish"
+}
+SIGNALS: {
+  "action": "NEUTRAL",
+  "reason": "No strong signal",
+  "confidence_score": 50
+}
+--------------------------------------------------
+USER REQUEST: Analyze AMD but not with MACD
+EXTRACTED SYMBOL: AMD
+REDIS STATUS: Data Found
+TECHNICAL SUMMARY: {
+  "rsi": 45.14,
+  "macd": {
+    "val": -6.5505,
+    "signal": -6.0836
+  },
+  "ma_trend": "bearish"
+}
+SIGNALS: {
+  "action": "NEUTRAL",
+  "reason": "No strong signal",
+  "confidence_score": 50
+}
+--------------------------------------------------
+USER REQUEST: Don't ignore MSFT analysis
+RESULT: Could not extract ticker from message.
+--------------------------------------------------
+USER REQUEST: Show me everything except for GOOGL
+RESULT: Could not extract ticker from message.
+--------------------------------------------------

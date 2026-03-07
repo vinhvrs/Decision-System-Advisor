@@ -302,14 +302,14 @@ class IndicatorService:
 
             redis_key = f"{Config.REDIS_PREFIX}:analysis:{symbol}"
             if self.redis_client:
-                self.redis_client.set(redis_key, json.dumps(result), ex=300)
+                self.redis_client.set(redis_key, json.dumps(result), ex=60*60)
 
         except Exception as e:
             print(f"❌ Lỗi tính toán {symbol}: {e}")
 
     def run_warmup(self):
         print(f"🚀 Warmup started at {time.strftime('%H:%M:%S')}")
-        symbols = self.get_top_volume_symbols(5)
+        symbols = self.get_top_volume_symbols(20)
 
         if not symbols:
             print("❌ Không tìm thấy mã nào để phân tích.")

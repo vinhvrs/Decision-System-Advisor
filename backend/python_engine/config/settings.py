@@ -65,3 +65,4 @@ class Settings:
 
 # Khởi tạo instance
 Config = Settings()
+settings = Config
