@@ -16,11 +16,20 @@ class SystemTest:
         self.smoother = LanguageSmoother()
         self.indicator_service = IndicatorService()
         self.test_messages = [
-            "Show me the analysis for AAPL",
-            "What is the current RSI of BTC?",
-            "Give me a buy/sell recommendation for TSLA",
-            "How is the volatility of ETH today?",
-            "Analyze MSFT and show MACD"
+            # 1. Phủ định 1 phần: Phải trích xuất AMZN, loại bỏ AAPL
+            "Don't show me AAPL, analyze AMZN instead",      
+
+            # 2. Phủ định hoàn toàn: Decision phải báo status 'failed' hoặc không có targets
+            "I don't need the RSI of GOOG",                   
+
+            # 3. Phủ định Indicator: Trích xuất AMD, nhưng MACD phải nằm trong 'negated'
+            "Analyze AMD but not with MACD",                 
+
+            # 4. Phủ định của phủ định: Phải trích xuất MSFT thành công (Double Negation)
+            "Don't ignore MSFT analysis",                    
+
+            # 5. Loại trừ: Phải trích xuất các mã khác và đánh dấu GOOGL là loại trừ
+            "Show me everything except for GOOGL"             
         ]
         self.output_file = os.path.join(os.path.dirname(__file__), "output.txt")
 

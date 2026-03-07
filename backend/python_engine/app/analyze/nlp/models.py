@@ -22,3 +22,5 @@ class SmoothResult:
     entities: Dict[str, List[str]] = field(default_factory=dict)
     decision: Dict[str, Any] = field(default_factory=dict)
     output_text: str = ""
+    # Bổ sung field notes để nhận dữ liệu từ resolver.py
+    notes: Dict[str, Any] = field(default_factory=dict)
