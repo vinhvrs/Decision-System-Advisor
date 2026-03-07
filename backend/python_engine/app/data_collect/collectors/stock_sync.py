@@ -4,25 +4,32 @@ import pandas as pd
 import yfinance as yf
 import pymysql
 from datetime import datetime
+import os
+import sys
 
-from config.settings import Config
+# Thêm đường dẫn để import config
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+from config.settings import settings
 
 class DSATurbo:
     def __init__(self):
         try:
-            self.conn = pymysql.connect(**Config.DB_CONFIG)
+            self.db_config = settings.DB_CONFIG.copy()
+            self.db_config['cursorclass'] = pymysql.cursors.DictCursor
+            self.conn = pymysql.connect(**self.db_config)
             self.conn.autocommit(False) 
-            print(f"✅ Connected to DB: {Config.DB_CONFIG['database']}")
+            print(f"✅ Connected to DB: {self.db_config['database']}")
         except Exception as e:
             print(f"❌ DB Connection Error: {e}")
             exit(1)
 
-    def generate_slug(self, symbol, dt_obj):
+    def generate_slug(self, symbol, period, dt_obj):
         """
-        Format chuẩn duy nhất cho mọi nến: symbol-YYYY-MM-DD HH:mm:ss
+        Format chuẩn: symbol-period-YYYY-MM-DD HH:mm:ss
+        Ví dụ: aapl-daily-2023-10-27 00:00:00
         """
         time_part = dt_obj.strftime('%Y-%m-%d 00:00:00')
-        return f"{symbol.lower()}-{time_part}"
+        return f"{symbol.lower()}-{period.lower()}-{time_part}"
 
     def fetch_symbols(self):
         with self.conn.cursor() as cur:
@@ -33,7 +40,7 @@ class DSATurbo:
                 ORDER BY s.volume DESC
                 LIMIT %s
             """
-            cur.execute(sql, (getattr(Config, 'TOP_N', 500),))
+            cur.execute(sql, (getattr(settings, 'TOP_N', 500),))
             return cur.fetchall()
 
     def ensure_periods(self, inst_id, symbol):
@@ -49,7 +56,8 @@ class DSATurbo:
                 """, (str(uuid.uuid4()), inst_id, p, p_slug, symbol.lower()))
                 
                 cur.execute("SELECT id FROM instrument_periods WHERE slug=%s", (p_slug,))
-                p_ids[p] = cur.fetchone()['id']
+                result = cur.fetchone()
+                p_ids[p] = result['id']
         self.conn.commit()
         return p_ids
 
@@ -57,7 +65,8 @@ class DSATurbo:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period="60d", interval="1d", auto_adjust=True)
+            # FIX: Chỉ lấy 7 ngày để tối ưu hiệu suất
+            df = ticker.history(period="7d", interval="1d", auto_adjust=True)
             if df.empty: return
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -66,11 +75,12 @@ class DSATurbo:
             daily_values = []
             for dt, row in df.iterrows():
                 dt_str = dt.strftime('%Y-%m-%d 00:00:00')
-                slug = self.generate_slug(symbol, dt)
+                # Sử dụng format slug mới có chứa period 'daily'
+                slug = self.generate_slug(symbol, 'daily', dt)
                 
                 daily_values.append((
                     str(uuid.uuid4()), p_ids['daily'], dt_str, 
-                    row['Open'], row['High'], row['Low'], row['Close'], 
+                    float(row['Open']), float(row['High']), float(row['Low']), float(row['Close']), 
                     int(row['Volume']), 'yfinance_v3.5', slug,
                     now_str, now_str
                 ))
@@ -86,7 +96,6 @@ class DSATurbo:
             self.conn.rollback()
 
     def _execute_upsert(self, values):
-        """Helper để thực hiện INSERT ... ON DUPLICATE KEY UPDATE"""
         with self.conn.cursor() as cur:
             sql = """INSERT INTO instrument_data 
                      (id, instrument_period_id, timestamps, open, high, low, close, volume, source, slug, created_at, updated_at)
@@ -100,6 +109,7 @@ class DSATurbo:
 
     def aggregate_for_symbol(self, symbol, p_ids, df, now_str):
         df.index = pd.to_datetime(df.index)
+        # W-MON: Tuần bắt đầu từ Thứ 2; MS: Đầu tháng; YS: Đầu năm
         rules = {'weekly': 'W-MON', 'monthly': 'MS', 'yearly': 'YS'}
         
         for p_type, rule in rules.items():
@@ -110,11 +120,12 @@ class DSATurbo:
             agg_values = []
             for ts, row in agg.iterrows():
                 dt_str = ts.strftime('%Y-%m-%d 00:00:00')
-                slug = self.generate_slug(symbol, ts) # Slug chung format với Daily
+                # Slug phân biệt theo p_type (weekly, monthly...)
+                slug = self.generate_slug(symbol, p_type, ts)
                 
                 agg_values.append((
                     str(uuid.uuid4()), p_ids[p_type], dt_str, 
-                    row['Open'], row['High'], row['Low'], row['Close'], 
+                    float(row['Open']), float(row['High']), float(row['Low']), float(row['Close']), 
                     int(row['Volume']), 'agg_v3.5', slug,
                     now_str, now_str
                 ))
@@ -126,7 +137,7 @@ class DSATurbo:
         start_turbo = time.time()
         instruments = self.fetch_symbols()
         total = len(instruments)
-        print(f"🚀 Starting Turbo Sync v3.5 (Unified Slug Format) for Top {total} symbols...")
+        print(f"🚀 Starting Turbo Sync v3.5 (7 Days Backfill) for Top {total} symbols...")
         
         for idx, inst in enumerate(instruments):
             start_time = time.time()

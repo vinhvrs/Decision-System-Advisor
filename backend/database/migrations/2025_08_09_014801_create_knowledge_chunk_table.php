@@ -9,29 +9,20 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('knowledge_chunks', function (Blueprint $table) {
-
-            // Primary UUID
             $table->uuid('id')->primary();
 
-            // Relation
-            $table->uuid('knowledge_id')->nullable();
+            // Relation duy nhất trỏ về docs thô
             $table->uuid('docs_id');
-
             $table->integer('chunk_index');
 
             // Content
-            $table->longText('content');                 // <-- dùng longText
-            $table->string('source', 255)->nullable();
-
+            $table->longText('content');                 
             $table->integer('token')->default(0);
-
-            // Vector (JSON string lưu embedding)
-            $table->longText('vector')->nullable();      // <-- FIX: không dùng string(2000)
 
             // Extra metadata
             $table->json('data')->nullable();
 
-            // Qdrant tracking
+            // Qdrant tracking (Đã gộp từ file migration riêng)
             $table->uuid('qdrant_point_id')->nullable()->index();
             $table->timestamp('qdrant_upserted_at')->nullable()->index();
 
@@ -43,14 +34,8 @@ return new class extends Migration {
                 ->on('knowledge_docs')
                 ->cascadeOnDelete();
 
-            $table->foreign('knowledge_id')
-                ->references('id')
-                ->on('knowledge')
-                ->nullOnDelete();
-
             // Indexes
             $table->index('docs_id');
-            $table->index('knowledge_id');
             $table->index('created_at');
         });
     }

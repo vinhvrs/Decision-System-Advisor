@@ -18,6 +18,7 @@ class Settings:
             self.APP_ENV = os.environ["APP_ENV"]
             self.APP_DEBUG = os.environ["APP_DEBUG"].lower() == 'true'
             self.APP_PORT = int(os.environ["APP_PORT"])
+            self.TOP_N = int(os.environ["LIMIT"]) if os.environ.get("LIMIT") else 300
 
             # --- DATABASE (MySQL) ---
             self.DB_CONFIG = {

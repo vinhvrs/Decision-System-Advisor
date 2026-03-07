@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 from app.analyze.nlp.resolver import LanguageSmoother
 from app.analyze.nlp.models import SmoothContext
-from app.services.embedding.main import EmbeddingService
+from backend.python_engine.app.services.embedding.embedding_service import EmbeddingService
 from app.services.context.qdrant_retriever import QdrantRetriever
 from app.services.context.elastic_retriever import ElasticRetriever
 from app.services.context.merger import ContextMerger
