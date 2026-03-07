@@ -9,12 +9,19 @@ return new class extends Migration
     {
         Schema::create('instruments', function (Blueprint $table) {
             $table->string('id', 36)->primary();
-            $table->string('symbol', length: 16)->unique();
-            $table->string('name', 255);
+            $table->string('symbol', 16)->unique();
+            
+            // Đã gộp độ dài mới từ file alter
+            $table->string('name', 500); 
+            
             $table->enum('type', ['stock', 'bond', 'commodity', 'currency'])
                 ->default('stock');
-            $table->string('slug', 255)->unique();
+                
+            // Đã gộp độ dài mới từ file alter
+            $table->string('slug', 300)->unique(); 
+            
             $table->string('exchange', 255)->nullable();
+            
             $table->timestamps();           
             $table->softDeletes();   
         });
@@ -22,6 +29,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('instrument');
+        // Đã sửa lỗi typo (thêm 's')
+        Schema::dropIfExists('instruments'); 
     }
 };

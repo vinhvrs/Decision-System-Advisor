@@ -7,18 +7,22 @@ class Knowledge extends Model
 {
     protected $table = 'knowledge';
     protected $keyType = 'string';
+    public $incrementing = false;
+    
     protected $fillable = [
         'topic',
         'content',
+        'source_docs_ids',
         'author',
         'url_slug',
         'published_at'
     ];
 
-    public $timestamps = true;
+    protected $casts = [
+        'source_docs_ids' => 'array',     
+        'published_at'    => 'datetime',
+    ];
 
-    public function chunks()
-    {
-        return $this->hasMany(KnowledgeChunk::class, 'knowledge_id');
-    }
+    public $timestamps = true;
+    
 }

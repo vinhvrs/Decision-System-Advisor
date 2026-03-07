@@ -12,8 +12,6 @@ return new class extends Migration
         // USERS & USERS_SLUG
         // --------------------------
         Schema::table('users_slug', function (Blueprint $table) {
-            //$table->unique('user_id', 'uq_users_slug_user');
-
             // Slug global unique để dễ route
             $table->unique('slug', 'uq_users_slug_slug');
 
@@ -96,7 +94,6 @@ return new class extends Migration
                   ->onDelete('cascade');
 
             $table->unique(['instrument_period_id', 'timestamp'], 'uq_data_period_ts');
-
             $table->index('timestamp', 'idx_data_timestamp');
         });
 
@@ -105,7 +102,7 @@ return new class extends Migration
         // --------------------------
         Schema::table('knowledge', function (Blueprint $table) {
             $table->unique('slug', 'uq_knowledge_slug');
-            $table->index('topic', 'idx_knowledge_topic');
+            // Đã xóa index 'topic' vì đã có trong create migration
         });
 
         // --------------------------
@@ -113,7 +110,7 @@ return new class extends Migration
         // --------------------------
         Schema::table('knowledge_docs', function (Blueprint $table) {
             $table->index(['category', 'language'], 'idx_docs_category_lang');
-            $table->index('created_at', 'idx_docs_created');
+            // Đã xóa index 'created_at' vì đã có trong create migration
         });
 
         // --------------------------
@@ -124,35 +121,29 @@ return new class extends Migration
                   ->references('id')->on('knowledge_docs')
                   ->onDelete('cascade');
 
-            $table->foreign('knowledge_id', 'fk_chunks_knowledge')
-                  ->references('id')->on('knowledge')
-                  ->onDelete('cascade');
-
+            // Đã xóa foreign key 'knowledge_id' vì cột này không còn tồn tại
+            
             $table->unique(['docs_id', 'chunk_index'], 'uq_chunks_doc_index');
-
-            $table->index('docs_id', 'idx_chunks_doc');
+            // Đã xóa index 'docs_id' vì đã có trong create migration
         });
     }
-
 
     public function down(): void
     {
         Schema::table('knowledge_chunks', function (Blueprint $table) {
             $table->dropForeign('fk_chunks_doc');
-            // $table->dropForeign('fk_chunks_knowledge');
             $table->dropUnique('uq_chunks_doc_index');
-            $table->dropIndex('idx_chunks_doc');
         });
 
         Schema::table('knowledge_docs', function (Blueprint $table) {
-            $table->dropUnique('uq_docs_slug');
+            // Ghi chú: File gốc của bạn có dropUnique('uq_docs_slug') nhưng hàm up() không tạo. 
+            // Nếu bạn không có unique slug ở docs thì nên cẩn thận khi rollback. Mình tạm thời comment lại để tránh lỗi.
+            // $table->dropUnique('uq_docs_slug'); 
             $table->dropIndex('idx_docs_category_lang');
-            $table->dropIndex('idx_docs_created');
         });
 
         Schema::table('knowledge', function (Blueprint $table) {
             $table->dropUnique('uq_knowledge_slug');
-            $table->dropIndex('idx_knowledge_topic');
         });
 
         Schema::table('instrument_data', function (Blueprint $table) {
@@ -201,9 +192,7 @@ return new class extends Migration
 
         Schema::table('users_slug', function (Blueprint $table) {
             $table->dropForeign('fk_users_slug_user');
-            $table->dropUnique('uq_users_slug_user');
             $table->dropUnique('uq_users_slug_slug');
         });
     }
 };
-

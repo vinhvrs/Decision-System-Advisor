@@ -1,0 +1,28 @@
+{
+    "symbol": "NVDA",
+    "analysis_period": "Past 15 articles",
+    "events": [
+        {
+            "event_id": "898c3dea-1ac0-4e14-8515-b9e93d05fcb4",
+            "event_date": "2026-03-05",
+            "event_type": "EARNINGS",
+            "sentiment_score": 0.85,
+            "impact_magnitude": "HIGH",
+            "description": "NVDA reported record revenue growth driven by AI data center demand.",
+            "pattern_id": "EARNINGS_BEAT_MOMENTUM"
+        },
+        {
+            "event_id": "92a94250-809c-4469-b70d-1d06b876af0d",
+            "event_date": "2026-03-07",
+            "event_type": "MACRO",
+            "sentiment_score": -0.4,
+            "impact_magnitude": "MEDIUM",
+            "description": "Hawkish Fed comments regarding inflation outlook put pressure on tech valuations.",
+            "pattern_id": "INTEREST_RATE_SENSITIVITY"
+        }
+    ],
+    "metadata": {
+        "source_count": 15,
+        "generated_at": "2026-03-08 05:23:40"
+    }
+}

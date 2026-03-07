@@ -7,22 +7,28 @@ class KnowledgeChunk extends Model
 {
     protected $table = 'knowledge_chunks';
     protected $keyType = 'string';
+    public $incrementing = false; // Quan trọng khi dùng UUID
 
     protected $fillable = [
-        'knowledge_id',
         'docs_id',
         'chunk_index',
         'content',
-        'source',
         'token',
-        'vector',
         'data',
+        'qdrant_point_id',    
+        'qdrant_upserted_at',
         'created_at',
         'updated_at',
     ];
 
-    public function knowledge()
+    protected $casts = [
+        'data' => 'array',
+        'qdrant_upserted_at' => 'datetime',
+    ];
+
+    // Thay đổi relation trỏ về bảng chứa dữ liệu thô
+    public function document()
     {
-        return $this->belongsTo(Knowledge::class, 'knowledge_id');
+        return $this->belongsTo(KnowledgeDoc::class, 'docs_id');
     }
 }
