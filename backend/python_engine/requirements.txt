@@ -33,6 +33,8 @@ feedparser
 yliveticker
 websocket-client
 yfinance
+newspaper3k
+lxml_html_clean
 
 # ==========================================================
 # Utilities & NLP
@@ -43,3 +45,4 @@ python-Levenshtein
 loguru
 protobuf
 cryptography
+langchain-text-splitters

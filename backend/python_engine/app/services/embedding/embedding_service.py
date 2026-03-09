@@ -2,7 +2,7 @@ import httpx
 import logging
 import asyncio
 from typing import List
-from config.settings import Config # Đảm bảo dùng đúng class Config của bạn
+from config.settings import Config
 
 class EmbeddingService:
     def __init__(self):
