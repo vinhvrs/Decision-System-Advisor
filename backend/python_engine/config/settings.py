@@ -56,6 +56,8 @@ class Settings:
             self.GNEWS_API_KEY = os.environ["GNEWS_API_KEY"]
             self.NEWSAPI_KEY = os.environ["NEWSAPI_KEY"]
             self.MASSIVE_API_KEY = os.environ["MASSIVE_API_KEY"]
+            self.NEWSAPIORG_KEY = os.environ["NEWSAPIORG_KEY"]
+            self.NEWSDATA_KEY = os.environ["NEWSDATA_API_KEY"]
 
         except KeyError as e:
             print(f"❌ Lỗi: Thiếu tham số bắt buộc {e} trong file .env")
