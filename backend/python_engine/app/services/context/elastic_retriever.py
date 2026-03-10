@@ -5,7 +5,7 @@ from config.settings import settings
 
 class ElasticRetriever:
     def __init__(self):
-        self.url = settings.ELASTIC_URL.rstrip('/')
+        self.url = settings.ELASTIC_HOST.rstrip('/')
         self.index = settings.ELASTIC_INDEX
         self.logger = logging.getLogger(__name__)
 
