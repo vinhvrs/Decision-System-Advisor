@@ -93,15 +93,15 @@ return new class extends Migration
                   ->references('id')->on('instrument_periods')
                   ->onDelete('cascade');
 
-            $table->unique(['instrument_period_id', 'timestamp'], 'uq_data_period_ts');
-            $table->index('timestamp', 'idx_data_timestamp');
+            $table->unique(['instrument_period_id', 'timestamps'], 'uq_data_period_ts');
+            $table->index('timestamps', 'idx_data_timestamps');
         });
 
         // --------------------------
         // KNOWLEDGE (FAQ/seed)
         // --------------------------
         Schema::table('knowledge', function (Blueprint $table) {
-            $table->unique('slug', 'uq_knowledge_slug');
+            $table->unique('url_slug', 'uq_knowledge_url_slug');
             // Đã xóa index 'topic' vì đã có trong create migration
         });
 
