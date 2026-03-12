@@ -86,10 +86,11 @@ class InstrumentController extends Controller{
         return response()->json($instruments);
     }
 
-    public function show($id){
-        $instrument = $this->instrumentRepository->find($id);
+    public function show($symbol){
+        $instrument = $this->instrumentRepository->findByField('symbol', $symbol);
         return response()->json($instrument);
     }
+    
     public function store(Request $request){
         $data = $request->validate([
             'name' => 'required|string|max:255',

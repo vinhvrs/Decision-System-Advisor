@@ -15,7 +15,6 @@ class CompanyProfile extends Model
         'exchange',
         'company_name',
         'symbol',
-        'market_cap',
         'industry',
         'sector',
         'website',

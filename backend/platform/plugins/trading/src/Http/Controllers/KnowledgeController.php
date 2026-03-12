@@ -2,17 +2,22 @@
 namespace Platform\Plugins\Trading\Src\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\KnowledgeRepository;
 use Platform\Plugins\Trading\Src\Models\Knowledge;
+use Platform\Plugins\Trading\Src\Services\NewsService;
+
 
 class KnowledgeController extends Controller
 {
     protected $knowledgeRepository;
+    protected $newsService;
 
     public function __construct(KnowledgeRepository $knowledgeRepository)
     {
         $this->knowledgeRepository = $knowledgeRepository;
+        $this->newsService = new NewsService();
     }
 
     public function index(Request $request)
@@ -21,18 +26,21 @@ class KnowledgeController extends Controller
         $select = $request->input('select', ['*']);
         $perPage = $request->input('per_page', 15);
 
-        $knowledges = $this->knowledgeRepository->findAll($filter, $select, $perPage);
+        $knowledges = DB::table('knowledge_docs_temp')
+            ->select('id', 'title', 'content', 'published_at', 'source', 'author')
+            ->orderBy('published_at', 'desc')
+            ->paginate($perPage);
 
         return response()->json($knowledges);
     }
 
     public function show(string $id)
     {
-        $knowledge = $this->knowledgeRepository->find($id);
+        $knowledge = $this->newsService->getById($id);
         if ($knowledge) {
             return response()->json($knowledge);
         }
-        return response()->json(['error' => 'Knowledge not found'], 404);
+        return response()->json(['error' => 'News not found'], 404);
     }
 
     public function store(Request $request)
@@ -59,5 +67,15 @@ class KnowledgeController extends Controller
             return response()->json(['message' => 'Knowledge deleted successfully']);
         }
         return response()->json(['error' => 'Knowledge not found'], 404);
+    }
+
+    public function getBySymbol(string $symbol, int $limit = 10)
+    {
+        if (!$symbol){
+            return response()->json(['error' => 'Symbol must required'], 404);
+        }
+        $newsService = new NewsService();
+        $news = $newsService->getBySymbol($symbol, $limit);
+        return response()->json($news);
     }
 }

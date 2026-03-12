@@ -8,25 +8,25 @@ STRATEGY = {
     "sell_decision": {"mode": "advisory", "require_data": True, "allow_llm": True},
     "unknown": {"mode": "fallback", "require_data": False, "allow_llm": True},
     
-    # Động từ hành động
-    "verbs": ["give", "show", "get", "tell", "list", "analyze", "recommend", "buy", "sell", "check", "view"],
+    # Action verbs
+    "verbs": ["give", "show", "get", "tell", "list", "analyze", "recommend", "buy", "sell", "check", "view", "use", "using"],
     
-    # Từ đệm
+    # Fillers
     "fillers": ["me", "please", "today", "now", "full", "include", "latest", "current"],
     
-    # TẦNG PHỦ ĐỊNH & ĐIỀU HƯỚNG (Quan trọng cho Semantic Tree)
+    # Negations and Navigation
     "negations": [
         "no", "not", "without", "dont", "don't", "ignore", 
         "stop", "except", "instead", "but", "never", "none"
     ],
     
-    # Danh từ miền (Domain Nouns)
+    # Domain Nouns
     "domain_nouns": ["stock", "stocks", "price", "prices", "analysis", "text", "market", "chart", "data", "info"],
     
-    # Danh sách BLACKLIST chặn bắt nhầm Ticker (Fix lỗi NEED, IGNORE...)
+    # UPDATED BLACKLIST: Added "USING", "USE", "ANALYZE" to prevent ticker misidentification
     "noise_blacklist": [
-        "NEED", "IGNORE", "STOP", "WHAT", "HOW", "SHOW", "LIST", 
-        "THE", "AND", "WITH", "FOR", "THIS", "THAT", "INFO", "DATA",
+        "NEED", "IGNORE", "STOP", "WHAT", "HOW", "SHOW", "LIST", "USING", "USE", "ANALYZE",
+        "THE", "AND", "WITH", "FOR", "THIS", "THAT", "INFO", "DATA", "STOCK",
         "CAN", "WAS", "ARE", "HAS", "BEEN", "WILL"
     ]
 }

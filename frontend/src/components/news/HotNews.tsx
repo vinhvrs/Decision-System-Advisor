@@ -65,7 +65,7 @@ export default function HotNews() {
                 const { imageUrl } = parseContent(news.content || "");
                 return (
                   <Link 
-                    href={`/news/${news.url_slug}`} 
+                    href={`/news/${news.id}`} 
                     key={news.id} 
                     className="group p-5 rounded-[2rem] bg-[#161D2C]/80 border border-white/10 hover:border-blue-500/40 transition-all flex flex-col shadow-lg"
                   >
@@ -84,7 +84,7 @@ export default function HotNews() {
                         {news.author?.split(',')[0]} · {new Date(news.published_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </p>
                       <h3 className="text-sm font-semibold line-clamp-3 leading-snug group-hover:text-blue-400 transition-colors">
-                        {news.topic}
+                        {news.title}
                       </h3>
                     </div>
                     <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-4">

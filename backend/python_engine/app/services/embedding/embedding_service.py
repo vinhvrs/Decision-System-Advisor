@@ -8,7 +8,7 @@ class EmbeddingService:
     def __init__(self):
         # Đảm bảo dùng 127.0.0.1 để tránh lỗi getaddrinfo
         base_url = "http://127.0.0.1:8000" 
-        self.url = f"{base_url}/embed"
+        self.url = f"{base_url}/api/v1/embed"
         self.logger = logging.getLogger(__name__)
         self.client = httpx.AsyncClient(timeout=30.0)
 

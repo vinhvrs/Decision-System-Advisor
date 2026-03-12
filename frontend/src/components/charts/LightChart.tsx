@@ -8,14 +8,16 @@ import {
   CandlestickSeries,
   ISeriesApi,
   IChartApi,
+  Time,
+  LogicalRange,
 } from "lightweight-charts";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
 interface Props {
   symbol: string;
-  data: any[];          // history OHLC (ms time)
-  realtimeCandle?: any; // realtime candle từ websocket (time có thể ms/seconds/micro)
+  data: any[];
+  realtimeCandle?: any;
   period: TF;
   onLoadMore?: () => void;
 }
@@ -25,13 +27,9 @@ function normalizeTimeMs(t: any) {
   let ms = Number(t);
   if (!ms || Number.isNaN(ms)) return null;
 
-  // seconds -> ms
-  if (ms < 10_000_000_000) ms *= 1000;
+  if (ms < 10_000_000_000) ms *= 1000; // sec -> ms
+  if (ms > 10_000_000_000_000) ms = Math.floor(ms / 1000); // micro -> ms
 
-  // micro -> ms
-  if (ms > 10_000_000_000_000) ms = Math.floor(ms / 1000);
-
-  // fix: nếu bị nhân đôi (ms ~ 2*Date.now()) thì chia 2
   const now = Date.now();
   if (ms > now * 1.2 && ms < now * 3) ms = Math.floor(ms / 2);
 
@@ -48,8 +46,8 @@ function bucketStartSecUTC(timeMs: number, tf: TF) {
   }
 
   if (tf === "weekly") {
-    const day = d.getUTCDay() || 7; // CN=7
-    d.setUTCDate(d.getUTCDate() - day + 1); // Monday
+    const day = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() - day + 1);
     d.setUTCHours(0, 0, 0, 0);
     return Math.floor(d.getTime() / 1000);
   }
@@ -60,7 +58,6 @@ function bucketStartSecUTC(timeMs: number, tf: TF) {
     return Math.floor(d.getTime() / 1000);
   }
 
-  // yearly
   d.setUTCMonth(0, 1);
   d.setUTCHours(0, 0, 0, 0);
   return Math.floor(d.getTime() / 1000);
@@ -71,7 +68,7 @@ function toCandleSecFromHistory(c: any) {
   if (ms === null) return null;
 
   return {
-    time: Math.floor(ms / 1000), // lightweight-charts needs seconds
+    time: Math.floor(ms / 1000) as Time,
     open: Number(c.open),
     high: Number(c.high),
     low: Number(c.low),
@@ -85,7 +82,7 @@ function toCandleSecBucketFromRealtime(c: any, tf: TF) {
 
   const bucketSec = bucketStartSecUTC(ms, tf);
   return {
-    time: bucketSec,
+    time: bucketSec as Time,
     open: Number(c.open),
     high: Number(c.high),
     low: Number(c.low),
@@ -101,28 +98,18 @@ export default function LightChart({
   period,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
-  // ✅ Source-of-truth hiển thị: time(sec) -> candle
+  // source of truth
   const displayMapRef = useRef<Map<number, any>>(new Map());
 
-  // để giữ view khi prepend
+  // track prepend / load more
   const prevFirstTimeRef = useRef<number | null>(null);
+  const isFirstRenderRef = useRef(true);
+  const loadMoreLockRef = useRef(false);
 
-  /** ================= RESET DATA KHI ĐỔI TF HOẶC SYMBOL ================= */
-  useEffect(() => {
-    // Xóa sạch Map và Series để tránh lỗi "update oldest data" khi nến của TF mới 
-    // có timestamp nhỏ hơn nến cuối cùng của TF cũ.
-    if (seriesRef.current) {
-      seriesRef.current.setData([]);
-    }
-    displayMapRef.current.clear();
-    prevFirstTimeRef.current = null;
-  }, [period, symbol]);
-
-  /** ================= INIT CHART ================= */
+  /** ================= INIT CHART: chỉ tạo 1 lần ================= */
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -138,7 +125,11 @@ export default function LightChart({
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
       crosshair: { mode: 1 },
-      timeScale: { rightBarStaysOnScroll: true },
+      timeScale: {
+        rightBarStaysOnScroll: true,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+      },
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -155,7 +146,9 @@ export default function LightChart({
 
     const handleResize = () => {
       if (!containerRef.current || !chartRef.current) return;
-      chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      chartRef.current.applyOptions({
+        width: containerRef.current.clientWidth,
+      });
     };
 
     window.addEventListener("resize", handleResize);
@@ -163,16 +156,37 @@ export default function LightChart({
     return () => {
       window.removeEventListener("resize", handleResize);
       chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+      displayMapRef.current.clear();
     };
-  }, [symbol]);
+  }, []);
 
-  /** ================= APPLY HISTORY (merge vào displayMap) ================= */
+  /** ================= RESET khi đổi symbol / period ================= */
+  useEffect(() => {
+    displayMapRef.current.clear();
+    prevFirstTimeRef.current = null;
+    isFirstRenderRef.current = true;
+    loadMoreLockRef.current = false;
+
+    if (seriesRef.current) {
+      seriesRef.current.setData([]);
+    }
+  }, [symbol, period]);
+
+  /** ================= APPLY HISTORY ================= */
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
-    if (!data?.length) return;
 
     const chart = chartRef.current;
     const series = seriesRef.current;
+
+    if (!data?.length) {
+      displayMapRef.current.clear();
+      series.setData([]);
+      prevFirstTimeRef.current = null;
+      return;
+    }
 
     const normalized = data
       .map(toCandleSecFromHistory)
@@ -180,55 +194,73 @@ export default function LightChart({
 
     if (!normalized.length) return;
 
-    // detect prepend
-    const newFirstTime = normalized[0].time;
-    const oldFirstTime = prevFirstTimeRef.current;
-    const currentRange = chart.timeScale().getVisibleLogicalRange();
-    const isPrepend = oldFirstTime !== null && newFirstTime < oldFirstTime;
+    normalized.sort((a, b) => Number(a.time) - Number(b.time));
 
-    // ✅ merge history vào displayMap
+    const newFirstTime = Number(normalized[0].time);
+    const newLastTime = Number(normalized[normalized.length - 1].time);
+    const oldFirstTime = prevFirstTimeRef.current;
+
+    const currentLogicalRange = chart.timeScale().getVisibleLogicalRange();
+    const barsBefore = normalized.length;
+
+    const isPrepend =
+      oldFirstTime !== null &&
+      newFirstTime < oldFirstTime &&
+      newLastTime >= oldFirstTime;
+
     const map = displayMapRef.current;
 
     for (const c of normalized) {
-      map.set(c.time, c);
+      map.set(Number(c.time), c);
     }
 
-    // render từ map
-    const mergedArr = Array.from(map.values()).sort((a, b) => a.time - b.time);
+    const mergedArr = Array.from(map.values()).sort(
+      (a, b) => Number(a.time) - Number(b.time)
+    );
 
     requestAnimationFrame(() => {
-      series.setData(mergedArr);
-      prevFirstTimeRef.current = newFirstTime;
+      series.setData(mergedArr as any);
+      prevFirstTimeRef.current = Number(mergedArr[0]?.time ?? newFirstTime);
 
-      if (isPrepend && currentRange) {
+      if (isFirstRenderRef.current) {
+        chart.timeScale().fitContent();
+        isFirstRenderRef.current = false;
+      } else if (isPrepend && currentLogicalRange) {
+        const addedBars = mergedArr.length - barsBefore;
         chart.timeScale().setVisibleLogicalRange({
-          from: currentRange.from,
-          to: currentRange.to,
+          from: currentLogicalRange.from + addedBars,
+          to: currentLogicalRange.to + addedBars,
         });
       }
-    });
-  }, [data, period, symbol]); // Cập nhật khi TF thay đổi.
 
-  /** ================= REALTIME (merge + update) ================= */
+      loadMoreLockRef.current = false;
+    });
+  }, [data, symbol, period]);
+
+  /** ================= REALTIME ================= */
   useEffect(() => {
     if (!seriesRef.current || !realtimeCandle) return;
+    if (realtimeCandle.symbol && realtimeCandle.symbol !== symbol) return;
 
     const snap = toCandleSecBucketFromRealtime(realtimeCandle, period);
     if (!snap) return;
 
     const series = seriesRef.current;
     const map = displayMapRef.current;
+    const key = Number(snap.time);
 
-    const lastExisting = map.get(snap.time);
+    const lastExisting = map.get(key);
 
-    // ✅ Nếu bucket chưa có -> candle mới
     if (!lastExisting) {
-      map.set(snap.time, snap);
-      series.update(snap as any);
+      map.set(key, snap);
+      try {
+        series.update(snap as any);
+      } catch (e) {
+        console.warn("Realtime new candle skip:", e);
+      }
       return;
     }
 
-    // ✅ Nếu cùng bucket -> merge OHLC
     const merged = {
       time: snap.time,
       open: Number(lastExisting.open),
@@ -237,35 +269,39 @@ export default function LightChart({
       close: Number(snap.close),
     };
 
-    map.set(snap.time, merged);
-    
-    // Thêm try-catch để tránh treo UI nếu có nến cũ lọt vào pipeline.
+    map.set(key, merged);
+
     try {
       series.update(merged as any);
     } catch (e) {
-      console.warn("Realtime skip: ", e);
+      console.warn("Realtime merge skip:", e);
     }
-  }, [realtimeCandle, period]);
+  }, [realtimeCandle, period, symbol]);
 
-  /** ================= LOAD MORE khi scroll trái ================= */
+  /** ================= LOAD MORE khi kéo trái ================= */
   useEffect(() => {
-    if (!chartRef.current || !onLoadMore || !data?.length) return;
+    if (!chartRef.current || !onLoadMore) return;
 
     const chart = chartRef.current;
 
-    const handler = () => {
-      const range = chart.timeScale().getVisibleRange();
-      if (!range) return;
+    const handler = (range: LogicalRange | null) => {
+      if (!range || loadMoreLockRef.current) return;
 
-      const leftSec = range.from as number;
-      const earliestSec = Math.floor(Number(data[0].time) / 1000);
+      const keys = Array.from(displayMapRef.current.keys()).sort((a, b) => a - b);
+      if (!keys.length) return;
 
-      if (leftSec - earliestSec < 10) onLoadMore();
+      // kéo gần sát mé trái visible range
+      if (range.from < 10) {
+        loadMoreLockRef.current = true;
+        onLoadMore();
+      }
     };
 
-    chart.timeScale().subscribeVisibleTimeRangeChange(handler);
-    return () => chart.timeScale().unsubscribeVisibleTimeRangeChange(handler);
-  }, [data, onLoadMore]);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(handler);
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+    };
+  }, [onLoadMore]);
 
   return <div ref={containerRef} className="w-full" />;
 }
