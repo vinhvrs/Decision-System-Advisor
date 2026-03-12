@@ -62,7 +62,7 @@ export default function HomePage() {
 
           {/* ===== ROW 1: CHART + SIDE CARD ===== */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Card className="lg:col-span-8 h-[550px] overflow-hidden">
+            <Card className="lg:col-span-8 h-[620px] overflow-hidden">
               <div className="h-full w-full">
                 <TradingChart defaultSymbol="NVDA" isFixed={false} />
               </div>
@@ -168,19 +168,19 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="h-[480px] overflow-hidden p-0">
+              <Card className="h-[520px] overflow-hidden p-0">
                 <div className="h-full w-full">
                   <TradingChart defaultSymbol="AAPL" isFixed />
                 </div>
               </Card>
 
-              <Card className="h-[480px] overflow-hidden p-0">
+              <Card className="h-[520px] overflow-hidden p-0">
                 <div className="h-full w-full">
                   <TradingChart defaultSymbol="MSFT" isFixed />
                 </div>
               </Card>
 
-              <Card className="h-[480px] overflow-hidden p-0">
+              <Card className="h-[520px] overflow-hidden p-0">
                 <div className="h-full w-full">
                   <TradingChart defaultSymbol="AMD" isFixed />
                 </div>

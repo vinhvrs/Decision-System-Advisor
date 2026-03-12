@@ -19,10 +19,22 @@ interface TradingChartProps {
 }
 
 const FIXED_PERIODS: Array<{ id: TF; label: string }> = [
-  { id: "daily", label: "daily" },
-  { id: "weekly", label: "weekly" },
-  { id: "monthly", label: "monthly" },
-  { id: "yearly", label: "yearly" },
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+  { id: "yearly", label: "Yearly" },
+];
+
+const INDICATOR_OPTIONS = [
+  { id: "ema20", label: "EMA 20" },
+  { id: "ema50", label: "EMA 50" },
+  { id: "ema100", label: "EMA 100" },
+  { id: "sma20", label: "SMA 20" },
+  { id: "sma50", label: "SMA 50" },
+  { id: "macd", label: "MACD" },
+  { id: "rsi", label: "RSI" },
+  { id: "stochastic", label: "Stochastic" },
+  { id: "bollinger", label: "Bollinger Bands" },
 ];
 
 function normalizeCandles(list: any[], period: TF) {
@@ -107,10 +119,10 @@ export default function TradingChart({
   const [candles, setCandles] = useState<any[]>([]);
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
 
-  const [selectedInstrument, setSelectedInstrument] = useState<Instrument | null>(null);
+  const [selectedInstrument, setSelectedInstrument] =
+    useState<Instrument | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
-  const [selectedIndicator, setSelectedIndicator] =
-    useState<{ id: string; label: string } | null>(null);
+  const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
   const [candlePage, setCandlePage] = useState(1);
   const [hasMoreCandles, setHasMoreCandles] = useState(true);
@@ -184,7 +196,9 @@ export default function TradingChart({
           await set(IDB_KEYS.INSTRUMENTS, list);
         }
 
-        const found = list.find((i: Instrument) => i.symbol === defaultSymbol);
+        const found = list.find(
+          (i: Instrument) => i.symbol === defaultSymbol
+        );
 
         if (!found) {
           setChartError(`Instrument ${defaultSymbol} not found`);
@@ -262,7 +276,8 @@ export default function TradingChart({
 
     const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data) => {
       if ((data as { type?: string }).type !== "quote") return;
-      if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol) return;
+      if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol)
+        return;
 
       const price = Number((data as { price: number }).price);
 
@@ -292,10 +307,18 @@ export default function TradingChart({
     };
   }, [selectedInstrument?.symbol]);
 
+  const onToggleIndicator = (item: { id: string; label: string }) => {
+    setSelectedIndicators((prev) =>
+      prev.includes(item.id)
+        ? prev.filter((id) => id !== item.id)
+        : [...prev, item.id]
+    );
+  };
+
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-[#0B1220]">
       {!isFixed && (
-        <div className="p-2 flex gap-4 border-b border-white/5 text-black flex-none">
+        <div className="p-2 flex gap-4 border-b border-white/5 flex-none items-center">
           <SelectDropdown
             options={instruments.map((i) => ({
               id: i.id,
@@ -320,7 +343,9 @@ export default function TradingChart({
             options={FIXED_PERIODS}
             selected={{
               id: selectedPeriod,
-              label: selectedPeriod,
+              label:
+                FIXED_PERIODS.find((p) => p.id === selectedPeriod)?.label ||
+                selectedPeriod,
             }}
             placeholder="Select period"
             onSelect={(v) => {
@@ -328,19 +353,32 @@ export default function TradingChart({
             }}
           />
 
-          <SelectDropdown
-            options={[
-              { id: "macd", label: "MACD" },
-              { id: "rsi", label: "RSI" },
-              { id: "stochastic", label: "Stochastic" },
-              { id: "bollinger", label: "Bollinger Bands" },
-            ]}
-            selected={selectedIndicator}
-            placeholder="Indicator"
-            onSelect={(v) => {
-              setSelectedIndicator(v as { id: string; label: string });
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <SelectDropdown
+              options={INDICATOR_OPTIONS}
+              selected={
+                selectedIndicators.length > 0
+                  ? {
+                      id: "multi",
+                      label: `Indicators (${selectedIndicators.length})`,
+                    }
+                  : null
+              }
+              placeholder="Add Indicators"
+              onSelect={(v) =>
+                onToggleIndicator(v as { id: string; label: string })
+              }
+            />
+
+            {selectedIndicators.length > 0 && (
+              <button
+                onClick={() => setSelectedIndicators([])}
+                className="text-[11px] text-red-400 hover:text-red-300 transition-colors underline"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -352,9 +390,13 @@ export default function TradingChart({
         )}
 
         {loadingChart ? (
-          <p className="text-gray-400 text-center py-10 text-lg">Loading chart...</p>
+          <div className="flex items-center justify-center h-full text-gray-400">
+            Loading chart...
+          </div>
         ) : chartError ? (
-          <p className="text-red-400 text-center py-10 text-sm">{chartError}</p>
+          <div className="flex items-center justify-center h-full text-red-400/80 text-sm">
+            {chartError}
+          </div>
         ) : candles.length ? (
           <LightChart
             symbol={selectedInstrument?.symbol || defaultSymbol}
@@ -362,11 +404,12 @@ export default function TradingChart({
             realtimeCandle={realtimeCandle}
             onLoadMore={loadMoreCandles}
             period={selectedPeriod}
+            indicators={selectedIndicators}
           />
         ) : (
-          <p className="text-yellow-400 text-center py-10 text-sm">
+          <div className="flex items-center justify-center h-full text-yellow-400 text-sm">
             No candle data for {selectedInstrument?.symbol || defaultSymbol}
-          </p>
+          </div>
         )}
       </div>
     </div>
