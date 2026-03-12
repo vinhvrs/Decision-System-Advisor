@@ -1,10 +1,10 @@
-from fastapi import FastAPI
+from fastapi import APIRouter # Chuyển sang Router
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
-app = FastAPI()
+router = APIRouter(prefix="/api/v1") # Thêm prefix để thống nhất
 
-MODEL_NAME = "intfloat/e5-small-v2"   # dim=384, rất hợp cho retrieval
+MODEL_NAME = "intfloat/e5-small-v2"
 model = SentenceTransformer(MODEL_NAME)
 
 class Req(BaseModel):
@@ -13,20 +13,16 @@ class Req(BaseModel):
 def clean_text(t: str) -> str:
     t = t.replace("\n", " ")
     t = " ".join(t.split())
-    return t[:2000]  # giới hạn độ dài chunk
+    return t[:2000]
 
-@app.post("/embed")
+@router.post("/embed") # Đổi app.post thành router.post
 def embed(req: Req):
     text = clean_text(req.text)
-    # e5 khuyến nghị prefix
-    vec = model.encode([f"passage: {text}"], normalize_embeddings=True)[0]
+    # TỐI ƯU: Sử dụng "query:" cho câu hỏi từ chatbot để retrieval tốt hơn
+    vec = model.encode([f"query: {text}"], normalize_embeddings=True)[0]
 
     return {
         "vector": vec.tolist(),
         "model": MODEL_NAME,
         "dim": len(vec)
     }
-
-@app.get("/health")
-def health():
-    return {"ok": True, "model": MODEL_NAME}

@@ -7,12 +7,22 @@ class SmoothContext:
     style_preset: str = "standard"
     debug: bool = False
     memory: Dict[str, Any] = field(default_factory=dict)
+    # BỔ SUNG: Danh sách lưu trữ các lỗi phát sinh trong quá trình NLP
+    errors: List[str] = field(default_factory=list)
 
     def set(self, key: str, value: Any):
         self.memory[key] = value
         
     def get(self, key: str, default: Any = None):
         return self.memory.get(key, default)
+
+    # BỔ SUNG: Hàm kiểm tra xem có lỗi hay không
+    def has_error(self) -> bool:
+        return len(self.errors) > 0
+
+    # BỔ SUNG: Hàm để resolver.py có thể ghi nhận lỗi
+    def add_error(self, message: str):
+        self.errors.append(message)
 
 @dataclass
 class SmoothResult:
@@ -22,5 +32,4 @@ class SmoothResult:
     entities: Dict[str, List[str]] = field(default_factory=dict)
     decision: Dict[str, Any] = field(default_factory=dict)
     output_text: str = ""
-    # Bổ sung field notes để nhận dữ liệu từ resolver.py
     notes: Dict[str, Any] = field(default_factory=dict)

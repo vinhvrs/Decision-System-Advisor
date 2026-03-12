@@ -9,12 +9,6 @@ class LiquidityService {
     // axios đã parse JSON
     const obj = res.data?.data ?? {};
 
-    // return Object.entries(obj).map(([symbol, liq]: [string, any], i) => ({
-    //   rank: i + 1,
-    //   symbol,
-    //   liquidity: Number(liq)
-    // }));
-
     return Object.entries(obj).map(([symbol, liq]: any, i) => ({
       rank: i + 1,
       ticker: symbol,
