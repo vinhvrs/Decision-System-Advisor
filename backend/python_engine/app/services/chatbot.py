@@ -235,4 +235,5 @@ class ChatBotService:
         result = self.smoother.smooth(text, ctx)
         return result.output_text
 
+# Khởi tạo service dùng chung
 chatbot_service = ChatBotService()
