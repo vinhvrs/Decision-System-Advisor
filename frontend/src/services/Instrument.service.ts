@@ -84,9 +84,9 @@ export const InstrumentService = {
         }
     },
 
-    getInstrumentData: async () => {
+    getInstrumentData: async (symbol: string, period:string, limit: number = 500, page: number = 1) => {
         try {
-            const response = await api.get(`/instruments/data`);
+            const response = await api.get(`/instruments/data/${symbol}?${period}&per_page=${limit}&page=${page}`);
             const data = instrumentDataMapper(response.data.data);
             return data;
         } catch (error) {

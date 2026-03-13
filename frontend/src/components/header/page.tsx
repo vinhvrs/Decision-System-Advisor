@@ -23,7 +23,9 @@ export default function Header() {
 
   const navLinks = [
     { label: "News", href: "/news" },
-    { label: "Indicators", href: "/indicators" },
+    { label: "Company", href: "/companies" },
+    { label: "Indicator", href: "/indicators" },
+    { label: "Strategy", href: "/strategy" },
     { label: "Documents", href: "/documents" },
     { label: "Contact", href: "/contact" },
   ];

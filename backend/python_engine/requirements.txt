@@ -46,3 +46,4 @@ loguru
 protobuf
 cryptography
 langchain-text-splitters
+apscheduler

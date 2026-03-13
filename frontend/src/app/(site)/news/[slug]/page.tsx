@@ -32,7 +32,7 @@ export default function NewsDetailPage() {
       try {
         setIsLoading(true);
         if (!params.slug) return;
-        const res = await newsService.getBySlug(params.slug as string);
+        const res = await newsService.getNewsById(params.slug as string);
         setNews(res);
       } catch (e) {
         console.error("Failed to load news detail", e);
@@ -79,7 +79,7 @@ export default function NewsDetailPage() {
 
         {/* HEADLINE */}
         <h1 className="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight mb-12 text-white/95">
-          {news.topic}
+          {news.title}
         </h1>
 
         {/* FEATURED IMAGE */}
