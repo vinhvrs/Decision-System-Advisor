@@ -14,7 +14,20 @@ class InstrumentDataRepository implements InstrumentDataInterface {
         return InstrumentData::find($id);
     }
 
-    public function findByPeriod($periodId, $perPage): ?LengthAwarePaginator {
+    public function get(string $symbol, string $period, int $perPage, int $page): LengthAwarePaginator 
+    {
+        $slug = strtolower($symbol).'-'.strtolower($period ?? 'daily');
+        $data = DB::table('instrument_data')
+            ->where('slug', 'LIKE', $slug.'%')
+            ->select('timestamps', 'open', 'high', 'low', 'close', 'volume')
+            ->orderByDesc('slug')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return $data;
+    }
+
+    public function findByPeriod(string $periodId, int $perPage): LengthAwarePaginator 
+    {
         return InstrumentData::query()
             ->where('instrument_period_id', $periodId)
             ->orderByDesc('timestamps')
@@ -54,13 +67,5 @@ class InstrumentDataRepository implements InstrumentDataInterface {
             return $inst;
         }
         return null;
-    }
-
-    public function delete(string $id): bool {
-        $inst = InstrumentData::query()->find($id);
-        if ($inst) {
-            return (bool)$inst->delete();
-        }
-        return false;
     }
 }

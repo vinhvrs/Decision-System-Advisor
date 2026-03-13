@@ -74,7 +74,7 @@ export default function NewsListPage() {
                 const { imageUrl } = parseContent(item.content || "");
                 return (
                   <div
-                    key={item.id || item.url_slug}
+                    key={item.id || item.id}
                     onClick={() => setSelectedNews(item)}
                     className={`flex gap-4 cursor-pointer p-4 transition-all hover:bg-white/5 ${
                       selectedNews?.id === item.id ? "bg-blue-500/10 border-l-4 border-blue-500" : ""
@@ -89,7 +89,7 @@ export default function NewsListPage() {
                       <h2 className={`text-sm font-semibold leading-snug line-clamp-2 ${
                         selectedNews?.id === item.id ? "text-blue-400" : "text-white/90"
                       }`}>
-                        {item.topic}
+                        {item.title}
                       </h2>
                     </div>
                     {imageUrl && (
@@ -130,7 +130,7 @@ export default function NewsListPage() {
                         </span>
                       </div>
 
-                      <h1 className="text-3xl lg:text-4xl font-black leading-tight mb-8">{selectedNews.topic}</h1>
+                      <h1 className="text-3xl lg:text-4xl font-black leading-tight mb-8">{selectedNews.title}</h1>
 
                       {imageUrl && (
                         <div className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 shadow-2xl">

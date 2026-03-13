@@ -1,95 +1,89 @@
+/* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { use, useState, useEffect, useRef } from 'react';
+import React, { use, useState, useEffect, useCallback } from 'react';
 import { 
-  ArrowUpRight, ArrowDownRight, History, BarChart3, 
-  Globe, Users, ShieldCheck, Newspaper, ExternalLink, TrendingUp 
+  ShieldCheck, TrendingUp, Users, 
+  Building2, Calendar, Newspaper, 
+  ChevronRight, Globe, Loader2,
+  Layers
 } from 'lucide-react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Radar as RadarLine } from 'recharts';
 
 import LightChart from '@/src/components/charts/LightChart'; 
+import FundamentalRadar from './FundamentalRadar';
 import { InstrumentService } from "@/src/services/Instrument.service";
-import { Instrument } from "@/src/types/Instrument";
-import { InstrumentPeriod } from "@/src/types/InstrumentPeriod";
-import { createEcho } from "@/src/libs/echo";
+import { CompanyService } from "../../../../services/Company.service"; 
+// Thay thế Echo bằng SimpleSocket
+import { SimpleSocket } from "@/src/libs/socket"; 
 
 interface Props {
   params: Promise<{ "inc-slug": string }>;
 }
 
-/* ============================================================
- * HELPERS
- * ============================================================ */
-function normalizeCandles(list: any[], period: string) {
+const normalizeCandles = (list: any[], period: string) => {
   const uniqueMap = new Map<number, any>();
-  list
-    .filter((d: any) => d.timestamp || d.timestamps)
-    .forEach((d: any) => {
-      const ts = d.timestamp || d.timestamps;
-      const date = new Date(ts.replace(" ", "T") + "Z");
-
-      // Đồng bộ thời gian theo từng khung (Period)
-      if (period === "daily") date.setUTCHours(0, 0, 0, 0);
-      if (period === "weekly") {
-        const day = date.getUTCDay() || 7;
-        date.setUTCDate(date.getUTCDate() - day + 1);
-        date.setUTCHours(0, 0, 0, 0);
-      }
-      if (period === "monthly") { date.setUTCDate(1); date.setUTCHours(0, 0, 0, 0); }
-      if (period === "yearly") { date.setUTCMonth(0, 1); date.setUTCHours(0, 0, 0, 0); }
-
-      const time = date.getTime();
-      if (!uniqueMap.has(time)) {
-        uniqueMap.set(time, {
-          time,
-          open: parseFloat(d.open),
-          high: parseFloat(d.high),
-          low: parseFloat(d.low),
-          close: parseFloat(d.close),
-        });
-      }
-    });
+  list.filter((d: any) => d.timestamp || d.timestamps).forEach((d: any) => {
+    const ts = d.timestamp || d.timestamps;
+    const date = new Date(ts.replace(" ", "T") + "Z");
+    if (period === "daily") date.setUTCHours(0, 0, 0, 0);
+    const time = date.getTime();
+    if (!uniqueMap.has(time)) {
+      uniqueMap.set(time, {
+        time,
+        open: parseFloat(d.open),
+        high: parseFloat(d.high),
+        low: parseFloat(d.low),
+        close: parseFloat(d.close),
+      });
+    }
+  });
   return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
-}
+};
 
 const StockProfile = ({ params }: Props) => {
   const resolvedParams = use(params);
   const slug = resolvedParams["inc-slug"];
 
-  // States Dữ liệu
-  const [instrument, setInstrument] = useState<Instrument | null>(null);
-  const [periods, setPeriods] = useState<InstrumentPeriod[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<InstrumentPeriod | null>(null);
+  const [instrument, setInstrument] = useState<any>(null);
+  const [details, setDetails] = useState<any>(null);
+  const [news, setNews] = useState<any[]>([]);
+  const [similar, setSimilar] = useState<any[]>([]);
+  const [periods, setPeriods] = useState<any[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
   const [candles, setCandles] = useState<any[]>([]);
-  const [candlePage, setCandlePage] = useState(1);
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadingMoreCandles = useRef(false);
-  const throttleRef = useRef(0);
-
-  /** * 1. Khởi tạo: Lấy Instrument và Periods dựa trên slug 
-   * Sửa lỗi i.slug === slug để lấy chính xác ID
-   */
+  // 1. Khởi tạo dữ liệu cơ bản
   useEffect(() => {
     const initData = async () => {
       try {
-        const allInstruments = await InstrumentService.getInstruments(3000);
-        // Tìm kiếm linh hoạt theo slug hoặc symbol
-        const current = allInstruments.find((i: any) => 
+        setLoading(true);
+        const all = await InstrumentService.getInstruments(3000);
+        const current = all.find((i: any) => 
           i.slug === slug || i.symbol?.toLowerCase() === slug?.toLowerCase()
         );
         
         if (current) {
           setInstrument(current);
-          const periodList = await InstrumentService.getPeriodsById(current.id);
-          setPeriods(periodList);
-          // Mặc định chọn khung Daily
-          setSelectedPeriod(periodList.find((p: any) => p.period === 'daily') || periodList[0]);
+          const symbol = current.symbol;
+
+          const [companyInfo, companyNews, similarCompanies, pList] = await Promise.all([
+            CompanyService.getCompanyInfo(symbol),
+            CompanyService.getCompanyNews(symbol),
+            CompanyService.getSimilarCompanies(symbol),
+            InstrumentService.getPeriodsById(current.id)
+          ]);
+
+          setDetails(companyInfo);
+          setNews(companyNews.slice(0, 5)); 
+          setSimilar(similarCompanies.slice(0, 6));
+          setPeriods(pList);
+          setSelectedPeriod(pList.find((p: any) => p.period === 'daily') || pList[0]);
         }
       } catch (error) {
-        console.error("Lỗi khởi tạo Profile:", error);
+        console.error("Terminal initialization failed:", error);
       } finally {
         setLoading(false);
       }
@@ -97,232 +91,191 @@ const StockProfile = ({ params }: Props) => {
     initData();
   }, [slug]);
 
-  /** 2. Fetch dữ liệu nến (Hỗ trợ Lazy Load) */
-  async function fetchCandleData(periodId: string, page: number, periodType: string) {
+  // 2. Fetch nến lịch sử
+  const fetchCandles = useCallback(async (pId: string, page: number, pType: string) => {
     try {
-      const raw = await InstrumentService.getInstrumentDataByPeriod(
-        periodId, 1000, page, ["timestamp", "timestamps", "open", "high", "low", "close"]
-      );
-      const formatted = normalizeCandles(raw, periodType);
-
-      if (page === 1) {
-        setCandles(formatted);
-      } else {
-        setCandles((prev) => {
-          const map = new Map();
-          prev.forEach(c => map.set(c.time, c));
-          formatted.forEach(c => map.set(c.time, c)); // Gộp dữ liệu cũ vào trước
-          return Array.from(map.values()).sort((a, b) => a.time - b.time);
-        });
-      }
-    } catch (error) {
-      console.error("Lỗi tải nến:", error);
-    }
-  }
+      const raw = await InstrumentService.getInstrumentDataByPeriod(pId, 1000, page);
+      setCandles(normalizeCandles(raw, pType));
+    } catch (e) { console.error(e); }
+  }, []);
 
   useEffect(() => {
-    if (selectedPeriod) {
-      setCandles([]);
-      setCandlePage(1);
-      fetchCandleData(selectedPeriod.id, 1, selectedPeriod.period);
-    }
-  }, [selectedPeriod]);
+    if (selectedPeriod) fetchCandles(selectedPeriod.id, 1, selectedPeriod.period);
+  }, [selectedPeriod, fetchCandles]);
 
-  /** 3. Realtime qua Reverb */
+  /** * 3. REALTIME WEBSOCKET (FASTAPI IMPLEMENTATION)
+   * Thay thế hoàn toàn Echo bằng SimpleSocket
+   */
   useEffect(() => {
     if (!instrument || !selectedPeriod) return;
-    const echo = createEcho();
-    if (!echo) return;
 
-    const symbol = (selectedPeriod.prefix || instrument.symbol).toLowerCase();
-    const channelName = `ohlc.${symbol}.${selectedPeriod.period}`;
-
-    echo.channel(channelName).listen(".candle", (e: any) => {
-      setRealtimeCandle(e?.candle ?? e);
+    // Khởi tạo kết nối tới server FastAPI (Cổng 8000)
+    const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data: any) => {
+      // Logic xử lý dữ liệu nhận được từ server Python
+      if (data.type === "quote" && data.symbol === instrument.symbol) {
+        setRealtimeCandle({
+          time: data.ts,        // Timestamp từ Python server
+          open: data.price,     // Đưa giá hiện tại vào cấu trúc nến
+          high: data.price,
+          low: data.price,
+          close: data.price,
+        });
+      }
     });
 
-    return () => { echo.leave(channelName); };
-  }, [instrument?.id, selectedPeriod?.id]);
+    socket.connect();
 
-  /** 4. Handler Lazy Load khi cuộn biểu đồ sang trái */
-  const loadMoreHistory = () => {
-    if (loadingMoreCandles.current || Date.now() - throttleRef.current < 300) return;
-    throttleRef.current = Date.now();
-    
-    if (!selectedPeriod) return;
-    loadingMoreCandles.current = true;
-    const nextPage = candlePage + 1;
-    setCandlePage(nextPage);
-    
-    fetchCandleData(selectedPeriod.id, nextPage, selectedPeriod.period).finally(() => {
-      loadingMoreCandles.current = false;
-    });
-  };
+    // Subscribe mã cổ phiếu hiện tại
+    const timer = setTimeout(() => {
+      socket.send({
+        type: "subscribe",
+        symbols: [instrument.symbol]
+      });
+    }, 500);
 
-  if (loading) return <div className="min-h-screen bg-[#0b0e11] flex items-center justify-center text-white italic">Loading Profile...</div>;
+    return () => {
+      clearTimeout(timer);
+      socket.disconnect();
+      setRealtimeCandle(null);
+    };
+  }, [instrument?.symbol, selectedPeriod?.id]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
+      <Loader2 className="animate-spin mb-4" size={40} />
+      <span className="uppercase tracking-[0.3em] text-sm animate-pulse">Syncing Market Data...</span>
+    </div>
+  );
 
   return (
     <div className="bg-[#0b0e11] min-h-screen text-gray-300 p-4 md:p-8 font-sans">
       <div className="max-w-7xl mx-auto">
-        
-        {/* HEADER SECTION */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 border-b border-gray-800 pb-8 gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-3xl font-black text-white shadow-2xl">
-              {instrument?.symbol?.[0] || "?"}
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row justify-between mb-8 border-b border-gray-800 pb-8 gap-6 items-start md:items-center">
+          <div className="flex items-center gap-6">
+            <div className="relative group">
+               <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-400 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+               <img src={details?.image || instrument?.image} className="relative w-16 h-16 bg-white rounded-xl p-2 object-contain" alt={instrument?.symbol} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-4xl font-bold text-white tracking-tight">{instrument?.name || "Unknown"}</h1>
-                <ShieldCheck className="text-blue-400" size={24} />
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-black text-white tracking-tight uppercase">{details?.company_name || instrument?.name}</h1>
+                <ShieldCheck className="text-blue-500" size={20} />
               </div>
-              <div className="flex gap-5 mt-2 text-sm text-gray-500">
-                <span className="flex items-center gap-1.5 font-medium"><Globe size={16}/> {instrument?.exchange}</span>
-                <span className="font-mono text-blue-400 font-bold uppercase tracking-widest">{instrument?.symbol}</span>
+              <div className="flex gap-4 mt-1 text-xs font-bold items-center uppercase tracking-wider text-gray-500">
+                <span className="text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded uppercase">{details?.exchangeShortName || 'NASDAQ'}: {instrument?.symbol}</span>
+                <span>|</span>
+                <span className="flex items-center gap-1.5"><Globe size={14}/> {details?.industry || 'Technology'}</span>
               </div>
             </div>
           </div>
-          <div className="text-right bg-[#131722] p-5 rounded-2xl border border-gray-800 min-w-[220px]">
-            <div className="text-3xl font-mono font-bold text-white">
-              ${candles.length > 0 ? candles[candles.length - 1].close.toFixed(2) : "0.00"}
+
+          <div className="text-right bg-[#131722] px-6 py-3 rounded-xl border border-gray-800 shadow-xl">
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-bold">Live Value</div>
+            <div className="text-2xl font-mono font-bold text-white tabular-nums">
+              ${candles.length > 0 ? (realtimeCandle?.close || candles[candles.length - 1].close).toFixed(2) : "0.00"}
             </div>
-            <div className="text-green-400 font-bold flex items-center justify-end gap-1 mt-1 text-lg">
-              +2.15% <ArrowUpRight size={20} />
+            <div className="text-green-400 text-[10px] font-black flex items-center justify-end gap-1 mt-0.5 uppercase tracking-tighter">
+              FastAPI Stream <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping ml-1"></span>
             </div>
           </div>
         </div>
 
-        {/* PRICE CHART SECTION */}
-        <section className="bg-[#131722] border border-gray-800 rounded-3xl p-6 mb-8 shadow-2xl">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2 italic">
-              <TrendingUp className="text-blue-500" size={22} /> Market Price
-            </h2>
-            <div className="flex gap-2 bg-black/40 p-1.5 rounded-xl border border-gray-800">
-              {periods.map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => setSelectedPeriod(p)}
-                  className={`px-4 py-1.5 text-xs rounded-lg font-bold transition-all uppercase ${selectedPeriod?.id === p.id ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-gray-800 text-gray-500'}`}
-                >
-                  {p.period}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="h-[500px] w-full bg-[#0B1220] rounded-2xl overflow-hidden border border-gray-800">
-            {candles.length > 0 ? (
-              <LightChart 
-                symbol={instrument?.symbol || "AAPL"}
-                data={candles}
-                realtimeCandle={realtimeCandle}
-                onLoadMore={loadMoreHistory}
-                period={selectedPeriod?.period as any}
-              />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-gray-500 italic animate-pulse">
-                Synchronizing Market Data...
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* BOTTOM CONTENT GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
-          {/* CỘT TRÁI: HISTORY & NEWS */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
-            <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2 italic">
-                <History className="text-blue-500" size={20} /> Company History
-              </h2>
-              <p className="leading-relaxed text-gray-400 italic">
-                {instrument?.name} là một thực thể hàng đầu trên sàn {instrument?.exchange}. Dữ liệu lịch sử cho thấy sự phát triển ổn định và tính thanh khoản cực cao trong nhóm ngành công nghệ.
-              </p>
+            {/* CHART */}
+            <section className="bg-[#131722] border border-gray-800 rounded-2xl overflow-hidden">
+              <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-black/20">
+                <h2 className="text-xs font-black text-white flex items-center gap-2 uppercase tracking-widest">
+                  <TrendingUp className="text-blue-500" size={16} /> Technical Chart
+                </h2>
+                <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-gray-800">
+                  {periods.map(p => (
+                    <button 
+                      key={p.id} 
+                      onClick={() => setSelectedPeriod(p)}
+                      className={`px-3 py-1 text-[10px] rounded-md font-bold transition-all uppercase ${selectedPeriod?.id === p.id ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      {p.period}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="h-[450px] w-full p-2">
+                <LightChart 
+                  symbol={instrument?.symbol}
+                  data={candles}
+                  realtimeCandle={realtimeCandle}
+                  period={selectedPeriod?.period as any}
+                />
+              </div>
             </section>
 
-            <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800">
-              <h2 className="text-xl font-bold text-white mb-5 flex items-center gap-2 italic">
-                <Newspaper className="text-blue-500" size={20} /> Related News
-              </h2>
-              <div className="space-y-4">
-                {[
-                  { id: 1, title: `${instrument?.symbol} công bố báo cáo tài chính mới với doanh thu vượt kỳ vọng.`, time: "2 giờ trước", source: "Bloomberg" },
-                  { id: 2, title: "Phân tích sức mạnh của nhóm Big Tech trong quý 1.", time: "5 giờ trước", source: "Reuters" },
-                ].map(item => (
-                  <div key={item.id} className="group flex justify-between items-start p-4 rounded-xl hover:bg-[#1c212d] transition-colors border border-transparent hover:border-gray-700 cursor-pointer">
-                    <div>
-                      <h3 className="text-white font-medium group-hover:text-blue-400 transition-colors">{item.title}</h3>
-                      <div className="flex gap-3 mt-2 text-xs text-gray-500"><span>{item.source}</span><span>•</span><span>{item.time}</span></div>
+            {/* NEWS */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 mb-4 border-l-4 border-blue-600 pl-4">
+                <Newspaper className="text-blue-600" size={20} />
+                <h2 className="text-sm font-black text-white uppercase tracking-widest">Market Intelligence</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {news.map((item, idx) => (
+                  <a key={idx} href={item.url} target="_blank" className="bg-[#131722] p-5 rounded-2xl border border-gray-800 hover:border-blue-500/50 transition-all group flex gap-5">
+                    {item.image && (
+                      <div className="w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-gray-800">
+                        <img src={item.image} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" alt="news" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/5 px-2 py-0.5 rounded border border-blue-500/10">{item.site || "Financial News"}</span>
+                        <span className="text-[10px] text-gray-600 font-mono italic">{new Date(item.publishedDate).toLocaleDateString()}</span>
+                      </div>
+                      <h3 className="text-white font-bold group-hover:text-blue-400 transition-colors mb-2 line-clamp-1 text-sm">{item.title}</h3>
+                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed font-light">{item.text}</p>
                     </div>
-                    <ExternalLink size={16} className="text-gray-600 group-hover:text-white" />
-                  </div>
+                  </a>
                 ))}
               </div>
             </section>
           </div>
 
-          {/* CỘT PHẢI: ANALYSIS & STATS */}
-          <div className="lg:col-span-4 space-y-8">
-            <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800 shadow-xl overflow-hidden">
-              <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 text-center">Fundamental Strength</h2>
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
-                    { subject: 'Growth', value: 85 }, { subject: 'Value', value: 65 },
-                    { subject: 'Health', value: 90 }, { subject: 'Dividend', value: 45 },
-                    { subject: 'Liquidity', value: 95 }, { subject: 'Sentiment', value: 80 },
-                  ]}>
-                    <PolarGrid stroke="#374151" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                    <RadarLine name="Score" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                  </RadarChart>
-                </ResponsiveContainer>
+          {/* SIDEBAR */}
+          <div className="lg:col-span-4 space-y-6">
+            <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800 shadow-2xl">
+               <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-6 text-center italic">Fundamental Analysis</h2>
+               <FundamentalRadar details={details} />
+            </section>
+
+            <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800">
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-5 flex items-center gap-2">
+                <Layers size={14} className="text-blue-500" /> Industry Peers
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {similar.map((comp: any, idx: number) => (
+                  <a key={idx} href={`/stock-profile/${comp.symbol}`} className="flex flex-col items-center p-3 rounded-xl bg-black/20 border border-gray-800/50 hover:border-blue-500/50 transition-all group">
+                    <div className="w-10 h-10 bg-white rounded-lg p-1.5 mb-2">
+                      <img src={`https://images.financialmodelingprep.com/symbol/${comp.symbol}.png`} alt={comp.symbol} className="w-full h-full object-contain" />
+                    </div>
+                    <span className="text-[10px] font-black text-white tracking-tighter uppercase">{comp.symbol}</span>
+                  </a>
+                ))}
               </div>
             </section>
 
-            <aside className="bg-[#131722] p-6 rounded-2xl border border-gray-800 shadow-xl">
-              <h3 className="font-bold text-white mb-6 flex items-center gap-2 uppercase text-xs tracking-widest text-gray-500">
-                <BarChart3 size={16} /> Market Statistics
-              </h3>
-              <div className="space-y-5">
-                {[
-                  { label: 'Market Cap', value: '2.84T' },
-                  { label: 'P/E Ratio', value: '28.45' },
-                  { label: 'Inst. Ownership', value: '64.2%', color: 'text-blue-400' },
+            <aside className="bg-[#131722] p-6 rounded-2xl border border-gray-800 space-y-4">
+               {[
+                  { label: 'Market Cap', value: details?.mktCap ? `$${(details.mktCap / 1e12).toFixed(2)}T` : 'N/A' },
+                  { label: 'P/E Ratio', value: details?.pe?.toFixed(2) || 'N/A', color: 'text-blue-400' },
+                  { label: 'Avg Vol', value: details?.volAvg ? (details.volAvg / 1e6).toFixed(1) + 'M' : 'N/A' },
                 ].map((stat, idx) => (
-                  <div key={idx} className="flex justify-between items-center border-b border-gray-800 pb-3 last:border-0 last:pb-0">
-                    <span className="text-sm text-gray-400">{stat.label}</span>
-                    <span className={`font-mono font-bold ${stat.color || 'text-white'}`}>{stat.value}</span>
+                  <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-800/50 last:border-0">
+                    <span className="text-[11px] text-gray-500 font-bold uppercase tracking-tighter">{stat.label}</span>
+                    <span className={`text-sm font-mono font-bold ${stat.color || 'text-white'}`}>{stat.value}</span>
                   </div>
                 ))}
-              </div>
             </aside>
           </div>
         </div>
-
-        {/* RELATED COMPANIES */}
-        <section className="mt-16">
-          <h2 className="text-2xl font-bold text-white mb-8">Compare with Related Companies</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              { ticker: 'MSFT', price: '420.12', change: '+1.2%' },
-              { ticker: 'GOOGL', price: '175.45', change: '-0.5%' },
-              { ticker: 'NVDA', price: '890.00', change: '+4.3%' },
-              { ticker: 'AMZN', price: '180.00', change: '+0.8%' },
-            ].map((item) => (
-              <div key={item.ticker} className="bg-[#131722] hover:bg-[#1c212d] border border-gray-800 p-6 rounded-2xl transition-all shadow-lg group hover:-translate-y-1 cursor-pointer">
-                <div className="flex justify-between items-start mb-5">
-                  <span className="text-white font-bold text-xl group-hover:text-blue-400 transition-colors uppercase tracking-widest">{item.ticker}</span>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${item.change.includes('+') ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
-                    {item.change}
-                  </span>
-                </div>
-                <div className="text-2xl font-mono font-bold text-white tracking-tighter">${item.price}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
       </div>
     </div>
   );

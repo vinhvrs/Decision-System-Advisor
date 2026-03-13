@@ -1,45 +1,53 @@
-# app/connect/qdrant_client.py
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
-from config.settings import Config  # Đảm bảo dùng đúng class Config của bạn
+from config.settings import Config
+# SỬA LỖI: Bổ sung 'Dict' vào danh sách import
+from typing import Optional, List, Any, Dict 
 
 class QdrantService:
     def __init__(self):
-        # QUAN TRỌNG: prefer_grpc=False để tránh lỗi Python 3.13
-        # url lấy từ config, ví dụ: "http://localhost:6333"
-        from config.settings import Config
-        self.client = QdrantClient(
-            url=Config.QDRANT_URL if hasattr(Config, 'QDRANT_URL') else "http://localhost:6333", 
+        # Sử dụng AsyncQdrantClient để tương thích với luồng await trong chatbot
+        self.client = AsyncQdrantClient(
+            url=getattr(Config, 'QDRANT_URL', "http://localhost:6333"), 
             prefer_grpc=False
         )
-        self.collection = "knowledge" # Tên collection test
+        self.collection = "knowledge"
 
-    def upsert(self, point_id, vector, payload):
-        # Tự động tạo collection nếu chưa có (để test không bị lỗi)
-        self._ensure_collection()
-        
-        self.client.upsert(
+    async def _ensure_collection(self):
+        """Đảm bảo collection tồn tại với đúng số chiều của model e5-small-v2 (384)"""
+        try:
+            collections = await self.client.get_collections()
+            exists = any(c.name == self.collection for c in collections.collections)
+            if not exists:
+                await self.client.create_collection(
+                    collection_name=self.collection,
+                    vectors_config=models.VectorParams(
+                        size=384, # Khớp với dim của intfloat/e5-small-v2
+                        distance=models.Distance.COSINE
+                    )
+                )
+        except Exception as e:
+            print(f"⚠️ Qdrant Collection Error: {e}")
+
+    async def upsert(self, point_id: Any, vector: List[float], payload: Dict):
+        """Lưu trữ vector kiến thức vào Qdrant"""
+        await self._ensure_collection()
+        await self.client.upsert(
             collection_name=self.collection,
             points=[
                 models.PointStruct(id=point_id, vector=vector, payload=payload)
             ]
         )
 
-    def _ensure_collection(self):
+    async def search(self, query_vector: List[float], limit: int = 5, query_filter: Optional[Any] = None, **kwargs):
+        """SỬA LỖI: Tham số query_vector và query_filter chuẩn hóa"""
         try:
-            cols = self.client.get_collections().collections
-            if not any(c.name == self.collection for c in cols):
-                self.client.create_collection(
-                    collection_name=self.collection,
-                    vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE)
-                )
-        except:
-            pass
-
-    def search(self, vector, limit=5):
-        return self.client.search(
-            collection_name=self.collection,
-            query_vector=vector,
-            limit=limit,
-            with_payload=True
-        )
+            return await self.client.search(
+                collection_name=self.collection,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=limit,
+                with_payload=True
+            )
+        except Exception as e:
+            return []

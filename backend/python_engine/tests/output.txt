@@ -1,58 +1,89 @@
-=== SYSTEM TEST REPORT - 2026-03-05 10:48:05 ===
+=== SYSTEM TEST REPORT - 2026-03-10 12:50:27 ===
 
-USER REQUEST: Don't show me AAPL, analyze AMZN instead
+USER REQUEST: Analyze AMZN 
 EXTRACTED SYMBOL: AMZN
 REDIS STATUS: Data Found
-TECHNICAL SUMMARY: {
-  "rsi": 64.45,
+INDICATORS: {
+  "rsi": 54.42,
   "macd": {
-    "val": -0.3866,
-    "signal": -1.65
+    "macd": 0.621113,
+    "signal": -0.591186
   },
-  "ma_trend": "bearish"
+  "ema_20_100": {
+    "ema_20": 210.99,
+    "ema_100": 220.02,
+    "signal": "neutral"
+  },
+  "bollinger_bands": {
+    "lower": 203.35,
+    "middle": 210.09,
+    "upper": 216.82
+  },
+  "summary": {
+    "rsi_state": "neutral",
+    "trend_20_100": "bearish"
+  }
 }
-SIGNALS: {
-  "action": "NEUTRAL",
-  "reason": "No strong signal",
-  "confidence_score": 50
-}
+SIGNALS: null
+UPDATED AT: 2026-03-10 12:21:29
 --------------------------------------------------
 USER REQUEST: I don't need the RSI of GOOG
 EXTRACTED SYMBOL: GOOGL
-REDIS STATUS: Data Found
-TECHNICAL SUMMARY: {
-  "rsi": 34.83,
-  "macd": {
-    "val": -3.0358,
-    "signal": -2.868
-  },
-  "ma_trend": "bearish"
-}
-SIGNALS: {
-  "action": "NEUTRAL",
-  "reason": "No strong signal",
-  "confidence_score": 50
-}
+REDIS STATUS: No data found for GOOGL. (Ensure Warmup is running)
 --------------------------------------------------
 USER REQUEST: Analyze AMD but not with MACD
 EXTRACTED SYMBOL: AMD
 REDIS STATUS: Data Found
-TECHNICAL SUMMARY: {
-  "rsi": 45.14,
+INDICATORS: {
+  "rsi": 52.27,
   "macd": {
-    "val": -6.5505,
-    "signal": -6.0836
+    "macd": -1.818739,
+    "signal": -2.259165
   },
-  "ma_trend": "bearish"
+  "ema_20_100": {
+    "ema_20": 199.89,
+    "ema_100": 210.53,
+    "signal": "neutral"
+  },
+  "bollinger_bands": {
+    "lower": 188.86,
+    "middle": 200.14,
+    "upper": 211.43
+  },
+  "summary": {
+    "rsi_state": "neutral",
+    "trend_20_100": "bearish"
+  }
 }
-SIGNALS: {
-  "action": "NEUTRAL",
-  "reason": "No strong signal",
-  "confidence_score": 50
-}
+SIGNALS: null
+UPDATED AT: 2026-03-10 12:21:31
 --------------------------------------------------
 USER REQUEST: Don't ignore MSFT analysis
-RESULT: Could not extract ticker from message.
+EXTRACTED SYMBOL: MSFT
+REDIS STATUS: Data Found
+INDICATORS: {
+  "rsi": 47.64,
+  "macd": {
+    "macd": -7.452385,
+    "signal": -11.634229
+  },
+  "ema_20_100": {
+    "ema_20": 407.73,
+    "ema_100": 452.1,
+    "signal": "neutral"
+  },
+  "bollinger_bands": {
+    "lower": 386.37,
+    "middle": 401.59,
+    "upper": 416.81
+  },
+  "summary": {
+    "rsi_state": "neutral",
+    "trend_20_100": "bearish"
+  }
+}
+SIGNALS: null
+UPDATED AT: 2026-03-10 12:21:34
 --------------------------------------------------
 USER REQUEST: Show me everything except for GOOGL
 RESULT: Could not extract ticker from message.

@@ -56,6 +56,16 @@ services:
       - qdrant
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/python_engine:/app
+      - ./backend/.env:/.env      # Gắn file .env vào thư mục root (/) của container để code Python tìm thấy
+    env_file:
+      - ./backend/.env            # Bơm biến môi trường trực tiếp vào container
+    depends_on:                   # Đợi DB và Elastic chạy xong mới chạy Python
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
 
   # Laravel API
   app:
@@ -76,7 +86,7 @@ services:
     image: nginx:alpine
     container_name: dsa-nginx
     ports:
-      - "8080:80"
+      - "1111:80"
     volumes:
       - ./backend:/var/www
       - ./backend/docker/nginx.conf:/etc/nginx/conf.d/default.conf

@@ -13,6 +13,18 @@ PHRASES = {
             "From what the charts show,",
         ],
     },
+    # NEW: Phrases for EMA 20 vs 100 signals
+    "ema_cross": {
+        "golden_cross": [
+            "a bullish golden cross has occurred as the 20 EMA moved above the 100 EMA",
+            "we are seeing positive trend confirmation through a 20/100 EMA crossover"
+        ],
+        "death_cross": [
+            "a bearish death cross is observed with the 20 EMA dropping below the 100 EMA",
+            "the technical trend is weakening following a negative 20/100 EMA crossover"
+        ],
+        "neutral": ["the 20 and 100 EMA lines are currently maintaining their trajectory without a cross."]
+    },
     "momentum": {
         "strong": ["momentum is accelerating", "buying pressure is strengthening"],
         "moderate": ["momentum remains moderate", "directional strength is limited"],

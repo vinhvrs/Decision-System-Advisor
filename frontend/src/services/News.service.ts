@@ -4,9 +4,9 @@ class NewsService {
     // Fetch all news with pagination
     async getAllNews(params?: { page?: number; per_page?: number; }) {
         try {
-            const response = await api.get('/news/knowledges', { params });
+            const response = await api.get('/news', { params });
             return {
-                data: response.data.data, // Assuming the API returns paginated data in `data`
+                data: response.data.data,
                 pagination: {
                     currentPage: response.data.current_page,
                     totalPages: response.data.total_pages,
@@ -23,7 +23,7 @@ class NewsService {
     // Fetch a single news item by ID
     async getNewsById(id: string) {
         try {
-            const response = await api.get(`/news/knowledges/${id}`);
+            const response = await api.get(`/news/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching news with ID ${id}:`, error);
@@ -31,43 +31,21 @@ class NewsService {
         }
     }
 
-    // Fetch a single news item by Slug
-    async getBySlug(slug: string) {
-        try {
-            const response = await api.get(`/news/get-by-slug/${slug}`);
-            return response.data;
-        } catch (error) {
-            console.error(`Error fetching news with slug ${slug}:`, error);
-            throw error;
-        }
-    }
-
-    // Create a new news item
-    async createNews(newsData: Record<string, unknown>) {
-        try {
-            const response = await api.post('/news/knowledges', newsData);
-            return response.data;
-        } catch (error) {
-            console.error('Error creating news:', error);
-            throw error;
-        }
-    }
-
-    // Update an existing news item
-    async updateNews(id: string, newsData: Record<string, unknown>) {
-        try {
-            const response = await api.put(`/news/knowledges/${id}`, newsData);
-            return response.data;
-        } catch (error) {
-            console.error(`Error updating news with ID ${id}:`, error);
-            throw error;
-        }
-    }
+    // // Fetch a single news item by Slug
+    // async getBySlug(slug: string) {
+    //     try {
+    //         const response = await api.get(`/news/get-by-slug/${slug}`);
+    //         return response.data;
+    //     } catch (error) {
+    //         console.error(`Error fetching news with slug ${slug}:`, error);
+    //         throw error;
+    //     }
+    // }
 
     // Delete a news item
     async deleteNews(id: string) {
         try {
-            const response = await api.delete(`/news/knowledges/${id}`);
+            const response = await api.delete(`/news/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error deleting news with ID ${id}:`, error);

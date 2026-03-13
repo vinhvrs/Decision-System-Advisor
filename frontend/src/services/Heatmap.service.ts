@@ -3,7 +3,7 @@ import api from "../libs/api";
 class HeatmapService {
     async getHeatmapData(params?: { date?: string; sector?: string; }) {
         try {
-            const response = await api.get('/heatmap/daily', { params });
+            const response = await api.get('/rankings/heatmap-daily', { params });
             return response.data.data;
         } catch (error) {
             console.error('Error fetching heatmap data:', error);
