@@ -63,7 +63,3 @@ class ElasticRetriever:
         except Exception as e:
             self.logger.error(f"Elasticsearch Search Error: {e}")
             return []
-
-    async def close(self):
-        """Hàm dọn dẹp kết nối (có thể gọi khi tắt FastAPI app)"""
-        await self.client.aclose()
