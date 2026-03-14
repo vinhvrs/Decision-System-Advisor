@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import api from "../libs/api";
+import api from "@/src/libs/api";
 class LiquidityService {
 
   async fetchLiquidityTop() {

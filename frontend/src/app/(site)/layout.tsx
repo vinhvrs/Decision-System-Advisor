@@ -1,4 +1,4 @@
-import Header from "../../../src/components/header/page";
+import Header from "@/src/components/header/page";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (

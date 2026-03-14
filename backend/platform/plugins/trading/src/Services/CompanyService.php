@@ -12,6 +12,15 @@ class CompanyService
         
     }
 
+    public function index($select, $filter, $perPage, $page)
+    {
+        $companies = DB::table('company_profile')
+            ->select($select)
+            ->where($filter)
+            ->paginate($perPage, ['*'], 'page', $page);
+        return $companies;
+    }
+
     public function getProfileBySymbol(string $symbol)
     {
         $company = DB::table('company_profile')
