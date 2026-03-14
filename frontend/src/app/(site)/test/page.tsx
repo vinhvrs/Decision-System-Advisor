@@ -9,6 +9,7 @@ import GainLoss from "@/src/components/gainloss/GainLoss";
 import Heatmap from "@/src/components/analyze/heatmap/page";
 
 export default function HomePage() {
+  
   return (
     <main className="text-white bg-[#0b1220]">
       {/* ================= HERO ================= */}
