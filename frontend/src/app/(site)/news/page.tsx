@@ -4,8 +4,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Newspaper, X, Clock, User, ExternalLink, ImageOff } from "lucide-react";
-import newsService from "../../../services/News.service";
-import { News } from "../../../types/News";
+import newsService from "@/src/services/News.service";
+import { News } from "@/src/types/News";
 
 export default function NewsListPage() {
   const [items, setItems] = useState<News[]>([]);
