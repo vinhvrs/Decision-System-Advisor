@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import api from "../libs/api";
-import { userMapper } from "../libs/mapper";
+import api from "@/src/libs/api";
+import { userMapper } from "@/src/libs/mapper";
 
 export const AuthService = {
     register: async (data: any) => {

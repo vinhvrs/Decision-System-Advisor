@@ -1,4 +1,4 @@
-import api from "../libs/api";
+import api from "@/src/libs/api";
 
 class HeatmapService {
     async getHeatmapData(params?: { date?: string; sector?: string; }) {

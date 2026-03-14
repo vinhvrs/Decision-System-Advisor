@@ -7,8 +7,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Clock, Newspaper, ArrowUp, ChevronLeft } from "lucide-react";
 
 // Đảm bảo đường dẫn import chính xác theo cấu trúc thư mục của bạn
-import newsService from "../../../../services/News.service";
-import { News } from "../../../../types/News";
+import newsService from "@/src/services/News.service";
+import { News } from "@/src/types/News";
 
 export default function NewsDetailPage() {
   const params = useParams();

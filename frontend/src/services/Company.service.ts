@@ -1,4 +1,4 @@
-import api from "../libs/api";
+import api from "@/src/libs/api";
 
 export const CompanyService = {
     async getCompanyInfo(ticker: string) {

@@ -4,8 +4,8 @@
 
 import React, { useEffect, useState, useCallback, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
-import { CompanyService } from "../../../services/Company.service";
-import FundamentalRadar from "./profile/[inc-slug]/FundamentalRadar";
+import { CompanyService } from "@/src/services/Company.service";
+import FundamentalRadar from "@/src/app/(site)/companies/profile/[inc-slug]/FundamentalRadar";
 
 // --- Component Table Row (optimized render) ---
 const StockRow = memo(({ stock, index, onHover, onClick }: any) => (

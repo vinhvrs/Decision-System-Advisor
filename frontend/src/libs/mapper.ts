@@ -83,10 +83,10 @@ export function userMapper(apiData: UserAPI): User {
 export function newsMapper(apiData: NewsApi[]): News[] {
     return apiData.map(data => ({
         id: data.id,
-        topic: data.topic,
+        title: data.title,
         content: data.content,
         author: data.author,
-        url_slug: data.url_slug,
+        source: data.source,
         published_at: data.published_at,
     }));
 }
