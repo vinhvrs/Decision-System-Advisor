@@ -50,22 +50,30 @@ services:
     volumes:
       - ./backend/python_engine:/app
       - ./backend/.env:/app/.env
-      - python_model_cache:/root/.cache
+      # - python_model_cache:/root/.cache
     depends_on:
       - db
       - qdrant
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/python_engine:/app
-      - ./backend/.env:/.env      # Gắn file .env vào thư mục root (/) của container để code Python tìm thấy
+    #volumes:
+    #  - ./backend/python_engine:/app
+    #  - ./backend/.env:/.env      # Gắn file .env vào thư mục root (/) của container để code Python tìm thấy
+    environment:
+      - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONUNBUFFERED=1
+      - LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+      - OPENBLAS_CORETYPE=ARMV8
+      # - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
     env_file:
       - ./backend/.env            # Bơm biến môi trường trực tiếp vào container
-    depends_on:                   # Đợi DB và Elastic chạy xong mới chạy Python
-      mysql:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
+    #depends_on:                   # Đợi DB và Elastic chạy xong mới chạy Python
+    #  mysql:
+    #    condition: service_healthy
+    #  elasticsearch:
+    #    condition: service_healthy
+    command: python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   # Laravel API
   app:
@@ -97,4 +105,4 @@ volumes:
   mysqldata:
   esdata:
   qdrantdata:
-  python_model_cache:
+  # python_model_cache:
