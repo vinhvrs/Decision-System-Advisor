@@ -56,29 +56,29 @@ def run_market_pipeline():
 # =========================================================
 # LIFESPAN MANAGEMENT (Quản lý vòng đời App)
 # =========================================================
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Quản lý khởi tạo và giải phóng tài nguyên hệ thống"""
+#@asynccontextmanager
+#async def lifespan(app: FastAPI):
+#    """Quản lý khởi tạo và giải phóng tài nguyên hệ thống"""
     # Khởi tạo Scheduler
-    scheduler = BackgroundScheduler()
+#    scheduler = BackgroundScheduler()
     
     # Thiết lập chạy Pipeline mỗi 1 giờ
     # next_run_time=datetime.now() đảm bảo chạy ngay lập tức khi start container
-    scheduler.add_job(
-        run_market_pipeline, 
-        'interval', 
-        hours=1, 
-        next_run_time=datetime.now() 
-    )
+#    scheduler.add_job(
+#        run_market_pipeline, 
+#        'interval', 
+#        hours=1, 
+        # next_run_time=datetime.now() 
+#    )
     
-    scheduler.start()
-    logger.info("📅 Background Scheduler started with 1-hour interval.")
+#    scheduler.start()
+#    logger.info("📅 Background Scheduler started with 1-hour interval.")
     
-    yield # Ứng dụng hoạt động tại đây
+#    yield # Ứng dụng hoạt động tại đây
     
     # Tắt Scheduler khi đóng ứng dụng
-    scheduler.shutdown()
-    logger.info("📅 Background Scheduler shut down.")
+#    scheduler.shutdown()
+#    logger.info("📅 Background Scheduler shut down.")
 
 # =========================================================
 # FASTAPI APP SETUP
@@ -87,7 +87,7 @@ app = FastAPI(
     title="Financial AI Analyst API",
     description="Hệ thống phân tích chứng khoán tích hợp Scheduler và Realtime Data",
     version="2.0.0",
-    lifespan=lifespan
+    #lifespan=lifespan
 )
 
 # Cấu hình CORS
@@ -131,4 +131,4 @@ async def chat_endpoint(payload: ChatRequest):
 
 if __name__ == "__main__":
     # Chạy server với chế độ reload tự động khi thay đổi code
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)

@@ -328,7 +328,11 @@
 #     service.run_warmup()
 
 import pandas as pd
-import pandas_ta as ta
+#import pandas_ta as ta
+try:
+    import pandas_ta as ta
+except ImportError:
+    ta = None
 import pymysql
 import redis
 import json
