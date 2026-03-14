@@ -13,6 +13,17 @@ class CompanyController extends Controller
         $this->companyService = $companyService;
     }
 
+    public function index(Request $request)
+    {
+        $select = $request->input('select', ['*']);
+        $filter = $request->input('filter', []);
+        $perPage = (int) $request->input('per_page', 15);
+        $page = (int) $request->input('page', 1);
+
+        $companies = $this->companyService->index($select, $filter, $perPage, $page);
+        return response()->json($companies);
+    }
+
     public function getProfileBySymbol(Request $request, string $symbol)
     {
         $company = $this->companyService->getProfileBySymbol($symbol);

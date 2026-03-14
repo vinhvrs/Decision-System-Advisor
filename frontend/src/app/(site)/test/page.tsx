@@ -1,14 +1,15 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 import Image from "next/image";
-import bgImg from "../../../assets/images/bg-landingpage.jpg";
-import Card from "../../../sections/Card";
-import TradingChart from "../../../components/charts/page";
-import ChatBox from "../../../components/chatbox/page";
-import HotNews from "../../../components/news/HotNews";
-import GainLoss from "../../../components/gainloss/GainLoss";
-import Heatmap from "../../../components/analyze/heatmap/page";
+import bgImg from "@/src/assets/images/bg-landingpage.jpg";
+import Card from "@/src/sections/Card";
+import TradingChart from "@/src/components/charts/page";
+import ChatBox from "@/src/components/chatbox/page";
+import HotNews from "@/src/components/news/HotNews";
+import GainLoss from "@/src/components/gainloss/GainLoss";
+import Heatmap from "@/src/components/analyze/heatmap/page";
 
 export default function HomePage() {
+  
   return (
     <main className="text-white bg-[#0b1220]">
       {/* ================= HERO ================= */}

@@ -8,16 +8,16 @@ import { Activity, MessageSquare, TrendingUp } from "lucide-react";
 import { get, set } from "idb-keyval"; // Import thư viện IndexedDB thay thế localStorage
 
 // Components & Services
-import LightChart from "../../../components/charts/LightChart";
-import ChatBox from "../../../components/chatbox/page";
-import SelectDropdown from "../../../sections/Dropdown";
+import LightChart from "@/src/components/charts/LightChart";
+import ChatBox from "@/src/components/chatbox/page";
+import SelectDropdown from "@/src/sections/Dropdown";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { createEcho } from "@/src/libs/echo";
-import { Instrument } from "../../../types/Instrument";
-import { InstrumentPeriod } from "../../../types/InstrumentPeriod";
+import { Instrument } from "@/src/types/Instrument";
+import { InstrumentPeriod } from "@/src/types/InstrumentPeriod";
 
 // Assets
-import bgImg from "../../../assets/images/bg-landingpage.jpg";
+import bgImg from "@/src/assets/images/bg-landingpage.jpg";
 
 const INSTRUMENTS_IDB_KEY = "market_instruments_idb";
 

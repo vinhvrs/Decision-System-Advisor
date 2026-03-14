@@ -13,7 +13,7 @@ import {
 import LightChart from '@/src/components/charts/LightChart'; 
 import FundamentalRadar from './FundamentalRadar';
 import { InstrumentService } from "@/src/services/Instrument.service";
-import { CompanyService } from "../../../../services/Company.service"; 
+import { CompanyService } from "@/src/services/Company.service"; 
 // Thay thế Echo bằng SimpleSocket
 import { SimpleSocket } from "@/src/libs/socket"; 
 

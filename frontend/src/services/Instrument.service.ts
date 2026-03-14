@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import api from "../libs/api";
-import { instrumentMapper, instrumentDataMapper, instrumentPeriodMapper } from "../libs/mapper";
+import api from "@/src/libs/api";
+import { instrumentMapper, instrumentDataMapper, instrumentPeriodMapper } from "@/src/libs/mapper";
 
 export const InstrumentService = {
     getInstruments: async (limit: number = 10, page: number = 1, select?: Array<string>) => {
