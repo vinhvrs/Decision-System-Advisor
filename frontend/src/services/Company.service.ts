@@ -1,6 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import api from "@/src/libs/api";
 
 export const CompanyService = {
+    async getCompanies(limit: number = 10, page: number = 1, select?: Array<string>, filter?: string) {
+        const params: any = { per_page: limit, page };
+        if (select) {
+            params.select = select;
+        }
+        if (filter) {
+            params.filter = filter;
+        }
+        const res = await api.get(`/companies`, { params });
+        return res.data?.data ?? [];
+    },
+
     async getCompanyInfo(ticker: string) {
         const res = await api.get(`/companies/${ticker}`);
         return res.data ?? null;

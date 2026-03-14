@@ -10,6 +10,7 @@ import { Instrument } from "../../types/Instrument";
 import { get, set } from "idb-keyval";
 import { IDB_KEYS } from "@/src/libs/idbKeys";
 import { SimpleSocket } from "@/src/libs/socket";
+import { CompanyService } from "@/src/services/Company.service";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -178,45 +179,29 @@ export default function TradingChart({
   useEffect(() => {
     const loadInstruments = async () => {
       try {
-        setChartError(null);
-
+        // Thử lấy từ IndexedDB
         const cached = await get(IDB_KEYS.INSTRUMENTS);
-        const list =
-          cached?.length
-            ? cached
-            : await InstrumentService.getInstruments(30000, 1, [
-                "id",
-                "symbol",
-                "name",
-              ]);
-
-        setInstruments(list);
-
-        if (!cached?.length) {
-          await set(IDB_KEYS.INSTRUMENTS, list);
+        
+        if (cached && cached.length > 0) {
+          console.log("🚀 Loaded instruments from IndexedDB");
+          setInstruments(cached);
+          const aapl = cached.find((i: Instrument) => i.symbol === "AAPL");
+          setSelectedInstrument(aapl || cached[0]);
+        } else {
+          console.log("📡 Fetching 30,000 instruments from API...");
+          const res = await CompanyService.getCompanies(30000, 1, ["symbol", "company_name"]);
+          setInstruments(res);
+          // Lưu vào IndexedDB (Dung lượng cho phép lên đến hàng trăm MB)
+          await set(IDB_KEYS.INSTRUMENTS, res);
+          const aapl = res.find((i: Instrument) => i.symbol === "AAPL");
+          setSelectedInstrument(aapl || res[0]);
         }
-
-        const found = list.find(
-          (i: Instrument) => i.symbol === defaultSymbol
-        );
-
-        if (!found) {
-          setChartError(`Instrument ${defaultSymbol} not found`);
-          setSelectedInstrument(null);
-          setLoadingChart(false);
-          return;
-        }
-
-        setSelectedInstrument(found);
       } catch (err) {
-        console.error("Instrument load error:", err);
-        setChartError("Failed to load instruments");
-        setLoadingChart(false);
+        console.error("Failed to load instruments:", err);
       }
     };
-
     loadInstruments();
-  }, [defaultSymbol]);
+  }, []);
 
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
