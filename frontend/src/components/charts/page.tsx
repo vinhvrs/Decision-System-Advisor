@@ -4,9 +4,9 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { InstrumentService } from "@/src/services/Instrument.service";
-import SelectDropdown from "../../sections/Dropdown";
+import SelectDropdown from "@/src/sections/Dropdown";
 import LightChart from "./LightChart";
-import { Instrument } from "../../types/Instrument";
+import { Instrument } from "@/src/types/Instrument";
 import { get, set } from "idb-keyval";
 import { IDB_KEYS } from "@/src/libs/idbKeys";
 import { SimpleSocket } from "@/src/libs/socket";
@@ -18,6 +18,13 @@ interface TradingChartProps {
   defaultSymbol?: string;
   isFixed?: boolean;
 }
+
+type InstrumentLike = Instrument & {
+  id: string | number;
+  symbol: string;
+  name?: string;
+  company_name?: string;
+};
 
 const FIXED_PERIODS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -37,6 +44,28 @@ const INDICATOR_OPTIONS = [
   { id: "stochastic", label: "Stochastic" },
   { id: "bollinger", label: "Bollinger Bands" },
 ];
+
+function getInstrumentDisplayName(item: Partial<InstrumentLike> | null | undefined) {
+  if (!item) return "";
+  return item.name || item.company_name || item.symbol || "Unknown";
+}
+
+function normalizeInstrument(item: any, index = 0): InstrumentLike {
+  return {
+    ...item,
+    id: item?.id ?? item?._id ?? item?.symbol ?? `instrument-${index}`,
+    symbol: item?.symbol ?? "",
+    name: item?.name || item?.company_name || item?.symbol || "Unknown",
+    company_name: item?.company_name || item?.name || item?.symbol || "Unknown",
+  };
+}
+
+function normalizeInstrumentList(list: any[]): InstrumentLike[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item, index) => normalizeInstrument(item, index))
+    .filter((item) => !!item.symbol);
+}
 
 function normalizeCandles(list: any[], period: TF) {
   const uniqueMap = new Map<number, any>();
@@ -116,12 +145,12 @@ export default function TradingChart({
   defaultSymbol = "AAPL",
   isFixed = false,
 }: TradingChartProps) {
-  const [instruments, setInstruments] = useState<Instrument[]>([]);
+  const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
   const [candles, setCandles] = useState<any[]>([]);
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
 
   const [selectedInstrument, setSelectedInstrument] =
-    useState<Instrument | null>(null);
+    useState<InstrumentLike | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
   const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
@@ -179,29 +208,47 @@ export default function TradingChart({
   useEffect(() => {
     const loadInstruments = async () => {
       try {
-        // Thử lấy từ IndexedDB
         const cached = await get(IDB_KEYS.INSTRUMENTS);
-        
-        if (cached && cached.length > 0) {
-          console.log("🚀 Loaded instruments from IndexedDB");
-          setInstruments(cached);
-          const aapl = cached.find((i: Instrument) => i.symbol === "AAPL");
-          setSelectedInstrument(aapl || cached[0]);
-        } else {
-          console.log("📡 Fetching 30,000 instruments from API...");
-          const res = await CompanyService.getCompanies(30000, 1, ["symbol", "company_name"]);
-          setInstruments(res);
-          // Lưu vào IndexedDB (Dung lượng cho phép lên đến hàng trăm MB)
-          await set(IDB_KEYS.INSTRUMENTS, res);
-          const aapl = res.find((i: Instrument) => i.symbol === "AAPL");
-          setSelectedInstrument(aapl || res[0]);
+
+        if (Array.isArray(cached) && cached.length > 0) {
+          const normalizedCached = normalizeInstrumentList(cached);
+
+          setInstruments(normalizedCached);
+
+          const preferred =
+            normalizedCached.find((i) => i.symbol === defaultSymbol) ||
+            normalizedCached.find((i) => i.symbol === "AAPL") ||
+            normalizedCached[0] ||
+            null;
+
+          setSelectedInstrument(preferred);
+          return;
         }
+
+        const res = await CompanyService.getCompanies(30000, 1, [
+          "symbol",
+          "company_name",
+        ]);
+
+        const normalizedRes = normalizeInstrumentList(res || []);
+
+        setInstruments(normalizedRes);
+        await set(IDB_KEYS.INSTRUMENTS, normalizedRes);
+
+        const preferred =
+          normalizedRes.find((i) => i.symbol === defaultSymbol) ||
+          normalizedRes.find((i) => i.symbol === "AAPL") ||
+          normalizedRes[0] ||
+          null;
+
+        setSelectedInstrument(preferred);
       } catch (err) {
         console.error("Failed to load instruments:", err);
       }
     };
+
     loadInstruments();
-  }, []);
+  }, [defaultSymbol]);
 
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
@@ -259,16 +306,16 @@ export default function TradingChart({
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
 
-    const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data) => {
+    const socket = new SimpleSocket((data) => {
       if ((data as { type?: string }).type !== "quote") return;
-      if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol)
-        return;
+      if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol) return;
 
       const price = Number((data as { price: number }).price);
+      const ts = Number((data as { ts?: number }).ts || Date.now());
 
       setRealtimeCandle({
         symbol: selectedInstrument.symbol,
-        time: (data as { ts: number }).ts,
+        time: ts,
         open: price,
         high: price,
         low: price,
@@ -307,19 +354,21 @@ export default function TradingChart({
           <SelectDropdown
             options={instruments.map((i) => ({
               id: i.id,
-              label: `${i.symbol} - ${i.name}`,
+              label: `${i.symbol} - ${getInstrumentDisplayName(i)}`,
             }))}
             selected={
               selectedInstrument
                 ? {
                     id: selectedInstrument.id,
-                    label: `${selectedInstrument.symbol} - ${selectedInstrument.name}`,
+                    label: `${selectedInstrument.symbol} - ${getInstrumentDisplayName(
+                      selectedInstrument
+                    )}`,
                   }
                 : null
             }
             placeholder="Select instrument"
             onSelect={(v) => {
-              const found = instruments.find((i) => i.id === v.id);
+              const found = instruments.find((i) => String(i.id) === String(v.id));
               setSelectedInstrument(found || null);
             }}
           />

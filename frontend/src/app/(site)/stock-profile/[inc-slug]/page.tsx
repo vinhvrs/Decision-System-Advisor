@@ -110,7 +110,7 @@ const StockProfile = ({ params }: Props) => {
     if (!instrument || !selectedPeriod) return;
 
     // Khởi tạo kết nối tới server FastAPI (Cổng 8000)
-    const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data: any) => {
+    const socket = new SimpleSocket((data: any) => {
       // Logic xử lý dữ liệu nhận được từ server Python
       if (data.type === "quote" && data.symbol === instrument.symbol) {
         setRealtimeCandle({

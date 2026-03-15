@@ -12,7 +12,6 @@ import LightChart from "@/src/components/charts/LightChart";
 import ChatBox from "@/src/components/chatbox/page";
 import SelectDropdown from "@/src/sections/Dropdown";
 import { InstrumentService } from "@/src/services/Instrument.service";
-import { createEcho } from "@/src/libs/echo";
 import { Instrument } from "@/src/types/Instrument";
 import { InstrumentPeriod } from "@/src/types/InstrumentPeriod";
 
@@ -134,19 +133,6 @@ export default function HomePage() {
     }
     initFetch();
   }, [selectedPeriod?.id, timeframe]);
-
-  // --- 4. WebSocket Real-time ---
-  useEffect(() => {
-    if (!selectedInstrument || !timeframe) return;
-    const echo = createEcho();
-    if (!echo) return;
-    const channelName = `ohlc.${selectedInstrument.symbol.toLowerCase()}.${timeframe}`;
-    const channel = echo.channel(channelName);
-    channel.listen(".candle", (e: any) => {
-      setRealtimeCandle(e?.candle ?? e);
-    });
-    return () => echo.leave(channelName);
-  }, [selectedInstrument?.id, timeframe]);
 
   return (
     <main className="min-h-screen bg-[#0B1220] text-white selection:bg-blue-500/30">
