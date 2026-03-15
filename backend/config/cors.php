@@ -14,7 +14,7 @@ return [
     */
     'paths' => ['api/*', 'chatbot/*'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => ['http://localhost:3000'], // NextJS
+    'allowed_origins' => ['http://localhost:3000','decision-suport-system.vercel.app'], // NextJS
     'allowed_headers' => ['*'],
     'supports_credentials' => true,
 
