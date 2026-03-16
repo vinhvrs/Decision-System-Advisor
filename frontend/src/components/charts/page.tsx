@@ -145,6 +145,8 @@ export default function TradingChart({
   defaultSymbol = "AAPL",
   isFixed = false,
 }: TradingChartProps) {
+  console.log("TRADING_CHART_RENDERED");
+
   const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
   const [candles, setCandles] = useState<any[]>([]);
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
@@ -204,6 +206,18 @@ export default function TradingChart({
     },
     []
   );
+
+  useEffect(() => {
+    console.log("SELECTED_INSTRUMENT_DEBUG", {
+      raw: selectedInstrument,
+      name: selectedInstrument?.name,
+      company_name: selectedInstrument?.company_name,
+      displayName: getInstrumentDisplayName(selectedInstrument),
+      finalLabel: selectedInstrument
+        ? `${selectedInstrument.symbol} - ${getInstrumentDisplayName(selectedInstrument)}`
+        : null
+    });
+  }, [selectedInstrument]);
 
   useEffect(() => {
     const loadInstruments = async () => {
