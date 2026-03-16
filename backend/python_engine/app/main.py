@@ -1,5 +1,8 @@
 import uvicorn
 import logging
+import asyncio
+from threading import Lock
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,128 +10,215 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-# Import APScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# Import các Service và Router từ hệ thống
-from app.data_collect.collectors.stock_sync import DSATurbo
 from app.analyze.ranking.stock_compare import MarketSyncService
-from app.analyze.indicator.engine import IndicatorService
 from app.services.chatbot import chatbot_service
 from app.socket.events import router as websocket_router
 from app.api.routes.embed import router as embed_router
+from app.analyze.analysis_cache import analysis_cache_service
+from app.analyze.auto_analyze import auto_analyze_service
+from app.data_collect.collectors.news_handle import run_daily_update
 
-# Cấu hình Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
-# =========================================================
-# SCHEDULED TASKS LOGIC (Quy trình tự động hóa)
-# =========================================================
-def run_market_pipeline():
+# tránh scheduler job chạy chồng nhau
+pipeline_lock = Lock()
+news_lock = Lock()
+
+
+def run_ranking_sync():
     """
-    Quy trình tự động hóa toàn diện:
-    1. Đồng bộ dữ liệu yfinance (Backfill 7 ngày)
-    2. Cập nhật Ranking & Heatmap vào Redis
-    3. Tính toán các chỉ số kỹ thuật (Warmup RSI, MACD...) cho Top mã
+    Lightweight scheduled job:
+    - Update ranking / heatmap
     """
-    logger.info("🚀 [Schedule] Starting Market Pipeline...")
+    if not pipeline_lock.acquire(blocking=False):
+        logger.warning("⚠️ Ranking sync skipped because previous run is still active.")
+        return
+
     try:
-        # Bước 1: Đồng bộ nến giá từ Yahoo Finance
-        sync_service = DSATurbo()
-        sync_service.run()
-        
-        # Bước 2: Xếp hạng thanh khoản và cập nhật bản đồ nhiệt
+        logger.info("🚀 [Schedule] Starting ranking sync...")
         ranking_service = MarketSyncService()
         ranking_service.sync()
-        
-        # Bước 3: Tính toán chỉ số kỹ thuật cho Top 20 mã giao dịch
-        indicator_service = IndicatorService()
-        indicator_service.run_warmup()
-        
-        logger.info("✅ [Schedule] Market Pipeline completed successfully.")
+        logger.info("✅ [Schedule] Ranking sync completed.")
     except Exception as e:
-        logger.error(f"❌ [Schedule] Pipeline Error: {str(e)}")
+        logger.error(f"❌ [Schedule] Ranking sync error: {str(e)}", exc_info=True)
+    finally:
+        pipeline_lock.release()
 
-# =========================================================
-# LIFESPAN MANAGEMENT (Quản lý vòng đời App)
-# =========================================================
+
+def run_news_daily_update():
+    """
+    Heavy scheduled job:
+    - Incremental news update
+    - Writes docs + inference results
+    """
+    if not news_lock.acquire(blocking=False):
+        logger.warning("⚠️ Daily news update skipped because previous run is still active.")
+        return
+
+    try:
+        logger.info("🚀 [Schedule] Starting daily news update...")
+        run_daily_update(lookback_days=1)
+        logger.info("✅ [Schedule] Daily news update completed.")
+    except Exception as e:
+        logger.error(f"❌ [Schedule] Daily news update error: {str(e)}", exc_info=True)
+    finally:
+        news_lock.release()
+
+
+async def warmup_top_stocks():
+    """
+    Warm-up analysis cache:
+    - Get top 100 symbols from ranking
+    - If cache missing, call auto_analyze
+    - Save final payload into Redis
+    """
+    try:
+        symbols = await analysis_cache_service.get_top_symbols_from_ranking(
+            ranking_key="liquidity:ranking:daily",
+            limit=100,
+        )
+
+        if not symbols:
+            logger.warning("⚠️ No symbols found from liquidity:ranking:daily")
+            return
+
+        logger.info(f"🔥 Warm-up analysis started for {len(symbols)} symbols")
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def process_symbol(symbol: str):
+            async with semaphore:
+                try:
+                    cached = await analysis_cache_service.get_analysis(symbol)
+                    if cached:
+                        logger.info(f"⏩ Skip cached analysis for {symbol}")
+                        return
+
+                    analyzed = await auto_analyze_service.analyze_symbol(
+                        symbol=symbol,
+                        clean_text=f"Analyze stock {symbol}",
+                    )
+
+                    if not analyzed or not isinstance(analyzed, dict):
+                        logger.warning(f"⚠️ Invalid analysis payload for {symbol}")
+                        return
+
+                    success = await analysis_cache_service.set_analysis(symbol, analyzed)
+                    if success:
+                        logger.info(f"✅ Warmed analysis cache for {symbol}")
+                    else:
+                        logger.error(f"❌ Failed to save warmed cache for {symbol}")
+
+                except Exception as e:
+                    logger.error(f"❌ Warmup failed for {symbol}: {e}", exc_info=True)
+
+        await asyncio.gather(*(process_symbol(symbol) for symbol in symbols))
+        logger.info("✅ Warm-up analysis finished")
+
+    except Exception as e:
+        logger.error(f"❌ Warm-up analysis error: {e}", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Quản lý khởi tạo và giải phóng tài nguyên hệ thống"""
-    # Khởi tạo Scheduler
+    """
+    App lifecycle:
+    - start scheduler
+    - run warmup task on startup
+    """
     scheduler = BackgroundScheduler()
-    
-    # Thiết lập chạy Pipeline mỗi 1 giờ
-    next_run_time=datetime.now() đảm bảo chạy ngay lập tức khi start container
+
+    # 1) ranking sync mỗi giờ
     scheduler.add_job(
-        run_market_pipeline, 
-        'interval', 
-        hours=1, 
-         next_run_time=datetime.now() 
+        run_ranking_sync,
+        trigger="interval",
+        hours=1,
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
     )
-    
+
+    # 2) daily news update mỗi ngày
+    scheduler.add_job(
+        run_news_daily_update,
+        trigger="interval",
+        hours=24,
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
+    )
+
     scheduler.start()
-    logger.info("📅 Background Scheduler started with 1-hour interval.")
-    
-    yield # Ứng dụng hoạt động tại đây
-    
-    # Tắt Scheduler khi đóng ứng dụng
+    logger.info("📅 Background Scheduler started.")
+
+    # warmup nền khi app khởi động
+    asyncio.create_task(warmup_top_stocks())
+    logger.info("🔥 Warm-up analysis task created.")
+
+    yield
+
     scheduler.shutdown()
     logger.info("📅 Background Scheduler shut down.")
 
-# =========================================================
-# FASTAPI APP SETUP
-# =========================================================
+
 app = FastAPI(
     title="Financial AI Analyst API",
-    description="Hệ thống phân tích chứng khoán tích hợp Scheduler và Realtime Data",
-    version="2.0.0",
-    lifespan=lifespan
+    description="Stock analysis system with scheduling and real-time support",
+    version="2.1.0",
+    lifespan=lifespan,
 )
 
-# Cấu hình CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Nhúng WebSocket Router
 app.include_router(websocket_router)
 app.include_router(embed_router)
+
 
 class ChatRequest(BaseModel):
     message: str
     style: Optional[str] = "standard"
 
+
 @app.get("/")
 async def root():
-    """Endpoint kiểm tra trạng thái Server"""
-    return {"status": "online", "version": "2.0.0", "service": "Financial AI Analyst"}
+    return {
+        "status": "online",
+        "version": "2.1.0",
+        "service": "Financial AI Analyst",
+    }
+
 
 @app.post("/api/v1/chat")
 async def chat_endpoint(payload: ChatRequest):
-    """Endpoint xử lý hội thoại với AI"""
     if not payload.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-    
+
     try:
-        # Gọi ChatBot Service xử lý Hybrid RAG + Real-time Data
         result = await chatbot_service.handle_message(
-            user_text=payload.message, 
-            style=payload.style
+            user_text=payload.message,
+            style=payload.style,
         )
         return result
     except Exception as e:
-        logger.error(f"Chat Error: {str(e)}")
+        logger.error(f"Chat Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
 if __name__ == "__main__":
-    # Chạy server với chế độ reload tự động khi thay đổi code
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
