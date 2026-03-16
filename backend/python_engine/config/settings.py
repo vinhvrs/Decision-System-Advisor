@@ -3,8 +3,8 @@ import pymysql.cursors
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Giữ nguyên đường dẫn theo yêu cầu
-env_path = Path('..') / '.env'
+BASE_DIR = Path(__file__).resolve().parent.parent
+env_path = BASE_DIR / '.env'
 if not env_path.exists():
     raise FileNotFoundError(f"❌ File .env không tồn tại tại: {env_path.absolute()}")
 

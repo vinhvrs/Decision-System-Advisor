@@ -1,11 +1,10 @@
-from fastapi import APIRouter # Chuyển sang Router
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
 
-router = APIRouter(prefix="/api/v1") # Thêm prefix để thống nhất
+router = APIRouter(prefix="/api/v1")
 
 MODEL_NAME = "intfloat/e5-small-v2"
-model = SentenceTransformer(MODEL_NAME)
+_model = None
 
 class Req(BaseModel):
     text: str
@@ -15,14 +14,26 @@ def clean_text(t: str) -> str:
     t = " ".join(t.split())
     return t[:2000]
 
-@router.post("/embed") # Đổi app.post thành router.post
+def get_model():
+    global _model
+    if _model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            _model = SentenceTransformer(MODEL_NAME)
+        except Exception as e:
+            raise RuntimeError(f"Embedding model load failed: {e}")
+    return _model
+
+@router.post("/embed")
 def embed(req: Req):
     text = clean_text(req.text)
-    # TỐI ƯU: Sử dụng "query:" cho câu hỏi từ chatbot để retrieval tốt hơn
-    vec = model.encode([f"query: {text}"], normalize_embeddings=True)[0]
-
-    return {
-        "vector": vec.tolist(),
-        "model": MODEL_NAME,
-        "dim": len(vec)
-    }
+    try:
+        model = get_model()
+        vec = model.encode([f"query: {text}"], normalize_embeddings=True)[0]
+        return {
+            "vector": vec.tolist(),
+            "model": MODEL_NAME,
+            "dim": len(vec),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))

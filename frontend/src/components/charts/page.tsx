@@ -371,7 +371,7 @@ export default function TradingChart({
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
 
-    const socket = new SimpleSocket((data) => {
+    const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data) => {
       if ((data as { type?: string }).type !== "quote") return;
       if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol) return;
 

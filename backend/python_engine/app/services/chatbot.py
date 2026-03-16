@@ -192,4 +192,5 @@ class ChatBotService:
         return True
 
 
+# Khởi tạo service dùng chung
 chatbot_service = ChatBotService()
