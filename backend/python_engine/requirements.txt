@@ -10,8 +10,8 @@ python-multipart
 # ==========================================================
 # AI & Embedding
 # ==========================================================
-sentence-transformers
-torch
+sentence-transformers==3.0.1
+#torch
 numpy
 
 # ==========================================================
@@ -27,7 +27,7 @@ redis
 # Data Processing & Finance
 # ==========================================================
 pandas
-pandas-ta
+#pandas-ta
 beautifulsoup4
 feedparser
 yliveticker
