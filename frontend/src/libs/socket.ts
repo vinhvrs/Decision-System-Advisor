@@ -5,14 +5,14 @@ export class SimpleSocket {
   private url: string;
   private onMessageCallback: (data: unknown) => void;
 
-  constructor(url: string, onMessage: (data: unknown) => void) {
-    this.url = url;
+  constructor(onMessage: (data: unknown) => void) {
+    this.url = `${process.env.NEXT_PUBLIC_SOCKET}${process.env.NEXT_PUBLIC_SOCKET_PATH}`;
     this.onMessageCallback = onMessage;
   }
 
   connect() {
     this.ws = new WebSocket(this.url);
-
+    console.log("🔌 [WS] Connecting to:", this.url);
     this.ws.onopen = () => {
       console.log("🚀 [WS] Connected to Python Server");
     };
@@ -26,7 +26,7 @@ export class SimpleSocket {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = () => {  
       console.log("🔌 [WS] Disconnected. Reconnecting in 3s...");
       setTimeout(() => this.connect(), 3000); // Tự động kết nối lại
     };
