@@ -67,39 +67,6 @@ function normalizeInstrumentList(list: any[]): InstrumentLike[] {
     .filter((item) => !!item.symbol);
 }
 
-function getPeriodBucketMs(rawTs: number | string | Date, period: TF): number | null {
-  let date: Date;
-
-  if (rawTs instanceof Date) {
-    date = new Date(rawTs.getTime());
-  } else if (typeof rawTs === "number") {
-    date = new Date(rawTs < 10_000_000_000 ? rawTs * 1000 : rawTs);
-  } else {
-    const str = String(rawTs);
-    date = str.includes("T")
-      ? new Date(str)
-      : new Date(str.replace(" ", "T") + "Z");
-  }
-
-  if (Number.isNaN(date.getTime())) return null;
-
-  if (period === "daily") {
-    date.setUTCHours(0, 0, 0, 0);
-  } else if (period === "weekly") {
-    const day = date.getUTCDay() || 7; // Sunday => 7
-    date.setUTCDate(date.getUTCDate() - day + 1); // Monday
-    date.setUTCHours(0, 0, 0, 0);
-  } else if (period === "monthly") {
-    date.setUTCDate(1);
-    date.setUTCHours(0, 0, 0, 0);
-  } else if (period === "yearly") {
-    date.setUTCMonth(0, 1);
-    date.setUTCHours(0, 0, 0, 0);
-  }
-
-  return date.getTime();
-}
-
 function normalizeCandles(list: any[], period: TF) {
   const uniqueMap = new Map<number, any>();
 
@@ -107,8 +74,34 @@ function normalizeCandles(list: any[], period: TF) {
     .filter((d: any) => d.timestamp || d.timestamps || d.time)
     .forEach((d: any) => {
       const rawTs = d.timestamp || d.timestamps || d.time;
-      const time = getPeriodBucketMs(rawTs, period);
-      if (time === null) return;
+      let date: Date;
+
+      if (typeof rawTs === "number") {
+        date = new Date(rawTs < 10_000_000_000 ? rawTs * 1000 : rawTs);
+      } else {
+        const str = String(rawTs);
+        date = str.includes("T")
+          ? new Date(str)
+          : new Date(str.replace(" ", "T") + "Z");
+      }
+
+      if (Number.isNaN(date.getTime())) return;
+
+      if (period === "daily") {
+        date.setUTCHours(0, 0, 0, 0);
+      } else if (period === "weekly") {
+        const day = date.getUTCDay() || 7;
+        date.setUTCDate(date.getUTCDate() - day + 1);
+        date.setUTCHours(0, 0, 0, 0);
+      } else if (period === "monthly") {
+        date.setUTCDate(1);
+        date.setUTCHours(0, 0, 0, 0);
+      } else if (period === "yearly") {
+        date.setUTCMonth(0, 1);
+        date.setUTCHours(0, 0, 0, 0);
+      }
+
+      const time = date.getTime();
 
       const next = {
         time,
@@ -148,59 +141,6 @@ function mergeCandles(prev: any[], next: any[]) {
   return Array.from(map.values()).sort((a, b) => a.time - b.time);
 }
 
-function buildRealtimeBucketCandle({
-  price,
-  rawTs,
-  period,
-  previousRealtime,
-  latestHistorical,
-  symbol,
-}: {
-  price: number;
-  rawTs: number;
-  period: TF;
-  previousRealtime: any | null;
-  latestHistorical: any | null;
-  symbol: string;
-}) {
-  const bucketTime = getPeriodBucketMs(rawTs, period);
-  if (bucketTime === null) return null;
-
-  const sameRealtimeBucket =
-    previousRealtime && Number(previousRealtime.time) === Number(bucketTime)
-      ? previousRealtime
-      : null;
-
-  const sameHistoricalBucket =
-    latestHistorical && Number(latestHistorical.time) === Number(bucketTime)
-      ? latestHistorical
-      : null;
-
-  const base = sameRealtimeBucket || sameHistoricalBucket;
-
-  if (!base) {
-    return {
-      symbol,
-      time: bucketTime,
-      open: price,
-      high: price,
-      low: price,
-      close: price,
-      volume: 0,
-    };
-  }
-
-  return {
-    symbol,
-    time: bucketTime,
-    open: Number(base.open ?? price),
-    high: Math.max(Number(base.high ?? price), price),
-    low: Math.min(Number(base.low ?? price), price),
-    close: price,
-    volume: Number(base.volume || 0),
-  };
-}
-
 export default function TradingChart({
   defaultSymbol = "AAPL",
   isFixed = false,
@@ -222,13 +162,8 @@ export default function TradingChart({
   const loadingMoreCandlesRef = useRef(false);
   const candlePageRef = useRef(1);
   const requestKeyRef = useRef(0);
-  const candlesRef = useRef<any[]>([]);
 
   const PAGE_SIZE = 1000;
-
-  useEffect(() => {
-    candlesRef.current = candles;
-  }, [candles]);
 
   const loadCandlePage = useCallback(
     async ({
@@ -371,30 +306,20 @@ export default function TradingChart({
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
 
-    const socket = new SimpleSocket("ws://127.0.0.1:8000/ws/quotes", (data) => {
+    const socket = new SimpleSocket((data) => {
       if ((data as { type?: string }).type !== "quote") return;
       if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol) return;
 
       const price = Number((data as { price: number }).price);
       const ts = Number((data as { ts?: number }).ts || Date.now());
 
-      if (!Number.isFinite(price) || price <= 0) return;
-
-      setRealtimeCandle((prev: any) => {
-        const currentCandles = candlesRef.current;
-        const latestHistorical =
-          Array.isArray(currentCandles) && currentCandles.length > 0
-            ? currentCandles[currentCandles.length - 1]
-            : null;
-
-        return buildRealtimeBucketCandle({
-          price,
-          rawTs: ts,
-          period: selectedPeriod,
-          previousRealtime: prev,
-          latestHistorical,
-          symbol: selectedInstrument.symbol,
-        });
+      setRealtimeCandle({
+        symbol: selectedInstrument.symbol,
+        time: ts,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
       });
     });
 
@@ -412,7 +337,7 @@ export default function TradingChart({
       socket.disconnect();
       setRealtimeCandle(null);
     };
-  }, [selectedInstrument?.symbol, selectedPeriod]);
+  }, [selectedInstrument?.symbol]);
 
   const onToggleIndicator = (item: { id: string; label: string }) => {
     setSelectedIndicators((prev) =>
