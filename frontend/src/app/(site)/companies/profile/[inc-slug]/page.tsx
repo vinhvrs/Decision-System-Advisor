@@ -115,14 +115,6 @@ function normalizeCandles(list: any[], period: TF) {
   return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
 }
 
-function getWsUrl() {
-  if (typeof window === "undefined") return "ws://127.0.0.1:8000/ws/quotes";
-
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.hostname || "127.0.0.1";
-  return `${protocol}//${host}:8000/ws/quotes`;
-}
-
 function normalizeSymbolFromSlug(slug: string) {
   return decodeURIComponent(slug || "").trim().toUpperCase();
 }
@@ -260,7 +252,7 @@ const StockProfile = ({ params }: Props) => {
   useEffect(() => {
     if (!symbol) return;
 
-    const socket = new SimpleSocket(getWsUrl(), (data: any) => {
+    const socket = new SimpleSocket((data: any) => {
       if (!data || data.type !== "quote") return;
       if (String(data.symbol).toUpperCase() !== symbol) return;
 
