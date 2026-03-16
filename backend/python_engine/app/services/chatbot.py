@@ -13,15 +13,6 @@ class ChatBotService:
         self.logger = logging.getLogger(__name__)
 
     async def handle_message(self, user_text: str, style: str = "standard") -> Dict[str, Any]:
-        """
-        Flow:
-        1. NLP parse lấy symbol từ user_text
-        2. Kiểm tra Redis trước
-        3. Nếu cache miss -> gọi auto_analyze_service
-        4. Normalize payload theo format chuẩn
-        5. Lưu Redis nếu là payload hợp lệ
-        6. Trả response thống nhất cho client
-        """
         try:
             ctx = SmoothContext(direction="in", style_preset=style)
             inbound_result = self.smoother.smooth(user_text, ctx)
@@ -93,33 +84,6 @@ class ChatBotService:
             }
 
     def _normalize_response_payload(self, symbol: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Đảm bảo JSON trả về luôn đúng format, kể cả khi payload thô thiếu field.
-        Format mục tiêu:
-        {
-            "symbol": "...",
-            "recommendation": "...",
-            "confidence": 26,
-            "message": "...",
-            "price": 104.44,
-            "indicators": {
-                "rsi": {...},
-                "macd": {...},
-                "ema_20_100": {...},
-                "stochastic": {...},
-                "bollinger_bands": {...},
-                "summary": {
-                    "trend": "...",
-                    "score": ...,
-                    "indicator_confidence": {...}
-                }
-            },
-            "highlights": [],
-            "warnings": [],
-            "suggested_actions": [],
-            "updated_at": "..."
-        }
-        """
         if not isinstance(payload, dict):
             payload = {}
 
