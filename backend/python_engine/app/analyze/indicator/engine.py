@@ -1,551 +1,350 @@
-# import pandas as pd
-# import pandas_ta as ta
-# import pymysql
-# import redis
-# import json
-# import time
-# from config.settings import Config
-
-# class IndicatorService:
-#     def __init__(self):
-#         self.ttl = 3 * 60 * 60  # Đặt TTL là 3 tiếng (10,800 giây) 
-#         try:
-#             self.redis_client = redis.Redis(
-#                 host=Config.REDIS_HOST,
-#                 port=Config.REDIS_PORT,
-#                 db=Config.REDIS_DB,
-#                 password=Config.REDIS_PASSWORD,
-#                 decode_responses=True,
-#                 socket_timeout=5,
-#             )
-#             self.redis_client.ping()
-#         except Exception as e:
-#             self.redis_client = None
-
-#     def get_top_volume_symbols(self, limit=5):
-#         try:
-#             conn = pymysql.connect(**Config.DB_CONFIG)
-#             query = """
-#                 SELECT i.symbol
-#                 FROM instrument_snapshot s
-#                 JOIN instruments i ON s.instrument_id = i.id
-#                 ORDER BY s.volume DESC
-#                 LIMIT %s
-#             """
-#             with conn.cursor() as cur:
-#                 cur.execute(query, (int(limit),))
-#                 rows = cur.fetchall()
-#             conn.close()
-
-#             symbols = []
-#             for r in rows:
-#                 if isinstance(r, dict):
-#                     symbols.append(str(r["symbol"]).strip().upper())
-#                 else:
-#                     symbols.append(str(r[0]).strip().upper())
-
-#             return symbols
-
-#         except Exception as e:
-#             print(f"❌ Lỗi lấy Top Symbols: {e}")
-#             return []
-
-#     def get_candles_from_db(self, symbol: str, period: str = "daily") -> pd.DataFrame:
-#         try:
-#             conn = pymysql.connect(**Config.DB_CONFIG)
-
-#             query = """
-#                 SELECT d.open, d.high, d.low, d.close, d.volume, d.timestamps
-#                 FROM instrument_data d
-#                 JOIN instrument_periods p ON d.instrument_period_id = p.id
-#                 JOIN instruments i ON p.instrument_id = i.id
-#                 WHERE i.symbol = %s AND p.period = %s
-#                 ORDER BY d.timestamps DESC
-#                 LIMIT 300
-#             """
-
-#             symbol = (symbol or "").strip().upper()
-#             period = (period or "").strip().lower()
-#             print(f"DEBUG candles: symbol={symbol}, period={period}")
-
-#             with conn.cursor() as cur:
-#                 cur.execute(query, (symbol, period))
-#                 rows = cur.fetchall()
-#                 cols = [desc[0] for desc in cur.description]
-
-#             conn.close()
-
-#             df = pd.DataFrame(rows, columns=cols)
-#             if df.empty:
-#                 return pd.DataFrame()
-
-#             df.columns = [c.lower() for c in df.columns]
-
-#             numeric_cols = ["open", "high", "low", "close", "volume"]
-#             for col in numeric_cols:
-#                 if col in df.columns:
-#                     df[col] = pd.to_numeric(df[col], errors="coerce")
-
-#             # Nếu timestamps parse được thì sort theo thời gian thật
-#             if "timestamps" in df.columns:
-#                 parsed_ts = pd.to_datetime(df["timestamps"], errors="coerce")
-#                 if parsed_ts.notna().sum() > 0:
-#                     df["timestamps"] = parsed_ts
-#                     df = df.sort_values("timestamps", ascending=True).reset_index(drop=True)
-#                 else:
-#                     # fallback: hiện query đã DESC nên đảo lại để cũ -> mới
-#                     df = df.iloc[::-1].reset_index(drop=True)
-#             else:
-#                 df = df.iloc[::-1].reset_index(drop=True)
-
-#             df.dropna(subset=["close"], inplace=True)
-#             df.reset_index(drop=True, inplace=True)
-
-#             return df
-
-#         except Exception as e:
-#             print(f"❌ Lỗi truy xuất nến cho {symbol}: {e}")
-#             return pd.DataFrame()
-
-#     @staticmethod
-#     def _cross_up(prev_fast, prev_slow, curr_fast, curr_slow) -> bool:
-#         return (prev_fast <= prev_slow) and (curr_fast > curr_slow)
-
-#     @staticmethod
-#     def _cross_down(prev_fast, prev_slow, curr_fast, curr_slow) -> bool:
-#         return (prev_fast >= prev_slow) and (curr_fast < curr_slow)
-
-#     @staticmethod
-#     def _safe_float(value, default=0.0):
-#         try:
-#             if pd.isna(value):
-#                 return default
-#             return float(value)
-#         except Exception:
-#             return default
-
-#     def process_and_cache(self, symbol: str):
-#         symbol = (symbol or "").strip().upper()
-#         df = self.get_candles_from_db(symbol, period="daily")
-
-#         # Cần đủ dữ liệu cho SMA50 / BB20 / MACD26
-#         if df.empty or len(df) < 60:
-#             print(f"⚠️ {symbol}: Không đủ dữ liệu ({len(df)} nến)")
-#             return None
-
-#         try:
-#             # Core indicators
-#             df.ta.sma(length=14, append=True)
-#             df.ta.ema(length=14, append=True)
-#             df.ta.rsi(length=14, append=True)
-#             df.ta.macd(fast=12, slow=26, signal=9, append=True)
-#             df.ta.bbands(length=20, std=2.0, append=True)
-#             df.ta.stoch(k=14, d=3, smooth_k=3, append=True)
-
-#             # For crossover checks
-#             df.ta.sma(length=20, append=True)
-#             df.ta.sma(length=50, append=True)
-#             df.ta.ema(length=12, append=True)
-#             df.ta.ema(length=26, append=True)
-
-#             # Chỉ cần fill NaN nhẹ ở bước lấy giá trị, không fill toàn bộ bừa bãi
-#             if len(df) < 2:
-#                 print(f"⚠️ {symbol}: Không đủ 2 dòng để kiểm tra crossover")
-#                 return
-
-#             prev = df.iloc[-2]
-#             last = df.iloc[-1]
-
-#             close_prev = self._safe_float(prev.get("close"))
-#             close_curr = self._safe_float(last.get("close"))
-
-#             # --- SMA / EMA current values ---
-#             sma14 = self._safe_float(last.get("SMA_14"))
-#             ema14 = self._safe_float(last.get("EMA_14"))
-#             rsi14 = self._safe_float(last.get("RSI_14"))
-
-#             sma20_prev = self._safe_float(prev.get("SMA_20"))
-#             sma20_curr = self._safe_float(last.get("SMA_20"))
-#             sma50_prev = self._safe_float(prev.get("SMA_50"))
-#             sma50_curr = self._safe_float(last.get("SMA_50"))
-
-#             ema12_prev = self._safe_float(prev.get("EMA_12"))
-#             ema12_curr = self._safe_float(last.get("EMA_12"))
-#             ema26_prev = self._safe_float(prev.get("EMA_26"))
-#             ema26_curr = self._safe_float(last.get("EMA_26"))
-
-#             # --- MACD ---
-#             macd_val = self._safe_float(last.get("MACD_12_26_9"))
-#             macd_signal = self._safe_float(last.get("MACDs_12_26_9"))
-#             macd_hist = self._safe_float(last.get("MACDh_12_26_9"))
-
-#             # --- Bollinger Bands ---
-#             bb_lower_col = next((c for c in df.columns if c.startswith("BBL_")), None)
-#             bb_middle_col = next((c for c in df.columns if c.startswith("BBM_")), None)
-#             bb_upper_col = next((c for c in df.columns if c.startswith("BBU_")), None)
-
-#             bbl_prev = self._safe_float(prev.get(bb_lower_col)) if bb_lower_col else 0.0
-#             bbm_prev = self._safe_float(prev.get(bb_middle_col)) if bb_middle_col else 0.0
-#             bbu_prev = self._safe_float(prev.get(bb_upper_col)) if bb_upper_col else 0.0
-
-#             bbl_curr = self._safe_float(last.get(bb_lower_col)) if bb_lower_col else 0.0
-#             bbm_curr = self._safe_float(last.get(bb_middle_col)) if bb_middle_col else 0.0
-#             bbu_curr = self._safe_float(last.get(bb_upper_col)) if bb_upper_col else 0.0
-
-#             # --- Stochastic ---
-#             stoch_k = self._safe_float(last.get("STOCHk_14_3_3"))
-#             stoch_d = self._safe_float(last.get("STOCHd_14_3_3"))
-
-#             # --- MA crossover signals ---
-#             ma_signals = {
-#                 "sma_20_50": {
-#                     "fast": round(sma20_curr, 2),
-#                     "slow": round(sma50_curr, 2),
-#                     "golden_cross": False,
-#                     "death_cross": False,
-#                     "trend": "unknown",
-#                 },
-#                 "ema_12_26": {
-#                     "fast": round(ema12_curr, 2),
-#                     "slow": round(ema26_curr, 2),
-#                     "bull_cross": False,
-#                     "bear_cross": False,
-#                     "trend": "unknown",
-#                 },
-#             }
-
-#             if sma20_curr > 0 and sma50_curr > 0 and sma20_prev > 0 and sma50_prev > 0:
-#                 ma_signals["sma_20_50"]["golden_cross"] = self._cross_up(
-#                     sma20_prev, sma50_prev, sma20_curr, sma50_curr
-#                 )
-#                 ma_signals["sma_20_50"]["death_cross"] = self._cross_down(
-#                     sma20_prev, sma50_prev, sma20_curr, sma50_curr
-#                 )
-#                 ma_signals["sma_20_50"]["trend"] = "bullish" if sma20_curr > sma50_curr else "bearish"
-
-#             if ema12_curr > 0 and ema26_curr > 0 and ema12_prev > 0 and ema26_prev > 0:
-#                 ma_signals["ema_12_26"]["bull_cross"] = self._cross_up(
-#                     ema12_prev, ema26_prev, ema12_curr, ema26_curr
-#                 )
-#                 ma_signals["ema_12_26"]["bear_cross"] = self._cross_down(
-#                     ema12_prev, ema26_prev, ema12_curr, ema26_curr
-#                 )
-#                 ma_signals["ema_12_26"]["trend"] = "bullish" if ema12_curr > ema26_curr else "bearish"
-
-#             # --- Bollinger signals ---
-#             bb_width = (bbu_curr - bbl_curr) if (bbu_curr > 0 and bbl_curr > 0) else 0.0
-#             bandwidth_pct = (bb_width / bbm_curr * 100.0) if bbm_curr > 0 else 0.0
-
-#             bollinger_signals = {
-#                 "break_above_upper": (bbu_curr > 0) and (close_curr > bbu_curr),
-#                 "break_below_lower": (bbl_curr > 0) and (close_curr < bbl_curr),
-#                 "reentry_from_above": (bbu_prev > 0 and bbu_curr > 0) and (close_prev > bbu_prev) and (close_curr <= bbu_curr),
-#                 "reentry_from_below": (bbl_prev > 0 and bbl_curr > 0) and (close_prev < bbl_prev) and (close_curr >= bbl_curr),
-#                 "bandwidth_pct": round(bandwidth_pct, 2),
-#                 "squeeze": (bandwidth_pct > 0) and (bandwidth_pct < 5.0),
-#                 "position": (
-#                     "above_upper" if (bbu_curr > 0 and close_curr > bbu_curr)
-#                     else "below_lower" if (bbl_curr > 0 and close_curr < bbl_curr)
-#                     else "above_middle" if (bbm_curr > 0 and close_curr >= bbm_curr)
-#                     else "below_middle"
-#                 ),
-#             }
-
-#             # Optional summary signals
-#             summary = {
-#                 "price_vs_sma14": "above" if (sma14 > 0 and close_curr > sma14) else "below",
-#                 "price_vs_ema14": "above" if (ema14 > 0 and close_curr > ema14) else "below",
-#                 "rsi_state": (
-#                     "overbought" if rsi14 >= 70
-#                     else "oversold" if rsi14 <= 30
-#                     else "neutral"
-#                 ),
-#                 "macd_state": (
-#                     "bullish" if macd_val > macd_signal
-#                     else "bearish" if macd_val < macd_signal
-#                     else "neutral"
-#                 ),
-#             }
-
-#             result = {
-#                 "symbol": symbol,
-#                 "price": round(close_curr, 2),
-#                 "indicators": {
-#                     "sma": round(sma14, 2),
-#                     "ema": round(ema14, 2),
-#                     "sma_20": round(sma20_curr, 2),
-#                     "sma_50": round(sma50_curr, 2),
-#                     "ema_12": round(ema12_curr, 2),
-#                     "ema_26": round(ema26_curr, 2),
-#                     "rsi": round(rsi14, 2),
-#                     "macd": {
-#                         "macd": round(macd_val, 6),
-#                         "signal": round(macd_signal, 6),
-#                         "histogram": round(macd_hist, 6),
-#                     },
-#                     "bollinger_bands": {
-#                         "lower": round(bbl_curr, 2),
-#                         "middle": round(bbm_curr, 2),
-#                         "upper": round(bbu_curr, 2),
-#                     },
-#                     "stochastic": {
-#                         "k": round(stoch_k, 2),
-#                         "d": round(stoch_d, 2),
-#                     },
-#                     "ma_signals": ma_signals,
-#                     "bollinger_signals": bollinger_signals,
-#                     "summary": summary,
-#                 },
-#                 "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-#             }
-
-#             redis_key = f"{Config.REDIS_PREFIX}:analysis:{symbol}"
-#             if self.redis_client:
-#                 self.redis_client.set(redis_key, json.dumps(result), ex=self.ttl)
-            
-#             return result
-
-#         except Exception as e:
-#             print(f"❌ Lỗi tính toán {symbol}: {e}")
-#             return None
-
-#     def run_warmup(self):
-#         print(f"🚀 Warmup started at {time.strftime('%H:%M:%S')}")
-#         symbols = self.get_top_volume_symbols(20)
-
-#         if not symbols:
-#             print("❌ Không tìm thấy mã nào để phân tích.")
-#             return
-
-#         for s in symbols:
-#             self.process_and_cache(s)
-
-#         print("🏁 Warmup finished.")
-
-
-# if __name__ == "__main__":
-#     service = IndicatorService()
-#     service.run_warmup()
+import time
+from typing import Dict, Any, Optional
 
 import pandas as pd
-import pandas_ta as ta
-import pymysql
-import redis
-import json
-import time
-from config.settings import Config
+import pandas_ta
 
 class IndicatorService:
-    def __init__(self):
-        # Set TTL to 3 hours (10,800 seconds)
-        self.ttl = 10800 
-        try:
-            self.redis_client = redis.Redis(
-                host=Config.REDIS_HOST,
-                port=Config.REDIS_PORT,
-                db=Config.REDIS_DB,
-                password=Config.REDIS_PASSWORD,
-                decode_responses=True,
-                socket_timeout=5,
-            )
-            self.redis_client.ping()
-            print("✅ Redis Connected")
-        except Exception as e:
-            print(f"❌ Redis Connection Failed: {e}")
-            self.redis_client = None
+    """
+    Pure indicator calculator.
+    Input: pandas DataFrame có các cột:
+        - open
+        - high
+        - low
+        - close
+        - volume
+        - timestamps (optional)
 
-    def get_top_volume_symbols(self, limit=5):
-        """Retrieves top symbols by volume from MySQL."""
-        try:
-            conn = pymysql.connect(**Config.DB_CONFIG)
-            query = """
-                SELECT i.symbol
-                FROM instrument_snapshot s
-                JOIN instruments i ON s.instrument_id = i.id
-                ORDER BY s.volume DESC
-                LIMIT %s
-            """
-            with conn.cursor() as cur:
-                cur.execute(query, (int(limit),))
-                rows = cur.fetchall()
-            conn.close()
+    Responsibility:
+        1. Chuẩn hóa dữ liệu
+        2. Tính technical indicators
+        3. Tổng hợp output theo format cũ
+        4. Tính confidence score
+    """
 
-            symbols = []
-            for r in rows:
-                if isinstance(r, dict):
-                    symbols.append(str(r["symbol"]).strip().upper())
-                else:
-                    symbols.append(str(r[0]).strip().upper())
-            return symbols
-        except Exception as e:
-            print(f"❌ Error fetching Top Symbols: {e}")
-            return []
-
-    def get_candles_from_db(self, symbol: str, period: str = "daily") -> pd.DataFrame:
-        """Retrieves historical candle data for a symbol."""
-        try:
-            conn = pymysql.connect(**Config.DB_CONFIG)
-            query = """
-                SELECT d.open, d.high, d.low, d.close, d.volume, d.timestamps
-                FROM instrument_data d
-                JOIN instrument_periods p ON d.instrument_period_id = p.id
-                JOIN instruments i ON p.instrument_id = i.id
-                WHERE i.symbol = %s AND p.period = %s
-                ORDER BY d.timestamps DESC
-                LIMIT 300
-            """
-            symbol = (symbol or "").strip().upper()
-            period = (period or "").strip().lower()
-
-            with conn.cursor() as cur:
-                cur.execute(query, (symbol, period))
-                rows = cur.fetchall()
-                cols = [desc[0] for desc in cur.description]
-            conn.close()
-
-            df = pd.DataFrame(rows, columns=cols)
-            if df.empty:
-                return pd.DataFrame()
-
-            df.columns = [c.lower() for c in df.columns]
-            numeric_cols = ["open", "high", "low", "close", "volume"]
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-            # Sort data from oldest to newest for Technical Analysis
-            if "timestamps" in df.columns:
-                parsed_ts = pd.to_datetime(df["timestamps"], errors="coerce")
-                if parsed_ts.notna().sum() > 0:
-                    df["timestamps"] = parsed_ts
-                    df = df.sort_values("timestamps", ascending=True).reset_index(drop=True)
-                else:
-                    df = df.iloc[::-1].reset_index(drop=True)
-            else:
-                df = df.iloc[::-1].reset_index(drop=True)
-
-            df.dropna(subset=["close"], inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            return df
-        except Exception as e:
-            print(f"❌ Error retrieving candles: {e}")
-            return pd.DataFrame()
+    MIN_REQUIRED_CANDLES = 100
 
     @staticmethod
-    def _cross_up(prev_fast, prev_slow, curr_fast, curr_slow) -> bool:
-        """Checks for a bullish crossover signal."""
-        return (prev_fast <= prev_slow) and (curr_fast > curr_slow)
-
-    @staticmethod
-    def _cross_down(prev_fast, prev_slow, curr_fast, curr_slow) -> bool:
-        """Checks for a bearish crossover signal."""
-        return (prev_fast >= prev_slow) and (curr_fast < curr_slow)
-
-    @staticmethod
-    def _safe_float(value, default=0.0):
+    def _safe_float(value, default: float = 0.0) -> float:
         try:
-            if pd.isna(value): return default
+            if pd.isna(value):
+                return default
             return float(value)
         except Exception:
             return default
 
-    def process_and_cache(self, symbol: str):
-        """Calculates indicators and caches them in Redis."""
+    @staticmethod
+    def _cross_up(prev_fast, prev_slow, curr_fast, curr_slow) -> bool:
+        return (prev_fast <= prev_slow) and (curr_fast > curr_slow)
+
+    @staticmethod
+    def _cross_down(prev_fast, prev_slow, curr_fast, curr_slow) -> bool:
+        return (prev_fast >= prev_slow) and (curr_fast < curr_slow)
+
+    def prepare_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Chuẩn hóa DataFrame đầu vào:
+        - lower columns
+        - convert numeric
+        - sort timestamps tăng dần
+        - drop close null
+        """
+        if df is None or df.empty:
+            return pd.DataFrame()
+
+        df = df.copy()
+        df.columns = [str(c).strip().lower() for c in df.columns]
+
+        numeric_cols = ["open", "high", "low", "close", "volume"]
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        if "timestamps" in df.columns:
+            df["timestamps"] = pd.to_datetime(df["timestamps"], errors="coerce")
+            df = df.sort_values("timestamps", ascending=True).reset_index(drop=True)
+        else:
+            df = df.reset_index(drop=True)
+
+        df = df.dropna(subset=["close"]).reset_index(drop=True)
+        return df
+
+    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Tính toàn bộ indicator cần thiết.
+        Trả về DataFrame mới đã append các cột indicator.
+        """
+        df = self.prepare_dataframe(df)
+        if df.empty:
+            return df
+
+        if len(df) < self.MIN_REQUIRED_CANDLES:
+            return pd.DataFrame()
+
+        df = df.copy()
+
+        # Momentum
+        df.ta.rsi(length=14, append=True)
+        df.ta.macd(fast=12, slow=26, signal=9, append=True)
+        df.ta.stoch(k=14, d=3, smooth_k=3, append=True)
+
+        # Trend
+        df.ta.ema(length=20, append=True)
+        df.ta.ema(length=100, append=True)
+
+        # Volatility
+        df.ta.bbands(length=20, std=2.0, append=True)
+
+        return df
+
+    def _resolve_states(self, prev_row: pd.Series, last_row: pd.Series, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Tính các state/signal phụ trợ từ dòng cuối cùng.
+        """
+        e20_p = self._safe_float(prev_row.get("EMA_20"))
+        e100_p = self._safe_float(prev_row.get("EMA_100"))
+        e20_c = self._safe_float(last_row.get("EMA_20"))
+        e100_c = self._safe_float(last_row.get("EMA_100"))
+
+        ema_signal = "neutral"
+        if self._cross_up(e20_p, e100_p, e20_c, e100_c):
+            ema_signal = "golden_cross"
+        elif self._cross_down(e20_p, e100_p, e20_c, e100_c):
+            ema_signal = "death_cross"
+
+        if e20_c > e100_c:
+            trend_20_100 = "bullish"
+        elif e20_c < e100_c:
+            trend_20_100 = "bearish"
+        else:
+            trend_20_100 = "neutral"
+
+        rsi_val = self._safe_float(last_row.get("RSI_14"))
+        if rsi_val >= 70:
+            rsi_state = "overbought"
+        elif rsi_val <= 30:
+            rsi_state = "oversold"
+        else:
+            rsi_state = "neutral"
+
+        macd_val = self._safe_float(last_row.get("MACD_12_26_9"))
+        macd_sig = self._safe_float(last_row.get("MACDs_12_26_9"))
+        macd_hist = self._safe_float(last_row.get("MACDh_12_26_9"))
+
+        stoch_k = self._safe_float(last_row.get("STOCHk_14_3_3"))
+        stoch_d = self._safe_float(last_row.get("STOCHd_14_3_3"))
+
+        bb_lower_col = next((c for c in df.columns if c.startswith("BBL_20")), None)
+        bb_middle_col = next((c for c in df.columns if c.startswith("BBM_20")), None)
+        bb_upper_col = next((c for c in df.columns if c.startswith("BBU_20")), None)
+
+        bb_lower = self._safe_float(last_row.get(bb_lower_col)) if bb_lower_col else 0.0
+        bb_middle = self._safe_float(last_row.get(bb_middle_col)) if bb_middle_col else 0.0
+        bb_upper = self._safe_float(last_row.get(bb_upper_col)) if bb_upper_col else 0.0
+
+        close_curr = self._safe_float(last_row.get("close"))
+
+        if close_curr > bb_upper:
+            bollinger_state = "above_upper"
+        elif close_curr < bb_lower:
+            bollinger_state = "below_lower"
+        else:
+            bollinger_state = "inside_band"
+
+        if stoch_k >= 80 and stoch_d >= 80:
+            stochastic_state = "overbought"
+        elif stoch_k <= 20 and stoch_d <= 20:
+            stochastic_state = "oversold"
+        else:
+            stochastic_state = "neutral"
+
+        if macd_val > macd_sig and macd_hist > 0:
+            macd_state = "bullish"
+        elif macd_val < macd_sig and macd_hist < 0:
+            macd_state = "bearish"
+        else:
+            macd_state = "neutral"
+
+        return {
+            "ema_20": e20_c,
+            "ema_100": e100_c,
+            "ema_signal": ema_signal,
+            "trend_20_100": trend_20_100,
+            "rsi": rsi_val,
+            "rsi_state": rsi_state,
+            "macd": macd_val,
+            "macd_signal": macd_sig,
+            "macd_histogram": macd_hist,
+            "macd_state": macd_state,
+            "stoch_k": stoch_k,
+            "stoch_d": stoch_d,
+            "stochastic_state": stochastic_state,
+            "bb_lower": bb_lower,
+            "bb_middle": bb_middle,
+            "bb_upper": bb_upper,
+            "bollinger_state": bollinger_state,
+            "close": close_curr,
+        }
+
+    def calculate_confidence(self, states: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Tính confidence score theo rule-based scoring.
+        Có thể chỉnh trọng số sau mà không ảnh hưởng format output.
+
+        Cấu trúc trả về:
+        {
+            "score": 75.0,
+            "label": "high",
+            "signals": {...}
+        }
+        """
+        score = 50.0
+        signals = {}
+
+        # 1. Trend EMA 20/100
+        trend = states["trend_20_100"]
+        ema_signal = states["ema_signal"]
+        if trend == "bullish":
+            score += 10
+            signals["ema_trend"] = "bullish"
+        elif trend == "bearish":
+            score -= 10
+            signals["ema_trend"] = "bearish"
+        else:
+            signals["ema_trend"] = "neutral"
+
+        if ema_signal == "golden_cross":
+            score += 15
+            signals["ema_crossover"] = "strong_bullish"
+        elif ema_signal == "death_cross":
+            score -= 15
+            signals["ema_crossover"] = "strong_bearish"
+        else:
+            signals["ema_crossover"] = "neutral"
+
+        # 2. RSI
+        rsi = states["rsi"]
+        rsi_state = states["rsi_state"]
+        if 45 <= rsi <= 60:
+            score += 8
+            signals["rsi_signal"] = "healthy_bullish_zone"
+        elif 60 < rsi < 70:
+            score += 4
+            signals["rsi_signal"] = "bullish_but_warm"
+        elif 30 < rsi < 45:
+            score -= 4
+            signals["rsi_signal"] = "weak_zone"
+        elif rsi_state == "oversold":
+            score += 6
+            signals["rsi_signal"] = "oversold_rebound_potential"
+        elif rsi_state == "overbought":
+            score -= 8
+            signals["rsi_signal"] = "overbought_risk"
+        else:
+            signals["rsi_signal"] = "neutral"
+
+        # 3. MACD
+        macd_state = states["macd_state"]
+        if macd_state == "bullish":
+            score += 10
+            signals["macd_signal"] = "bullish"
+        elif macd_state == "bearish":
+            score -= 10
+            signals["macd_signal"] = "bearish"
+        else:
+            signals["macd_signal"] = "neutral"
+
+        # 4. Stochastic
+        stochastic_state = states["stochastic_state"]
+        if stochastic_state == "oversold":
+            score += 5
+            signals["stochastic_signal"] = "oversold_rebound_potential"
+        elif stochastic_state == "overbought":
+            score -= 5
+            signals["stochastic_signal"] = "overbought_risk"
+        else:
+            signals["stochastic_signal"] = "neutral"
+
+        # 5. Bollinger
+        bollinger_state = states["bollinger_state"]
+        if bollinger_state == "below_lower":
+            score += 4
+            signals["bollinger_signal"] = "mean_reversion_upside"
+        elif bollinger_state == "above_upper":
+            score -= 4
+            signals["bollinger_signal"] = "mean_reversion_downside"
+        else:
+            signals["bollinger_signal"] = "neutral"
+
+        # Clamp
+        score = max(0.0, min(100.0, score))
+
+        if score >= 75:
+            label = "high"
+        elif score >= 55:
+            label = "medium"
+        else:
+            label = "low"
+
+        return {
+            "score": round(score, 2),
+            "label": label,
+            "signals": signals,
+        }
+
+    def build_analysis_payload(self, symbol: str, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+        """
+        Hàm tổng hợp cuối cùng:
+        - nhận raw df
+        - tính indicators
+        - build payload theo format cũ
+        """
         symbol = (symbol or "").strip().upper()
-        df = self.get_candles_from_db(symbol, period="daily")
+        calculated_df = self.calculate_indicators(df)
 
-        # Insufficient data for EMA100 crossover
-        if df.empty or len(df) < 110:
-            print(f"⚠️ {symbol}: Insufficient data ({len(df)} candles)")
+        if calculated_df.empty or len(calculated_df) < 2:
             return None
 
-        try:
-            # Standard Indicators
-            df.ta.sma(length=14, append=True)
-            df.ta.ema(length=14, append=True)
-            df.ta.rsi(length=14, append=True)
-            df.ta.macd(fast=12, slow=26, signal=9, append=True)
-            df.ta.bbands(length=20, std=2.0, append=True)
-            df.ta.stoch(k=14, d=3, smooth_k=3, append=True)
+        prev = calculated_df.iloc[-2]
+        last = calculated_df.iloc[-1]
 
-            # EMA Cross Signals (20 vs 100)
-            df.ta.ema(length=20, append=True)
-            df.ta.ema(length=100, append=True)
+        states = self._resolve_states(prev_row=prev, last_row=last, df=calculated_df)
+        confidence = self.calculate_confidence(states)
 
-            # Additional signals from original structure
-            df.ta.sma(length=20, append=True)
-            df.ta.sma(length=50, append=True)
-            df.ta.ema(length=12, append=True)
-            df.ta.ema(length=26, append=True)
-
-            prev = df.iloc[-2]
-            last = df.iloc[-1]
-            close_curr = self._safe_float(last.get("close"))
-
-            # Calculate the 20/100 EMA crossover signal
-            e20_p = self._safe_float(prev.get("EMA_20"))
-            e100_p = self._safe_float(prev.get("EMA_100"))
-            e20_c = self._safe_float(last.get("EMA_20"))
-            e100_c = self._safe_float(last.get("EMA_100"))
-
-            cross_signal_20_100 = "neutral"
-            if self._cross_up(e20_p, e100_p, e20_c, e100_c):
-                cross_signal_20_100 = "golden_cross"
-            elif self._cross_down(e20_p, e100_p, e20_c, e100_c):
-                cross_signal_20_100 = "death_cross"
-
-            # Bollinger Bands dynamic column lookup
-            bb_lower_col = next((c for c in df.columns if c.startswith("BBL_")), None)
-            bb_middle_col = next((c for c in df.columns if c.startswith("BBM_")), None)
-            bb_upper_col = next((c for c in df.columns if c.startswith("BBU_")), None)
-
-            # Build result dictionary preserving old structure
-            result = {
-                "symbol": symbol,
-                "price": round(close_curr, 2),
-                "indicators": {
-                    "rsi": round(self._safe_float(last.get("RSI_14")), 2),
-                    "macd": {
-                        "macd": round(self._safe_float(last.get("MACD_12_26_9")), 6),
-                        "signal": round(self._safe_float(last.get("MACDs_12_26_9")), 6),
-                    },
-                    "ema_20_100": {
-                        "ema_20": round(e20_c, 2),
-                        "ema_100": round(e100_c, 2),
-                        "signal": cross_signal_20_100
-                    },
-                    "bollinger_bands": {
-                        "lower": round(self._safe_float(last.get(bb_lower_col)), 2),
-                        "middle": round(self._safe_float(last.get(bb_middle_col)), 2),
-                        "upper": round(self._safe_float(last.get(bb_upper_col)), 2),
-                    },
-                    "summary": {
-                        "rsi_state": "overbought" if self._safe_float(last.get("RSI_14")) >= 70 else "oversold" if self._safe_float(last.get("RSI_14")) <= 30 else "neutral",
-                        "trend_20_100": "bullish" if e20_c > e100_c else "bearish"
-                    },
+        result = {
+            "symbol": symbol,
+            "price": round(states["close"], 2),
+            "indicators": {
+                "rsi": round(states["rsi"], 2),
+                "macd": {
+                    "macd": round(states["macd"], 6),
+                    "signal": round(states["macd_signal"], 6),
+                    "histogram": round(states["macd_histogram"], 6),
                 },
-                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            }
+                "ema_20_100": {
+                    "ema_20": round(states["ema_20"], 2),
+                    "ema_100": round(states["ema_100"], 2),
+                    "signal": states["ema_signal"],
+                },
+                "stochastic": {
+                    "k": round(states["stoch_k"], 2),
+                    "d": round(states["stoch_d"], 2),
+                },
+                "bollinger_bands": {
+                    "lower": round(states["bb_lower"], 2),
+                    "middle": round(states["bb_middle"], 2),
+                    "upper": round(states["bb_upper"], 2),
+                },
+                "summary": {
+                    "rsi_state": states["rsi_state"],
+                    "trend_20_100": states["trend_20_100"],
+                    "macd_state": states["macd_state"],
+                    "stochastic_state": states["stochastic_state"],
+                    "bollinger_state": states["bollinger_state"],
+                },
+            },
+            "confidence": confidence,
+            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
-            # Cache the result with 3-hour TTL
-            redis_key = f"{Config.REDIS_PREFIX}:analysis:{symbol}"
-            if self.redis_client:
-                self.redis_client.set(redis_key, json.dumps(result), ex=self.ttl)
-            return result
-
-        except Exception as e:
-            print(f"❌ Calculation Error for {symbol}: {e}")
-            return None
-
-    def run_warmup(self):
-        """Warmup Top 20 symbols."""
-        print(f"🚀 Warmup started at {time.strftime('%H:%M:%S')}")
-        symbols = self.get_top_volume_symbols(20)
-        if not symbols: return
-        for s in symbols:
-            self.process_and_cache(s)
-        print("🏁 Warmup finished.")
-
-if __name__ == "__main__":
-    service = IndicatorService()
-    service.run_warmup()
+        return result

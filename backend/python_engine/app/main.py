@@ -1,6 +1,7 @@
 import uvicorn
 import logging
 import asyncio
+from threading import Lock
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,52 +12,67 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from app.data_collect.collectors.stock_sync import DSATurbo
 from app.analyze.ranking.stock_compare import MarketSyncService
-from app.analyze.indicator.engine import IndicatorService
 from app.services.chatbot import chatbot_service
 from app.socket.events import router as websocket_router
 from app.api.routes.embed import router as embed_router
-
 from app.analyze.analysis_cache import analysis_cache_service
 from app.analyze.auto_analyze import auto_analyze_service
+from app.data_collect.collectors.news_handle import run_daily_update
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
+# tránh scheduler job chạy chồng nhau
+pipeline_lock = Lock()
+news_lock = Lock()
 
-def run_market_pipeline():
+
+def run_ranking_sync():
     """
-    Quy trình tự động hóa toàn diện:
-    1. Đồng bộ dữ liệu Yahoo Finance
-    2. Cập nhật ranking / heatmap vào Redis
-    3. Warmup technical indicators
+    Lightweight scheduled job:
+    - Update ranking / heatmap
     """
-    logger.info("🚀 [Schedule] Starting Market Pipeline...")
+    if not pipeline_lock.acquire(blocking=False):
+        logger.warning("⚠️ Ranking sync skipped because previous run is still active.")
+        return
+
     try:
-        sync_service = DSATurbo()
-        sync_service.run()
-
+        logger.info("🚀 [Schedule] Starting ranking sync...")
         ranking_service = MarketSyncService()
         ranking_service.sync()
-
-        indicator_service = IndicatorService()
-        indicator_service.run_warmup()
-
-        logger.info("✅ [Schedule] Market Pipeline completed successfully.")
+        logger.info("✅ [Schedule] Ranking sync completed.")
     except Exception as e:
-        logger.error(f"❌ [Schedule] Pipeline Error: {str(e)}")
+        logger.error(f"❌ [Schedule] Ranking sync error: {str(e)}", exc_info=True)
+    finally:
+        pipeline_lock.release()
+
+
+def run_news_daily_update():
+    """
+    Heavy scheduled job:
+    - Incremental news update
+    - Writes docs + inference results
+    """
+    if not news_lock.acquire(blocking=False):
+        logger.warning("⚠️ Daily news update skipped because previous run is still active.")
+        return
+
+    try:
+        logger.info("🚀 [Schedule] Starting daily news update...")
+        run_daily_update(lookback_days=1)
+        logger.info("✅ [Schedule] Daily news update completed.")
+    except Exception as e:
+        logger.error(f"❌ [Schedule] Daily news update error: {str(e)}", exc_info=True)
+    finally:
+        news_lock.release()
 
 
 async def warmup_top_stocks():
     """
     Warm-up analysis cache:
-    - Lấy top 100 stock từ Redis ranking
-    - Nếu chưa có cache analysis thì gọi auto_analyze
-    - Lưu Redis TTL 3h
+    - Get top 100 symbols from ranking
+    - If cache missing, call auto_analyze
+    - Save final payload into Redis
     """
     try:
         symbols = await analysis_cache_service.get_top_symbols_from_ranking(
@@ -85,40 +101,59 @@ async def warmup_top_stocks():
                         clean_text=f"Analyze stock {symbol}",
                     )
 
-                    response_payload = analyzed.get("response", {})
-                    await analysis_cache_service.set_analysis(symbol, response_payload)
+                    if not analyzed or not isinstance(analyzed, dict):
+                        logger.warning(f"⚠️ Invalid analysis payload for {symbol}")
+                        return
 
-                    logger.info(f"✅ Warmed analysis cache for {symbol}")
+                    success = await analysis_cache_service.set_analysis(symbol, analyzed)
+                    if success:
+                        logger.info(f"✅ Warmed analysis cache for {symbol}")
+                    else:
+                        logger.error(f"❌ Failed to save warmed cache for {symbol}")
+
                 except Exception as e:
-                    logger.error(f"❌ Warmup failed for {symbol}: {e}")
+                    logger.error(f"❌ Warmup failed for {symbol}: {e}", exc_info=True)
 
         await asyncio.gather(*(process_symbol(symbol) for symbol in symbols))
         logger.info("✅ Warm-up analysis finished")
 
     except Exception as e:
-        logger.error(f"❌ Warm-up analysis error: {e}")
+        logger.error(f"❌ Warm-up analysis error: {e}", exc_info=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Quản lý vòng đời hệ thống:
+    App lifecycle:
     - start scheduler
-    - chạy warm-up cache khi app khởi động
+    - run warmup task on startup
     """
     scheduler = BackgroundScheduler()
 
+    # 1) ranking sync mỗi giờ
     scheduler.add_job(
-        run_market_pipeline,
-        "interval",
+        run_ranking_sync,
+        trigger="interval",
         hours=1,
         next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # 2) daily news update mỗi ngày
+    scheduler.add_job(
+        run_news_daily_update,
+        trigger="interval",
+        hours=24,
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
     )
 
     scheduler.start()
-    logger.info("📅 Background Scheduler started with 1-hour interval.")
+    logger.info("📅 Background Scheduler started.")
 
-    # Chạy warmup nền, không block app start
+    # warmup nền khi app khởi động
     asyncio.create_task(warmup_top_stocks())
     logger.info("🔥 Warm-up analysis task created.")
 
@@ -130,7 +165,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Financial AI Analyst API",
-    description="Hệ thống phân tích chứng khoán tích hợp Scheduler và Realtime Data",
+    description="Stock analysis system with scheduling and real-time support",
     version="2.1.0",
     lifespan=lifespan,
 )
@@ -177,9 +212,13 @@ async def chat_endpoint(payload: ChatRequest):
         )
         return result
     except Exception as e:
-        logger.error(f"Chat Error: {str(e)}")
+        logger.error(f"Chat Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    )
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
