@@ -10,3 +10,5 @@ require base_path('/platform/plugins/trading/src/Routes/MarketTickRoute.php');
 require base_path('/platform/plugins/trading/src/Routes/AnalysistRoute.php');
 require base_path('/platform/plugins/trading/src/Routes/RankingRoute.php');
 require base_path('/platform/plugins/trading/src/Routes/CompanyRoute.php');
+
+require base_path('/routes/elastic.php');

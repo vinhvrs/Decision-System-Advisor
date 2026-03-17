@@ -1,6 +1,6 @@
 <?php
 
-namespace Platform\Plugins\Advisor\Src\ResponseComposer;
+namespace Platform\Plugins\Advisor\Src\Services\ResponseComposer;
 
 use App\DTO\DecisionResult;
 
