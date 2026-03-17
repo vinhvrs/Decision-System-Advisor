@@ -414,8 +414,15 @@ def fetch_corporate_actions(
             return
 
         if start_dt is not None:
+            # Ensure timezone-aware comparison is valid by aligning tz info
+            idx = actions.index
+            if idx.tz is not None and start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=idx.tz)
             actions = actions[actions.index >= start_dt]
         if end_dt is not None:
+            idx = actions.index
+            if idx.tz is not None and end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=idx.tz)
             actions = actions[actions.index <= end_dt]
 
         if actions.empty:

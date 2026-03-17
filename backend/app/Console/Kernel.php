@@ -13,6 +13,8 @@ use App\Console\Commands\FetchCompanyProfile;
 use App\Console\Commands\ExtractNewsEvents;
 use App\Console\Commands\EmbedNewsChunks;
 use App\Console\Commands\TestQdrantSemantic;
+use App\Console\Commands\ElasticSetupCommand;
+use App\Console\Commands\ElasticReindexCommand;
 use Illuminate\Support\Facades\Log;
 
 
@@ -20,16 +22,18 @@ class Kernel extends ConsoleKernel
 {
     protected $commands = [
         // FetchStockAttributes::class,
-        DataPeriods::class,
-        FetchCompanyProfile::class,
-        FetchMarketNews::class,
-        SmoothTest::class,
-        LiquidityRebuild::class,
-        HeatmapRebuild::class,
-        MarketMove::class,
-        TestQdrantSemantic::class,
-        ExtractNewsEvents::class,
-        EmbedNewsChunks::class,
+        // DataPeriods::class,
+        // FetchCompanyProfile::class,
+        // FetchMarketNews::class,
+        // SmoothTest::class,
+        // LiquidityRebuild::class,
+        // HeatmapRebuild::class,
+        // MarketMove::class,
+        // TestQdrantSemantic::class,
+        // ExtractNewsEvents::class,
+        // EmbedNewsChunks::class,
+        ElasticSetupCommand::class,
+        ElasticReindexCommand::class,
     ];
     protected $middlewareGroups = [
         'api' => [

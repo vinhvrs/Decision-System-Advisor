@@ -4,14 +4,17 @@ import bgImg from "@/src/assets/images/bg-landingpage.jpg";
 import Card from "@/src/sections/Card";
 import TradingChart from "@/src/components/charts/page";
 import ChatBox from "@/src/components/chatbox/page";
-import NewsCard from "@/src/components/news/NewsCard";
 import HotNews from "@/src/components/news/HotNews";
 import GainLoss from "@/src/components/gainloss/GainLoss";
 import Heatmap from "@/src/components/analyze/heatmap/page";
+import Footer from "@/src/components/footer/page";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react"; // Thêm icon Clock cho đẹp
 
 export default function HomePage() {
+  
   return (
-    <main className="text-white">
+    <main className="text-white bg-[#0b1220]">
       {/* ================= HERO ================= */}
       <section className="relative min-h-[105vh] flex items-end overflow-hidden">
         <Image
@@ -29,7 +32,7 @@ export default function HomePage() {
               Decision Stocks Advisor
             </h1>
             <p className="mt-4 text-lg md:text-2xl text-white/80">
-              All information you need — chart, indicators, and news in one place.
+              All information you need — chart, indicators, news, heatmap, and market movers in one place.
             </p>
 
             <div className="mt-8 flex gap-3">
@@ -40,7 +43,7 @@ export default function HomePage() {
                 View Dashboard
               </a>
               <a
-                href="/news"
+                href="#market-news"
                 className="px-5 py-2 rounded border border-white/60 text-white"
               >
                 Explore News
@@ -53,7 +56,6 @@ export default function HomePage() {
       {/* ================= DASHBOARD ================= */}
       <section id="dashboard" className="px-6 py-10 bg-[#0b1220]">
         <div className="max-w-screen-xl mx-auto space-y-8">
-
           {/* Header */}
           <div>
             <h2 className="text-2xl font-bold">Stock Dashboard</h2>
@@ -62,18 +64,15 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* ===== ROW 1: CHART (2 ô) + CARD ===== */}
+          {/* ===== ROW 1: CHART + SIDE CARD ===== */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            {/* Chart */}
-            <Card className="lg:col-span-8 h-[650px] overflow-hidden">
+            <Card className="lg:col-span-8 h-[620px] overflow-hidden">
               <div className="h-full w-full">
-                <TradingChart />
+                <TradingChart defaultSymbol="NVDA" isFixed={false} />
               </div>
             </Card>
 
-            {/* Major Indices Card */}
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-4 space-y-6">
               <Card title="Major indices">
                 <ul className="space-y-3 text-sm">
                   <li className="flex justify-between">
@@ -94,13 +93,36 @@ export default function HomePage() {
                   </li>
                 </ul>
               </Card>
+
+              <Card title="Quick watchlist">
+                <ul className="space-y-3 text-sm">
+                  <li className="flex justify-between">
+                    <span>AAPL</span>
+                    <span className="text-green-400">+1.18%</span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>MSFT</span>
+                    <span className="text-green-400">+0.63%</span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>NVDA</span>
+                    <span className="text-green-400">+2.41%</span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>AMD</span>
+                    <span className="text-red-400">-0.37%</span>
+                  </li>
+                </ul>
+              </Card>
             </div>
           </div>
 
-          {/* ===== ROW 2: 3 CARDS ===== */}
+          {/* ===== ROW 2: MARKET CARDS ===== */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-            <Card title="Crypto market cap" rightSlot={<span className="text-green-400">+0.01%</span>}>
+            <Card
+              title="Crypto market cap"
+              rightSlot={<span className="text-green-400">+0.01%</span>}
+            >
               <p className="text-2xl font-bold">$2.94T</p>
               <p className="text-xs text-white/50 mt-1">Last 24h</p>
             </Card>
@@ -140,31 +162,95 @@ export default function HomePage() {
             </Card>
           </div>
 
-          {/* ===== CHAT ===== */}
-          {/* <Card title="AI Analyst">
-            <ChatBox />
-          </Card> */}
+          {/* ===== ROW 3: WATCHLIST CHARTS ===== */}
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-lg font-semibold">Watchlist Workspace</h3>
+              <p className="text-sm text-white/60">
+                Quick monitoring for major technology stocks.
+              </p>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="h-[520px] overflow-hidden p-0">
+                <div className="h-full w-full">
+                  <TradingChart defaultSymbol="AAPL" isFixed />
+                </div>
+              </Card>
+
+              <Card className="h-[520px] overflow-hidden p-0">
+                <div className="h-full w-full">
+                  <TradingChart defaultSymbol="MSFT" isFixed />
+                </div>
+              </Card>
+
+              <Card className="h-[520px] overflow-hidden p-0">
+                <div className="h-full w-full">
+                  <TradingChart defaultSymbol="AMD" isFixed />
+                </div>
+              </Card>
+            </div>
+          </div>
         </div>
       </section>
 
-      <ChatBox />
+      {/* ================= CHATBOX ================= */}
+      {/* <ChatBox /> */}
 
-      {/* ================= Hot News ================= */}
-      <section className="px-6 py-16 bg-[#0b1220]">
-        <HotNews />
+      {/* ================= HOT NEWS ================= */}
+      <section id="market-news" className="px-6 py-10 bg-[#0b1220]">
+        <div className="max-w-screen-xl mx-auto space-y-2">
+            <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Hot Market News</h2>
+              <p className="text-white/70 mt-1">
+              Highlighted stories affecting the market right now.
+              </p>
+            </div>
+            <Link
+              href="/news"
+              className="text-sm text-blue-400 hover:underline flex items-center gap-1 group py-10"
+            >
+              View all
+              <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+            </div>
+          <HotNews />
+        </div>
       </section>
 
-      {/* ================= Gain / Loss ================= */}
-      <section className="px-6 py-16 bg-[#0b1220]">
-        <GainLoss />
+      {/* ================= TOP GAIN / LOSS ================= */}
+      <section className="px-6 py-16 bg-[#0b1220] border-t border-white/5">
+        <div className="max-w-screen-xl mx-auto space-y-2">
+          <div>
+            <h2 className="text-2xl font-bold">Top Gainers / Losers</h2>
+            <p className="text-white/70 mt-1">
+              Daily market movers ranked by strongest positive and negative performance.
+            </p>
+          </div>
+
+          {/* <Card> */}
+            <GainLoss />
+          {/* </Card> */}
+        </div>
       </section>
 
-      {/* ================= Heatmap ================= */}
-      <section className="px-6 py-16 bg-[#0b1220]">
-        <Heatmap />
-      </section>
+      {/* ================= HEATMAP ================= */}
+      <section className="px-6 py-16 bg-[#0b1220] border-t border-white/5">
+        <div className="max-w-screen-xl mx-auto space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold">Market Heatmap</h2>
+            <p className="text-white/70 mt-1">
+              Sector and stock performance overview by size and daily change.
+            </p>
+          </div>
 
+          <Card>
+            <Heatmap />
+          </Card>
+        </div>
+      </section>
+          <Footer />
     </main>
   );
 }

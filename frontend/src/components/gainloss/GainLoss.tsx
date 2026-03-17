@@ -93,7 +93,7 @@ export default function GainLoss() {
   return (
     <section className="px-6 py-16 bg-[#0b1220] border-t border-white/5">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        {/* <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
               <GainLossLogo />
@@ -103,7 +103,7 @@ export default function GainLoss() {
           <span className="text-[10px] font-mono text-gray-500 bg-white/5 px-3 py-1 rounded-full border border-white/5 uppercase tracking-widest">
             Live updates
           </span>
-        </div>
+        </div> */}
 
         {loading ? (
           <div className="h-[300px] flex flex-col items-center justify-center gap-4 text-blue-500/50">

@@ -24,7 +24,7 @@ export default function Header() {
   const navLinks = [
     { label: "News", href: "/news" },
     { label: "Company", href: "/companies" },
-    { label: "Indicator", href: "/indicators" },
+    { label: "Indicators", href: "/indicators" },
     { label: "Strategy", href: "/strategy" },
     { label: "Documents", href: "/documents" },
     { label: "Contact", href: "/contact" },
@@ -32,24 +32,21 @@ export default function Header() {
 
   useEffect(() => {
     // auth from localStorage
-    try {
-      const userString = localStorage.getItem("user");
-      if (userString) setUser(JSON.parse(userString));
-    } catch {
-      setUser(null);
-    } finally {
-      setIsCheckingAuth(false);
-    }
-
-    const handleStorageChange = () => {
+    const checkAuth = () => {
       try {
         const userString = localStorage.getItem("user");
-        setUser(userString ? JSON.parse(userString) : null);
+        if (userString) setUser(JSON.parse(userString));
+        else setUser(null);
       } catch {
         setUser(null);
+      } finally {
+        setIsCheckingAuth(false);
       }
     };
 
+    checkAuth();
+
+    const handleStorageChange = () => checkAuth();
     window.addEventListener("storage", handleStorageChange);
 
     // scroll effect
@@ -77,15 +74,15 @@ export default function Header() {
         className="flex items-center gap-1 text-sm font-medium text-white/80 hover:text-white transition"
       >
         <LogIn size={16} />
-        Đăng nhập
+        Sign In
       </Link>
 
       <Link
-        href="/auth/login"
-        className="hidden sm:inline-flex items-center gap-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition"
+        href="/auth/login" // You can change to /auth/register if you split the pages
+        className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition shadow-lg shadow-indigo-500/20"
       >
         <UserPlus size={16} />
-        Đăng ký
+        Sign Up
       </Link>
     </>
   );
@@ -95,29 +92,29 @@ export default function Header() {
       className={[
         "sticky top-0 z-50 border-b transition",
         isScrolled
-          ? "bg-[#0B1220]/85 backdrop-blur border-white/10"
+          ? "bg-[#0b0e14]/90 backdrop-blur-md border-white/10"
           : "bg-transparent border-transparent",
       ].join(" ")}
     >
-      <div className="max-w-full mx-auto flex justify-between items-center h-14 px-4">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-2xl font-extrabold text-white">
-            DSA
+      <div className="max-w-full mx-auto flex justify-between items-center h-16 px-4 lg:px-8">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="text-2xl font-black tracking-tighter text-white">
+            DSA<span className="text-indigo-500">.</span>
           </Link>
 
-          <div className="relative hidden md:block w-64 lg:w-80">
+          <div className="relative hidden md:block w-64 lg:w-96">
             <input
               type="text"
-              placeholder="Tìm kiếm mã cổ phiếu, tin tức..."
-              className="p-2 pl-10 rounded-full w-full bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/40
-                         focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+              placeholder="Search symbols, news..."
+              className="py-2 pl-10 pr-4 rounded-xl w-full bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:bg-white/10 transition-all"
             />
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <nav className="hidden lg:flex items-center space-x-1">
+          <nav className="hidden lg:flex items-center space-x-1 mr-4">
             {navLinks.map((link) => {
               const active = isActive(link.href);
               return (
@@ -125,10 +122,10 @@ export default function Header() {
                   key={link.label}
                   href={link.href}
                   className={[
-                    "px-3 py-2 rounded-lg text-sm font-medium transition",
+                    "px-3 py-2 rounded-lg text-sm font-medium transition-all",
                     active
                       ? "bg-white/10 text-white"
-                      : "text-white/70 hover:text-white hover:bg-white/5",
+                      : "text-white/60 hover:text-white hover:bg-white/5",
                   ].join(" ")}
                 >
                   {link.label}
@@ -137,23 +134,30 @@ export default function Header() {
             })}
           </nav>
 
-          <button
-            className="lg:hidden p-2 rounded-lg hover:bg-white/5 transition"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X size={24} className="text-white" /> : <Menu size={24} className="text-white" />}
-          </button>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <UserProfileDropdown user={user} />
+            ) : (
+              renderAuthButtons()
+            )}
 
-          {user ? <UserProfileDropdown user={user} /> : renderAuthButtons()}
+            <button
+              className="lg:hidden p-2 rounded-lg hover:bg-white/5 transition"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X size={24} className="text-white" /> : <Menu size={24} className="text-white" />}
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Mobile Menu */}
       <div
         className={`lg:hidden transition-all duration-300 ease-in-out overflow-hidden ${
-          isMenuOpen ? "max-h-96 opacity-100 py-2" : "max-h-0 opacity-0"
+          isMenuOpen ? "max-h-screen opacity-100 py-4 bg-[#0b0e14]" : "max-h-0 opacity-0"
         } border-t border-white/10`}
       >
-        <nav className="flex flex-col space-y-1 px-2">
+        <nav className="flex flex-col space-y-1 px-4">
           {navLinks.map((link) => {
             const active = isActive(link.href);
             return (
@@ -162,8 +166,8 @@ export default function Header() {
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
                 className={[
-                  "px-3 py-2 rounded-md text-sm font-medium transition",
-                  active ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/5 hover:text-white",
+                  "px-4 py-3 rounded-xl text-base font-medium transition",
+                  active ? "bg-indigo-600/20 text-indigo-400" : "text-white/70 hover:bg-white/5",
                 ].join(" ")}
               >
                 {link.label}
@@ -172,20 +176,20 @@ export default function Header() {
           })}
 
           {!user && (
-            <div className="flex gap-4 p-3 border-t border-white/10 mt-2">
+            <div className="flex flex-col gap-3 pt-4 border-t border-white/10 mt-4">
               <Link
                 href="/auth/login"
-                className="flex items-center gap-2 text-sm font-medium text-white/80 hover:text-white"
+                className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white/80 border border-white/10 hover:bg-white/5"
                 onClick={() => setIsMenuOpen(false)}
               >
-                <LogIn size={18} /> Đăng nhập
+                <LogIn size={18} /> Sign In
               </Link>
               <Link
                 href="/auth/login"
-                className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300"
+                className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700"
                 onClick={() => setIsMenuOpen(false)}
               >
-                <UserPlus size={18} /> Đăng ký
+                <UserPlus size={18} /> Sign Up
               </Link>
             </div>
           )}

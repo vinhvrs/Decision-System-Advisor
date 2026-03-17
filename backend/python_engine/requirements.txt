@@ -27,7 +27,7 @@ redis
 # Data Processing & Finance
 # ==========================================================
 pandas
-#pandas-ta
+pandas-ta
 beautifulsoup4
 feedparser
 yliveticker
