@@ -77,6 +77,7 @@ export function userMapper(apiData: UserAPI): User {
         username: apiData.username,
         email: apiData.email,
         phone: apiData.phone,
+        role: apiData.role,
     };
 }
 

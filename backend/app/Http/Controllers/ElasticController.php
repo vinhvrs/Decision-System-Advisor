@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Services\Elastic\ElasticCompanyProfileService;
+use App\Services\Elastic\ElasticCompanySearchService;
 use App\Services\Elastic\ElasticKnowledgeDocService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,8 +14,61 @@ class ElasticController extends Controller
 {
     public function __construct(
         protected ElasticCompanyProfileService $companyProfileService,
+        protected ElasticCompanySearchService $companySearchService,
         protected ElasticKnowledgeDocService $knowledgeDocService
     ) {}
+
+    /**
+     * Health check for Elasticsearch cluster.
+     */
+    public function health(): JsonResponse
+    {
+        try {
+            $health = $this->companySearchService->health();
+            return response()->json([
+                'success' => true,
+                'data' => $health,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Elasticsearch unreachable.',
+                'error' => $e->getMessage(),
+            ], 503);
+        }
+    }
+
+    /**
+     * Search companies by name or symbol (simplified API).
+     * GET /elastic/search?q=aapl&size=20
+     */
+    public function search(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'q' => ['required', 'string', 'max:200'],
+                'size' => ['nullable', 'integer', 'min:1', 'max:50'],
+                'from' => ['nullable', 'integer', 'min:0'],
+            ]);
+
+            $result = $this->companySearchService->search(
+                query: $validated['q'],
+                size: (int) ($validated['size'] ?? 20),
+                from: (int) ($validated['from'] ?? 0),
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Search failed.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     public function searchCompanies(Request $request): JsonResponse
     {

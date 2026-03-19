@@ -42,6 +42,8 @@ class ConnectionManager:
         self.base_symbols: Set[str] = set()
         self.current_streaming_symbols: Set[str] = set()
         self._lock = threading.Lock()
+        # Store current period candle (open, high, low, close, volume, time) per symbol for gap-free socket
+        self._current_candle_cache: Dict[str, Dict[str, Any]] = {}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -52,34 +54,89 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         with self._lock:
             self.active_connections.pop(websocket, None)
-        if not self.active_connections:
-            self.stop_engine()
+        # Giữ kết nối Yahoo luôn chạy để tránh bị block do reconnect quá nhiều
+        # → chỉ dọn connection client, không tắt engine.
 
-    def update_subscription(self, websocket: WebSocket, symbols: List[str]):
+    def update_subscription(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
         new_symbols = {s.upper() for s in symbols if s}
         with self._lock:
             self.active_connections[websocket] = new_symbols
-        
-        # Gửi ngay giá hiện tại từ DB/Snapshot để user thấy data ngay lập tức
-        asyncio.run_coroutine_threadsafe(self.send_initial_data(websocket, list(new_symbols)), self.loop)
+
+        # Fetch and store current candle from DB, then send initial data (open from DB, socket continues with price only)
+        asyncio.run_coroutine_threadsafe(
+            self.send_initial_data(websocket, list(new_symbols), period), self.loop
+        )
 
         current_all = self.get_all_needed_symbols()
         if not set(current_all).issubset(self.current_streaming_symbols):
             self.start_or_restart_engine()
 
-    async def send_initial_data(self, websocket: WebSocket, symbols: List[str]):
-        """Mẹo để thấy data realtime 'giả' ngay khi subscribe"""
+    def _fetch_current_candle(self, symbol: str, period: str) -> Dict[str, Any] | None:
+        """Fetch current period candle from DB for open price. Store in cache. Keep format: open, high, low, close, volume, time."""
         try:
-            # Ở đây bạn có thể query từ bảng 'instruments' hoặc 'instrument_snapshot'
-            # Để demo nhanh, mình sẽ gửi một bản tin khởi tạo
+            conn = pymysql.connect(**DB_CONFIG)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT d.open, d.high, d.low, d.close, d.volume, d.timestamps
+                    FROM instrument_data d
+                    JOIN instrument_periods p ON p.id = d.instrument_period_id
+                    JOIN instruments i ON i.id = p.instrument_id
+                    WHERE UPPER(TRIM(i.symbol)) = %s AND p.period = %s
+                    ORDER BY d.timestamps DESC
+                    LIMIT 1
+                """, (symbol.upper(), period))
+                row = cur.fetchone()
+            conn.close()
+            if not row or row.get("open") is None:
+                return None
+            ts = row.get("timestamps")
+            try:
+                if isinstance(ts, str):
+                    from datetime import datetime
+                    ts_clean = ts.replace("Z", "").replace("+00:00", "").strip()
+                    time_ms = int(time.time() * 1000)
+                    for fmt, length in (("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%dT%H:%M:%S", 19), ("%Y-%m-%d", 10)):
+                        try:
+                            s = ts_clean[:length] if len(ts_clean) >= length else ts_clean
+                            dt = datetime.strptime(s, fmt)
+                            time_ms = int(dt.timestamp() * 1000)
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                else:
+                    time_ms = int(float(ts) * 1000) if ts else int(time.time() * 1000)
+            except Exception:
+                time_ms = int(time.time() * 1000)
+            candle = {
+                "open": float(row["open"] or 0),
+                "high": float(row["high"] or row["open"] or 0),
+                "low": float(row["low"] or row["open"] or 0),
+                "close": float(row["close"] or row["open"] or 0),
+                "volume": int(row["volume"] or 0),
+                "time": time_ms,
+            }
+            with self._lock:
+                self._current_candle_cache[symbol.upper()] = candle
+            return candle
+        except Exception as e:
+            print(f"[Socket] Fetch current candle error for {symbol}: {e}")
+            return None
+
+    async def send_initial_data(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
+        """Fetch current candle from DB (open price), store it, send in initial_quote. Socket continues with price only (no open)."""
+        try:
             for symbol in symbols:
-                await websocket.send_text(json.dumps({
+                candle = self._fetch_current_candle(symbol, period)
+                payload = {
                     "type": "initial_quote",
                     "symbol": symbol,
                     "status": "watching",
                     "ts": int(time.time() * 1000),
-                    "note": "Waiting for next trade from Yahoo..."
-                }))
+                    "note": "Waiting for next trade from Yahoo...",
+                }
+                if candle:
+                    payload["current_candle"] = candle
+                await websocket.send_text(json.dumps(payload))
         except Exception as e:
             print(f"Initial send error: {e}")
 
@@ -114,24 +171,49 @@ class ConnectionManager:
         self.yahoo_ticker = None
 
     def _yahoo_worker(self, symbols: List[str]):
+        """
+        Worker giữ kết nối lâu dài tới Yahoo:
+        - Nếu có lỗi / disconnect → sleep vài giây rồi tự reconnect.
+        - Chỉ dừng hẳn khi self.stop_event được set (shutdown server).
+        """
+
         def on_msg(ws, msg):
-            if self.stop_event.is_set(): return
+            if self.stop_event.is_set():
+                return
             payload = {
                 "type": "quote",
-                "symbol": msg.get('id', '').upper(),
-                "price": msg.get('price'),
-                "change": msg.get('changePercent'),
-                "volume": int(msg.get('volume') or msg.get('dayVolume') or 0),
-                "ts": int(time.time() * 1000)
+                "symbol": msg.get("id", "").upper(),
+                "price": msg.get("price"),
+                "change": msg.get("changePercent"),
+                "volume": int(msg.get("volume") or msg.get("dayVolume") or 0),
+                "ts": int(time.time() * 1000),
             }
             if self.loop and self.loop.is_running():
                 asyncio.run_coroutine_threadsafe(self._broadcast(payload), self.loop)
 
-        try:
-            self.yahoo_ticker = YLiveTicker(on_msg, symbols)
-            self.yahoo_ticker.start()
-            while not self.stop_event.is_set(): time.sleep(1)
-        except Exception as e: print(f"Yahoo Error: {e}")
+        backoff = 5
+        while not self.stop_event.is_set():
+            try:
+                print(f"[Yahoo] Connecting for symbols: {symbols}")
+                self.yahoo_ticker = YLiveTicker(on_msg, symbols)
+                self.yahoo_ticker.start()
+
+                # Giữ vòng lặp cho tới khi server shutdown
+                while not self.stop_event.is_set():
+                    time.sleep(1)
+
+                break  # shutdown requested
+            except Exception as e:
+                print(f"[Yahoo] Error, will reconnect in {backoff}s: {e}")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 60)  # exponential up to 60s
+            finally:
+                if self.yahoo_ticker:
+                    try:
+                        self.yahoo_ticker.stop()
+                    except Exception:
+                        pass
+                    self.yahoo_ticker = None
 
     async def _broadcast(self, payload: dict):
         msg_symbol = payload['symbol']
@@ -172,6 +254,10 @@ async def websocket_endpoint(websocket: WebSocket):
             raw_data = await websocket.receive_text()
             data = json.loads(raw_data)
             if data.get("type") == "subscribe":
-                manager.update_subscription(websocket, data.get("symbols", []))
+                manager.update_subscription(
+                    websocket,
+                    data.get("symbols", []),
+                    data.get("period", "daily"),
+                )
     except WebSocketDisconnect:
         manager.disconnect(websocket)

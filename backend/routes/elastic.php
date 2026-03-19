@@ -1,10 +1,12 @@
 <?php
-namespace App\Routes;
 
-use App\Http\Controllers\Api\ElasticController;
+use App\Http\Controllers\ElasticController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('elastic')->group(function () {
+    Route::get('/health', [ElasticController::class, 'health']);
+    Route::get('/search', [ElasticController::class, 'search']);
+
     Route::get('/companies', [ElasticController::class, 'searchCompanies']);
     Route::get('/companies/symbol/{symbol}', [ElasticController::class, 'companyBySymbol']);
     Route::post('/companies/reindex', [ElasticController::class, 'reindexCompanies']);

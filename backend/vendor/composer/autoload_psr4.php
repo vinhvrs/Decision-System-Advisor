@@ -56,6 +56,7 @@ return array(
     'Psr\\Clock\\' => array($vendorDir . '/psr/clock/src'),
     'Psr\\Cache\\' => array($vendorDir . '/psr/cache/src'),
     'Predis\\' => array($vendorDir . '/predis/predis/src'),
+    'Platform\\Plugins\\Users\\Src\\' => array($baseDir . '/platform/plugins/users/src'),
     'Platform\\Plugins\\Trading\\Src\\' => array($baseDir . '/platform/plugins/trading/src'),
     'Platform\\Plugins\\Systemcore\\Src\\' => array($baseDir . '/platform/plugins/systemcore/src'),
     'Platform\\Plugins\\DataImport\\Src\\' => array($baseDir . '/platform/plugins/dataImport/src'),

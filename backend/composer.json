@@ -34,7 +34,8 @@
             "Platform\\Plugins\\Trading\\Src\\": "platform/plugins/trading/src/",
             "Platform\\Plugins\\Advisor\\Src\\": "platform/plugins/advisor/src/",
             "Platform\\Plugins\\Systemcore\\Src\\": "platform/plugins/systemcore/src/",
-            "Platform\\Plugins\\DataImport\\Src\\": "platform/plugins/dataImport/src/"
+            "Platform\\Plugins\\DataImport\\Src\\": "platform/plugins/dataImport/src/",
+            "Platform\\Plugins\\Users\\Src\\": "platform/plugins/users/src/"
         }
     },
     "autoload-dev": {

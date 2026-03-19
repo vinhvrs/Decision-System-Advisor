@@ -250,7 +250,7 @@ const StockRankingPage = () => {
                 {stocks.length > 0 ? (
                   stocks.map((stock, index) => (
                     <StockRow
-                      key={stock.symbol}
+                      key={stock.id ?? `${stock.symbol}-${index}`}
                       stock={stock}
                       index={index}
                       onHover={setHoveredStock}

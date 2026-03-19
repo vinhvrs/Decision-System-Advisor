@@ -26,7 +26,7 @@ export default function Card({
       )}
     >
       {(title || rightSlot) && (
-        <div className="flex items-center justify-between px-5 pt-4">
+        <div className="flex items-center justify-between px-4 tablet:px-5 pt-3 tablet:pt-4">
           <div>
             {title && (
               <h3 className="text-sm font-semibold text-white">
@@ -48,7 +48,7 @@ export default function Card({
         </div>
       )}
 
-      <div className="px-5 pb-5 pt-3">
+      <div className="px-4 tablet:px-5 pb-4 tablet:pb-5 pt-2 tablet:pt-3">
         {children}
       </div>
     </div>

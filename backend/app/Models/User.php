@@ -13,6 +13,11 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasUuids;
 
+    public const ROLE_ADMIN = 'admin';
+    public const ROLE_STAFF = 'staff';
+    public const ROLE_PAID = 'paid';
+    public const ROLE_UNPAID = 'unpaid';
+
     protected $keyType = 'string';
     public $incrementing = false;
 
@@ -26,6 +31,7 @@ class User extends Authenticatable
         'name',
         'email',
         'phone',
+        'role',
         'password',
     ];
 
