@@ -34,6 +34,7 @@ class Kernel extends ConsoleKernel
         // EmbedNewsChunks::class,
         ElasticSetupCommand::class,
         ElasticReindexCommand::class,
+        \App\Console\Commands\ElasticTestCommand::class,
     ];
     protected $middlewareGroups = [
         'api' => [

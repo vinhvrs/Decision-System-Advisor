@@ -10,7 +10,8 @@ import {
   Layers
 } from 'lucide-react';
 
-import LightChart from '@/src/components/charts/LightChart'; 
+import LightChart from '@/src/components/charts/LightChart';
+import AddToWatchlistButton from '@/src/components/watchlist/AddToWatchlistButton'; 
 import FundamentalRadar from './FundamentalRadar';
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service"; 
@@ -148,18 +149,18 @@ const StockProfile = ({ params }: Props) => {
   );
 
   return (
-    <div className="bg-[#0b0e11] min-h-screen text-gray-300 p-4 md:p-8 font-sans">
+    <div className="bg-[#0b0e11] min-h-screen text-gray-300 p-4 phone:p-5 tablet:p-6 laptop:p-8 font-sans">
       <div className="max-w-7xl mx-auto">
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between mb-8 border-b border-gray-800 pb-8 gap-6 items-start md:items-center">
+        <div className="flex flex-col tablet:flex-row justify-between mb-6 tablet:mb-8 border-b border-gray-800 pb-6 tablet:pb-8 gap-4 tablet:gap-6 items-start tablet:items-center">
           <div className="flex items-center gap-6">
             <div className="relative group">
                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-400 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-               <img src={details?.image || instrument?.image} className="relative w-16 h-16 bg-white rounded-xl p-2 object-contain" alt={instrument?.symbol} />
+               <img src={details?.image || instrument?.image} className="relative w-12 h-12 phone:w-14 phone:h-14 tablet:w-16 tablet:h-16 bg-white rounded-xl p-2 object-contain" alt={instrument?.symbol} />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-black text-white tracking-tight uppercase">{details?.company_name || instrument?.name}</h1>
+              <div className="flex items-center gap-2 tablet:gap-3">
+                <h1 className="text-xl phone:text-2xl tablet:text-3xl font-black text-white tracking-tight uppercase">{details?.company_name || instrument?.name}</h1>
                 <ShieldCheck className="text-blue-500" size={20} />
               </div>
               <div className="flex gap-4 mt-1 text-xs font-bold items-center uppercase tracking-wider text-gray-500">
@@ -181,15 +182,17 @@ const StockProfile = ({ params }: Props) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8 space-y-8">
+        <div className="grid grid-cols-1 laptop:grid-cols-12 gap-6 tablet:gap-8">
+          <div className="laptop:col-span-8 space-y-6 tablet:space-y-8">
             {/* CHART */}
             <section className="bg-[#131722] border border-gray-800 rounded-2xl overflow-hidden">
               <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-black/20">
                 <h2 className="text-xs font-black text-white flex items-center gap-2 uppercase tracking-widest">
                   <TrendingUp className="text-blue-500" size={16} /> Technical Chart
                 </h2>
-                <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-gray-800">
+                <div className="flex items-center gap-3">
+                  <AddToWatchlistButton symbol={instrument?.symbol || ''} />
+                  <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-gray-800">
                   {periods.map(p => (
                     <button 
                       key={p.id} 
@@ -199,9 +202,10 @@ const StockProfile = ({ params }: Props) => {
                       {p.period}
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
-              <div className="h-[450px] w-full p-2">
+              <div className="h-[280px] phone:h-[350px] tablet:h-[400px] laptop:h-[450px] w-full p-2">
                 <LightChart 
                   symbol={instrument?.symbol}
                   data={candles}
@@ -240,7 +244,7 @@ const StockProfile = ({ params }: Props) => {
           </div>
 
           {/* SIDEBAR */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="laptop:col-span-4 space-y-4 tablet:space-y-6">
             <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800 shadow-2xl">
                <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-6 text-center italic">Fundamental Analysis</h2>
                <FundamentalRadar details={details} />
@@ -250,7 +254,7 @@ const StockProfile = ({ params }: Props) => {
               <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-5 flex items-center gap-2">
                 <Layers size={14} className="text-blue-500" /> Industry Peers
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 tablet:gap-3">
                 {similar.map((comp: any, idx: number) => (
                   <a key={idx} href={`/stock-profile/${comp.symbol}`} className="flex flex-col items-center p-3 rounded-xl bg-black/20 border border-gray-800/50 hover:border-blue-500/50 transition-all group">
                     <div className="w-10 h-10 bg-white rounded-lg p-1.5 mb-2">

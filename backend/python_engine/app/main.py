@@ -19,12 +19,14 @@ from app.api.routes.embed import router as embed_router
 from app.analyze.analysis_cache import analysis_cache_service
 from app.analyze.auto_analyze import auto_analyze_service
 from app.data_collect.collectors.news_handle import run_daily_update
+from app.data_collect.collectors.stock_sync import DSATurbo
 
 logger = logging.getLogger(__name__)
 
 # tránh scheduler job chạy chồng nhau
 pipeline_lock = Lock()
 news_lock = Lock()
+stock_sync_lock = Lock()
 
 
 def run_ranking_sync():
@@ -65,6 +67,27 @@ def run_news_daily_update():
         logger.error(f"❌ [Schedule] Daily news update error: {str(e)}", exc_info=True)
     finally:
         news_lock.release()
+
+
+def run_stock_sync():
+    """
+    Scheduled job:
+    - Sync instrument_data (OHLCV) for top symbols from instrument_snapshot
+    - Keeps chart data fresh for socket current-candle
+    """
+    if not stock_sync_lock.acquire(blocking=False):
+        logger.warning("⚠️ Stock sync skipped because previous run is still active.")
+        return
+
+    try:
+        logger.info("🚀 [Schedule] Starting stock sync...")
+        turbo = DSATurbo()
+        turbo.run()
+        logger.info("✅ [Schedule] Stock sync completed.")
+    except Exception as e:
+        logger.error(f"❌ [Schedule] Stock sync error: {str(e)}", exc_info=True)
+    finally:
+        stock_sync_lock.release()
 
 
 async def warmup_top_stocks():
@@ -135,9 +158,11 @@ async def lifespan(app: FastAPI):
         run_ranking_sync,
         trigger="interval",
         hours=1,
+        id="ranking_sync",
         next_run_time=datetime.now(),
         max_instances=1,
         coalesce=True,
+        replace_existing=True,
     )
 
     # 2) daily news update mỗi ngày
@@ -145,13 +170,27 @@ async def lifespan(app: FastAPI):
         run_news_daily_update,
         trigger="interval",
         hours=24,
+        id="news_daily_update",
         next_run_time=datetime.now(),
         max_instances=1,
         coalesce=True,
+        replace_existing=True,
+    )
+
+    # 3) stock sync mỗi giờ (instrument_data for charts)
+    scheduler.add_job(
+        run_stock_sync,
+        trigger="interval",
+        hours=1,
+        id="stock_sync",
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
     )
 
     scheduler.start()
-    logger.info("📅 Background Scheduler started.")
+    logger.info("📅 Background Scheduler started (ranking_sync, news_daily_update, stock_sync).")
 
     # warmup nền khi app khởi động
     asyncio.create_task(warmup_top_stocks())

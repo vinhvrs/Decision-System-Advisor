@@ -16,6 +16,7 @@ interface LoginFormProps {
 const LoginForm: React.FC<LoginFormProps> = ({ onSwitchMode, onSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +26,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchMode, onSuccess }) => {
     setError(null);
 
     try {
-      const user = await AuthService.login({ email, password });
+      const user = await AuthService.login({ email, password, remember });
       console.log('Login successful:', user);
       onSuccess();
     } catch (err: any) {
@@ -79,6 +80,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchMode, onSuccess }) => {
             className="mt-1 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
             placeholder="••••••••"
           />
+        </div>
+
+        <div className="flex items-center">
+          <input
+            id="login-remember"
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+          />
+          <label htmlFor="login-remember" className="ml-2 text-sm text-gray-400">
+            Remember me (7 days)
+          </label>
         </div>
 
         <button

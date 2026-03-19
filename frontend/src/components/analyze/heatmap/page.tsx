@@ -58,7 +58,7 @@ export default function HeatmapPage() {
   };
 
   return (
-    <section className="p-6 h-[calc(100vh-100px)] flex flex-col">
+    <section className="p-4 phone:p-5 tablet:p-6 h-[50vh] phone:h-[60vh] tablet:h-[calc(100vh-120px)] flex flex-col">
       <div className="max-w-[1600px] w-full mx-auto flex-1 flex flex-col">
         {/* <div className="flex items-center justify-between mb-4">
           <div>

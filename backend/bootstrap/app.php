@@ -23,7 +23,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // }
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'ticket.owner' => \App\Http\Middleware\EnsureTicketOwner::class,
+            'user.self' => \App\Http\Middleware\EnsureUserSelf::class,
+            'api.auth' => \App\Http\Middleware\EnsureApiAuthenticated::class,
+            'admin.staff' => \App\Http\Middleware\EnsureAdminOrStaff::class,
+        ]);
+        $middleware->prependToGroup('api', \App\Http\Middleware\AddTokenFromCookie::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

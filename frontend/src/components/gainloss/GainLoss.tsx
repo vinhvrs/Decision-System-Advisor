@@ -91,7 +91,7 @@ export default function GainLoss() {
   );
 
   return (
-    <section className="px-6 py-16 bg-[#0b1220] border-t border-white/5">
+    <section className="px-4 phone:px-5 tablet:px-6 py-10 tablet:py-12 laptop:py-16 bg-[#0b1220] border-t border-white/5">
       <div className="max-w-7xl mx-auto">
         {/* <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -111,9 +111,9 @@ export default function GainLoss() {
             <span className="text-xs font-black uppercase tracking-[0.2em]">Analyzing Market...</span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-6 tablet:gap-8">
             {/* Top Gainers */}
-            <div className="rounded-[2rem] bg-[#161D2C]/80 border border-white/10 p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
+            <div className="rounded-2xl tablet:rounded-[2rem] bg-[#161D2C]/80 border border-white/10 p-5 tablet:p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-green-500/10 transition-all"></div>
               <div className="flex items-center gap-2 mb-6">
                 <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
@@ -127,7 +127,7 @@ export default function GainLoss() {
             </div>
 
             {/* Top Losers */}
-            <div className="rounded-[2rem] bg-[#161D2C]/80 border border-white/10 p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
+            <div className="rounded-2xl tablet:rounded-[2rem] bg-[#161D2C]/80 border border-white/10 p-5 tablet:p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-red-500/10 transition-all"></div>
               <div className="flex items-center gap-2 mb-6">
                 <div className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />

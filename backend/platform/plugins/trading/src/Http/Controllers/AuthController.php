@@ -26,15 +26,28 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->only(['email', 'password']);
+        $remember = $request->boolean('remember', true);
 
-        if (Auth::attempt($credentials)) {
+        if (Auth::attempt($credentials, $remember)) {
             $user = Auth::user();
-            $token = $user->createToken('authToken')->plainTextToken;
 
-            return response()->json([
+            // Delete existing tokens for this user (renew on login)
+            $user->tokens()->delete();
+
+            // Create token with 7-day TTL
+            $token = $user->createToken('authToken', ['*'], now()->addDays(7))->plainTextToken;
+
+            $response = response()->json([
                 'token' => $token,
                 'user' => $user,
             ], 200);
+
+            // Set remember cookie (7 days) for quick re-login
+            if ($remember) {
+                $response->cookie('dsa_remember', $token, 7 * 24 * 60, '/', null, false, true);
+            }
+
+            return $response;
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -42,8 +55,12 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->tokens()->delete();
-        return response()->json(['message' => 'Successfully logged out'], 200);
+        if ($request->user()) {
+            $request->user()->tokens()->delete();
+        }
+        $response = response()->json(['message' => 'Successfully logged out'], 200);
+        $response->cookie('dsa_remember', '', 0, '/', null, false, true);
+        return $response;
     }
 
 }

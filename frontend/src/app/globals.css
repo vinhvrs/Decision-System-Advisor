@@ -28,27 +28,37 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* ===== CUSTOM DARK SCROLLBAR ===== */
-.custom-scrollbar {
-  scrollbar-width: thin;                 /* Firefox */
-  scrollbar-color: rgba(255,255,255,0.25) transparent;
+/* ===== GLOBAL DARK SCROLLBAR (Dropdown-style, applied to entire frontend) ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
-/* Chrome, Edge, Safari */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;                            /* 👈 độ mỏng */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(255,255,255,0.2);
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
   border-radius: 999px;
   transition: background-color 0.2s ease;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255,255,255,0.45);
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Legacy class for explicit use (e.g. Dropdown) */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }

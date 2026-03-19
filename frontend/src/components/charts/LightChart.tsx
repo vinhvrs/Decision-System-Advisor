@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
+  createSeriesMarkers,
   ColorType,
   CandlestickSeries,
   LineSeries,
@@ -13,6 +14,8 @@ import {
   Time,
   LogicalRange,
 } from "lightweight-charts";
+import { TradingServices } from "@/src/services/Trading.service";
+import { useTradeApiQueue } from "@/src/hooks/useTradeApiQueue";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -23,7 +26,33 @@ interface Props {
   period: TF;
   onLoadMore?: () => void;
   indicators?: string[];
+  /** When false, only candles are shown (no paper trading overlay). Default true. */
+  showTrading?: boolean;
+  /** Market type for ticket API. Default "stock". */
+  market?: "stock" | "crypto" | "forex";
+  /** Open positions for current symbol from API - syncs paper trading & chart */
+  positionsForSymbol?: Array<{ id: string; type: string; volume: number; price: number; leverage?: number }>;
 }
+
+type TradeSide = "buy" | "sell";
+type PositionSide = "flat" | "long" | "short";
+
+type Trade = {
+  id: string;
+  time: Time;
+  price: number;
+  side: TradeSide;
+  volume: number;
+  leverage: number;
+};
+
+type Marker = {
+  time: Time;
+  position: "aboveBar" | "belowBar" | "inBar";
+  color: string;
+  shape: "arrowUp" | "arrowDown" | "square";
+  text?: string;
+};
 
 const INDICATOR_COLORS: Record<string, string> = {
   ema20: "#2962FF",
@@ -203,10 +232,14 @@ function calcStochastic(data: any[], period = 14, smoothK = 3, smoothD = 3) {
 }
 
 export default function LightChart({
+  symbol,
   data,
   realtimeCandle,
   onLoadMore,
   indicators = [],
+  showTrading = true,
+  market = "stock",
+  positionsForSymbol = [],
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -214,6 +247,87 @@ export default function LightChart({
   const indicatorSeriesRef = useRef<ISeriesApi<any>[]>([]);
   const displayMapRef = useRef<Map<number, any>>(new Map());
   const loadMoreLockRef = useRef(false);
+  const tradesRef = useRef<Trade[]>([]);
+  const markersRef = useRef<Marker[]>([]);
+  const positionPriceLineRef = useRef<any>(null);
+  const seriesMarkersRef = useRef<any>(null);
+  /** Tickets created for current position: [{ id, volume }] */
+  const ticketIdsRef = useRef<Array<{ id: string; volume: number }>>([]);
+
+  const [vol, setVol] = useState<number>(1);
+  const [leverage, setLeverage] = useState<number>(1);
+  const [position, setPosition] = useState<{
+    side: PositionSide;
+    qty: number;
+    avgPrice: number;
+    leverage?: number;
+  }>({ side: "flat", qty: 0, avgPrice: 0 });
+  const positionRef = useRef(position);
+  const positionSyncedFromApiRef = useRef(false);
+
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
+
+  const { enqueueCreate, enqueueClose } = useTradeApiQueue({
+    onTicketCreated: (ticketId, volume) => {
+      ticketIdsRef.current = [...ticketIdsRef.current, { id: ticketId, volume }];
+    },
+    onTicketChanged: () => window.dispatchEvent(new CustomEvent("ticket-changed")),
+  });
+
+  useEffect(() => {
+    if (!positionsForSymbol?.length) {
+      positionSyncedFromApiRef.current = false;
+      setPosition((p) => (p.side !== "flat" ? { side: "flat", qty: 0, avgPrice: 0 } : p));
+      ticketIdsRef.current = [];
+      return;
+    }
+    const buyTickets = positionsForSymbol.filter((p) => (p.type || "").toLowerCase() === "buy");
+    const sellTickets = positionsForSymbol.filter((p) => (p.type || "").toLowerCase() === "sell");
+    const buyVol = buyTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
+    const sellVol = sellTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
+    const net = buyVol - sellVol;
+    ticketIdsRef.current = positionsForSymbol.map((t) => ({
+      id: t.id,
+      volume: Number(t.volume || 0),
+    }));
+    if (net > 0) {
+      const totalVol = buyTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
+      const avg = totalVol > 0
+        ? buyTickets.reduce((s, t) => s + Number(t.price || 0) * Number(t.volume || 0), 0) / totalVol
+        : 0;
+      const lev = buyTickets[0]?.leverage ?? 1;
+      const newPos = { side: "long" as const, qty: net, avgPrice: avg, leverage: lev };
+      positionRef.current = newPos;
+      setPosition(newPos);
+      positionSyncedFromApiRef.current = true;
+    } else if (net < 0) {
+      const totalVol = sellTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
+      const avg = totalVol > 0
+        ? sellTickets.reduce((s, t) => s + Number(t.price || 0) * Number(t.volume || 0), 0) / totalVol
+        : 0;
+      const lev = sellTickets[0]?.leverage ?? 1;
+      const newPos = { side: "short" as const, qty: Math.abs(net), avgPrice: avg, leverage: lev };
+      positionRef.current = newPos;
+      setPosition(newPos);
+      positionSyncedFromApiRef.current = true;
+    } else {
+      ticketIdsRef.current = [];
+      positionRef.current = { side: "flat", qty: 0, avgPrice: 0 };
+      setPosition({ side: "flat", qty: 0, avgPrice: 0 });
+      positionSyncedFromApiRef.current = false;
+    }
+  }, [positionsForSymbol]);
+
+  const [hover, setHover] = useState<{
+    time: Time | null;
+    o: number | null;
+    h: number | null;
+    l: number | null;
+    c: number | null;
+    v: number | null;
+  }>({ time: null, o: null, h: null, l: null, c: null, v: null });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -249,6 +363,30 @@ export default function LightChart({
 
     chartRef.current = chart;
     seriesRef.current = candleSeries;
+    seriesMarkersRef.current = createSeriesMarkers(candleSeries, []);
+
+    const crosshairMove = (param: any) => {
+      if (!param) return;
+      const time = param.time ?? null;
+      if (!time) return;
+
+      const seriesData = param.seriesData?.get?.(candleSeries);
+      const o = typeof seriesData?.open === "number" ? seriesData.open : null;
+      const h = typeof seriesData?.high === "number" ? seriesData.high : null;
+      const l = typeof seriesData?.low === "number" ? seriesData.low : null;
+      const c =
+        (typeof seriesData?.close === "number" && seriesData.close) ||
+        (typeof seriesData?.value === "number" && seriesData.value) ||
+        null;
+
+      const fromMap = displayMapRef.current.get(Number(time));
+      const v =
+        fromMap && typeof fromMap.volume === "number" ? (fromMap.volume as number) : null;
+
+      setHover({ time, o, h, l, c, v });
+    };
+
+    chart.subscribeCrosshairMove(crosshairMove);
 
     const handleResize = () => {
       if (containerRef.current) {
@@ -259,9 +397,14 @@ export default function LightChart({
     window.addEventListener("resize", handleResize);
 
     return () => {
+      chart.unsubscribeCrosshairMove(crosshairMove);
       window.removeEventListener("resize", handleResize);
       indicatorSeriesRef.current = [];
       displayMapRef.current.clear();
+      try {
+        seriesMarkersRef.current?.detach?.();
+      } catch {}
+      seriesMarkersRef.current = null;
       chart.remove();
     };
   }, []);
@@ -279,6 +422,7 @@ export default function LightChart({
         high: toNumber(d.high),
         low: toNumber(d.low),
         close: toNumber(d.close),
+        volume: d.volume == null ? undefined : toNumber(d.volume),
       });
     });
 
@@ -287,6 +431,270 @@ export default function LightChart({
     );
   }, [data]);
 
+  const lastCandle = useMemo(() => {
+    if (!mergedCandleData.length) return null;
+    return mergedCandleData[mergedCandleData.length - 1];
+  }, [mergedCandleData]);
+
+  // Always execute trades at the latest price (not crosshair price)
+  const marketContext = useMemo(() => {
+    const t = normalizeToSec(realtimeCandle?.time) ?? (lastCandle?.time as number | undefined);
+    const time = (t ? (t as Time) : (lastCandle?.time as Time | undefined)) ?? null;
+    const price =
+      (realtimeCandle && typeof realtimeCandle.close === "number"
+        ? (realtimeCandle.close as number)
+        : null) ??
+      (typeof lastCandle?.close === "number" ? (lastCandle.close as number) : null);
+    return { time, price };
+  }, [lastCandle, realtimeCandle]);
+
+  const ohlcvContext = useMemo(() => {
+    // Prefer hover candle values (display), fall back to latest candle / realtime candle
+    const time = hover.time ?? marketContext.time ?? null;
+
+    const last = lastCandle as any;
+    const rt = realtimeCandle as any;
+
+    const o =
+      hover.o ??
+      (rt && typeof rt.open === "number" ? (rt.open as number) : null) ??
+      (last && typeof last.open === "number" ? (last.open as number) : null);
+    const h =
+      hover.h ??
+      (rt && typeof rt.high === "number" ? (rt.high as number) : null) ??
+      (last && typeof last.high === "number" ? (last.high as number) : null);
+    const l =
+      hover.l ??
+      (rt && typeof rt.low === "number" ? (rt.low as number) : null) ??
+      (last && typeof last.low === "number" ? (last.low as number) : null);
+    const c =
+      hover.c ??
+      (rt && typeof rt.close === "number" ? (rt.close as number) : null) ??
+      (last && typeof last.close === "number" ? (last.close as number) : null);
+    const v =
+      hover.v ??
+      (rt && typeof rt.volume === "number" ? (rt.volume as number) : null) ??
+      (last && typeof last.volume === "number" ? (last.volume as number) : null);
+
+    return { time, o, h, l, c, v };
+  }, [hover, lastCandle, marketContext.time, realtimeCandle]);
+
+  const markTradesOnChart = useCallback(() => {
+    const seriesMarkers = seriesMarkersRef.current;
+    if (!seriesMarkers?.setMarkers) return;
+
+    const markers: Marker[] = [
+      ...tradesRef.current.map((t) => ({
+        time: t.time,
+        position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
+        color: t.side === "buy" ? "#26A69A" : "#EF5350",
+        shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
+        text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${t.price}`,
+      })),
+      ...markersRef.current,
+    ];
+
+    try {
+      seriesMarkers.setMarkers(markers);
+    } catch (e) {
+      console.warn("setMarkers failed:", e);
+    }
+  }, []);
+
+  const addTrade = useCallback(
+    (side: TradeSide, overrideVol?: number) => {
+      const { time, price } = marketContext;
+      if (!time || price == null) return;
+      const rawVol = overrideVol ?? vol;
+      const v = Number.isFinite(rawVol) && rawVol > 0 ? rawVol : 1;
+      const lev = Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+      const p = positionRef.current;
+
+      const t: Trade = {
+        id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        time,
+        price,
+        side,
+        volume: v,
+        leverage: lev,
+      };
+      tradesRef.current = [...tradesRef.current, t];
+
+      const isOpposite =
+        (p.side === "long" && side === "sell") || (p.side === "short" && side === "buy");
+      const dir = p.side === "long" ? 1 : p.side === "short" ? -1 : 0;
+
+      if (p.side !== "flat" && isOpposite) {
+        const closeVol = Math.min(p.qty, v);
+        const factor = (closeVol * (p.leverage ?? 1)) / (p.avgPrice || 1);
+        const realized = dir * (price - p.avgPrice) * factor;
+        const isProfit = realized >= 0;
+        markersRef.current = [
+          ...markersRef.current,
+          {
+            time,
+            position: isProfit ? "aboveBar" : "belowBar",
+            color: isProfit ? "#22C55E" : "#EF4444",
+            shape: "square",
+            text: `${isProfit ? "+" : "-"}${Math.abs(realized).toFixed(4)}`,
+          },
+        ];
+      }
+
+      let newState: typeof p;
+      const toClose: string[] = [];
+      const toCreate: { vol: number }[] = [];
+
+      if (p.side === "flat") {
+        toCreate.push({ vol: v });
+        newState = { side: side === "buy" ? "long" : "short", qty: v, avgPrice: price, leverage: lev };
+      } else if (p.side === "long" && side === "buy") {
+        toCreate.push({ vol: v });
+        const newQty = p.qty + v;
+        const newAvg = (p.avgPrice * p.qty + price * v) / newQty;
+        newState = { ...p, qty: newQty, avgPrice: newAvg };
+      } else if (p.side === "short" && side === "sell") {
+        toCreate.push({ vol: v });
+        const newQty = p.qty + v;
+        const newAvg = (p.avgPrice * p.qty + price * v) / newQty;
+        newState = { ...p, qty: newQty, avgPrice: newAvg };
+      } else {
+        const closeVol = Math.min(p.qty, v);
+        const toCloseItems = [...ticketIdsRef.current];
+        let closed = 0;
+        const remaining: Array<{ id: string; volume: number }> = [];
+        for (const item of toCloseItems) {
+          if (closed >= closeVol) {
+            remaining.push(item);
+            continue;
+          }
+          if (item.volume <= closeVol - closed) {
+            toClose.push(item.id);
+            closed += item.volume;
+          } else {
+            remaining.push(item);
+          }
+        }
+        ticketIdsRef.current = remaining;
+
+        if (v < p.qty) {
+          newState = { ...p, qty: p.qty - v };
+        } else if (v === p.qty) {
+          remaining.forEach((item) => toClose.push(item.id));
+          ticketIdsRef.current = [];
+          newState = { side: "flat", qty: 0, avgPrice: 0 };
+        } else {
+          const remainingVol = v - p.qty;
+          toCreate.push({ vol: remainingVol });
+          newState = {
+            side: side === "buy" ? "long" : "short",
+            qty: remainingVol,
+            avgPrice: price,
+            leverage: lev,
+          };
+          ticketIdsRef.current = [];
+        }
+      }
+
+      positionRef.current = newState;
+      setPosition(newState);
+
+      for (const { vol: createVol } of toCreate) {
+        enqueueCreate(
+          {
+            type: side === "buy" ? "Buy" : "Sell",
+            market,
+            symbol,
+            volume: createVol,
+            price,
+            leverage: lev,
+          },
+          createVol
+        );
+      }
+      if (toClose.length > 0) {
+        enqueueClose(toClose, price);
+      }
+
+      markTradesOnChart();
+    },
+    [markTradesOnChart, marketContext, vol, leverage, market, symbol, enqueueCreate, enqueueClose]
+  );
+
+  const closePosition = useCallback(() => {
+    if (position.side === "flat") return;
+    const idsFromApi = (positionsForSymbol || []).map((p) => p.id).filter(Boolean);
+    const idsFromLocal = ticketIdsRef.current.map((t) => t.id);
+    const allIds = [...new Set([...idsFromApi, ...idsFromLocal])];
+    if (allIds.length === 0) return;
+
+    // Optimistic: update UI immediately
+    ticketIdsRef.current = [];
+    setPosition({ side: "flat", qty: 0, avgPrice: 0 });
+    window.dispatchEvent(new CustomEvent("ticket-changed"));
+
+    // API in background
+    const price = marketContext.price ?? undefined;
+    Promise.all(allIds.map((id) => TradingServices.closeTicket(id, price))).catch((e) =>
+      console.error("Close position failed:", e)
+    );
+  }, [position.side, positionsForSymbol, marketContext.price]);
+
+  const currentPrice = marketContext.price ?? 0;
+  const unrealizedPnl = useMemo(() => {
+    if (position.side === "flat" || !currentPrice || !position.avgPrice) return 0;
+    const dir = position.side === "long" ? 1 : -1;
+    const lev = position.leverage ?? 1;
+    // P = (Current - Open) × (Volume × Leverage / Open) for Long; (Open - Current) × (...) for Short
+    const factor = (position.qty * lev) / position.avgPrice;
+    return dir * (currentPrice - position.avgPrice) * factor;
+  }, [currentPrice, position.avgPrice, position.qty, position.leverage, position.side]);
+
+  // Dotted entry line showing current position avg price
+  useEffect(() => {
+    const candleSeries = seriesRef.current;
+    if (!candleSeries) return;
+
+    // remove when flat
+    if (position.side === "flat") {
+      if (positionPriceLineRef.current) {
+        try {
+          candleSeries.removePriceLine(positionPriceLineRef.current);
+        } catch {}
+        positionPriceLineRef.current = null;
+      }
+      return;
+    }
+
+    const color = position.side === "long" ? "#26A69A" : "#EF5350";
+    const title = `${position.side.toUpperCase()} AVG`;
+
+    if (!positionPriceLineRef.current) {
+      try {
+        positionPriceLineRef.current = candleSeries.createPriceLine({
+          price: position.avgPrice,
+          color,
+          lineWidth: 2,
+          lineStyle: 1, // dotted
+          axisLabelVisible: true,
+          title,
+        } as any);
+      } catch (e) {
+        console.warn("createPriceLine failed:", e);
+      }
+      return;
+    }
+
+    try {
+      positionPriceLineRef.current.applyOptions({
+        price: position.avgPrice,
+        color,
+        title,
+        lineStyle: 1,
+      });
+    } catch {}
+  }, [position.avgPrice, position.side]);
+
   useEffect(() => {
     if (!seriesRef.current) return;
 
@@ -294,6 +702,27 @@ export default function LightChart({
     mergedCandleData.forEach((item) => {
       displayMapRef.current.set(item.time as number, item);
     });
+
+    // Merge realtime candle into display so socket ticks update the SAME bar (not create new ones)
+    if (realtimeCandle) {
+      const t = normalizeToSec(realtimeCandle.time);
+      if (t != null && Number.isFinite(t)) {
+        const open = toNumber(realtimeCandle.open);
+        const high = toNumber(realtimeCandle.high);
+        const low = toNumber(realtimeCandle.low);
+        const close = toNumber(realtimeCandle.close);
+        const vol = realtimeCandle.volume != null ? toNumber(realtimeCandle.volume) : undefined;
+        // Bucket time: matches last bar → update, newer → add
+        displayMapRef.current.set(t, {
+          time: t as Time,
+          open,
+          high,
+          low,
+          close,
+          volume: vol,
+        });
+      }
+    }
 
     const sortedData = Array.from(displayMapRef.current.values()).sort(
       (a, b) => (a.time as number) - (b.time as number)
@@ -307,8 +736,11 @@ export default function LightChart({
       console.error("Candle setData error:", e);
     }
 
+    // re-apply markers after any full setData()
+    markTradesOnChart();
+
     loadMoreLockRef.current = false;
-  }, [mergedCandleData]);
+  }, [mergedCandleData, realtimeCandle, markTradesOnChart]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -522,28 +954,6 @@ export default function LightChart({
   }, [indicators, mergedCandleData]);
 
   useEffect(() => {
-    if (!seriesRef.current || !realtimeCandle) return;
-
-    const t = normalizeToSec(realtimeCandle.time);
-    if (!t) return;
-
-    const updateData = {
-      time: t as Time,
-      open: toNumber(realtimeCandle.open),
-      high: toNumber(realtimeCandle.high),
-      low: toNumber(realtimeCandle.low),
-      close: toNumber(realtimeCandle.close),
-    };
-
-    try {
-      seriesRef.current.update(updateData);
-      displayMapRef.current.set(t, updateData);
-    } catch (e) {
-      console.warn("Realtime update skip:", e);
-    }
-  }, [realtimeCandle]);
-
-  useEffect(() => {
     if (!chartRef.current || !onLoadMore) return;
 
     const handleVisibleRangeChange = (range: LogicalRange | null) => {
@@ -568,6 +978,122 @@ export default function LightChart({
   return (
     <div className="w-full h-full relative min-h-[500px]">
       <div ref={containerRef} className="absolute inset-0" />
+
+      {showTrading && (
+      <div className="absolute top-3 left-3 z-10 rounded-lg border border-slate-700/60 bg-slate-900/70 backdrop-blur px-3 py-2 text-slate-100 text-xs shadow">
+        <div className="flex items-center gap-2">
+          <div className="font-semibold">Paper trading</div>
+          <div className="text-slate-300">
+            market @ {marketContext.price != null ? marketContext.price.toFixed(4) : "--"}
+          </div>
+        </div>
+
+        <div className="mt-2 grid grid-cols-5 gap-2 text-[11px]">
+          <div>
+            <span className="text-slate-400">O</span>{" "}
+            <span className="font-semibold">
+              {ohlcvContext.o != null ? ohlcvContext.o.toFixed(4) : "--"}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400">H</span>{" "}
+            <span className="font-semibold">
+              {ohlcvContext.h != null ? ohlcvContext.h.toFixed(4) : "--"}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400">L</span>{" "}
+            <span className="font-semibold">
+              {ohlcvContext.l != null ? ohlcvContext.l.toFixed(4) : "--"}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400">C</span>{" "}
+            <span className="font-semibold">
+              {ohlcvContext.c != null ? ohlcvContext.c.toFixed(4) : "--"}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400">V</span>{" "}
+            <span className="font-semibold">
+              {ohlcvContext.v != null ? String(ohlcvContext.v) : "--"}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <label className="text-slate-300 text-[11px]">Vol</label>
+            <input
+              value={vol}
+              onChange={(e) => setVol(Math.max(0.0001, Number(e.target.value) || 1))}
+              className="w-16 rounded bg-slate-800/80 border border-slate-700 px-2 py-1 outline-none text-[11px]"
+              type="number"
+              min={0.0001}
+              step={0.1}
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="text-slate-300 text-[11px]">Lev</label>
+            <input
+              value={leverage}
+              onChange={(e) => setLeverage(Math.max(0.01, Math.min(1000, Number(e.target.value) || 1)))}
+              className="w-14 rounded bg-slate-800/80 border border-slate-700 px-2 py-1 outline-none text-[11px]"
+              type="number"
+              min={0.01}
+              max={1000}
+              step={0.1}
+            />
+          </div>
+
+          <button
+            onClick={() => addTrade("buy")}
+            className="rounded bg-emerald-600/90 hover:bg-emerald-600 px-2 py-1 font-semibold disabled:opacity-50"
+            type="button"
+            disabled={!marketContext.time || marketContext.price == null}
+          >
+            Buy
+          </button>
+          <button
+            onClick={() => addTrade("sell")}
+            className="rounded bg-rose-600/90 hover:bg-rose-600 px-2 py-1 font-semibold disabled:opacity-50"
+            type="button"
+            disabled={!marketContext.time || marketContext.price == null}
+          >
+            Sell
+          </button>
+          <button
+            onClick={() => closePosition()}
+            className="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1 font-semibold disabled:opacity-50"
+            type="button"
+            disabled={position.side === "flat" || !marketContext.time || marketContext.price == null}
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-200">
+          <div>
+            Pos:{" "}
+            <span className="font-semibold">
+              {position.side === "flat"
+                ? "FLAT"
+                : `${position.side.toUpperCase()} ${position.qty}`}
+            </span>
+          </div>
+          <div>
+            Avg: <span className="font-semibold">{position.avgPrice ? position.avgPrice.toFixed(4) : "--"}</span>
+          </div>
+          <div>
+            uPnL:{" "}
+            <span className={`font-semibold ${unrealizedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+              {position.side === "flat" ? "--" : unrealizedPnl.toFixed(4)}
+            </span>
+          </div>
+          <div className="text-slate-400">Trades: {tradesRef.current.length}</div>
+        </div>
+      </div>
+      )}
     </div>
   );
 }

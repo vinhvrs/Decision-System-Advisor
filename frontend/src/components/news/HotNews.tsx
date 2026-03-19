@@ -64,8 +64,8 @@ export default function HotNews() {
   if (!isLoading && hotNews.length === 0) return null;
 
   return (
-    <section className="px-6 py-10 bg-[#0B1220] border-t border-white/5">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <section className="px-4 phone:px-5 tablet:px-6 py-6 tablet:py-10 bg-[#0B1220] border-t border-white/5">
+      <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-4 gap-4 tablet:gap-6">
         {isLoading
           ? [1, 2, 3, 4].map((i) => (
             <div key={i} className="h-[320px] rounded-[2rem] bg-white/5 animate-pulse" />
