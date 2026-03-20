@@ -8,6 +8,7 @@ use App\Services\Elastic\ElasticCompanySearchService;
 use App\Services\Elastic\ElasticKnowledgeDocService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 class ElasticController extends Controller
@@ -24,7 +25,11 @@ class ElasticController extends Controller
     public function health(): JsonResponse
     {
         try {
-            $health = $this->companySearchService->health();
+            $ttl = (int) config('performance.elastic_health_ttl', 10);
+            $health = Cache::remember('elastic.health.v1', max(1, $ttl), function () {
+                return $this->companySearchService->health();
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => $health,
@@ -51,11 +56,15 @@ class ElasticController extends Controller
                 'from' => ['nullable', 'integer', 'min:0'],
             ]);
 
-            $result = $this->companySearchService->search(
-                query: $validated['q'],
-                size: (int) ($validated['size'] ?? 20),
-                from: (int) ($validated['from'] ?? 0),
-            );
+            $ttl = (int) config('performance.elastic_get_ttl', 60);
+            $cacheKey = 'elastic.simple_search.v1:' . md5(json_encode($validated));
+            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($validated) {
+                return $this->companySearchService->search(
+                    query: $validated['q'],
+                    size: (int) ($validated['size'] ?? 20),
+                    from: (int) ($validated['from'] ?? 0),
+                );
+            });
 
             return response()->json([
                 'success' => true,
@@ -84,16 +93,20 @@ class ElasticController extends Controller
                 'from' => ['nullable', 'integer', 'min:0'],
             ]);
 
-            $result = $this->companyProfileService->search(
-                query: $validated['q'] ?? '',
-                symbol: $validated['symbol'] ?? null,
-                sector: $validated['sector'] ?? null,
-                industry: $validated['industry'] ?? null,
-                exchange: $validated['exchange'] ?? null,
-                country: $validated['country'] ?? null,
-                size: (int) ($validated['size'] ?? 10),
-                from: (int) ($validated['from'] ?? 0),
-            );
+            $ttl = (int) config('performance.elastic_get_ttl', 60);
+            $cacheKey = 'elastic.companies_search.v1:' . md5(json_encode($validated));
+            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($validated) {
+                return $this->companyProfileService->search(
+                    query: $validated['q'] ?? '',
+                    symbol: $validated['symbol'] ?? null,
+                    sector: $validated['sector'] ?? null,
+                    industry: $validated['industry'] ?? null,
+                    exchange: $validated['exchange'] ?? null,
+                    country: $validated['country'] ?? null,
+                    size: (int) ($validated['size'] ?? 10),
+                    from: (int) ($validated['from'] ?? 0),
+                );
+            });
 
             return response()->json([
                 'success' => true,
@@ -133,16 +146,21 @@ class ElasticController extends Controller
                 }
             }
 
-            $result = $this->knowledgeDocService->search(
-                query: $validated['q'] ?? '',
-                symbol: $validated['symbol'] ?? null,
-                category: $validated['category'] ?? null,
-                source: $validated['source'] ?? null,
-                language: $validated['language'] ?? null,
-                isProcessed: $isProcessed,
-                size: (int) ($validated['size'] ?? 10),
-                from: (int) ($validated['from'] ?? 0),
-            );
+            $validatedWithFlag = array_merge($validated, ['_is_processed' => $isProcessed]);
+            $ttl = (int) config('performance.elastic_get_ttl', 60);
+            $cacheKey = 'elastic.knowledge_search.v1:' . md5(json_encode($validatedWithFlag));
+            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($validated, $isProcessed) {
+                return $this->knowledgeDocService->search(
+                    query: $validated['q'] ?? '',
+                    symbol: $validated['symbol'] ?? null,
+                    category: $validated['category'] ?? null,
+                    source: $validated['source'] ?? null,
+                    language: $validated['language'] ?? null,
+                    isProcessed: $isProcessed,
+                    size: (int) ($validated['size'] ?? 10),
+                    from: (int) ($validated['from'] ?? 0),
+                );
+            });
 
             return response()->json([
                 'success' => true,
@@ -169,6 +187,8 @@ class ElasticController extends Controller
                 (int) ($validated['chunk'] ?? 200)
             );
 
+            Cache::forget('elastic.health.v1');
+
             return response()->json([
                 'success' => true,
                 'message' => 'Company profiles reindexed successfully.',
@@ -194,6 +214,8 @@ class ElasticController extends Controller
                 (int) ($validated['chunk'] ?? 200)
             );
 
+            Cache::forget('elastic.health.v1');
+
             return response()->json([
                 'success' => true,
                 'message' => 'Knowledge documents reindexed successfully.',
@@ -211,7 +233,11 @@ class ElasticController extends Controller
     public function companyBySymbol(string $symbol): JsonResponse
     {
         try {
-            $result = $this->companyProfileService->findBySymbol($symbol);
+            $sym = strtolower($symbol);
+            $ttl = (int) config('performance.elastic_get_ttl', 60);
+            $result = Cache::remember("elastic.company_symbol.v1:{$sym}", max(1, $ttl), function () use ($symbol) {
+                return $this->companyProfileService->findBySymbol($symbol);
+            });
 
             return response()->json([
                 'success' => true,
@@ -231,7 +257,12 @@ class ElasticController extends Controller
     {
         try {
             $size = (int) $request->query('size', 10);
-            $result = $this->knowledgeDocService->searchBySymbol($symbol, $size);
+            $sym = strtolower($symbol);
+            $ttl = (int) config('performance.elastic_get_ttl', 60);
+            $cacheKey = "elastic.knowledge_by_symbol.v1:{$sym}:{$size}";
+            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($symbol, $size) {
+                return $this->knowledgeDocService->searchBySymbol($symbol, $size);
+            });
 
             return response()->json([
                 'success' => true,

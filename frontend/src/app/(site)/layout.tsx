@@ -1,6 +1,6 @@
-import ChatBox from "@/src/components/chatbox/page";
 import Footer from "@/src/components/footer/page";
 import Header from "@/src/components/header/page";
+import ChatBoxLazy from "@/src/components/chatbox/ChatBoxLazy";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,7 +11,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
       <main className="px-4 py-6 phone:px-5 tablet:px-6 tablet:py-8 laptop:py-10">
         {children}
-        <ChatBox />
+        <ChatBoxLazy />
       </main>
 
       <Footer />

@@ -108,4 +108,36 @@ class RankingController extends Controller
             'data' => $this->snapshotService->heatmapDaily($limit),
         ]);
     }
+
+    /**
+     * Simple market + community snapshot for beginner-oriented pages.
+     */
+    public function beginnerOverview(string $symbol)
+    {
+        try {
+            $data = $this->snapshotService->beginnerOverview($symbol);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'Unable to load beginner overview for this symbol.'], 500);
+        }
+
+        if ($data === null) {
+            return response()->json(['message' => 'No snapshot for this symbol yet.'], 404);
+        }
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Ranked beginner “radar” board: six 1–5 scores, sorted by count of scores ≥ 4.
+     */
+    public function beginnerBoard(Request $request)
+    {
+        $limit = $this->limit($request, 50);
+
+        return response()->json([
+            'data' => $this->snapshotService->beginnerRankingBoard($limit),
+        ]);
+    }
 }

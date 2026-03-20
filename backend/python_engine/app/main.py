@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 pipeline_lock = Lock()
 news_lock = Lock()
 stock_sync_lock = Lock()
+auto_analyze_lock = Lock()
+
+# Interval: at least 1 run per 3 hours for candle, news, auto_analyze
+SCHEDULE_INTERVAL_HOURS = 3
 
 
 def run_ranking_sync():
@@ -52,8 +56,9 @@ def run_ranking_sync():
 def run_news_daily_update():
     """
     Heavy scheduled job:
-    - Incremental news update
+    - Incremental news update (fetching/crawling)
     - Writes docs + inference results
+    - Runs at least once per 3 hours
     """
     if not news_lock.acquire(blocking=False):
         logger.warning("⚠️ Daily news update skipped because previous run is still active.")
@@ -74,13 +79,14 @@ def run_stock_sync():
     Scheduled job:
     - Sync instrument_data (OHLCV) for top symbols from instrument_snapshot
     - Keeps chart data fresh for socket current-candle
+    - Runs at least once per 3 hours
     """
     if not stock_sync_lock.acquire(blocking=False):
         logger.warning("⚠️ Stock sync skipped because previous run is still active.")
         return
 
     try:
-        logger.info("🚀 [Schedule] Starting stock sync...")
+        logger.info("🚀 [Schedule] Starting stock sync (candle data)...")
         turbo = DSATurbo()
         turbo.run()
         logger.info("✅ [Schedule] Stock sync completed.")
@@ -88,6 +94,57 @@ def run_stock_sync():
         logger.error(f"❌ [Schedule] Stock sync error: {str(e)}", exc_info=True)
     finally:
         stock_sync_lock.release()
+
+
+async def _run_auto_analyze_refresh_async():
+    """
+    Refresh auto_analyze for top symbols. Runs at least once per 3 hours.
+    """
+    try:
+        symbols = await analysis_cache_service.get_top_symbols_from_ranking(
+            ranking_key="liquidity:ranking:daily",
+            limit=50,
+        )
+        if not symbols:
+            logger.warning("⚠️ No symbols found from liquidity:ranking:daily for auto_analyze")
+            return
+
+        logger.info(f"🔄 [Schedule] Auto-analyze refresh for {len(symbols)} symbols...")
+        semaphore = asyncio.Semaphore(5)
+
+        async def process_symbol(symbol: str):
+            async with semaphore:
+                try:
+                    analyzed = await auto_analyze_service.analyze_symbol(
+                        symbol=symbol,
+                        clean_text=f"Analyze stock {symbol}",
+                    )
+                    if analyzed and isinstance(analyzed, dict):
+                        await analysis_cache_service.set_analysis(symbol, analyzed)
+                        logger.info(f"✅ Refreshed analysis for {symbol}")
+                except Exception as e:
+                    logger.error(f"❌ Auto-analyze failed for {symbol}: {e}", exc_info=True)
+
+        await asyncio.gather(*(process_symbol(s) for s in symbols))
+        logger.info("✅ [Schedule] Auto-analyze refresh completed.")
+    except Exception as e:
+        logger.error(f"❌ [Schedule] Auto-analyze refresh error: {e}", exc_info=True)
+
+
+def run_auto_analyze_refresh():
+    """
+    Scheduled job: Run auto_analyze for top symbols. At least once per 3 hours.
+    """
+    if not auto_analyze_lock.acquire(blocking=False):
+        logger.warning("⚠️ Auto-analyze refresh skipped because previous run is still active.")
+        return
+
+    try:
+        asyncio.run(_run_auto_analyze_refresh_async())
+    except Exception as e:
+        logger.error(f"❌ [Schedule] Auto-analyze refresh error: {str(e)}", exc_info=True)
+    finally:
+        auto_analyze_lock.release()
 
 
 async def warmup_top_stocks():
@@ -152,8 +209,9 @@ async def lifespan(app: FastAPI):
     - run warmup task on startup
     """
     scheduler = BackgroundScheduler()
+    interval_h = SCHEDULE_INTERVAL_HOURS
 
-    # 1) ranking sync mỗi giờ
+    # 1) ranking sync (heatmap) - every hour
     scheduler.add_job(
         run_ranking_sync,
         trigger="interval",
@@ -165,11 +223,11 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
-    # 2) daily news update mỗi ngày
+    # 2) news fetch/crawl - at least once per 3 hours
     scheduler.add_job(
         run_news_daily_update,
         trigger="interval",
-        hours=24,
+        hours=interval_h,
         id="news_daily_update",
         next_run_time=datetime.now(),
         max_instances=1,
@@ -177,11 +235,11 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
-    # 3) stock sync mỗi giờ (instrument_data for charts)
+    # 3) candle data (stock sync) - at least once per 3 hours
     scheduler.add_job(
         run_stock_sync,
         trigger="interval",
-        hours=1,
+        hours=interval_h,
         id="stock_sync",
         next_run_time=datetime.now(),
         max_instances=1,
@@ -189,8 +247,23 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
+    # 4) auto_analyze refresh - at least once per 3 hours
+    scheduler.add_job(
+        run_auto_analyze_refresh,
+        trigger="interval",
+        hours=interval_h,
+        id="auto_analyze_refresh",
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("📅 Background Scheduler started (ranking_sync, news_daily_update, stock_sync).")
+    logger.info(
+        f"📅 Background Scheduler started: ranking_sync(1h), "
+        f"news/candle/auto_analyze({interval_h}h each)."
+    )
 
     # warmup nền khi app khởi động
     asyncio.create_task(warmup_top_stocks())

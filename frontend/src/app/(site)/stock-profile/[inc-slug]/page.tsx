@@ -3,16 +3,27 @@
 "use client";
 
 import React, { use, useState, useEffect, useCallback } from 'react';
-import { 
-  ShieldCheck, TrendingUp, Users, 
-  Building2, Calendar, Newspaper, 
-  ChevronRight, Globe, Loader2,
-  Layers
-} from 'lucide-react';
+import dynamic from 'next/dynamic';
+import {
+  ShieldCheck,
+  TrendingUp,
+  Newspaper,
+  Globe,
+  Loader2,
+  Layers,
+} from "lucide-react";
 
-import LightChart from '@/src/components/charts/LightChart';
-import AddToWatchlistButton from '@/src/components/watchlist/AddToWatchlistButton'; 
-import FundamentalRadar from './FundamentalRadar';
+const LightChart = dynamic(() => import('@/src/components/charts/LightChart'), {
+  ssr: false,
+  loading: () => <div className="h-full min-h-[280px] w-full animate-pulse rounded-lg bg-gray-800/40" />,
+});
+
+const FundamentalRadar = dynamic(() => import('./FundamentalRadar'), {
+  ssr: false,
+  loading: () => <div className="h-64 w-full animate-pulse rounded-lg bg-gray-800/40" />,
+});
+
+import AddToWatchlistButton from '@/src/components/watchlist/AddToWatchlistButton';
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service"; 
 // Thay thế Echo bằng SimpleSocket
@@ -61,11 +72,13 @@ const StockProfile = ({ params }: Props) => {
     const initData = async () => {
       try {
         setLoading(true);
-        const all = await InstrumentService.getInstruments(3000);
-        const current = all.find((i: any) => 
-          i.slug === slug || i.symbol?.toLowerCase() === slug?.toLowerCase()
-        );
-        
+        let current = null;
+        try {
+          current = await InstrumentService.getBySlugOrSymbol(slug);
+        } catch {
+          current = null;
+        }
+
         if (current) {
           setInstrument(current);
           const symbol = current.symbol;
@@ -147,6 +160,16 @@ const StockProfile = ({ params }: Props) => {
       <span className="uppercase tracking-[0.3em] text-sm animate-pulse">Syncing Market Data...</span>
     </div>
   );
+
+  if (!instrument) {
+    return (
+      <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-white/70 px-4 text-center">
+        <p className="text-lg font-semibold mb-2">Symbol or profile not found</p>
+        <p className="text-sm text-white/50 mb-6">Try a valid ticker or pick a company from Search / Companies.</p>
+        <a href="/companies" className="text-blue-400 hover:underline">Browse companies</a>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#0b0e11] min-h-screen text-gray-300 p-4 phone:p-5 tablet:p-6 laptop:p-8 font-sans">

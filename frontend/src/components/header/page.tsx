@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import UserProfileDropdown from "../../sections/UserProfileDropdown";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
+import { SITE_NAV_LINKS } from "@/src/components/header/nav-config";
 
 interface User {
   id: string;
@@ -31,15 +32,46 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const navLinks = [
-    { label: "Search", href: "/search" },
-    { label: "News", href: "/news" },
-    { label: "Company", href: "/companies" },
-    { label: "Indicators", href: "/indicators" },
-    { label: "Strategy", href: "/strategy" },
-    { label: "Documents", href: "/documents" },
-    { label: "Contact", href: "/contact" },
-  ];
+  const handleSelectCompany = useCallback(
+    (hit: ElasticCompanyHit) => {
+      const sym = hit.source?.symbol;
+      if (!sym) return;
+      setSearchOpen(false);
+      setSearchQuery("");
+      router.push(`/companies/profile/${sym.toLowerCase()}`);
+    },
+    [router]
+  );
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < MIN_SEARCH_LENGTH) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      setSearchLoading(true);
+      ElasticService.searchCompanies(q, 10)
+        .then(({ items }) => {
+          setSearchResults(items);
+          if (items.length > 0) setSearchOpen(true);
+        })
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearchLoading(false));
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   useEffect(() => {
     // auth from localStorage
@@ -71,7 +103,14 @@ export default function Header() {
     };
   }, []);
 
-  if (isCheckingAuth) return null;
+  if (isCheckingAuth) {
+    return (
+      <header
+        className="sticky top-0 z-50 h-14 phone:h-16 border-b border-white/5 bg-[#0b0e14]/90 backdrop-blur-md"
+        aria-busy="true"
+      />
+    );
+  }
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -136,9 +175,9 @@ export default function Header() {
             )}
             {searchOpen && searchResults.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 py-2 rounded-xl bg-[#0B1220] border border-white/10 shadow-xl max-h-72 overflow-y-auto z-50">
-                {searchResults.map((hit) => (
+                {searchResults.map((hit, idx) => (
                   <button
-                    key={hit.id ?? hit.source?.symbol ?? Math.random()}
+                    key={hit.id ?? `${hit.source?.symbol ?? "x"}-${idx}`}
                     type="button"
                     onClick={() => handleSelectCompany(hit)}
                     className="w-full px-4 py-2.5 text-left hover:bg-white/5 transition flex items-center gap-3"
@@ -161,11 +200,11 @@ export default function Header() {
 
         <div className="flex items-center gap-4">
           <nav className="hidden laptop:flex items-center space-x-1 mr-4">
-            {navLinks.map((link) => {
+            {SITE_NAV_LINKS.map((link) => {
               const active = isActive(link.href);
               return (
                 <Link
-                  key={link.label}
+                  key={link.href}
                   href={link.href}
                   className={[
                     "px-3 py-2 rounded-lg text-sm font-medium transition-all",
@@ -204,11 +243,11 @@ export default function Header() {
         } border-t border-white/10`}
       >
         <nav className="flex flex-col space-y-1 px-4">
-          {navLinks.map((link) => {
+          {SITE_NAV_LINKS.map((link) => {
             const active = isActive(link.href);
             return (
               <Link
-                key={link.label}
+                key={link.href}
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
                 className={[

@@ -42,15 +42,18 @@ export function usePositions(perPage = 100) {
     return () => window.removeEventListener("ticket-changed", onTicketChanged);
   }, [fetchPositions]);
 
-  const closePosition = useCallback((ticketId: string, closePrice?: number) => {
-    // Optimistic: remove from UI immediately
-    setPositions((prev) => prev.filter((p) => p.id !== ticketId));
-    // API in background
-    TradingServices.closeTicket(ticketId, closePrice).catch((e) => {
-      console.error("Close position failed:", e);
-      fetchPositions(); // Revert on error
-    });
-  }, [fetchPositions]);
+  const closePosition = useCallback(
+    async (ticketId: string, closePrice?: number): Promise<void> => {
+      setPositions((prev) => prev.filter((p) => p.id !== ticketId));
+      try {
+        await TradingServices.closeTicket(ticketId, closePrice);
+      } catch (e) {
+        console.error("Close position failed:", e);
+        await fetchPositions();
+      }
+    },
+    [fetchPositions]
+  );
 
   return { positions, loading, error, refetch: fetchPositions, closePosition };
 }

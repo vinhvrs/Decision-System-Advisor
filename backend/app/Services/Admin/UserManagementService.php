@@ -10,7 +10,9 @@ class UserManagementService
 {
     public function list(array $filters = [], int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
-        $query = Users::query()->orderByDesc('updated_at');
+        $query = Users::query()
+            ->select(['id', 'username', 'name', 'email', 'phone', 'role', 'updated_at', 'created_at'])
+            ->orderByDesc('updated_at');
 
         if (!empty($filters['role'])) {
             $query->where('role', $filters['role']);

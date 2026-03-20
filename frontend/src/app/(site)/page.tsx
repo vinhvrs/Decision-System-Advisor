@@ -2,20 +2,19 @@
 import Image from "next/image";
 import bgImg from "@/src/assets/images/bg-landingpage.jpg";
 import Card from "@/src/sections/Card";
-import WatchlistCard from "@/src/components/watchlist/WatchlistCard";
-import DashboardCharts from "@/src/components/dashboard/DashboardCharts";
-import ChatBox from "@/src/components/chatbox/page";
-import HotNews from "@/src/components/news/HotNews";
-import GainLoss from "@/src/components/gainloss/GainLoss";
-import Heatmap from "@/src/components/analyze/heatmap/page";
-import Footer from "@/src/components/footer/page";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react"; // Thêm icon Clock cho đẹp
+import { ChevronRight } from "lucide-react";
+import {
+  HomeDashboardCharts,
+  HomeWatchlistCard,
+  HomeHotNews,
+  HomeGainLoss,
+  HomeHeatmapCard,
+} from "./home-sections";
 
 export default function HomePage() {
-  
   return (
-    <main className="text-white bg-[#0b1220]">
+    <div className="text-white bg-[#0b1220]">
       {/* ================= HERO ================= */}
       <section className="relative min-h-[90vh] phone:min-h-[95vh] tablet:min-h-[100vh] laptop:min-h-[105vh] flex items-end overflow-hidden">
         <Image
@@ -67,7 +66,7 @@ export default function HomePage() {
 
           {/* ===== ROW 1: MAIN CHART + ROW 2: SIDE CHARTS (watchlist-driven) ===== */}
           <div className="space-y-6">
-            <DashboardCharts />
+            <HomeDashboardCharts />
           </div>
 
           {/* ===== ROW 2: SIDE CARDS ===== */}
@@ -93,7 +92,7 @@ export default function HomePage() {
                 </ul>
               </Card>
 
-              <WatchlistCard />
+              <HomeWatchlistCard />
             </div>
 
           {/* ===== ROW 3: MARKET CARDS ===== */}
@@ -145,9 +144,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= CHATBOX ================= */}
-      {/* <ChatBox /> */}
-
       {/* ================= HOT NEWS ================= */}
       <section id="market-news" className="px-4 py-6 phone:px-5 tablet:px-6 tablet:py-10 bg-[#0b1220]">
         <div className="max-w-screen-xl mx-auto space-y-2">
@@ -166,7 +162,7 @@ export default function HomePage() {
               <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </Link>
             </div>
-          <HotNews />
+          <HomeHotNews />
         </div>
       </section>
 
@@ -181,7 +177,7 @@ export default function HomePage() {
           </div>
 
           {/* <Card> */}
-            <GainLoss />
+            <HomeGainLoss />
           {/* </Card> */}
         </div>
       </section>
@@ -196,12 +192,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <Card>
-            <Heatmap />
-          </Card>
+          <HomeHeatmapCard />
         </div>
       </section>
-          <Footer />
-    </main>
+    </div>
   );
 }

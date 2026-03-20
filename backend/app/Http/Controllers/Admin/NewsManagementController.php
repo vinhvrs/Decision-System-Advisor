@@ -15,7 +15,9 @@ class NewsManagementController extends Controller
         $search = $request->input('search');
         $symbol = $request->input('symbol');
 
+        // Omit `content` in list payload (large) — still filter by title/content when searching
         $query = DB::table('knowledge_docs_temp')
+            ->select(['id', 'title', 'symbol', 'published_at', 'source', 'author', 'created_at', 'updated_at'])
             ->orderByDesc('published_at');
 
         if ($search) {

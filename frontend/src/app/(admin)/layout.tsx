@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AuthService } from "@/src/services/Auth.service";
 import {
   Users,
   Building2,
@@ -33,6 +34,7 @@ export default function AdminLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    if (pathname === "/admin/auth") return;
     const u = localStorage.getItem("user");
     if (u) {
       try {
@@ -40,21 +42,25 @@ export default function AdminLayout({
         setUser(parsed);
         const role = parsed?.role;
         if (role !== "admin" && role !== "staff") {
+          alert("Forbidden. Admin or staff role required.");
           router.replace("/auth/login");
         }
       } catch {
-        router.replace("/auth/login");
+        router.replace("/admin/auth");
       }
     } else {
-      router.replace("/auth/login");
+      router.replace("/admin/auth");
     }
-  }, [router]);
+  }, [router, pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("accessToken");
-    router.replace("/auth/login");
+    AuthService.logout();
+    router.replace("/admin/auth");
   };
+
+  if (pathname === "/admin/auth") {
+    return <>{children}</>;
+  }
 
   if (!user) {
     return (

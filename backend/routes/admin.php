@@ -5,6 +5,11 @@ use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\CompanyManagementController;
 use App\Http\Controllers\Admin\NewsManagementController;
 use App\Http\Controllers\Admin\StatisticsController;
+use Platform\Plugins\Trading\Src\Http\Controllers\AuthController;
+
+Route::prefix('admin')->group(function () {
+    Route::middleware('throttle:admin-login')->post('/auth/login', [AuthController::class, 'login']);
+});
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'admin.staff'])->group(function () {
     Route::get('users', [UserManagementController::class, 'index']);
