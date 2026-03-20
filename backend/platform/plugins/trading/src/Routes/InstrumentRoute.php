@@ -18,7 +18,8 @@ Route::prefix('/instruments')->group(function () {
     
     Route::get('/data', [InstrumentDataController::class, 'index']);
     // Route::get('/data/period/classify/{symbol}', [InstrumentDataController::class, 'classifyPeriods']);
-    // Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
+    // Must be registered before /data/{symbol} so paths like data/period/{uuid} are not parsed as symbol "period"
+    Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
     // Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
     // Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);
     // Route::post('/data/import/{instrumentId}', [GetInstrumentData::class, 'importData']);
@@ -26,8 +27,10 @@ Route::prefix('/instruments')->group(function () {
     // Route::post('/data', [InstrumentDataController::class, 'store']);
     // Route::put('/data/{id}', [InstrumentDataController::class, 'update']);
     // Route::delete('/data/{id}', [InstrumentDataController::class, 'destroy']);
-    
-    
+
+    // Must be before /{symbol} so "periods" is not captured as a ticker
+    Route::get('/periods/{id}', [InstrumentPeriodsController::class, 'show']);
+
     Route::get('/', [InstrumentController::class, 'index']);
     Route::get('/{symbol}', [InstrumentController::class, 'show']);
     // Route::post('/', [InstrumentController::class, 'store']);

@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\RankingController;
 
 Route::prefix('rankings')->group(function () {
+    Route::get('beginner-board', [RankingController::class, 'beginnerBoard']);
+    Route::get('beginner/{symbol}', [RankingController::class, 'beginnerOverview'])
+        ->where('symbol', '[A-Za-z0-9.\-]+');
     Route::get('top-liquidity', [RankingController::class, 'topLiquidity']);
     Route::get('bottom-liquidity', [RankingController::class, 'bottomLiquidity']);
     Route::get('top-gainers', [RankingController::class, 'topGainers']);

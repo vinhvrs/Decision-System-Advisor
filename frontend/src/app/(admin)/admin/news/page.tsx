@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { AdminService } from "@/src/services/Admin.service";
+import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 import { Loader2, Trash2 } from "lucide-react";
 
 type NewsItem = {
@@ -18,32 +19,37 @@ export default function AdminNewsPage() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1 });
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const appliedSearchRef = useRef("");
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const fetchNews = useCallback(async (page = 1) => {
+  const fetchNews = useCallback(async (page = 1, searchTerm?: string) => {
+    const raw = searchTerm !== undefined ? searchTerm : appliedSearchRef.current;
+    const term = raw.trim() || undefined;
     setLoading(true);
     try {
       const res = await AdminService.news.list({
         page,
         per_page: 15,
-        search: search || undefined,
+        search: term,
       });
       setNews(res.data ?? []);
       setPagination({
         current_page: res.current_page ?? 1,
         last_page: res.last_page ?? 1,
       });
+      appliedSearchRef.current = raw.trim();
     } catch (e) {
       console.error(e);
       setNews([]);
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, []);
 
   useEffect(() => {
-    fetchNews(1);
-  }, [fetchNews]);
+    fetchNews(1, debouncedSearch);
+  }, [debouncedSearch, fetchNews]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this news article?")) return;
@@ -77,11 +83,11 @@ export default function AdminNewsPage() {
           placeholder="Search by title or content..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchNews(1)}
+          onKeyDown={(e) => e.key === "Enter" && fetchNews(1, search)}
           className="px-4 py-2 rounded-lg bg-[#161D2C] border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500/50 min-w-[250px]"
         />
         <button
-          onClick={() => fetchNews(1)}
+          onClick={() => fetchNews(1, search)}
           className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
         >
           Search

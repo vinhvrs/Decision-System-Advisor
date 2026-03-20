@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import api from "@/src/libs/api";
-import { instrumentMapper, instrumentDataMapper, instrumentPeriodMapper } from "@/src/libs/mapper";
+import { instrumentMapper, instrumentFromApi, instrumentDataMapper, instrumentPeriodMapper } from "@/src/libs/mapper";
+import type { InstrumentAPI } from "@/src/types/Instrument";
 
 export const InstrumentService = {
     getInstruments: async (limit: number = 10, page: number = 1, select?: Array<string>) => {
@@ -21,13 +22,26 @@ export const InstrumentService = {
 
     getInstrumentById: async (id: string) => {
         try {
-            const response = await api.get(`/instruments/${id}`);
-            const data = instrumentMapper(response.data.data);
-            return data;
+            const response = await api.get(`/instruments/${encodeURIComponent(id)}`);
+            const raw = response.data?.data ?? response.data;
+            if (!raw || typeof raw !== "object" || !("id" in raw)) {
+                throw new Error("Instrument not found");
+            }
+            return instrumentFromApi(raw as InstrumentAPI);
         } catch (error) {
             console.error("Error fetching instrument by ID:", error);
             throw error;
         }
+    },
+
+    /** One request: resolve by UUID, symbol, or slug (no full instrument list). */
+    getBySlugOrSymbol: async (slugOrSymbol: string) => {
+        const response = await api.get(`/instruments/${encodeURIComponent(slugOrSymbol)}`);
+        const raw = response.data?.data ?? response.data;
+        if (!raw || typeof raw !== "object" || !("id" in raw)) {
+            throw new Error("Instrument not found");
+        }
+        return instrumentFromApi(raw as InstrumentAPI);
     },
 
     getPeriods: async () => {
@@ -43,12 +57,11 @@ export const InstrumentService = {
 
     getPeriodsById: async (id: string) => {
         try {
-            const response = await api.get(`/instruments/periods/${id}`);
-            const data = instrumentPeriodMapper(response.data.data);
-            return data;
-        } catch (error) {
-            console.error("Error fetching periods by ID:", error);
-            throw error;
+            const response = await api.get(`/instruments/periods/${encodeURIComponent(id)}`);
+            const rows = response.data?.data ?? [];
+            return instrumentPeriodMapper(Array.isArray(rows) ? rows : []);
+        } catch {
+            return [];
         }
     },
 
@@ -84,10 +97,18 @@ export const InstrumentService = {
         }
     },
 
-    getInstrumentData: async (symbol: string, period:string, limit: number = 500, page: number = 1) => {
+    getInstrumentData: async (symbol: string, period: string, limit: number = 500, page: number = 1) => {
         try {
-            const response = await api.get(`/instruments/data/${symbol}?${period}&per_page=${limit}&page=${page}`);
-            const data = instrumentDataMapper(response.data.data);
+            const response = await api.get(`/instruments/data/${encodeURIComponent(symbol)}`, {
+                params: {
+                    period: period || "daily",
+                    per_page: limit,
+                    page,
+                },
+                timeout: 120_000,
+            });
+            const rows = response.data?.data;
+            const data = instrumentDataMapper(Array.isArray(rows) ? rows : []);
             return data;
         } catch (error) {
             console.error("Error fetching instrument data:", error);
@@ -95,10 +116,17 @@ export const InstrumentService = {
         }
     },
 
-    getInstrumentDataByPeriod: async (periodId: string, limit: number = 100000, page: number = 1, select?: Array<string>) => {
+    getInstrumentDataByPeriod: async (periodId: string, limit: number = 5000, page: number = 1) => {
         try {
-            const response = await api.get(`/instruments/data/period/${periodId}?per_page=${limit}&page=${page}${select ? select.map(s => `&select[]=${s}`).join('') : ''}`);
-            const data = instrumentDataMapper(response.data.data);
+            const response = await api.get(`/instruments/data/period/${encodeURIComponent(periodId)}`, {
+                params: {
+                    per_page: Math.min(limit, 10000),
+                    page,
+                },
+                timeout: 120_000,
+            });
+            const rows = response.data?.data;
+            const data = instrumentDataMapper(Array.isArray(rows) ? rows : []);
             return data;
         } catch (error) {
             console.error("Error fetching instrument data by period:", error);

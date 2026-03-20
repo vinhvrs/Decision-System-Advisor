@@ -2,6 +2,7 @@
 'use client'; 
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AuthService } from '@/src/services/Auth.service'; 
 import Link from 'next/link';
 
@@ -249,10 +250,11 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchMode }) => {
 
 // --- Main Container ---
 export default function AuthPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>('login');
 
   const handleAuthSuccess = () => {
-    window.location.href = '/';
+    router.replace('/');
   }
 
   return (

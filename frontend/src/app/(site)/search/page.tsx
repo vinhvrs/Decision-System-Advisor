@@ -4,36 +4,50 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
+import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 
 function SearchResults() {
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
+  const debouncedQ = useDebouncedValue(q, 300);
   const [results, setResults] = useState<ElasticCompanyHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    const query = q.trim();
+    const query = debouncedQ.trim();
     if (query.length < 2) {
       setResults([]);
       setTotal(0);
+      setLoading(false);
       return;
     }
 
+    let cancelled = false;
     setLoading(true);
     ElasticService.searchCompanies(query, 50)
       .then(({ items, total: t }) => {
-        setResults(items);
-        setTotal(t);
+        if (!cancelled) {
+          setResults(items);
+          setTotal(t);
+        }
       })
       .catch(() => {
-        setResults([]);
-        setTotal(0);
+        if (!cancelled) {
+          setResults([]);
+          setTotal(0);
+        }
       })
-      .finally(() => setLoading(false));
-  }, [q]);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  if (q.length < 2) {
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQ]);
+
+  if (q.trim().length < 2) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
         <p className="text-white/50">Enter at least 2 characters to search.</p>
@@ -41,7 +55,8 @@ function SearchResults() {
     );
   }
 
-  if (loading) {
+  const searchPending = q.trim() !== debouncedQ.trim();
+  if (searchPending || loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
         <div className="inline-block w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />

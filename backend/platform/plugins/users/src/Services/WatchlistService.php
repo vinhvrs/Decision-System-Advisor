@@ -3,6 +3,7 @@
 namespace Platform\Plugins\Users\Src\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Platform\Plugins\Users\Src\Models\Watchlist;
 use Platform\Plugins\Trading\Src\Models\Ticket;
 
@@ -42,10 +43,13 @@ class WatchlistService
 
     public function add(string $userId, string $symbol): Watchlist
     {
-        return Watchlist::firstOrCreate(
+        $item = Watchlist::firstOrCreate(
             ['user_id' => $userId, 'symbol' => $symbol],
             ['user_id' => $userId, 'symbol' => $symbol]
         );
+        Cache::forget('admin.stats.most_watched.v1');
+
+        return $item;
     }
 
     public function remove(string $userId, string $symbol): bool
@@ -53,6 +57,10 @@ class WatchlistService
         $deleted = Watchlist::where('user_id', $userId)
             ->where('symbol', $symbol)
             ->delete();
+
+        if ($deleted > 0) {
+            Cache::forget('admin.stats.most_watched.v1');
+        }
 
         return $deleted > 0;
     }

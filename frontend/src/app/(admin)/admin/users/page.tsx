@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { AdminService } from "@/src/services/Admin.service";
+import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 import { Loader2, ChevronDown } from "lucide-react";
 
 type User = { id: string; name: string; email: string; username?: string; role: string };
@@ -12,17 +13,21 @@ export default function AdminUsersPage() {
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, per_page: 15 });
   const [roleFilter, setRoleFilter] = useState("");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const appliedSearchRef = useRef("");
   const [editingRole, setEditingRole] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const fetchUsers = useCallback(async (page = 1) => {
+  const fetchUsers = useCallback(async (page = 1, searchTerm?: string) => {
+    const raw = searchTerm !== undefined ? searchTerm : appliedSearchRef.current;
+    const term = raw.trim() || undefined;
     setLoading(true);
     try {
       const res = await AdminService.users.list({
         page,
         per_page: 15,
         role: roleFilter || undefined,
-        search: search || undefined,
+        search: term,
       });
       setUsers(res.data ?? []);
       setPagination({
@@ -30,17 +35,18 @@ export default function AdminUsersPage() {
         last_page: res.last_page ?? 1,
         per_page: res.per_page ?? 15,
       });
+      appliedSearchRef.current = raw.trim();
     } catch (e) {
       console.error(e);
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [roleFilter, search]);
+  }, [roleFilter]);
 
   useEffect(() => {
-    fetchUsers(1);
-  }, [fetchUsers]);
+    fetchUsers(1, debouncedSearch);
+  }, [debouncedSearch, roleFilter, fetchUsers]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setSaving(true);
@@ -66,7 +72,7 @@ export default function AdminUsersPage() {
           placeholder="Search by name, email, username..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchUsers(1)}
+          onKeyDown={(e) => e.key === "Enter" && fetchUsers(1, search)}
           className="px-4 py-2 rounded-lg bg-[#161D2C] border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500/50 min-w-[200px]"
         />
         <select
@@ -81,7 +87,7 @@ export default function AdminUsersPage() {
           <option value="unpaid">Unpaid</option>
         </select>
         <button
-          onClick={() => fetchUsers(1)}
+          onClick={() => fetchUsers(1, search)}
           className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
         >
           Search

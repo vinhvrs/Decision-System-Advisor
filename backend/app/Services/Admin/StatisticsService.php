@@ -21,27 +21,20 @@ class StatisticsService
     }
 
     /**
-     * Get most watched with company names (join company_profile).
+     * Get most watched with company names (single round-trip via correlated subquery).
      */
     public function getMostWatchedWithCompanies(int $limit = 20): Collection
     {
-        $rows = DB::table('watchlist')
-            ->select('watchlist.symbol', DB::raw('COUNT(*) as watch_count'), DB::raw('COUNT(DISTINCT watchlist.user_id) as user_count'))
-            ->groupBy('watchlist.symbol')
+        return DB::table('watchlist as w')
+            ->select(
+                'w.symbol',
+                DB::raw('COUNT(*) as watch_count'),
+                DB::raw('COUNT(DISTINCT w.user_id) as user_count'),
+                DB::raw('(SELECT cp.company_name FROM company_profile cp WHERE cp.symbol = w.symbol LIMIT 1) as company_name')
+            )
+            ->groupBy('w.symbol')
             ->orderByDesc('watch_count')
             ->limit($limit)
             ->get();
-
-        $symbols = $rows->pluck('symbol')->toArray();
-        $companies = DB::table('company_profile')
-            ->whereIn('symbol', $symbols)
-            ->get()
-            ->keyBy('symbol');
-
-        return $rows->map(function ($row) use ($companies) {
-            $company = $companies->get($row->symbol);
-            $row->company_name = $company->company_name ?? null;
-            return $row;
-        });
     }
 }

@@ -4,6 +4,7 @@ namespace Platform\Plugins\Trading\Src\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentRepository;
+use Platform\Plugins\Trading\Src\Models\Instruments;
 use GuzzleHttp\Client;
 
 class InstrumentController extends Controller{
@@ -86,9 +87,29 @@ class InstrumentController extends Controller{
         return response()->json($instruments);
     }
 
-    public function show($symbol){
-        $instrument = $this->instrumentRepository->findByField('symbol', $symbol);
-        return response()->json($instrument);
+    /**
+     * Resolve one instrument by UUID id, case-insensitive symbol, or slug (single DB round-trip).
+     */
+    public function show(string $slugOrIdOrSymbol)
+    {
+        $param = $slugOrIdOrSymbol;
+        $lower = strtolower($param);
+
+        $instrument = Instruments::query()
+            ->where(function ($q) use ($param, $lower) {
+                $q->where('id', $param)
+                    ->orWhereRaw('LOWER(symbol) = ?', [$lower])
+                    ->orWhere('slug', $param)
+                    ->orWhere('slug', $lower);
+            })
+            ->select(['id', 'name', 'symbol', 'type', 'exchange', 'slug', 'created_at', 'updated_at'])
+            ->first();
+
+        if (!$instrument) {
+            return response()->json(['message' => 'Instrument not found'], 404);
+        }
+
+        return response()->json(['data' => $instrument]);
     }
     
     public function store(Request $request){

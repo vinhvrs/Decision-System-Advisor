@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class CompanyManagementController extends Controller
@@ -14,17 +15,31 @@ class CompanyManagementController extends Controller
         $page = (int) $request->input('page', 1);
         $search = $request->input('search');
 
-        $query = DB::table('company_profile')->select('company_profile.*');
+        $ttl = (int) config('performance.admin_list_ttl', 45);
+        $cacheKey = 'admin.companies.index.v1:' . md5(serialize([$perPage, $page, (string) ($search ?? '')]));
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('company_profile.symbol', 'like', "%{$search}%")
-                    ->orWhere('company_profile.company_name', 'like', "%{$search}%");
-            });
-        }
+        $payload = Cache::remember($cacheKey, max(1, $ttl), function () use ($perPage, $page, $search) {
+            $query = DB::table('company_profile')->select([
+                'company_profile.instrument_id',
+                'company_profile.symbol',
+                'company_profile.company_name',
+                'company_profile.industry',
+                'company_profile.sector',
+                'company_profile.exchange',
+                'company_profile.updated_at',
+            ]);
 
-        $companies = $query->orderBy('company_profile.symbol')->paginate($perPage, ['*'], 'page', $page);
-        return response()->json($companies);
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('company_profile.symbol', 'like', "%{$search}%")
+                        ->orWhere('company_profile.company_name', 'like', "%{$search}%");
+                });
+            }
+
+            return $query->orderBy('company_profile.symbol')->paginate($perPage, ['*'], 'page', $page)->toArray();
+        });
+
+        return response()->json($payload);
     }
 
     public function show(string $symbol)
@@ -53,6 +68,8 @@ class CompanyManagementController extends Controller
         if ($updated === 0) {
             return response()->json(['message' => 'Company not found'], 404);
         }
+
+        Cache::forget('admin.stats.most_watched.v1');
 
         $company = DB::table('company_profile')->where('symbol', $symbol)->first();
         return response()->json($company);
