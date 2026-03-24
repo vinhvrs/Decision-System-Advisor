@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/stock-profile/:path*",
+        destination: "/companies/profile/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -279,7 +279,7 @@ const StockProfile = ({ params }: Props) => {
               </h3>
               <div className="grid grid-cols-3 gap-2 tablet:gap-3">
                 {similar.map((comp: any, idx: number) => (
-                  <a key={idx} href={`/stock-profile/${comp.symbol}`} className="flex flex-col items-center p-3 rounded-xl bg-black/20 border border-gray-800/50 hover:border-blue-500/50 transition-all group">
+                  <a key={idx} href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`} className="flex flex-col items-center p-3 rounded-xl bg-black/20 border border-gray-800/50 hover:border-blue-500/50 transition-all group">
                     <div className="w-10 h-10 bg-white rounded-lg p-1.5 mb-2">
                       <img src={`https://images.financialmodelingprep.com/symbol/${comp.symbol}.png`} alt={comp.symbol} className="w-full h-full object-contain" />
                     </div>

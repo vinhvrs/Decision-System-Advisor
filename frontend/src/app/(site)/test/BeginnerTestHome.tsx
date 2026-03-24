@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CompanyService } from "@/src/services/Company.service";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { BeginnerService, type BeginnerBoardRow, type BeginnerOverview } from "@/src/services/Beginner.service";
@@ -250,6 +251,7 @@ function PctBadge({ pct }: { pct: number }) {
 }
 
 export default function BeginnerTestHome() {
+  const router = useRouter();
   const [symbols, setSymbols] = useState<SymbolOption[]>([]);
   const [symbol, setSymbol] = useState("NVDA");
   const [period, setPeriod] = useState<Period>("daily");
@@ -726,11 +728,11 @@ export default function BeginnerTestHome() {
                             key={r.symbol}
                             role="button"
                             tabIndex={0}
-                            onClick={() => setSymbol(r.symbol)}
+                            onClick={() => router.push(`/companies/profile/${r.symbol.toLowerCase()}`)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
-                                setSymbol(r.symbol);
+                                router.push(`/companies/profile/${r.symbol.toLowerCase()}`);
                               }
                             }}
                             onMouseEnter={handleRowEnter}
@@ -946,7 +948,7 @@ export default function BeginnerTestHome() {
               <span className={`text-[10px] ${C.muted}`}>Radar</span>
             </div>
             <p className={`mb-2 text-[10px] leading-snug ${C.muted}`}>
-              Hover preview — click row still picks chart symbol only.
+              Hover preview — click a row to open the full company profile.
             </p>
             <div className="h-[240px] w-full">
               <BeginnerRadarChart data={hoverRadarRow.radar} />
