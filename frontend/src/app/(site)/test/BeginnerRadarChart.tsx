@@ -20,24 +20,24 @@ const RadarChartClient = dynamic(
         return (
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart cx="50%" cy="50%" outerRadius="78%" data={data}>
-              <PolarGrid stroke="#374151" />
-              <PolarAngleAxis dataKey="subject" tick={{ fill: "#9ca3af", fontSize: 9 }} />
-              <PolarRadiusAxis angle={36} domain={[0, 5]} tickCount={6} tick={{ fill: "#6b7280", fontSize: 9 }} />
+              <PolarGrid stroke="#2b3139" />
+              <PolarAngleAxis dataKey="subject" tick={{ fill: "#848e9c", fontSize: 9 }} />
+              <PolarRadiusAxis angle={36} domain={[0, 5]} tickCount={6} tick={{ fill: "#5e6673", fontSize: 9 }} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#111827",
-                  border: "1px solid #374151",
+                  backgroundColor: "#1e2329",
+                  border: "1px solid #2b3139",
                   borderRadius: "10px",
-                  color: "#e5e7eb",
+                  color: "#eaecef",
                 }}
                 formatter={(value) => [`${value ?? "—"} / 5`, "Score"]}
               />
               <Radar
                 name="Score"
                 dataKey="value"
-                stroke="#818cf8"
-                fill="#6366f1"
-                fillOpacity={0.35}
+                stroke="#3861fb"
+                fill="#3861fb"
+                fillOpacity={0.28}
                 isAnimationActive={false}
               />
             </RadarChart>

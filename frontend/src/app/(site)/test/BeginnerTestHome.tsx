@@ -1,12 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { CompanyService } from "@/src/services/Company.service";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { BeginnerService, type BeginnerBoardRow, type BeginnerOverview } from "@/src/services/Beginner.service";
 import BeginnerRadarChart from "./BeginnerRadarChart";
-import { Heart, TrendingUp, BarChart3, Droplets, Users, Clock, ChevronRight, Trophy } from "lucide-react";
+import {
+  Heart,
+  TrendingUp,
+  BarChart3,
+  Gauge,
+  Droplets,
+  Users,
+  Clock,
+  ChevronRight,
+  Trophy,
+  Home,
+  Search,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+} from "lucide-react";
 
 type Period = "daily" | "yearly";
 
@@ -20,6 +36,21 @@ type CandleRow = {
   close?: number;
   volume?: number;
 };
+
+/** CMC-like palette */
+const C = {
+  page: "bg-[#0b0e11]",
+  surface: "bg-[#171a1f]",
+  card: "bg-[#1e2329] border border-[#2b3139]",
+  text: "text-[#eaecef]",
+  muted: "text-[#848e9c]",
+  green: "text-[#16c784]",
+  red: "text-[#ea3943]",
+  line: "border-[#2b3139]",
+};
+
+/** Short list for the beginner board (API + UI). */
+const BOARD_LIMIT = 8;
 
 function formatUsd(n: number): string {
   if (!Number.isFinite(n) || n === 0) return "—";
@@ -58,10 +89,164 @@ function dayBiasFromRow(r: BeginnerBoardRow): "buy" | "sell" | "flat" {
   return "flat";
 }
 
-function dayBiasBorderClass(bias: "buy" | "sell" | "flat"): string {
-  if (bias === "buy") return "border-l-[6px] border-l-emerald-400";
-  if (bias === "sell") return "border-l-[6px] border-l-rose-500";
-  return "border-l-[6px] border-l-white/25";
+function closesForSparkline(candles: CandleRow[], maxPoints: number): number[] {
+  const sorted = [...candles].sort((a, b) => parseCandleTime(a) - parseCandleTime(b));
+  const closes = sorted.map((r) => Number(r.close)).filter((n) => Number.isFinite(n));
+  if (closes.length <= maxPoints) return closes;
+  return closes.slice(-maxPoints);
+}
+
+function MiniSparkline({ values, className }: { values: number[]; className?: string }) {
+  const w = 120;
+  const h = 36;
+  const pad = 2;
+  if (values.length < 2) {
+    return (
+      <div
+        className={`h-9 w-full max-w-[120px] rounded bg-white/[0.04] ${className ?? ""}`}
+        aria-hidden
+      />
+    );
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values
+    .map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const up = values[values.length - 1] >= values[0];
+  const stroke = up ? "#16c784" : "#ea3943";
+  return (
+    <svg
+      width="100%"
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      className={className}
+      aria-hidden
+    >
+      <polyline fill="none" stroke={stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+    </svg>
+  );
+}
+
+/** Compact line sparkline in each table cell (not candlesticks). */
+function TableSparkline({ values }: { values: number[] }) {
+  const w = 88;
+  const h = 28;
+  const pad = 1;
+  if (values.length < 2) {
+    return <div className="mx-auto h-7 w-[88px] rounded bg-white/[0.05]" aria-hidden />;
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values
+    .map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const up = values[values.length - 1] >= values[0];
+  const stroke = up ? "#16c784" : "#ea3943";
+  return (
+    <svg
+      width={88}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      className="mx-auto block"
+      aria-hidden
+    >
+      <polyline fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+    </svg>
+  );
+}
+
+/**
+ * Internal Fear & Greed 0–100 (not Alternative.me).
+ * Formula: start at 50, push by average snapshot % change and by share of symbols up.
+ */
+function computeFearGreedFromBoard(rows: BeginnerBoardRow[]): { value: number; label: string } {
+  if (!rows.length) {
+    return { value: 50, label: "Neutral" };
+  }
+  let sum = 0;
+  let n = 0;
+  let ups = 0;
+  for (const r of rows) {
+    const c = r.change_pct_snapshot;
+    if (!Number.isFinite(c)) continue;
+    sum += c;
+    n++;
+    if (c > 0) ups++;
+  }
+  const avg = n ? sum / n : 0;
+  const breadth = n ? ups / n : 0.5;
+  let v = 50 + avg * 3.25 + (breadth - 0.5) * 42;
+  v = Math.round(Math.max(0, Math.min(100, v)));
+  let label: string;
+  if (v <= 24) label = "Extreme Fear";
+  else if (v <= 44) label = "Fear";
+  else if (v <= 55) label = "Neutral";
+  else if (v <= 74) label = "Greed";
+  else label = "Extreme Greed";
+  return { value: v, label };
+}
+
+function FearGreedGauge({ value }: { value: number }) {
+  const cx = 60;
+  const cy = 58;
+  const needleLen = 32;
+  const deg = -90 + (value / 100) * 180;
+  return (
+    <svg viewBox="0 0 120 64" className="w-full max-w-[140px]" aria-hidden>
+      <defs>
+        <linearGradient id="fgArc" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#ea3943" />
+          <stop offset="35%" stopColor="#f0b90b" />
+          <stop offset="70%" stopColor="#a3e635" />
+          <stop offset="100%" stopColor="#16c784" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M 14 58 A 46 46 0 0 1 106 58"
+        fill="none"
+        stroke="url(#fgArc)"
+        strokeWidth={7}
+        strokeLinecap="round"
+      />
+      <line
+        x1={cx}
+        y1={cy}
+        x2={cx}
+        y2={cy - needleLen}
+        stroke="#eaecef"
+        strokeWidth={2}
+        strokeLinecap="round"
+        transform={`rotate(${deg} ${cx} ${cy})`}
+      />
+      <circle cx={cx} cy={cy} r={4} fill="#eaecef" />
+    </svg>
+  );
+}
+
+function PctBadge({ pct }: { pct: number }) {
+  const up = pct > 0;
+  const down = pct < 0;
+  const Icon = up ? ArrowUpRight : down ? ArrowDownRight : Minus;
+  const cls = up ? C.green : down ? C.red : C.muted;
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-mono text-sm tabular-nums ${cls}`}>
+      <Icon className="w-3.5 h-3.5 shrink-0 opacity-90" aria-hidden />
+      {up ? "+" : ""}
+      {pct.toFixed(2)}%
+    </span>
+  );
 }
 
 export default function BeginnerTestHome() {
@@ -80,6 +265,39 @@ export default function BeginnerTestHome() {
     buy_sell?: string;
   } | null>(null);
   const [boardLoading, setBoardLoading] = useState(true);
+  const [hoverRadarRow, setHoverRadarRow] = useState<BeginnerBoardRow | null>(null);
+  const [radarPopover, setRadarPopover] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [portalReady, setPortalReady] = useState(false);
+  const radarHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [rowSparklines, setRowSparklines] = useState<Record<string, number[]>>({});
+  const [sparklinesLoading, setSparklinesLoading] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (radarHideTimerRef.current) {
+        clearTimeout(radarHideTimerRef.current);
+      }
+    };
+  }, []);
+
+  const cancelRadarHide = useCallback(() => {
+    if (radarHideTimerRef.current) {
+      clearTimeout(radarHideTimerRef.current);
+      radarHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleRadarHide = useCallback(() => {
+    cancelRadarHide();
+    radarHideTimerRef.current = setTimeout(() => {
+      setHoverRadarRow(null);
+      radarHideTimerRef.current = null;
+    }, 240);
+  }, [cancelRadarHide]);
 
   useEffect(() => {
     CompanyService.topCompanies(50, "liquidity")
@@ -99,10 +317,11 @@ export default function BeginnerTestHome() {
   useEffect(() => {
     let cancelled = false;
     setBoardLoading(true);
-    BeginnerService.getRankingBoard(60)
+    BeginnerService.getRankingBoard(BOARD_LIMIT)
       .then((payload) => {
         if (cancelled) return;
-        setBoardRows(payload?.rows ?? []);
+        const rows = (payload?.rows ?? []).slice(0, BOARD_LIMIT);
+        setBoardRows(rows);
         setBoardLegend(payload?.legend ?? null);
       })
       .catch(() => {
@@ -118,6 +337,39 @@ export default function BeginnerTestHome() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!boardRows.length) {
+      setRowSparklines({});
+      setSparklinesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSparklinesLoading(true);
+    const syms = boardRows.map((r) => r.symbol);
+    Promise.all(
+      syms.map(async (sym) => {
+        try {
+          const raw = await InstrumentService.getInstrumentData(sym, "daily", 40, 1);
+          const list = (raw || []) as CandleRow[];
+          return { sym, closes: closesForSparkline(list, 28) };
+        } catch {
+          return { sym, closes: [] as number[] };
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, number[]> = {};
+      for (const { sym, closes } of results) {
+        next[sym] = closes;
+      }
+      setRowSparklines(next);
+      setSparklinesLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardRows]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,23 +437,27 @@ export default function BeginnerTestHome() {
     return hit ?? boardRows[0];
   }, [boardRows, symbol]);
 
-  const radarFallback = rowForRadar && rowForRadar.symbol !== symbol;
+  const sparkValues = useMemo(() => closesForSparkline(candles, period === "daily" ? 48 : 24), [candles, period]);
+
+  const boardLiquiditySum = useMemo(
+    () => boardRows.reduce((s, r) => s + (Number.isFinite(r.liquidity) ? r.liquidity : 0), 0),
+    [boardRows]
+  );
+
+  const fearGreed = useMemo(() => computeFearGreedFromBoard(boardRows), [boardRows]);
 
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white">
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/80 via-[#0b1220] to-cyan-950/40" />
-        <div className="relative max-w-3xl mx-auto px-4 py-14 phone:py-18 text-center">
-          <p className="text-sm uppercase tracking-widest text-indigo-300/90 mb-3">Friendly test page</p>
-          <h1 className="text-3xl phone:text-4xl font-bold leading-tight">
-            Understand a stock — <span className="text-indigo-400">without the jargon</span>
-          </h1>
-          <p className="mt-4 text-white/70 text-base phone:text-lg max-w-xl mx-auto">
-            Pick a company, choose daily or yearly bars, and see price movement, trading activity, and how many
-            people here are paying attention.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
+    <div className={`min-h-screen ${C.page} ${C.text} font-sans antialiased`}>
+      {/* Top strip — CMC-style compact header */}
+      <header className={`sticky top-0 z-40 border-b ${C.line} ${C.surface}/95 backdrop-blur-md`}>
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+            <div>
+              <h1 className="text-sm font-semibold tracking-tight text-white sm:text-base">Beginner market view</h1>
+              <p className={`text-[11px] sm:text-xs ${C.muted}`}>
+                Snapshot rankings, per-row line trends, and radar on hover.
+              </p>
+            </div>
             <label className="sr-only" htmlFor="beginner-symbol">
               Symbol
             </label>
@@ -209,388 +465,503 @@ export default function BeginnerTestHome() {
               id="beginner-symbol"
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              className="rounded-xl bg-white/10 border border-white/15 px-4 py-3 text-left font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px]"
+              className={`max-w-full rounded-lg ${C.card} px-3 py-2 text-sm font-mono font-semibold text-white outline-none ring-[#3861fb] focus:ring-2 sm:min-w-[220px]`}
             >
               {symbols.map((s) => (
-                <option key={s.symbol} value={s.symbol}>
+                <option key={s.symbol} value={s.symbol} className="bg-[#1e2329]">
                   {s.symbol}
                   {s.company_name ? ` — ${s.company_name}` : ""}
                 </option>
               ))}
             </select>
-            <div className="inline-flex rounded-xl border border-white/15 p-1 bg-black/20">
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={`inline-flex rounded-lg ${C.card} p-0.5`}>
               {(["daily", "yearly"] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPeriod(p)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    period === p ? "bg-indigo-600 text-white" : "text-white/60 hover:text-white"
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    period === p ? "bg-[#3861fb] text-white" : `${C.muted} hover:text-white`
                   }`}
                 >
                   {p === "daily" ? "Daily" : "Yearly"}
                 </button>
               ))}
             </div>
+            <Link
+              href="/"
+              className={`inline-flex items-center gap-1 rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
+            >
+              <Home className="h-3.5 w-3.5" />
+              Main site
+            </Link>
           </div>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 mt-8 text-sm text-indigo-300 hover:text-indigo-200"
-          >
-            Back to main site
-            <ChevronRight className="w-4 h-4" />
-          </Link>
         </div>
-      </section>
+      </header>
 
-      {/* Near full-width radar board for easier reading */}
-      <div className="w-full max-w-[min(1680px,calc(100vw-1.25rem))] mx-auto px-2 sm:px-4 pt-6 pb-4">
-        <section className="rounded-2xl border border-white/10 bg-[#111827]/80 p-5 sm:p-7 shadow-lg">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4 mb-5">
-            <div className="flex items-start gap-3 shrink-0">
-              <div className="p-2 rounded-xl bg-violet-500/20 text-violet-300">
-                <Trophy className="w-6 h-6" />
+      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 sm:py-5">
+        {/* Stat widgets — horizontal scroll like CMC */}
+        <section className="mb-4 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
+          <div
+            className={`relative min-w-[200px] flex-1 overflow-hidden rounded-2xl ${C.card} p-4 sm:min-w-[220px]`}
+          >
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-8 opacity-[0.35]">
+              <MiniSparkline values={sparkValues} />
+            </div>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Price</p>
+            {overviewLoading ? (
+              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
+            ) : overview ? (
+              <>
+                <p className="relative mt-1 font-mono text-2xl font-semibold tabular-nums tracking-tight">
+                  {formatUsd(overview.price)}
+                </p>
+                <div className="relative mt-1">
+                  <PctBadge pct={overview.change_pct_snapshot} />
+                </div>
+              </>
+            ) : (
+              <p className={`relative mt-2 text-sm ${C.muted}`}>—</p>
+            )}
+          </div>
+
+          <div className={`min-w-[180px] flex-1 rounded-2xl ${C.card} p-4 sm:min-w-[200px]`}>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Liquidity</p>
+            {overviewLoading ? (
+              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
+            ) : overview ? (
+              <>
+                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatUsd(overview.liquidity)}</p>
+                <p className={`mt-1 text-[11px] ${C.muted}`}>Price × volume (snapshot)</p>
+              </>
+            ) : (
+              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
+            )}
+          </div>
+
+          <div className={`min-w-[160px] flex-1 rounded-2xl ${C.card} p-4`}>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Volume</p>
+            {overviewLoading ? (
+              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
+            ) : overview ? (
+              <>
+                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatShares(overview.volume)}</p>
+                <p className={`mt-1 text-[11px] ${C.muted}`}>Shares last update</p>
+              </>
+            ) : (
+              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
+            )}
+          </div>
+
+          <div className={`min-w-[160px] flex-1 rounded-2xl ${C.card} p-4`}>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Watchlist</p>
+            {overviewLoading ? (
+              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
+            ) : overview ? (
+              <>
+                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{overview.people_watching}</p>
+                <p className={`mt-1 line-clamp-2 text-[11px] ${C.muted}`}>{overview.reputation_label}</p>
+              </>
+            ) : (
+              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
+            )}
+          </div>
+
+          <div className={`min-w-[160px] flex-1 rounded-2xl ${C.card} p-4`}>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Radar strength</p>
+            {rowForRadar ? (
+              <>
+                <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-[#3861fb]">
+                  {rowForRadar.strong_count}
+                  <span className={`text-sm font-normal ${C.muted}`}>/6</span>
+                </p>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
+                  <div
+                    className="h-full rounded-full bg-[#3861fb]"
+                    style={{ width: `${(rowForRadar.strong_count / 6) * 100}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
+            )}
+          </div>
+
+          <div className={`min-w-[180px] flex-1 rounded-2xl ${C.card} p-4`}>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Board liquidity (sum)</p>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{formatUsd(boardLiquiditySum)}</p>
+            <p className={`mt-1 text-[11px] ${C.muted}`}>Top {boardRows.length} on this list</p>
+          </div>
+
+          <div className={`relative flex min-w-[220px] flex-1 flex-row items-center gap-3 overflow-hidden rounded-2xl ${C.card} p-3 sm:min-w-[260px]`}>
+            <div className="shrink-0">
+              <FearGreedGauge value={fearGreed.value} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Gauge className="h-3.5 w-3.5 text-[#f0b90b]" aria-hidden />
+                <p className={`text-[11px] font-semibold uppercase tracking-wider ${C.muted}`}>Fear & Greed</p>
               </div>
+              <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-white">{fearGreed.value}</p>
+              <p className="text-xs font-medium text-[#eaecef]">{fearGreed.label}</p>
+              <p className={`mt-1 text-[9px] leading-snug ${C.muted}`}>
+                Internal model from table snapshots — not an external crypto index.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Chips + toolbar */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#16c784]/35 bg-[#16c784]/10 px-3 py-1 text-[11px] font-semibold text-[#16c784]"
+          >
+            Buy
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#ea3943]/35 bg-[#ea3943]/10 px-3 py-1 text-[11px] font-semibold text-[#ea3943]"
+          >
+            Sell
+          </span>
+          <span className={`rounded-full border ${C.line} px-3 py-1 text-[11px] ${C.muted}`}>
+            = snapshot day up / down (not advice)
+          </span>
+          <span className={`rounded-full border border-[#3861fb]/30 bg-[#3861fb]/10 px-3 py-1 text-[11px] font-medium text-[#7b9cff]`}>
+            Radar: hover row
+          </span>
+          <Link
+            href={`/companies/profile/${symbol.toLowerCase()}`}
+            className="inline-flex items-center gap-1 rounded-full bg-[#3861fb]/15 px-3 py-1 text-[11px] font-semibold text-[#7b9cff] hover:bg-[#3861fb]/25"
+          >
+            Profile <ChevronRight className="h-3 w-3" />
+          </Link>
+          <Link
+            href="/search"
+            className="inline-flex items-center gap-1 rounded-full bg-[#a855f7]/15 px-3 py-1 text-[11px] font-semibold text-[#c4a3ff] hover:bg-[#a855f7]/25"
+          >
+            <Search className="h-3 w-3" />
+            Search
+          </Link>
+          {(candlesLoading || sparklinesLoading) && (
+            <span className={`ml-auto text-[11px] ${C.muted}`}>
+              {sparklinesLoading ? "Loading row sparklines…" : "Loading bars…"}
+            </span>
+          )}
+        </div>
+
+        {boardLegend?.buy_sell && (
+          <p className={`mb-3 text-[11px] leading-relaxed ${C.muted}`}>{boardLegend.buy_sell}</p>
+        )}
+
+        {/* Main ranking + radar */}
+        <section className={`rounded-2xl ${C.card} overflow-hidden`}>
+          <div className={`flex flex-col gap-0 border-b ${C.line} px-4 py-3 sm:flex-row sm:items-center sm:justify-between`}>
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-[#f0b90b]" />
               <div>
-                <h2 className="text-lg font-semibold">Friendly radar ranking</h2>
-                <p className="text-sm text-white/55 mt-1 max-w-3xl">
-                  Each trait is scored from <strong>1–5</strong> (higher = stronger vs other names on this list). We
-                  count how many traits are <strong>4 or 5</strong>, rank from most to least, then break ties with{" "}
-                  <strong>liquidity</strong>, then <strong>volume</strong>, then <strong>watchlist saves</strong>.
+                <h2 className="text-sm font-semibold text-white">Friendly radar ranking</h2>
+                <p className={`text-[11px] ${C.muted}`}>
+                  Top {BOARD_LIMIT} by liquidity · scores 1–5 · hover a row for radar (no click)
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-3 text-xs text-white/45 lg:ml-auto lg:max-w-md">
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-200/90">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-400" aria-hidden />
-                Buy = snapshot day up
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-rose-200/90">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-500" aria-hidden />
-                Sell = snapshot day down
-              </span>
-            </div>
+            <p className={`text-[11px] ${C.muted}`}>
+              {boardRows.length ? `${boardRows.length} symbols` : "—"} · mini lines = daily closes ·{" "}
+              {overview?.company_name ?? symbol}
+            </p>
           </div>
+
           {boardLegend?.strong_rule && (
-            <p className="text-xs text-white/45 mb-1 leading-relaxed">{boardLegend.strong_rule}</p>
+            <p className={`border-b ${C.line} px-4 py-2 text-[11px] ${C.muted}`}>{boardLegend.strong_rule}</p>
           )}
           {boardLegend?.tie_break && (
-            <p className="text-xs text-white/45 mb-1 leading-relaxed">{boardLegend.tie_break}</p>
-          )}
-          {boardLegend?.buy_sell && (
-            <p className="text-xs text-amber-200/70 mb-4 leading-relaxed">{boardLegend.buy_sell}</p>
+            <p className={`border-b ${C.line} px-4 py-2 text-[11px] ${C.muted}`}>{boardLegend.tie_break}</p>
           )}
 
           {boardLoading ? (
-            <p className="text-white/40 animate-pulse py-8 text-center">Loading rankings…</p>
+            <p className={`py-16 text-center text-sm ${C.muted} animate-pulse`}>Loading rankings…</p>
           ) : boardRows.length === 0 ? (
-            <p className="text-sm text-amber-200/90 py-6 text-center">No snapshot data to rank yet.</p>
+            <p className="py-12 text-center text-sm text-amber-200/90">No snapshot data to rank yet.</p>
           ) : (
-            <div className="grid gap-8 xl:grid-cols-12 xl:items-start">
-              <div className="overflow-x-auto rounded-xl border border-white/10 xl:col-span-7">
-                <table className="w-full text-sm text-left min-w-[520px]">
-                  <thead className="bg-black/30 text-white/50 text-xs uppercase tracking-wide">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">#</th>
-                      <th className="px-3 py-2 font-medium">Symbol</th>
-                      <th className="px-2 py-2 font-medium text-center">Day</th>
-                      <th className="px-3 py-2 font-medium text-center">Strong</th>
-                      <th className="px-3 py-2 font-medium text-right hidden sm:table-cell">Liquidity</th>
-                      <th className="px-3 py-2 font-medium text-right hidden md:table-cell">Volume</th>
-                      <th className="px-3 py-2 font-medium text-right">Care</th>
+            <div className="p-4">
+              <div className="overflow-x-auto rounded-lg border border-[#2b3139]/80">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead>
+                    <tr className={`sticky top-0 z-10 ${C.surface} text-[11px] font-semibold uppercase tracking-wide ${C.muted}`}>
+                      <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>#</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>Name</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>Price</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>24h %</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Bias</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Str</th>
+                      <th className={`hidden border-b ${C.line} px-2 py-2.5 text-right sm:table-cell lg:px-3`}>Liq</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>Care</th>
+                      <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Trend</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {boardRows.map((r) => {
-                      const bias = dayBiasFromRow(r);
-                      return (
-                        <tr
-                          key={r.symbol}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setSymbol(r.symbol)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setSymbol(r.symbol);
-                            }
-                          }}
-                          className={`border-t border-white/5 cursor-pointer transition hover:bg-white/5 ${dayBiasBorderClass(
-                            bias
-                          )} ${r.symbol === symbol ? "bg-indigo-600/20 ring-1 ring-inset ring-indigo-400/35" : ""}`}
-                        >
-                          <td className="px-3 py-2.5 font-mono text-white/70">{r.rank}</td>
-                          <td className="px-3 py-2.5">
-                            <span className="font-mono font-semibold text-white">{r.symbol}</span>
-                            <span className="block text-xs text-white/40 truncate max-w-[200px] sm:max-w-[240px]">
-                              {r.company_name}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2.5 text-center">
-                            <span
-                              className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                                bias === "buy"
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                                  : bias === "sell"
-                                    ? "bg-rose-500/20 text-rose-200 border border-rose-500/45"
-                                    : "bg-white/10 text-white/55 border border-white/15"
-                              }`}
-                            >
-                              {bias === "buy" ? "Buy" : bias === "sell" ? "Sell" : "Flat"}
-                            </span>
-                            <span className="block text-[10px] text-white/35 mt-0.5 font-mono">
-                              {Number.isFinite(r.change_pct_snapshot)
-                                ? `${r.change_pct_snapshot >= 0 ? "+" : ""}${r.change_pct_snapshot.toFixed(2)}%`
-                                : "—"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className="font-mono font-bold text-indigo-300">{r.strong_count}</span>
-                            <span className="text-white/35">/6</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-mono text-white/80 hidden sm:table-cell">
-                            {formatUsd(r.liquidity)}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-mono text-white/80 hidden md:table-cell">
-                            {formatShares(r.volume)}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-mono text-white/80">{r.people_watching}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="xl:col-span-5 min-w-0">
-                {rowForRadar && (
-                  <>
-                    <p className="text-sm text-white/70 mb-1">
-                      Radar for{" "}
-                      <span className="font-mono font-semibold text-white">{rowForRadar.symbol}</span>
-                      {radarFallback ? (
-                        <span className="text-white/45"> (top pick — your dropdown is not on this board)</span>
-                      ) : null}
-                    </p>
-                    <p className="text-xs text-white/40 mb-3">
-                      Reputation · Price vs peers · Candle change · Volume · Liquidity · People care — click a row to
-                      inspect that symbol below.
-                    </p>
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-2 min-h-[320px] h-[min(420px,50vh)]">
-                      <BeginnerRadarChart data={rowForRadar.radar} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-white/50">
-                      <div>
-                        Scores: Rep {rowForRadar.scores.reputation} · Price {rowForRadar.scores.price_period} · Move{" "}
-                        {rowForRadar.scores.candle_change}
-                      </div>
-                      <div>
-                        Vol {rowForRadar.scores.volume} · Liq {rowForRadar.scores.liquidity} · Care{" "}
-                        {rowForRadar.scores.people_care}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+                    <tbody>
+                      {boardRows.map((r, idx) => {
+                        const bias = dayBiasFromRow(r);
+                        const selected = r.symbol === symbol;
+                        const handleRowEnter = (e: MouseEvent<HTMLTableRowElement>) => {
+                          cancelRadarHide();
+                          setHoverRadarRow(r);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const panelW = 300;
+                          const panelH = 360;
+                          let left = rect.right + 10;
+                          if (left + panelW > window.innerWidth - 12) {
+                            left = Math.max(12, rect.left - panelW - 10);
+                          }
+                          let top = rect.top;
+                          if (top + panelH > window.innerHeight - 12) {
+                            top = Math.max(12, window.innerHeight - panelH - 12);
+                          }
+                          setRadarPopover({ top, left });
+                        };
+                        return (
+                          <tr
+                            key={r.symbol}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSymbol(r.symbol)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSymbol(r.symbol);
+                              }
+                            }}
+                            onMouseEnter={handleRowEnter}
+                            onMouseLeave={scheduleRadarHide}
+                            className={`cursor-pointer border-b border-[#2b3139]/80 transition hover:bg-white/[0.04] ${
+                              idx % 2 === 1 ? "bg-white/[0.015]" : ""
+                            } ${selected ? "bg-[#3861fb]/[0.12]" : ""} ${
+                              bias === "buy"
+                                ? "border-l-[3px] border-l-[#16c784]"
+                                : bias === "sell"
+                                  ? "border-l-[3px] border-l-[#ea3943]"
+                                  : "border-l-[3px] border-l-transparent"
+                            }`}
+                          >
+                            <td className={`px-3 py-2.5 font-mono tabular-nums ${C.muted}`}>{r.rank}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-xs font-bold text-white">
+                                  {r.symbol.slice(0, 1)}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium text-white">{r.company_name}</p>
+                                  <p className={`font-mono text-xs ${C.muted}`}>{r.symbol}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">
+                              {formatUsd(r.price)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              {Number.isFinite(r.change_pct_snapshot) ? (
+                                <PctBadge pct={r.change_pct_snapshot} />
+                              ) : (
+                                <span className={C.muted}>—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span
+                                className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                  bias === "buy"
+                                    ? "bg-[#16c784]/15 text-[#16c784]"
+                                    : bias === "sell"
+                                      ? "bg-[#ea3943]/15 text-[#ea3943]"
+                                      : `${C.muted} bg-white/[0.06]`
+                                }`}
+                              >
+                                {bias === "buy" ? "Buy" : bias === "sell" ? "Sell" : "Flat"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-center font-mono tabular-nums">
+                              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+                              <span className={C.muted}>/6</span>
+                            </td>
+                            <td className={`hidden px-2 py-2.5 text-right font-mono text-xs tabular-nums sm:table-cell lg:px-3`}>
+                              {formatUsd(r.liquidity)}
+                            </td>
+                            <td className="px-2 py-2.5 text-right font-mono tabular-nums lg:px-3">{r.people_watching}</td>
+                            <td className="border-l border-[#2b3139]/60 px-1 py-1.5 align-middle">
+                              {sparklinesLoading ? (
+                                <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
+                              ) : (
+                                <TableSparkline values={rowSparklines[r.symbol] ?? []} />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className={`mt-2 text-[10px] ${C.muted}`}>
+                  Click a row to sync detail cards below. Hover a row for the radar popup. Trend = daily close line (not
+                  candles).
+                </p>
+
+                <details className={`mt-3 rounded-lg border ${C.line} bg-black/20 px-3 py-2`}>
+                  <summary className={`cursor-pointer text-[11px] font-semibold text-[#7b9cff]`}>
+                    How these metrics are calculated
+                  </summary>
+                  <ul className={`mt-2 list-inside list-disc space-y-1.5 text-[10px] leading-relaxed ${C.muted}`}>
+                    <li>
+                      <strong className="text-white/80">Fear &amp; Greed (0–100):</strong> For symbols in the table with a
+                      valid snapshot % change, compute average change and fraction of symbols up. Score = round(clamp(50 +
+                      avgChange × 3.25 + (upFraction − 0.5) × 42, 0, 100)). Labels follow standard buckets (Extreme Fear →
+                      Extreme Greed).
+                    </li>
+                    <li>
+                      <strong className="text-white/80">Row trend line:</strong> Last ~28 daily closing prices from
+                      instrument data; polyline colored green if last ≥ first, else red.
+                    </li>
+                    <li>
+                      <strong className="text-white/80">Radar scores:</strong> From the API beginner board — quintiles and
+                      reputation tiers as documented in the ranking response.
+                    </li>
+                    <li>
+                      <strong className="text-white/80">Buy / Sell badge:</strong> Sign of the same daily snapshot %
+                      change as the heatmap snapshot (not trading advice).
+                    </li>
+                  </ul>
+                </details>
             </div>
           )}
         </section>
-      </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
-        {/* Reputation / community */}
-        <section className="rounded-2xl border border-white/10 bg-[#111827]/80 p-6 shadow-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-pink-500/20 text-pink-300">
-              <Heart className="w-6 h-6" />
+        {/* Detail cards — same content, CMC-style tiles */}
+        <div className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className={`rounded-2xl ${C.card} p-4`}>
+            <div className="flex items-center gap-2">
+              <Heart className="h-4 w-4 text-pink-400" />
+              <h3 className="text-sm font-semibold">Community</h3>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">How much people care</h2>
-              <p className="text-sm text-white/55 mt-1">
-                We count how many signed-in users saved this ticker to their watchlist. More saves usually means
-                more people are tracking the story — not a buy/sell recommendation.
-              </p>
-              {overviewLoading ? (
-                <p className="mt-4 text-white/40 animate-pulse">Loading…</p>
-              ) : overview ? (
-                <>
-                  <p className="mt-4 text-2xl font-bold text-white">{overview.people_watching}</p>
-                  <p className="text-sm text-white/60">watchlist saves on DSA</p>
-                  <p className="mt-3 text-white/85 leading-relaxed">{overview.reputation_label}</p>
-                </>
-              ) : (
-                <p className="mt-4 text-amber-200/90 text-sm">No live snapshot for this symbol yet.</p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Price & snapshot */}
-        <section className="rounded-2xl border border-white/10 bg-[#111827]/80 p-6 shadow-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold">Price right now (from our latest daily snapshot)</h2>
-              <p className="text-sm text-white/55 mt-1">
-                This is a simple “where it last traded” number we store for the dashboard. It updates when our
-                market data refreshes — not a live tick-by-tick feed.
-              </p>
-              {overviewLoading ? (
-                <p className="mt-4 text-white/40 animate-pulse">Loading…</p>
-              ) : overview ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-white/45">Last price</p>
-                    <p className="text-3xl font-mono font-bold mt-1">{formatUsd(overview.price)}</p>
-                    <p className="text-sm text-white/55 mt-1">{overview.company_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-white/45">Change that day (snapshot)</p>
-                    <p
-                      className={`text-2xl font-mono font-bold mt-1 ${
-                        overview.change_pct_snapshot >= 0 ? "text-emerald-400" : "text-red-400"
-                      }`}
-                    >
-                      {overview.change_pct_snapshot >= 0 ? "+" : ""}
-                      {overview.change_pct_snapshot.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-white/45 mt-1">Compared to that day’s opening level in our data</p>
-                  </div>
-                  {overview.market_cap != null && overview.market_cap > 0 && (
-                    <div className="sm:col-span-2">
-                      <p className="text-xs uppercase tracking-wide text-white/45">Company size (market cap)</p>
-                      <p className="text-lg font-mono mt-1">{formatUsd(overview.market_cap)}</p>
-                      <p className="text-xs text-white/45 mt-1">Rough idea of total market value — from company profile</p>
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
-        {/* Candles: same period */}
-        <section className="rounded-2xl border border-white/10 bg-[#111827]/80 p-6 shadow-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300">
-              <BarChart3 className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold">
-                Change between candles ({period === "daily" ? "each day" : "each year"})
-              </h2>
-              <p className="text-sm text-white/55 mt-1">
-                Each candle is one {periodLabel}: the thick part shows where price opened and closed. We compare
-                the <strong>last</strong> candle to the one before it, and also show open → close inside the last
-                candle.
-              </p>
-              {candlesLoading ? (
-                <p className="mt-4 text-white/40 animate-pulse">Loading bars…</p>
-              ) : candleInsights ? (
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl bg-black/25 border border-white/10 p-4">
-                    <p className="text-xs uppercase text-white/45">Latest bar — close price</p>
-                    <p className="text-2xl font-mono font-semibold mt-1">{formatUsd(candleInsights.lastClose)}</p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl bg-black/25 border border-white/10 p-4">
-                      <p className="text-xs uppercase text-white/45">Inside the last candle</p>
-                      <p className="text-sm text-white/60 mt-1">Open → close on that {periodLabel}</p>
-                      <p
-                        className={`text-xl font-mono font-bold mt-2 ${
-                          (candleInsights.insideBar ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"
-                        }`}
-                      >
-                        {candleInsights.insideBar == null
-                          ? "—"
-                          : `${candleInsights.insideBar >= 0 ? "+" : ""}${candleInsights.insideBar.toFixed(2)}%`}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-black/25 border border-white/10 p-4">
-                      <p className="text-xs uppercase text-white/45">Versus previous candle</p>
-                      <p className="text-sm text-white/60 mt-1">Last close vs previous close</p>
-                      <p
-                        className={`text-xl font-mono font-bold mt-2 ${
-                          (candleInsights.vsPrevClose ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"
-                        }`}
-                      >
-                        {candleInsights.vsPrevClose == null
-                          ? "—"
-                          : `${candleInsights.vsPrevClose >= 0 ? "+" : ""}${candleInsights.vsPrevClose.toFixed(2)}%`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-black/25 border border-white/10 p-4">
-                    <p className="text-xs uppercase text-white/45">Volume on the latest bar</p>
-                    <p className="text-lg font-mono mt-1">{formatShares(candleInsights.lastVolume)} shares</p>
-                    <p className="text-xs text-white/45 mt-1">How many shares traded in that {periodLabel} — higher often means more attention</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-4 text-white/50 text-sm">No bar data loaded.</p>
-              )}
-              {candleNote && <p className="mt-3 text-sm text-amber-200/90">{candleNote}</p>}
-            </div>
-          </div>
-        </section>
-
-        {/* Volume & liquidity from snapshot */}
-        <section className="rounded-2xl border border-white/10 bg-[#111827]/80 p-6 shadow-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300">
-              <Droplets className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold">Volume & liquidity (plain English)</h2>
-              <p className="text-sm text-white/55 mt-1">
-                <strong>Volume</strong> is how many shares traded. <strong>Liquidity</strong> here is price × volume
-                for the latest snapshot — a rough sense of how much money moved, not a bank balance.
-              </p>
-              {overviewLoading ? (
-                <p className="mt-4 text-white/40 animate-pulse">Loading…</p>
-              ) : overview ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl bg-black/25 border border-white/10 p-4">
-                    <p className="text-xs uppercase text-white/45">Volume (snapshot)</p>
-                    <p className="text-xl font-mono font-semibold mt-1">{formatShares(overview.volume)}</p>
-                    <p className="text-xs text-white/45 mt-1">Shares in our last update</p>
-                  </div>
-                  <div className="rounded-xl bg-black/25 border border-white/10 p-4">
-                    <p className="text-xs uppercase text-white/45">Liquidity (snapshot)</p>
-                    <p className="text-xl font-mono font-semibold mt-1">{formatUsd(overview.liquidity)}</p>
-                    <p className="text-xs text-white/45 mt-1">Price × volume — activity proxy</p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-6 flex gap-3">
-          <Users className="w-5 h-5 text-indigo-300 shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-semibold text-indigo-200">What this page is not</h3>
-            <p className="text-sm text-white/60 mt-2 leading-relaxed">
-              This is a learning layout: short explanations, rounded numbers, and community interest — not financial
-              advice. For deeper tools, charts, and news, use the rest of the site when you’re ready.
+            <p className={`mt-2 text-xs leading-relaxed ${C.muted}`}>
+              Watchlist saves on DSA — attention, not a recommendation.
             </p>
-            <div className="flex flex-wrap gap-3 mt-4">
-              <Link href={`/companies/profile/${symbol.toLowerCase()}`} className="text-sm text-indigo-300 hover:underline">
-                Company profile →
-              </Link>
-              <Link href="/search" className="text-sm text-indigo-300 hover:underline">
-                Search companies →
-              </Link>
+            {overview && !overviewLoading && (
+              <p className="mt-3 font-mono text-2xl font-semibold tabular-nums">{overview.people_watching}</p>
+            )}
+          </div>
+
+          <div className={`rounded-2xl ${C.card} p-4`}>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-[#16c784]" />
+              <h3 className="text-sm font-semibold">Snapshot change</h3>
+            </div>
+            <p className={`mt-2 text-xs ${C.muted}`}>Versus that day&apos;s open in our data.</p>
+            {overview && !overviewLoading && (
+              <p className={`mt-3 font-mono text-2xl font-semibold tabular-nums ${overview.change_pct_snapshot >= 0 ? C.green : C.red}`}>
+                {overview.change_pct_snapshot >= 0 ? "+" : ""}
+                {overview.change_pct_snapshot.toFixed(2)}%
+              </p>
+            )}
+          </div>
+
+          <div className={`rounded-2xl ${C.card} p-4 md:col-span-2 lg:col-span-1`}>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-amber-400" />
+              <h3 className="text-sm font-semibold">Last candle ({periodLabel})</h3>
+            </div>
+            {candleInsights ? (
+              <div className="mt-3 space-y-2 text-xs">
+                <p className="font-mono text-lg tabular-nums">{formatUsd(candleInsights.lastClose)}</p>
+                <p className={C.muted}>
+                  Inside:{" "}
+                  <span className={candleInsights.insideBar != null && candleInsights.insideBar >= 0 ? C.green : C.red}>
+                    {candleInsights.insideBar == null ? "—" : `${candleInsights.insideBar >= 0 ? "+" : ""}${candleInsights.insideBar.toFixed(2)}%`}
+                  </span>
+                  {" · "}vs prev:{" "}
+                  <span className={candleInsights.vsPrevClose != null && candleInsights.vsPrevClose >= 0 ? C.green : C.red}>
+                    {candleInsights.vsPrevClose == null ? "—" : `${candleInsights.vsPrevClose >= 0 ? "+" : ""}${candleInsights.vsPrevClose.toFixed(2)}%`}
+                  </span>
+                </p>
+                <p className={`${C.muted} font-mono`}>Vol {formatShares(candleInsights.lastVolume)}</p>
+              </div>
+            ) : (
+              <p className={`mt-2 text-xs ${C.muted}`}>No bars yet.</p>
+            )}
+            {candleNote && <p className="mt-2 text-[11px] text-amber-200/80">{candleNote}</p>}
+          </div>
+
+          <div className={`rounded-2xl ${C.card} p-4`}>
+            <div className="flex items-center gap-2">
+              <Droplets className="h-4 w-4 text-cyan-400" />
+              <h3 className="text-sm font-semibold">Liquidity & volume</h3>
+            </div>
+            {overview && !overviewLoading && (
+              <div className="mt-3 space-y-1 font-mono text-sm tabular-nums">
+                <p>{formatUsd(overview.liquidity)}</p>
+                <p className={C.muted}>{formatShares(overview.volume)} sh</p>
+              </div>
+            )}
+          </div>
+
+          {overview?.market_cap != null && overview.market_cap > 0 && (
+            <div className={`rounded-2xl ${C.card} p-4`}>
+              <h3 className="text-sm font-semibold">Market cap</h3>
+              <p className="mt-3 font-mono text-lg font-semibold tabular-nums">{formatUsd(overview.market_cap)}</p>
+              <p className={`mt-1 text-[11px] ${C.muted}`}>From company profile</p>
+            </div>
+          )}
+
+          <div className={`rounded-2xl ${C.card} p-4 md:col-span-2`}>
+            <div className="flex items-start gap-2">
+              <Users className="mt-0.5 h-4 w-4 text-[#3861fb]" />
+              <div>
+                <h3 className="text-sm font-semibold">Disclaimer</h3>
+                <p className={`mt-1 text-xs leading-relaxed ${C.muted}`}>
+                  Learning layout only — not financial advice. Explore the rest of the site for deeper tools.
+                </p>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        <p className="flex items-center gap-2 text-xs text-white/35 justify-center pb-8">
-          <Clock className="w-3.5 h-3.5" />
-          Snapshot times follow server data — not real-time exchange clocks.
+        <p className={`mt-6 flex items-center justify-center gap-2 pb-8 text-[11px] ${C.muted}`}>
+          <Clock className="h-3.5 w-3.5" />
+          Server snapshot timing — not live exchange clocks.
         </p>
       </div>
+
+      {portalReady &&
+        hoverRadarRow &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{ top: radarPopover.top, left: radarPopover.left }}
+            className="fixed z-[200] w-[min(300px,calc(100vw-24px))] rounded-xl border border-[#2b3139] bg-[#1e2329] p-3 shadow-2xl shadow-black/70 pointer-events-auto"
+            onMouseEnter={cancelRadarHide}
+            onMouseLeave={scheduleRadarHide}
+          >
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <span className="font-mono text-sm font-semibold text-white">{hoverRadarRow.symbol}</span>
+              <span className={`text-[10px] ${C.muted}`}>Radar</span>
+            </div>
+            <p className={`mb-2 text-[10px] leading-snug ${C.muted}`}>
+              Hover preview — click row still picks chart symbol only.
+            </p>
+            <div className="h-[240px] w-full">
+              <BeginnerRadarChart data={hoverRadarRow.radar} />
+            </div>
+            <div className={`mt-2 grid grid-cols-2 gap-1 border-t border-[#2b3139] pt-2 text-[10px] ${C.muted}`}>
+              <span>
+                R{hoverRadarRow.scores.reputation} P{hoverRadarRow.scores.price_period} M{hoverRadarRow.scores.candle_change}
+              </span>
+              <span>
+                V{hoverRadarRow.scores.volume} L{hoverRadarRow.scores.liquidity} C{hoverRadarRow.scores.people_care}
+              </span>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
