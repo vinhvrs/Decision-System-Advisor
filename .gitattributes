@@ -5,6 +5,19 @@
 *.html diff=html
 *.md diff=markdown
 *.php diff=php
+docker-compose.yml merge=ours
+Dockerfile merge=ours
+.dockerignore merge=ours
+.gitignore merge=ours
+.env merge=ours
+.env.local merge=ours
+.env.production merge=ours
+.env.development merge=ours
+.env.test merge=ours
+
+/backend/Dockerfile merge=ours
+/backend/docker/nginx.conf merge=ours
+/backend/python_engine/Dockerfile merge=ours
 
 /.github export-ignore
 CHANGELOG.md export-ignore
