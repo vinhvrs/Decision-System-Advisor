@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { BookmarkPlus, X, Loader2 } from "lucide-react";
 import { useWatchlist } from "@/src/hooks/useWatchlist";
 
@@ -91,7 +92,12 @@ export default function WatchlistCard() {
                 key={item.id}
                 className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-black/20 hover:bg-black/30 group"
               >
-                <span className="text-sm font-bold text-white">{item.symbol}</span>
+                <Link
+                  href={`/companies/profile/${String(item.symbol || "").toLowerCase()}`}
+                  className="text-sm font-bold text-white hover:text-blue-400 transition-colors"
+                >
+                  {item.symbol}
+                </Link>
                 <button
                   type="button"
                   onClick={() => handleRemove(item.symbol)}

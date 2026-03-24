@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import { AdminService } from "@/src/services/Admin.service";
 import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 import { Loader2 } from "lucide-react";
@@ -93,7 +94,16 @@ export default function AdminCompaniesPage() {
               <tbody>
                 {companies.map((c, i) => (
                   <tr key={c.instrument_id ?? `row-${i}`} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="p-4 font-mono font-bold">{c.symbol}</td>
+                    <td className="p-4 font-mono font-bold">
+                      <Link
+                        href={`/companies/profile/${String(c.symbol || "").toLowerCase()}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-400 hover:underline"
+                      >
+                        {c.symbol}
+                      </Link>
+                    </td>
                     <td className="p-4">{c.company_name}</td>
                     <td className="p-4">{c.industry ?? "—"}</td>
                     <td className="p-4">{c.sector ?? "—"}</td>

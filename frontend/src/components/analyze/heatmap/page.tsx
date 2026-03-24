@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
 import heatmapService from "@/src/services/Heatmap.service";
 
 export default function HeatmapPage() {
+  const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 1200, height: 600 });
@@ -42,6 +44,15 @@ export default function HeatmapPage() {
   }, [root, dimensions]);
 
   // Hàm tính màu thông minh (Đậm dần theo % thay đổi)
+  const goProfile = useCallback(
+    (sym: string) => {
+      const s = String(sym || "").trim();
+      if (!s) return;
+      router.push(`/companies/profile/${s.toLowerCase()}`);
+    },
+    [router],
+  );
+
   const getColor = (change: number) => {
     const absChange = Math.abs(change);
     if (change > 0) {
@@ -81,7 +92,20 @@ export default function HeatmapPage() {
               const isSmall = w < 40 || h < 40; // Kiểm tra ô quá nhỏ để ẩn text
 
               return (
-                <g key={i} transform={`translate(${leaf.x0},${leaf.y0})`} className="group">
+                <g
+                  key={i}
+                  transform={`translate(${leaf.x0},${leaf.y0})`}
+                  className="group cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => goProfile(leaf.data.symbol)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      goProfile(leaf.data.symbol);
+                    }
+                  }}
+                >
                   <rect
                     width={w}
                     height={h}

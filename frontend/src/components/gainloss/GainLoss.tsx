@@ -61,7 +61,7 @@ export default function GainLoss() {
   }, []);
 
   const StockItem = ({ stock, type }: { stock: any, type: 'gainer' | 'loser' }) => (
-    <Link href={`/companies/profile/${stock.symbol}`}>
+    <Link href={`/companies/profile/${String(stock.symbol || "").toLowerCase()}`}>
       <li className="flex justify-between items-center group cursor-pointer border-b border-white/5 pb-3 last:border-0 transition-all hover:translate-x-1 py-2">
         <div className="flex items-center gap-3">
           {/* <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center overflow-hidden p-1">
