@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import BeginnerTestHome from "./BeginnerTestHome";
 
 export const metadata: Metadata = {
-  title: "Stock basics for beginners | DSA",
+  title: "Beginner market view | DSA",
   description:
-    "A simple test page: price, daily or yearly candles, volume, liquidity, and how many people watch each symbol — explained in plain language.",
+    "Dashboard-style view: ranked symbols, radar scores, snapshot price and change, volume, liquidity, and watchlist interest — explained in plain language.",
 };
 
 export default function TestBeginnerPage() {
