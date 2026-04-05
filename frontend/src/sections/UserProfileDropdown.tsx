@@ -16,12 +16,9 @@ interface User {
 }
 
 interface UserProfileDropdownProps {
-    user: User; // Nhận dữ liệu người dùng qua props
+    user: User;
 }
 
-/**
- * Menu Dropdown cho Tài khoản (Settings, Log Out)
- */
 function UserProfileDropdown({ user }: UserProfileDropdownProps) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +36,6 @@ function UserProfileDropdown({ user }: UserProfileDropdownProps) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // 🚀 Xử lý Đăng xuất (optimistic: clear + redirect immediately)
     const handleLogout = async () => {
         setIsLoggingOut(true);
         setIsOpen(false);

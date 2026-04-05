@@ -1,17 +1,20 @@
 import api from "@/src/libs/api";
+import { normalizeNewsListResponse } from "@/src/libs/newsArticle";
 
 class NewsService {
     // Fetch all news with pagination
     async getAllNews(params?: { page?: number; per_page?: number; }) {
         try {
             const response = await api.get('/news', { params });
+            const paginated = response.data;
+            const rows = normalizeNewsListResponse(paginated?.data ?? paginated);
             return {
-                data: response.data.data,
+                data: rows,
                 pagination: {
-                    currentPage: response.data.current_page,
-                    totalPages: response.data.total_pages,
-                    totalItems: response.data.total_items,
-                    perPage: response.data.per_page,
+                    currentPage: paginated?.current_page ?? 1,
+                    totalPages: paginated?.last_page ?? 1,
+                    totalItems: paginated?.total ?? rows.length,
+                    perPage: paginated?.per_page ?? params?.per_page ?? 15,
                 },
             };
         } catch (error) {
@@ -23,7 +26,7 @@ class NewsService {
     // Fetch a single news item by ID
     async getNewsById(id: string) {
         try {
-            const response = await api.get(`/news/${id}`);
+            const response = await api.get(`/news/${encodeURIComponent(id)}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching news with ID ${id}:`, error);

@@ -5,6 +5,6 @@
 // use Log;
 
 // Broadcast::channel('ohlc.{symbol}.{timeframe}', function ($user = null, $symbol = null, $timeframe = null) {
-//     Log::info("🔑 Authorizing channel ohlc.{$symbol}.{$timeframe}");
-//     return true; // Cho phép tất cả client subscribe
+//     Log::info("Authorizing channel ohlc.{$symbol}.{$timeframe}");
+//     return true;
 // });

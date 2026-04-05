@@ -28,9 +28,10 @@ class MarketSyncService:
         self.mcap_ranking_key = 'marketcap:ranking:daily'
         self.liq_ranking_key = 'liquidity:ranking:daily'
         self.change_ranking_key = 'heatmap:ranking:change'
+        self.fear_greed_key = 'fear_greed:by_symbol:daily'
         self.ttl = 86400
 
-        # cache market cap trong 1 lần sync để tránh gọi Yahoo lặp lại
+        # Per-sync Yahoo market cap cache (avoid repeat calls)
         self.market_cap_cache = {}
 
     def safe_float(self, value):
@@ -50,6 +51,33 @@ class MarketSyncService:
         if change_pct <= -2.5:
             return '#c0392b'
         return '#f5b7b1'
+
+    @staticmethod
+    def fear_greed_label(score: int) -> str:
+        if score <= 24:
+            return 'Extreme Fear'
+        if score <= 44:
+            return 'Fear'
+        if score <= 55:
+            return 'Neutral'
+        if score <= 74:
+            return 'Greed'
+        return 'Extreme Greed'
+
+    def calc_fear_greed_per_symbol(self, change_pct: float):
+        """
+        Same per-symbol index as the Next.js beginner hover strip:
+        F = round(clamp[0,100](50 + 3.25 * r)), r = daily snapshot % change (open -> close).
+        """
+        try:
+            r = float(change_pct)
+        except (TypeError, ValueError):
+            return 50, 'Neutral'
+        if not math.isfinite(r):
+            return 50, 'Neutral'
+        raw = 50.0 + r * 3.25
+        v = int(round(max(0.0, min(100.0, raw))))
+        return v, self.fear_greed_label(v)
 
     def fetch_market_cap(self, symbol: str, price: float) -> float:
         if symbol in self.market_cap_cache:
@@ -83,9 +111,8 @@ class MarketSyncService:
             with conn.cursor() as cur:
                 print(f"--- SYNCING MARKET DATA: {datetime.now()} ---")
 
-                # latest daily row cho mỗi instrument
-                # volume_latest: volume của row latest
-                # volume_fallback: volume daily gần nhất > 0
+                # Latest daily row per instrument:
+                # volume_latest = volume on latest row; volume_fallback = most recent daily volume > 0
                 sql_latest = """
                 SELECT
                     i.id AS instrument_id,
@@ -105,7 +132,21 @@ class MarketSyncService:
                         ORDER BY d2.timestamps DESC
                         LIMIT 1
                     ) AS volume_fallback,
-                    s.market_cap AS snapshot_market_cap
+                    s.market_cap AS snapshot_market_cap,
+                    (
+                        SELECT AVG(x.vol)
+                        FROM (
+                            SELECT d3.volume AS vol
+                            FROM instrument_data d3
+                            INNER JOIN instrument_periods p3 ON p3.id = d3.instrument_period_id
+                            WHERE p3.instrument_id = i.id
+                              AND p3.period = 'daily'
+                              AND d3.volume IS NOT NULL
+                              AND d3.volume > 0
+                            ORDER BY d3.timestamps DESC
+                            LIMIT 20
+                        ) AS x
+                    ) AS avg_volume_20d
                 FROM instrument_data d
                 JOIN instrument_periods p
                     ON p.id = d.instrument_period_id
@@ -132,6 +173,7 @@ class MarketSyncService:
                 pipe.delete(self.mcap_ranking_key)
                 pipe.delete(self.liq_ranking_key)
                 pipe.delete(self.change_ranking_key)
+                pipe.delete(self.fear_greed_key)
 
                 sql_snapshot = """
                     INSERT INTO instrument_snapshot
@@ -166,15 +208,16 @@ class MarketSyncService:
                     volume_latest = self.safe_float(row.get('volume_latest'))
                     volume_fallback = self.safe_float(row.get('volume_fallback'))
 
-                    # Fix liquidity = 0:
-                    # ưu tiên volume latest, nếu latest <= 0 thì lấy volume gần nhất > 0
+                    # Snapshot volume column: prefer latest-row volume; if zero use last positive daily volume
                     volume = volume_latest if volume_latest > 0 else volume_fallback
 
                     if price <= 0:
                         skipped += 1
                         continue
 
-                    liquidity = price * volume if volume > 0 else 0.0
+                    avg_volume_20d = self.safe_float(row.get('avg_volume_20d'))
+                    # Liquidity = price * 20d average daily volume (shares); 0 if no avg yet
+                    liquidity = price * avg_volume_20d if avg_volume_20d > 0 else 0.0
 
                     change_pct = 0.0
                     if open_p > 0:
@@ -201,6 +244,14 @@ class MarketSyncService:
                     pipe.zadd(self.liq_ranking_key, {symbol: liquidity})
                     pipe.zadd(self.change_ranking_key, {symbol: change_pct})
 
+                    fg_val, fg_label = self.calc_fear_greed_per_symbol(change_pct)
+                    fg_payload = {
+                        'value': fg_val,
+                        'label': fg_label,
+                        'change_pct': change_pct,
+                    }
+                    pipe.hset(self.fear_greed_key, symbol, json.dumps(fg_payload))
+
                     heatmap_item = {
                         'symbol': symbol,
                         'name': company_name,
@@ -208,6 +259,9 @@ class MarketSyncService:
                         'market_cap': market_cap,
                         'liquidity': liquidity,
                         'change_pct': change_pct,
+                        'fear_greed': fg_val,
+                        'fear_greed_label': fg_label,
+                        'avg_volume_20d': avg_volume_20d,
                         'size': self.calc_size(market_cap),
                         'color': self.calc_color(change_pct)
                     }
@@ -219,6 +273,7 @@ class MarketSyncService:
                 pipe.expire(self.mcap_ranking_key, self.ttl)
                 pipe.expire(self.liq_ranking_key, self.ttl)
                 pipe.expire(self.change_ranking_key, self.ttl)
+                pipe.expire(self.fear_greed_key, self.ttl)
                 pipe.execute()
 
                 print(f"SYNC DONE: processed={processed}, skipped={skipped}, total={len(rows)}")

@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'user.self' => \App\Http\Middleware\EnsureUserSelf::class,
             'api.auth' => \App\Http\Middleware\EnsureApiAuthenticated::class,
             'admin.staff' => \App\Http\Middleware\EnsureAdminOrStaff::class,
+            'admin.activity' => \App\Http\Middleware\LogAdminApiActivity::class,
         ]);
         $middleware->prependToGroup('api', \App\Http\Middleware\AddTokenFromCookie::class);
     })

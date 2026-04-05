@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import UserProfileDropdown from "../../sections/UserProfileDropdown";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
 import { SITE_NAV_LINKS } from "@/src/components/header/nav-config";
+import { stripParentheticals } from "@/src/libs/displayString";
 
 interface User {
   id: string;
@@ -28,6 +29,7 @@ export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ElasticCompanyHit[]>([]);
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -47,17 +49,22 @@ export default function Header() {
     const q = searchQuery.trim();
     if (q.length < MIN_SEARCH_LENGTH) {
       setSearchResults([]);
+      setSearchSuggestions([]);
       setSearchLoading(false);
       return;
     }
     const t = setTimeout(() => {
       setSearchLoading(true);
       ElasticService.searchCompanies(q, 10)
-        .then(({ items }) => {
+        .then(({ items, suggestions }) => {
           setSearchResults(items);
-          if (items.length > 0) setSearchOpen(true);
+          setSearchSuggestions(suggestions ?? []);
+          if (items.length > 0 || (suggestions?.length ?? 0) > 0) setSearchOpen(true);
         })
-        .catch(() => setSearchResults([]))
+        .catch(() => {
+          setSearchResults([]);
+          setSearchSuggestions([]);
+        })
         .finally(() => setSearchLoading(false));
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
@@ -173,8 +180,28 @@ export default function Header() {
             ) : (
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
             )}
-            {searchOpen && searchResults.length > 0 && (
+            {searchOpen && (searchResults.length > 0 || searchSuggestions.length > 0) && (
               <div className="absolute top-full left-0 right-0 mt-1 py-2 rounded-xl bg-[#0B1220] border border-white/10 shadow-xl max-h-72 overflow-y-auto z-50">
+                {searchSuggestions.length > 0 && (
+                  <div className="border-b border-white/5 px-3 pb-2 mb-1">
+                    <p className="text-[10px] uppercase tracking-wider text-white/35 mb-1.5">Suggestions</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {searchSuggestions.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery(s);
+                            setSearchOpen(true);
+                          }}
+                          className="rounded-lg bg-indigo-500/15 px-2.5 py-1 text-xs text-indigo-200 hover:bg-indigo-500/25"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {searchResults.map((hit, idx) => (
                   <button
                     key={hit.id ?? `${hit.source?.symbol ?? "x"}-${idx}`}
@@ -183,7 +210,9 @@ export default function Header() {
                     className="w-full px-4 py-2.5 text-left hover:bg-white/5 transition flex items-center gap-3"
                   >
                     <span className="font-semibold text-white uppercase">{hit.source?.symbol ?? "—"}</span>
-                    <span className="text-white/70 text-sm truncate flex-1">{hit.source?.company_name ?? "—"}</span>
+                    <span className="text-white/70 text-sm truncate flex-1">
+                      {stripParentheticals(hit.source?.company_name) || "—"}
+                    </span>
                   </button>
                 ))}
                 <Link

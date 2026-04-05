@@ -17,7 +17,7 @@ class ElasticsearchEntityService
 
     public function getMarketData(string $symbol): array
     {
-        // placeholder – bạn có thể thay bằng index thật
+        // placeholder; replace with a real index mapping when wired up
         return [
             'symbol' => $symbol,
             'price' => null,

@@ -6,6 +6,7 @@ import React, { useEffect, useState, useCallback, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
 import { CompanyService } from "@/src/services/Company.service";
 import FundamentalRadar from "@/src/app/(site)/companies/profile/[inc-slug]/FundamentalRadar";
+import { stripParentheticals } from "@/src/libs/displayString";
 
 // --- Component Table Row (optimized render) ---
 const StockRow = memo(({ stock, index, onHover, onClick }: any) => (
@@ -21,7 +22,7 @@ const StockRow = memo(({ stock, index, onHover, onClick }: any) => (
         {stock.symbol}
       </div>
       <div className="text-[10px] text-gray-500 truncate max-w-[120px]">
-        {stock.company_name || "N/A"}
+        {stripParentheticals(stock.company_name) || "N/A"}
       </div>
     </td>
     <td className="px-6 py-4 text-right tabular-nums text-sm text-gray-200">
@@ -164,7 +165,9 @@ const StockRankingPage = () => {
                 {hoveredStock.symbol}
               </div>
               <div className="text-[10px] text-gray-500 truncate max-w-[180px]">
-                {hoveredDetails?.company_name || hoveredStock.company_name || "Loading company..."}
+                {stripParentheticals(
+                  hoveredDetails?.company_name || hoveredStock.company_name || "Loading company..."
+                )}
               </div>
             </div>
             <span className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">
@@ -173,7 +176,7 @@ const StockRankingPage = () => {
           </div>
 
           <div className="h-[280px] w-full">
-            <FundamentalRadar details={hoveredDetails} />
+            <FundamentalRadar symbol={hoveredStock.symbol} compact />
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">

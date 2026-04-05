@@ -1,5 +1,19 @@
 <?php
 
+/*
+| MAIL_SCHEME=null in .env is often parsed as the string "null", which is not a valid SMTP scheme
+| and breaks the Symfony transport. Treat empty / "null" as unset so Laravel picks smtp vs smtps from port.
+*/
+$mailScheme = env('MAIL_SCHEME');
+if ($mailScheme !== null && $mailScheme !== '') {
+    $mailScheme = trim((string) $mailScheme);
+    if ($mailScheme === '' || strcasecmp($mailScheme, 'null') === 0) {
+        $mailScheme = null;
+    }
+} else {
+    $mailScheme = null;
+}
+
 return [
 
     /*
@@ -39,12 +53,16 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            'scheme' => $mailScheme,
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
+            /* Passed through to Symfony Dsn options (port 587 + smtp uses STARTTLS when auto_tls is true). */
+            'auto_tls' => env('MAIL_AUTO_TLS') === null
+                ? true
+                : filter_var(env('MAIL_AUTO_TLS'), FILTER_VALIDATE_BOOLEAN),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],

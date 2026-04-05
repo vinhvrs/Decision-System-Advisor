@@ -9,20 +9,20 @@ class ComposeResponse:
         decision = ctx.memory.get('decision', {})
         strategy = decision.get('strategy', {})
         
-        # 1. Nếu cần dữ liệu nhưng thiếu thực thể (đối chiếu ComposeResponse.php dòng 27)
+        # 1) Data required but no ticker
         if strategy.get('require_data') and not decision.get('entities', {}).get('tickers'):
             return ERROR_MESSAGES.get('missing_entity', "Please specify a stock so I can help.")
 
-        # 2. Nếu không cho phép LLM hoặc phrasing (dòng 32 PHP)
+        # 2) Phrasing disabled
         if not strategy.get('allow_llm', True):
             return text
 
-        # 3. Compose phrased response (dòng 37 PHP)
+        # 3) Build phrased reply
         prefix = self.pick_prefix(ctx, strategy)
         body = self.pick_intent_phrase(intent) or text
         follow_up = self.pick_follow_up(ctx)
 
-        # Lọc bỏ các phần rỗng và ghép bằng khoảng trắng
+        # Drop empty parts, single-space join
         parts = [p for p in [prefix, body, follow_up] if p]
         return " ".join(parts).strip()
 
@@ -38,7 +38,7 @@ class ComposeResponse:
         return random.choice(phrases) if phrases else None
 
     def pick_follow_up(self, ctx) -> str:
-        # Chỉ thêm follow-up nếu là phản hồi hướng ngoại (dòng 76 PHP)
+        # Follow-up only on outbound pass
         if ctx.direction != 'out':
             return None
         follow_ups = self.phrases.get('follow_up', [])

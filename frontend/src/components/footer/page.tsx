@@ -74,16 +74,14 @@ export default function Footer() {
           ))}
         </div>
 
-        {/* Disclaimer */}
         <div className="border-y border-white/5 py-6 tablet:py-8 mb-6 tablet:mb-8 text-center tablet:text-left">
           <p className="text-[10px] phone:text-[11px] text-white/30 leading-relaxed uppercase tracking-tighter">
             <span className="text-orange-500/60 font-bold mr-1 italic">RISK DISCLOSURE:</span> 
-            Trading stocks, forex, and crypto involves significant risk. The information provided on DSA is for educational purposes only 
+            Trading stocks involves significant risk. The information provided on DSA is for educational purposes only 
             and does not constitute financial advice. Decision Stocks Advisor (DSA) is an academic project.
           </p>
         </div>
 
-        {/* Bottom */}
         <div className="flex flex-col tablet:flex-row justify-between items-center gap-3 tablet:gap-4 text-white/30 text-[11px] phone:text-[12px]">
           <p>© {currentYear} DSA Team. All rights reserved.</p>
           <div className="flex items-center gap-2">

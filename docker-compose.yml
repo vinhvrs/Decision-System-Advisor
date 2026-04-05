@@ -1,5 +1,5 @@
 services:
-  # MySQL - Giới hạn RAM cho Pi 4
+  # MySQL - Limit RAM for Pi 4
   db:
     image: mysql:8.0
     container_name: dsa-mysql
@@ -32,7 +32,7 @@ services:
     ports:
       - "9200:9200"
 
-  # Vector Database cho AI
+  # Vector Database for AI
   qdrant:
     image: qdrant/qdrant:latest
     container_name: dsa-qdrant
@@ -41,12 +41,13 @@ services:
     ports:
       - "6333:6333"
 
-  # Python Data Engine (Xử lý tin tức, phân tích, embedding)
+  # Python Data Engine (Process news, analyze, embed)
   data-engine:
     build:
       context: ./backend/python_engine
       dockerfile: Dockerfile
     container_name: dsa-data-engine
+    restart: unless-stopped
     volumes:
       - ./backend/python_engine:/app
       - ./backend/.env:/app/.env
@@ -58,17 +59,32 @@ services:
       - "8000:8000"
     #volumes:
     #  - ./backend/python_engine:/app
-    #  - ./backend/.env:/.env      # Gắn file .env vào thư mục root (/) của container để code Python tìm thấy
+    #  - ./backend/.env:/.env      # Attach .env file to root (/) of container so Python code can find it
     environment:
       - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONUNBUFFERED=1
+      # Background jobs (see backend/python_engine/app/main.py APScheduler + FastAPI lifespan):
+      # News ingest + embed + Qdrant run here; Laravel news:* schedules are disabled.
+      # - NEWS_INTERVAL_HOURS: GDELT → knowledge_docs (default 1h).
+      # - NEWS_EMBED_*: embed unprocessed docs → chunks + Qdrant (replaces Artisan embed/qdrant).
+      # - SCHEDULE_INTERVAL_HOURS: stock candle sync + auto_analyze share this interval.
+      - SCHEDULE_INTERVAL_HOURS=3
+      - NEWS_INTERVAL_HOURS=1
+      - NEWS_EMBED_ENABLED=0
+      - NEWS_EMBED_INTERVAL_HOURS=1
+      - NEWS_EMBED_BATCH_LIMIT=50
+      - NEWS_SCHEDULE_LOOKBACK_DAYS=14
+      # Thesis demo default in app/main.py is top_snapshot + 20; for full universe set SYMBOL_INGEST_MODE=all
+      - SYMBOL_INGEST_MODE=top_snapshot
+      - SYMBOL_INGEST_TOP_N=20
+      - SCHEDULER_MISFIRE_GRACE_SEC=14400
       - LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
       - OPENBLAS_CORETYPE=ARMV8
       # - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
     env_file:
-      - ./backend/.env            # Bơm biến môi trường trực tiếp vào container
-    #depends_on:                   # Đợi DB và Elastic chạy xong mới chạy Python
+      - ./backend/.env            # Pump environment variables directly into container
+    #depends_on:                   # Wait for DB and Elastic to run before running Python
     #  mysql:
     #    condition: service_healthy
     #  elasticsearch:

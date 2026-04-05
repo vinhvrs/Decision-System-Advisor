@@ -7,7 +7,11 @@ use Illuminate\Pagination\LengthAwarePaginator;
 interface UserInterface {
     public function create(array $user): Users;
 
+    public function createWithHashedPassword(array $user): Users;
+
     public function find(string $id): ?Users;
+
+    public function findByEmail(string $email): ?Users;
 
     public function findAll($filter, $select, $perPage): LengthAwarePaginator;
 

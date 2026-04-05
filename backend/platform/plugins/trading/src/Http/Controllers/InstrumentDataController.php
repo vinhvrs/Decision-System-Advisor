@@ -33,6 +33,22 @@ class InstrumentDataController extends Controller{
         return response()->json($data);
      }
 
+    /**
+     * POST JSON: { "symbols": ["NVDA","AAPL"], "limit": 40 } — daily closes per symbol (oldest first).
+     */
+    public function batchDailyCloses(Request $request)
+    {
+        $symbols = $request->input('symbols');
+        if (! is_array($symbols)) {
+            return response()->json(['message' => 'symbols must be an array of ticker strings'], 422);
+        }
+        $limit = min(max((int) $request->input('limit', 40), 1), 500);
+        $symbols = array_slice(array_values($symbols), 0, 100);
+        $data = $this->instrumentDataRepository->batchDailyCloses($symbols, $limit);
+
+        return response()->json(['data' => $data]);
+    }
+
     public function showByPeriod(string $periodId) {
         $perPage = min(max((int) request()->input('per_page', 500), 1), 10000);
 

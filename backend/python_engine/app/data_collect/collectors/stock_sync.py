@@ -1,33 +1,142 @@
+import hashlib
+import logging
 import uuid
 import time
 import pandas as pd
 import yfinance as yf
 import pymysql
 from datetime import datetime
+from typing import Optional
 import os
 import sys
 
-# Thêm đường dẫn để import config
+# Repo root for config import
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 from config.settings import settings
 
-class DSATurbo:
-    def __init__(self):
+logger = logging.getLogger(__name__)
+
+
+def _doc_id_corporate(symbol: str, title: str, published_at, url: str) -> str:
+    raw = f"{(symbol or '').strip().upper()}|{title}|{published_at}|{url}"
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def _db_connect():
+    cfg = settings.DB_CONFIG.copy()
+    cfg.setdefault("cursorclass", pymysql.cursors.DictCursor)
+    return pymysql.connect(**cfg)
+
+
+def _save_corporate_knowledge_doc(
+    conn,
+    doc_id: str,
+    symbol: str,
+    title: str,
+    content: str,
+    published_at,
+) -> None:
+    """Persist Yahoo Finance corporate actions for display only (no price / inference pipeline)."""
+    now = datetime.now()
+    hash_key = doc_id if len(doc_id) == 32 else hashlib.md5(str(doc_id).encode("utf-8")).hexdigest()
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT IGNORE INTO knowledge_docs
+            (id, hash_key, title, content, published_at, image, category, symbol, source, author, language, created_at, updated_at, is_processed)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                doc_id,
+                hash_key,
+                title,
+                content,
+                published_at,
+                None,
+                "article",
+                symbol,
+                "YFinance_Action",
+                None,
+                "en",
+                now,
+                now,
+                0,
+            ),
+        )
+
+
+def sync_corporate_actions(
+    symbol: str,
+    company_name: str,
+    start_dt: Optional[datetime] = None,
+    end_dt: Optional[datetime] = None,
+) -> None:
+    """
+    Yahoo Finance dividends / splits → ``knowledge_docs`` only (display in UI).
+    """
+    _ = company_name
+    logger.info("Corporate actions (DB only): %s", symbol)
+    try:
+        tk = yf.Ticker(symbol)
+        actions = tk.actions
+        if actions.empty:
+            return
+
+        if start_dt is not None:
+            idx = actions.index
+            if idx.tz is not None and start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=idx.tz)
+            actions = actions[actions.index >= start_dt]
+        if end_dt is not None:
+            idx = actions.index
+            if idx.tz is not None and end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=idx.tz)
+            actions = actions[actions.index <= end_dt]
+
+        if actions.empty:
+            return
+
+        conn = _db_connect()
         try:
+            for date, row in actions.iterrows():
+                event_type = "Dividend" if row.get("Dividends", 0) > 0 else "Stock Split"
+                value = row.get("Dividends", 0) if event_type == "Dividend" else row.get("Stock Splits", 0)
+                title = f"[{symbol}] Corporate Action: {event_type} of {value}"
+                doc_id = _doc_id_corporate(symbol, title, date, "YFinance_Action")
+                _save_corporate_knowledge_doc(
+                    conn,
+                    doc_id=doc_id,
+                    symbol=symbol,
+                    title=title,
+                    content=f"Official corporate action data from Yahoo Finance: {event_type} of {value}",
+                    published_at=date,
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.exception("Corporate action error for %s: %s", symbol, e)
+
+
+class DSATurbo:
+    def __init__(self, snapshot_limit: Optional[int] = None):
+        """
+        ``snapshot_limit``: max rows from ``instrument_snapshot`` ordered by volume.
+        ``None`` → ``settings.TOP_N`` (full scheduled sync). Set to ``20`` for thesis demo scope.
+        """
+        try:
+            self.snapshot_limit = snapshot_limit
             self.db_config = settings.DB_CONFIG.copy()
             self.db_config['cursorclass'] = pymysql.cursors.DictCursor
             self.conn = pymysql.connect(**self.db_config)
             self.conn.autocommit(False) 
-            print(f"✅ Connected to DB: {self.db_config['database']}")
+            print(f"Connected to DB: {self.db_config['database']}")
         except Exception as e:
-            print(f"❌ DB Connection Error: {e}")
+            print(f"DB connection error: {e}")
             exit(1)
 
     def generate_slug(self, symbol, period, dt_obj):
-        """
-        Format chuẩn: symbol-period-YYYY-MM-DD HH:mm:ss
-        Ví dụ: aapl-daily-2023-10-27 00:00:00
-        """
+        """Slug: symbol-period-YYYY-MM-DD 00:00:00 (e.g. aapl-daily-2023-10-27 00:00:00)."""
         time_part = dt_obj.strftime('%Y-%m-%d 00:00:00')
         return f"{symbol.lower()}-{period.lower()}-{time_part}"
 
@@ -40,7 +149,12 @@ class DSATurbo:
                 ORDER BY s.volume DESC
                 LIMIT %s
             """
-            cur.execute(sql, (getattr(settings, 'TOP_N', 500),))
+            limit = (
+                self.snapshot_limit
+                if self.snapshot_limit is not None
+                else getattr(settings, "TOP_N", 500)
+            )
+            cur.execute(sql, (limit,))
             return cur.fetchall()
 
     def ensure_periods(self, inst_id, symbol):
@@ -65,17 +179,17 @@ class DSATurbo:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
-            # FIX: Chỉ lấy 7 ngày để tối ưu hiệu suất
+            # Last 7 daily bars for speed
             df = ticker.history(period="7d", interval="1d", auto_adjust=True)
             if df.empty: return
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # --- Xử lý Daily ---
+            # Daily rows
             daily_values = []
             for dt, row in df.iterrows():
                 dt_str = dt.strftime('%Y-%m-%d 00:00:00')
-                # Sử dụng format slug mới có chứa period 'daily'
+                # Slug includes period name
                 slug = self.generate_slug(symbol, 'daily', dt)
                 
                 daily_values.append((
@@ -88,11 +202,11 @@ class DSATurbo:
             if daily_values:
                 self._execute_upsert(daily_values)
 
-            # --- Xử lý Aggregate (Weekly, Monthly, Yearly) ---
+            # Resampled weekly / monthly / yearly
             self.aggregate_for_symbol(symbol, p_ids, df, now_str)
 
         except Exception as e:
-            print(f" ❌ Error {symbol}: {e}")
+            print(f"Error {symbol}: {e}")
             self.conn.rollback()
 
     def _execute_upsert(self, values):
@@ -109,7 +223,7 @@ class DSATurbo:
 
     def aggregate_for_symbol(self, symbol, p_ids, df, now_str):
         df.index = pd.to_datetime(df.index)
-        # W-MON: Tuần bắt đầu từ Thứ 2; MS: Đầu tháng; YS: Đầu năm
+        # W-MON week start Monday; MS month start; YS year start
         rules = {'weekly': 'W-MON', 'monthly': 'MS', 'yearly': 'YS'}
         
         for p_type, rule in rules.items():
@@ -120,7 +234,7 @@ class DSATurbo:
             agg_values = []
             for ts, row in agg.iterrows():
                 dt_str = ts.strftime('%Y-%m-%d 00:00:00')
-                # Slug phân biệt theo p_type (weekly, monthly...)
+                # Slug encodes aggregation period
                 slug = self.generate_slug(symbol, p_type, ts)
                 
                 agg_values.append((
@@ -137,17 +251,17 @@ class DSATurbo:
         start_turbo = time.time()
         instruments = self.fetch_symbols()
         total = len(instruments)
-        print(f"🚀 Starting Turbo Sync v3.5 (7 Days Backfill) for Top {total} symbols...")
+        print(f"Starting Turbo Sync v3.5 (7d backfill) for {total} symbols...")
         
         for idx, inst in enumerate(instruments):
             start_time = time.time()
             sym = inst['symbol'].upper()
             self.update_stock(inst['id'], sym)
             elapsed = time.time() - start_time
-            print(f"✅ [{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
+            print(f"[{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
             
         self.conn.close()
-        print(f"🏁 Finish! Total time: {(time.time() - start_turbo)/60:.2f} minutes.")
+        print(f"Done. Total time: {(time.time() - start_turbo)/60:.2f} minutes.")
 
 if __name__ == "__main__":
     DSA_TURBO = DSATurbo()

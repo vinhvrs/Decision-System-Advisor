@@ -3,11 +3,11 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class SmoothContext:
-    direction: str = 'in'  # 'in' (user input) hoặc 'out' (system response)
+    direction: str = 'in'  # 'in' = user input, 'out' = system response
     style_preset: str = "standard"
     debug: bool = False
     memory: Dict[str, Any] = field(default_factory=dict)
-    # BỔ SUNG: Danh sách lưu trữ các lỗi phát sinh trong quá trình NLP
+    # NLP pipeline errors collected during smoothing
     errors: List[str] = field(default_factory=list)
 
     def set(self, key: str, value: Any):
@@ -16,11 +16,9 @@ class SmoothContext:
     def get(self, key: str, default: Any = None):
         return self.memory.get(key, default)
 
-    # BỔ SUNG: Hàm kiểm tra xem có lỗi hay không
     def has_error(self) -> bool:
         return len(self.errors) > 0
 
-    # BỔ SUNG: Hàm để resolver.py có thể ghi nhận lỗi
     def add_error(self, message: str):
         self.errors.append(message)
 

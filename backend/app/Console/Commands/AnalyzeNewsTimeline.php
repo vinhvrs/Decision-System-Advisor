@@ -30,7 +30,7 @@ class AnalyzeNewsTimeline extends Command
 
         $this->info("==== Timeline Analysis ====\n");
 
-        // 1️⃣ Group by month
+        // 1) Group by month
         $timeline = [];
 
         foreach ($events as $event) {
@@ -55,7 +55,7 @@ class AnalyzeNewsTimeline extends Command
             $timeline[$month]['types'][$type]++;
         }
 
-        // 2️⃣ Calculate average events per month
+        // 2) Average events per month
         $totalMonths = count($timeline);
         $totalEvents = array_sum(array_column($timeline, 'total'));
         $avgPerMonth = $totalEvents / max($totalMonths, 1);
@@ -65,13 +65,13 @@ class AnalyzeNewsTimeline extends Command
         $this->info("Average Events / Month: " . round($avgPerMonth, 2));
         $this->line("");
 
-        // 3️⃣ Print timeline + density
+        // 3) Timeline and density
         foreach ($timeline as $month => $data) {
 
             $density = $data['total'] / max($avgPerMonth, 1);
-            $densityLabel = $density > 2 ? "🔥 SPIKE" : "";
+            $densityLabel = $density > 2 ? 'SPIKE' : '';
 
-            $this->info("{$month} → {$data['total']} events | Density: "
+            $this->info("{$month}: {$data['total']} events | Density: "
                 . round($density, 2) . " {$densityLabel}");
 
             foreach ($data['types'] as $type => $count) {
@@ -81,7 +81,7 @@ class AnalyzeNewsTimeline extends Command
             $this->line("");
         }
 
-        // 4️⃣ Global event type ranking
+        // 4) Global event type ranking
         $typeCounts = [];
 
         foreach ($timeline as $data) {
@@ -98,7 +98,7 @@ class AnalyzeNewsTimeline extends Command
         $this->info("==== Event Type Ranking ====");
 
         foreach ($typeCounts as $type => $count) {
-            $this->line("{$type} → {$count}");
+            $this->line("{$type}: {$count}");
         }
 
         $this->line("");

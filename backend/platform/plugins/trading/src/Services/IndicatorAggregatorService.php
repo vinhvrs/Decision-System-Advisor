@@ -4,9 +4,7 @@ namespace Platform\Plugins\Trading\Src\Services;
 
 class IndicatorAggregatorService
 {
-    /**
-     * Tổng weight = 1.0
-     */
+    /** Weights sum to 1.0 */
     protected array $weights = [
         'ema'        => 0.25,
         'sma'        => 0.20,
@@ -17,9 +15,8 @@ class IndicatorAggregatorService
     ];
 
     /**
-     * Các threshold "thực tế" hơn.
-     * - Volatility cao: cần score mạnh hơn mới BUY/SELL
-     * - Volatility thấp: dễ ra BUY/SELL hơn (ít nhiễu)
+     * Per-volatility BUY/SELL thresholds: high volatility needs a stronger weighted score;
+     * low volatility allows BUY/SELL at smaller scores.
      */
     protected array $thresholdByVol = [
         'high'   => 0.55,
@@ -28,9 +25,8 @@ class IndicatorAggregatorService
     ];
 
     /**
-     * Dùng để normalize confidence (thay vì abs(score)*100)
-     * Với bộ signal mạnh (±2), score có thể lớn hơn 1.
-     * Ta clamp về 1.0 cho confidence.
+     * Scales confidence (instead of abs(score)*100). With ±2 signals the raw score can exceed 1;
+     * confidence is clamped to 0..100 after dividing by this scale.
      */
     protected float $confidenceScale = 0.80; // realistic "strong" score
 
@@ -38,7 +34,7 @@ class IndicatorAggregatorService
     {
         $ind = $data['indicators'] ?? [];
 
-        // Guard tối thiểu
+        // Minimum inputs
         $smaVal = (float)($ind['sma']['sma'] ?? 0);
         $emaVal = (float)($ind['ema']['ema'] ?? 0);
 
@@ -106,13 +102,11 @@ class IndicatorAggregatorService
 
             'signals' => $signals,
 
-            // ✅ NEW: reasons for composer/UI
+            // Human-readable reasons for composer / UI
             'highlights' => $highlights,
             'warnings'   => $warnings,
         ];
     }
-
-    /* ================= SIGNALS (strength: -2..+2) ================= */
 
     private function maSignal(float $price, float $ma): int
     {
@@ -121,7 +115,7 @@ class IndicatorAggregatorService
         $diff = ($price - $ma) / $ma;      // signed
         $adiff = abs($diff);               // magnitude
 
-        // quá gần MA → neutral
+        // Too close to MA → neutral
         if ($adiff < 0.003) { // 0.3%
             return 0;
         }
@@ -152,11 +146,11 @@ class IndicatorAggregatorService
     {
         $c = $macd['crossover'] ?? null;
 
-        // nếu có histogram hoặc strength thì tận dụng
+        // Use histogram magnitude when present
         $hist = $macd['histogram'] ?? null;
 
         if ($c === 'bullish') {
-            // strong bullish nếu histogram lớn (nếu có)
+            // Stronger bullish when histogram is large
             if (is_numeric($hist) && (float)$hist > 0.5) return 2;
             return 1;
         }
@@ -206,8 +200,6 @@ class IndicatorAggregatorService
         return 0;
     }
 
-    /* ================= SUMMARY ================= */
-
     private function trendFromMAWeighted(array $signals): string
     {
         // use weight-aware trend
@@ -244,15 +236,13 @@ class IndicatorAggregatorService
 
         $width = (float)$upper - (float)$lower;
 
-        // NOTE: giữ logic cũ nhưng bạn nên calibrate theo instrument/period
+        // Legacy width buckets; calibrate per instrument/period if needed
         return match (true) {
             $width > 30 => 'high',
             $width > 15 => 'medium',
             default     => 'low',
         };
     }
-
-    /* ================= REASONS (highlights + warnings) ================= */
 
     private function buildReasons(
         array $signals,

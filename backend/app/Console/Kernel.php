@@ -1,40 +1,16 @@
 <?php
 namespace App\Console;
-use App\Console\Commands\MarketMove;
+use App\Console\Commands\ElasticReindexCommand;
+use App\Console\Commands\ElasticSetupCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-use App\Console\Commands\FetchStockAttributes;
-use App\Console\Commands\DataPeriods;
-use App\Console\Commands\SmoothTest;
-use App\Console\Commands\LiquidityRebuild;
-use App\Console\Commands\HeatmapRebuild;
-use App\Console\Commands\FetchMarketNews;
-use App\Console\Commands\FetchCompanyProfile;
-use App\Console\Commands\ExtractNewsEvents;
-use App\Console\Commands\EmbedNewsChunks;
-use App\Console\Commands\TestQdrantSemantic;
-use App\Console\Commands\ElasticSetupCommand;
-use App\Console\Commands\ElasticReindexCommand;
 use Illuminate\Support\Facades\Log;
-
 
 class Kernel extends ConsoleKernel
 {
     protected $commands = [
-        // FetchStockAttributes::class,
-        // DataPeriods::class,
-        // FetchCompanyProfile::class,
-        // FetchMarketNews::class,
-        // SmoothTest::class,
-        // LiquidityRebuild::class,
-        // HeatmapRebuild::class,
-        // MarketMove::class,
-        // TestQdrantSemantic::class,
-        // ExtractNewsEvents::class,
-        // EmbedNewsChunks::class,
         ElasticSetupCommand::class,
         ElasticReindexCommand::class,
-        \App\Console\Commands\ElasticTestCommand::class,
     ];
     protected $middlewareGroups = [
         'api' => [
@@ -46,18 +22,14 @@ class Kernel extends ConsoleKernel
 
     protected function schedule(Schedule $schedule): void
     {
-        Log::info('✅ schedule() method in Kernel is being called.');
+        Log::info('schedule() invoked in Console Kernel.');
 
         $schedule->command('data:periods')
             ->everyFifteenSeconds()
             ->evenInMaintenanceMode()
             ->withoutOverlapping()
             ->runInBackground()
-            ->onOneServer()
-            ->before(function () {
-                \Artisan::call('data:periods');
-            });
-
+            ->onOneServer();
 
         $schedule->command('liquidity:rebuild')
             ->everyFiveMinutes()
@@ -67,44 +39,8 @@ class Kernel extends ConsoleKernel
             ->everyTenMinutes()
             ->withoutOverlapping();
 
-        $schedule->command('news:market-fetch')
-            ->hourly()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground()
-            ->onOneServer()
-            ->before(function () {
-                \Artisan::call('news:market-fetch');
-            });
-
-        $schedule->command('news:extract-events')
-            ->everyThirtyMinutes()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground()
-            ->onOneServer()
-            ->before(function () {
-                \Artisan::call('news:extract-events');
-            });
-
-        $schedule->command('news:embed-chunks')
-            ->hourly()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground()
-            ->onOneServer()
-            ->before(function () {
-                \Artisan::call('news:embed-chunks');
-            });
-
-        $schedule->command('news:qdrant-upsert')
-            ->hourly()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground()
-            ->onOneServer()
-            ->before(function () {
-                \Artisan::call('news:qdrant-upsert');
-            });
+        // News ingest + embed + Qdrant are handled by the Python data-engine (FastAPI lifespan / APScheduler).
+        // Do not schedule news:* Artisan commands here — they duplicate work and conflict with python_engine.
+        // Manual one-offs if ever needed: php artisan news:market-fetch …, news:embed-chunks, etc.
     }
 }

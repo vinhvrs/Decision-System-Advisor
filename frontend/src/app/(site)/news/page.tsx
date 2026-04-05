@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Newspaper, X, Clock, Calendar } from "lucide-react";
 import newsService from "@/src/services/News.service";
 import { News } from "@/src/types/News";
+import { pickNewsThumbImage } from "@/src/libs/newsArticle";
 
 export default function NewsListPage() {
   const [items, setItems] = useState<News[]>([]);
@@ -70,11 +71,9 @@ export default function NewsListPage() {
       setHasMore(false);
     } finally {
       setIsLoading(false);
-      setIsMoreLoading(false);
+      setIsLoadingMore(false);
     }
   };
-
-  function setIsMoreLoading(val: boolean) { setIsLoadingMore(val); }
 
   useEffect(() => { fetchPage(1, "replace"); }, []);
 
@@ -98,6 +97,7 @@ export default function NewsListPage() {
             <div className="divide-y divide-white/5">
               {items.map((item) => {
                 const { imageUrl } = parseContent(item.content || "");
+                const thumb = imageUrl || pickNewsThumbImage(item as any);
                 const timeLabel = formatDisplayDate((item as any).published_at);
                 const isRecent = timeLabel.includes('ago');
 
@@ -115,7 +115,9 @@ export default function NewsListPage() {
                           <Clock size={12} />
                           {timeLabel}
                         </div>
-                        <span className="text-blue-400/80 font-medium">• {item.author?.split(',')[0] || "Reuters"}</span>
+                        <span className="text-blue-400/80 font-medium">
+                          • {(item as any).author?.split?.(",")?.[0]?.trim() || "News"}
+                        </span>
                       </div>
                       <h2 className={`text-sm font-semibold leading-snug line-clamp-2 ${
                         selectedNews?.id === item.id ? "text-blue-400" : "text-white/90"
@@ -123,9 +125,9 @@ export default function NewsListPage() {
                         {item.title}
                       </h2>
                     </div>
-                    {imageUrl && (
+                    {thumb && (
                       <div className="relative h-14 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-white/5 bg-white/5">
-                        <img src={imageUrl} alt="thumb" className="h-full w-full object-cover" />
+                        <img src={thumb} alt="thumb" className="h-full w-full object-cover" />
                       </div>
                     )}
                   </div>

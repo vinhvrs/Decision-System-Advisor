@@ -1,56 +1,80 @@
 "use client";
 
-function normalizePath(p: string): string {
+/** Drop path/query/hash so `joinWsUrl(base, "/ws/chatbot")` is not doubled (e.g. env had `/ws/quotes`). */
+export function stripWebSocketToOrigin(input: string): string {
+  const s = (input || "").trim();
+  if (!s) return "ws://127.0.0.1:8000";
+  try {
+    if (s.startsWith("ws://") || s.startsWith("wss://")) {
+      const u = new URL(s);
+      return `${u.protocol}//${u.host}`;
+    }
+    if (s.startsWith("http://")) {
+      const u = new URL(s);
+      return `ws://${u.host}`;
+    }
+    if (s.startsWith("https://")) {
+      const u = new URL(s);
+      return `wss://${u.host}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return s.replace(/\/+$/, "");
+}
+
+export function normalizeSocketPath(p: string): string {
   const s = (p || "").trim();
   if (!s) return "/ws/quotes";
   return s.startsWith("/") ? s : `/${s}`;
 }
 
-function joinWsUrl(base: string, path: string): string {
+export function joinWsUrl(base: string, path: string): string {
   const b = base.replace(/\/+$/, "");
-  const p = normalizePath(path);
+  const p = normalizeSocketPath(path);
   return `${b}${p}`;
 }
 
-function resolveWsBase(): string {
-  // Runtime overrides (no rebuild needed)
+export function resolveWsBase(): string {
   if (typeof window !== "undefined") {
     try {
       const qs = new URLSearchParams(window.location.search);
-      const qsBase = (qs.get("wsBase") || "").trim(); // e.g. ws://192.168.2.14:8000
-      if (qsBase) return qsBase;
+      const qsBase = (qs.get("wsBase") || "").trim();
+      if (qsBase) return stripWebSocketToOrigin(qsBase);
 
-      const qsHost = (qs.get("wsHost") || "").trim(); // e.g. 192.168.2.14
+      const qsHost = (qs.get("wsHost") || "").trim();
       if (qsHost) {
         const proto = window.location.protocol === "https:" ? "wss" : "ws";
         const port = (qs.get("wsPort") || process.env.NEXT_PUBLIC_SOCKET_PORT || "8000").trim();
-        return `${proto}://${qsHost}:${port}`;
+        return stripWebSocketToOrigin(`${proto}://${qsHost}:${port}`);
       }
 
       const stored = (localStorage.getItem("DSA_WS_BASE") || "").trim();
-      if (stored) return stored;
+      if (stored) return stripWebSocketToOrigin(stored);
     } catch {
-      // ignore
+      /* empty */
     }
   }
 
   const raw = (process.env.NEXT_PUBLIC_SOCKET || "").trim();
   if (raw) {
-    // allow http(s) base and convert to ws(s)
-    if (raw.startsWith("http://")) return `ws://${raw.slice("http://".length)}`;
-    if (raw.startsWith("https://")) return `wss://${raw.slice("https://".length)}`;
-    return raw; // assume ws(s):// or host:port
+    if (raw.startsWith("http://")) {
+      return stripWebSocketToOrigin(`ws://${raw.slice("http://".length)}`);
+    }
+    if (raw.startsWith("https://")) {
+      return stripWebSocketToOrigin(`wss://${raw.slice("https://".length)}`);
+    }
+    return stripWebSocketToOrigin(raw);
   }
 
-  // Fallback: use current hostname so it works on LAN/phone
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const host = window.location.hostname;
     const port = (process.env.NEXT_PUBLIC_SOCKET_PORT || "8000").trim();
-    return `${proto}://${host}:${port}`;
+    return stripWebSocketToOrigin(`${proto}://${host}:${port}`);
   }
 
-  return "ws://127.0.0.1:8000";
+  return stripWebSocketToOrigin("ws://127.0.0.1:8000");
 }
 
 export class SimpleSocket {
@@ -70,11 +94,11 @@ export class SimpleSocket {
     this.disconnectRequested = false;
     this.ws = new WebSocket(this.url);
     if (process.env.NODE_ENV === "development") {
-      console.log("🔌 [WS] Connecting to:", this.url);
+      console.log("[WS] Connecting:", this.url);
     }
     this.ws.onopen = () => {
       if (process.env.NODE_ENV === "development") {
-        console.log("🚀 [WS] Connected");
+        console.log("[WS] Connected");
       }
     };
 
@@ -83,7 +107,7 @@ export class SimpleSocket {
         const data = JSON.parse(event.data);
         this.onMessageCallback(data);
       } catch (err) {
-        console.error("❌ [WS] Parse error:", err);
+        console.error("[WS] Parse error:", err);
       }
     };
 
@@ -91,16 +115,15 @@ export class SimpleSocket {
       this.ws = null;
       if (!this.disconnectRequested) {
         if (process.env.NODE_ENV === "development") {
-          console.log("🔌 [WS] Disconnected. Reconnecting in 3s...");
+          console.log("[WS] Disconnected, reconnect in 3s");
         }
         setTimeout(() => this.connect(), 3000);
       }
     };
 
     this.ws.onerror = () => {
-      // Browser often provides empty error object; avoid noisy console
       if (process.env.NODE_ENV === "development") {
-        console.debug("[WS] Connection issue (server may be offline)");
+        console.debug("[WS] connection issue");
       }
     };
   }

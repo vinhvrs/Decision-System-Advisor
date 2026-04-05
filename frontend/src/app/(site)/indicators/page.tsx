@@ -1,21 +1,29 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  BarChart3, 
-  Activity, 
-  TrendingUp, 
-  Zap, 
-  Info, 
+import Link from 'next/link';
+import {
+  BarChart3,
+  Activity,
+  TrendingUp,
+  Zap,
+  Info,
   ChevronRight,
   Search,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
 } from 'lucide-react';
+import { IndicatorPlayground, cardIdToSimulator, type SimulatorIndicatorId } from './IndicatorPlayground';
 
 export default function IndicatorsPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [simIndicator, setSimIndicator] = useState<SimulatorIndicatorId>('ls');
+
+  const scrollToSimulator = () => {
+    requestAnimationFrame(() =>
+      document.getElementById('indicator-sim')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
+  };
 
   // Flat data danh sách các chỉ số
   const indicators = [
@@ -122,12 +130,26 @@ export default function IndicatorsPage() {
                 </div>
               </div>
 
-              <button className="w-full mt-6 py-2 rounded-lg bg-gray-900 border border-gray-800 text-xs font-semibold text-gray-400 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 transition-all flex items-center justify-center gap-1">
-                View Details <ChevronRight size={14} />
+              <button
+                type="button"
+                onClick={() => {
+                  setSimIndicator(cardIdToSimulator(item.id));
+                  scrollToSimulator();
+                }}
+                className={`w-full mt-6 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center justify-center gap-1 ${
+                  simIndicator === cardIdToSimulator(item.id)
+                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                    : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white hover:bg-indigo-600 hover:border-indigo-600'
+                }`}
+              >
+                Open in simulator
+                <ChevronRight size={14} />
               </button>
             </div>
           ))}
         </div>
+
+        <IndicatorPlayground indicatorId={simIndicator} onIndicatorChange={setSimIndicator} />
 
         {/* Educational Section */}
         <div className="mt-16 p-8 rounded-3xl bg-gradient-to-r from-indigo-900/20 to-transparent border border-indigo-500/10">
@@ -141,9 +163,12 @@ export default function IndicatorsPage() {
                 DSA indicators are calculated using high-frequency data from major exchanges. We combine price action with volume flow to provide a unique &quot;Liquidity-First&quot; perspective on market movements.
               </p>
             </div>
-            <button className="whitespace-nowrap px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all">
+            <Link
+              href="/documents#formula"
+              className="whitespace-nowrap px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all"
+            >
               Read Documentation
-            </button>
+            </Link>
           </div>
         </div>
 

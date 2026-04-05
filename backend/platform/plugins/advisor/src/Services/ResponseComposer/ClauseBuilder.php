@@ -6,7 +6,7 @@ class ClauseBuilder
 {
     public static function pick(array $phrases, string $seed): string
     {
-        // deterministic pick (không random)
+        // Deterministic index from seed (not random)
         $index = crc32($seed) % count($phrases);
         return $phrases[$index];
     }

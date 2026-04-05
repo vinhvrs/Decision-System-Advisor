@@ -28,4 +28,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (typeof window === "undefined") {
+      return Promise.reject(error);
+    }
+    const status = error?.response?.status;
+    if (status !== 401) {
+      return Promise.reject(error);
+    }
+    const path = window.location.pathname;
+    if (!path.startsWith("/admin") || path.startsWith("/admin/auth")) {
+      return Promise.reject(error);
+    }
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    document.cookie = "dsa_remember=; path=/; max-age=0";
+    window.location.replace("/admin/auth");
+    return Promise.reject(error);
+  }
+);
+
 export default api;

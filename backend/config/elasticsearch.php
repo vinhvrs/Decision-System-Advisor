@@ -29,10 +29,16 @@ return [
     |
     */
 
+    /*
+    | Company search mapping (search_as_you_type, symbol edge n-grams, search_all) is created when the
+    | index is first created. To upgrade an existing cluster: php artisan elastic:reindex company_profiles --recreate
+    | (or elastic:setup --recreate-company --sync).
+    */
+
     'indices' => [
         'knowledge_docs'   => env('ELASTIC_INDEX_KNOWLEDGE_DOCS', 'knowledge_docs'),
         'company_profiles' => env('ELASTIC_INDEX_COMPANY_PROFILES', 'company_profiles'),
-        'news_articles'    => env('ELASTIC_INDEX_NEWS_ARTICLES', 'knowledge_docs_temp'),
+        'news_articles'    => env('ELASTIC_INDEX_NEWS_ARTICLES', 'knowledge_docs'),
         'entities'         => env('ELASTIC_INDEX_ENTITIES', 'dsa_entities'),
     ],
 

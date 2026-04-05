@@ -169,6 +169,22 @@ return [
             'database' => env('REDIS_CACHE_DB', '1'),
         ],
 
+        /*
+        | Same host/DB as default but **no key prefix**, so PHP can read keys written by
+        | python_engine (e.g. `summary:analysis:NVDA` — see PYTHON_ENGINE_ANALYSIS_KEY_PREFIX).
+        */
+        'python_engine' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+            'options' => [
+                'prefix' => '',
+            ],
+        ],
+
     ],
 
 ];
