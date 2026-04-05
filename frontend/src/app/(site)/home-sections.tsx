@@ -51,7 +51,7 @@ export function HomeGainLoss() {
 
 export function HomeHeatmapCard() {
   return (
-    <Card>
+    <Card bodyClassName="px-2 tablet:px-3 pb-3 tablet:pb-4 pt-1 tablet:pt-2">
       <Heatmap />
     </Card>
   );

@@ -21,8 +21,11 @@ export default function DashboardCharts() {
   return (
     <>
       {/* Main chart: first symbol from watchlist or NVDA */}
-      <Card className="h-[350px] phone:h-[420px] tablet:h-[500px] laptop:h-[560px] pc:h-[620px] overflow-hidden w-full">
-        <div className="h-full w-full">
+      <Card
+        className="flex h-[350px] min-h-0 w-full flex-col overflow-hidden phone:h-[420px] tablet:h-[500px] laptop:h-[560px] pc:h-[620px]"
+        bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+      >
+        <div className="min-h-0 flex-1">
           <TradingChart defaultSymbol={mainSymbol} isFixed={false} />
         </div>
       </Card>
@@ -34,8 +37,12 @@ export default function DashboardCharts() {
       </div>
       <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 gap-4 tablet:gap-6">
         {sideSymbols.map((symbol) => (
-          <Card key={symbol} className="h-[320px] phone:h-[380px] tablet:h-[420px] laptop:h-[480px] pc:h-[520px] overflow-hidden p-0">
-            <div className="h-full w-full">
+          <Card
+            key={symbol}
+            className="flex h-[320px] min-h-0 flex-col overflow-hidden phone:h-[380px] tablet:h-[420px] laptop:h-[480px] pc:h-[520px]"
+            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+          >
+            <div className="min-h-0 flex-1">
               <TradingChart defaultSymbol={symbol} isFixed />
             </div>
           </Card>

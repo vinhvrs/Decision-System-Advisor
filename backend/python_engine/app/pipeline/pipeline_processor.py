@@ -31,7 +31,7 @@ def fetch_price_window(symbol, pub_date):
     return df
 
 def calculate_price_impact(pub_date, symbol):
-    """Tính toán lợi suất và đếm số nến đã chạy"""
+    """Return pre/post returns, trade date, and elapsed candle count."""
     price_df = fetch_price_window(symbol, pub_date)
     if price_df.empty: return 0.0, 0.0, None, 0
     
@@ -69,9 +69,7 @@ def calculate_price_impact(pub_date, symbol):
     return pre_ret, post_ret, str(actual_trade_date), candles_elapsed
 
 def extract_pattern_type(title, content=""):
-    """
-    Trích xuất pattern_type bằng Hard-coded Regex (Không dùng AI)
-    """
+    """Classify headline/body with fixed regex rules (no LLM)."""
     text = f"{title} {content}".lower()
     
     patterns = {
@@ -93,7 +91,7 @@ def get_last_processed_timestamp(symbol):
     conn = pymysql.connect(**Config.DB_CONFIG)
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor: 
-            # Đã bổ sung các cột mới vào CREATE TABLE
+            # Schema includes pattern_type, status, candles_elapsed
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS knowledge_inference_results (
                     id VARCHAR(50) PRIMARY KEY, symbol VARCHAR(20), doc_id VARCHAR(50),
@@ -113,7 +111,7 @@ def get_last_processed_timestamp(symbol):
     finally: conn.close()
 
 def get_initial_recommendation(pre_trend):
-    """Khuyến nghị ban đầu (T=0)"""
+    """Initial recommendation at T=0 from pre-trend only."""
     if pre_trend > 2.0:
         return "Maybe up trend, should Buy"
     elif pre_trend < -2.0:
@@ -122,18 +120,18 @@ def get_initial_recommendation(pre_trend):
 
 def process_docs_to_chunks(target_symbol=None, test_mode=False):
     last_time = get_last_processed_timestamp(target_symbol)
-    print(f"🔄 Đang kiểm tra tin mới cho {target_symbol} từ mốc: {last_time}")
+    print(f"[pipeline] Checking new docs for {target_symbol} since {last_time}")
     conn = pymysql.connect(**Config.DB_CONFIG)
     impactful_events = [] 
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Sửa lỗi: lấy thêm cột content để extract pattern_type
-            sql = "SELECT id as doc_id, symbol, title, content, published_at FROM knowledge_docs_temp WHERE symbol = %s AND published_at > %s ORDER BY published_at ASC"
+            # Include content for pattern_type extraction
+            sql = "SELECT id as doc_id, symbol, title, content, published_at FROM knowledge_docs WHERE symbol = %s AND published_at > %s ORDER BY published_at ASC"
             cursor.execute(sql, (target_symbol, last_time))
             docs = cursor.fetchall()
             if not docs: return []
             
-            print(f"🚀 [PIPELINE] Đang xử lý {len(docs)} bài báo mới...")
+            print(f"[pipeline] Processing {len(docs)} new article(s)...")
             
             for doc in docs:
                 pre, post, t_date, elapsed = calculate_price_impact(doc['published_at'], doc['symbol'])
@@ -162,16 +160,16 @@ def process_docs_to_chunks(target_symbol=None, test_mode=False):
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (event['id'], event['symbol'], event['doc_id'], event['title'], event['published_at'], pre, post, rec, pattern, status, elapsed))
                         
-                        cursor.execute("UPDATE knowledge_docs_temp SET is_processed = 1 WHERE id = %s", (doc['doc_id'],))
+                        cursor.execute("UPDATE knowledge_docs SET is_processed = 1 WHERE id = %s", (doc['doc_id'],))
             conn.commit()
             return impactful_events
     except Exception as e:
-        print(f"❌ Lỗi Pipeline: {e}"); return []
+        print(f"[pipeline] Error: {e}"); return []
     finally: conn.close()
 
 def update_rolling_trends():
-    """Hàm chạy hằng ngày để cập nhật post_trend và chốt sổ (COMPLETED)"""
-    print("🔄 Đang cập nhật trạng thái Rolling Window (1-6 ngày)...")
+    """Daily job: refresh post_trend and mark rows COMPLETED when window elapsed."""
+    print("[pipeline] Updating rolling window (pending rows)...")
     conn = pymysql.connect(**Config.DB_CONFIG)
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
@@ -202,7 +200,7 @@ def update_rolling_trends():
                 updated_count += 1
                 
             conn.commit()
-            print(f"✅ Đã cập nhật {updated_count} bài báo PENDING. Đóng lệnh (COMPLETED): {completed_count} bài.")
+            print(f"[pipeline] Updated {updated_count} PENDING row(s); marked COMPLETED: {completed_count}.")
     except Exception as e:
-        print(f"❌ Lỗi Update Rolling: {e}")
+        print(f"[pipeline] Rolling update error: {e}")
     finally: conn.close()

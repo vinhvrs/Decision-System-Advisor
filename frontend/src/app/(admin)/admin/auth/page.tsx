@@ -9,16 +9,16 @@ import { Shield } from "lucide-react";
 export default function AdminAuthPage() {
   const router = useRouter();
   useEffect(() => {
+    const token = localStorage.getItem("accessToken");
     const u = localStorage.getItem("user");
-    if (u) {
-      try {
-        const parsed = JSON.parse(u);
-        if (parsed?.role === "admin" || parsed?.role === "staff") {
-          router.replace("/admin");
-        }
-      } catch {
-        /* ignore */
+    if (!token || !u) return;
+    try {
+      const parsed = JSON.parse(u);
+      if (parsed?.role === "admin" || parsed?.role === "staff") {
+        router.replace("/admin");
       }
+    } catch {
+      /* ignore */
     }
   }, [router]);
   const [email, setEmail] = useState("");

@@ -2,15 +2,12 @@
 
 namespace Platform\Plugins\Trading\Src\Services;
 
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class CompanyService
 {
-    public function __construct()
-    {
-        
-    }
+    public function __construct() {}
 
     public function index($select, $filter, $perPage, $page)
     {
@@ -29,19 +26,29 @@ class CompanyService
         return $company;
     }
 
-    public function getSimilar(string $symbol, int $limit){
+    public function getSimilar(string $symbol, int $limit): Collection
+    {
         $sector = DB::table('company_profile')
             ->where('symbol', $symbol)
-            ->select('sector')
-            ->first();
-            
-        $companies = DB::table('company_profile')
-            ->where('sector', $sector->sector)
-            ->where('symbol', '!=', $symbol)
+            ->value('sector');
+
+        return $this->similarInSector($sector, $symbol, $limit);
+    }
+
+    /**
+     * @return Collection<int, \stdClass>
+     */
+    public function similarInSector(?string $sector, string $excludeSymbol, int $limit): Collection
+    {
+        if ($sector === null || $sector === '') {
+            return collect();
+        }
+
+        return DB::table('company_profile')
+            ->where('sector', $sector)
+            ->where('symbol', '!=', $excludeSymbol)
             ->limit($limit)
             ->get();
-        
-        return $companies;
     }
 
 }

@@ -16,8 +16,12 @@ export default function WatchlistCharts() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {symbols.map((symbol) => (
-        <Card key={symbol} className="h-[520px] overflow-hidden p-0">
-          <div className="h-full w-full">
+        <Card
+          key={symbol}
+          className="flex h-[520px] min-h-0 flex-col overflow-hidden"
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <div className="min-h-0 flex-1">
             <TradingChart defaultSymbol={symbol} isFixed />
           </div>
         </Card>

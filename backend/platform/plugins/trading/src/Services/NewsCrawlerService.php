@@ -15,8 +15,8 @@ class NewsCrawlerService
     ) {}
 
     /**
-     * Crawl 1 batch symbols (chunk) theo alphabet paging.
-     * Trả về: [processed, inserted, skipped, failed, lastSymbol]
+     * Crawl one alphabet-paged chunk of symbols.
+     * Returns: processed, inserted, skipped, failed, lastSymbol.
      */
     public function crawlBatch(string $sourceKey, int $chunkSize = 500, ?string $afterSymbol = null): array
     {
@@ -30,7 +30,7 @@ class NewsCrawlerService
         foreach ($symbols as $symbol) {
             $processed++;
 
-            // lock để tránh 2 process crawl cùng lúc
+            // Per-symbol lock to avoid concurrent crawls
             if (!$this->crawler->acquireLock($sourceKey, $symbol, 600)) {
                 $skipped++;
                 continue;
@@ -39,12 +39,12 @@ class NewsCrawlerService
             try {
                 $checkpoint = $this->crawler->getCheckpoint($sourceKey, $symbol);
 
-                // TODO: thay bằng crawler thật (RSS/API)
+                // TODO: replace with real RSS/API crawler
                 $articles = $this->fetchArticlesDummy($symbol, $checkpoint);
 
                 $countInsertedForSymbol = $this->saveArticlesToKnowledgeDocs($articles);
 
-                // Update checkpoint: tuỳ bạn dùng last_published_at / last_guid
+                // Checkpoint: last_published_at and/or last_guid
                 $latest = $this->pickLatestCheckpoint($articles);
 
                 $this->crawler->markSuccess(
@@ -65,7 +65,7 @@ class NewsCrawlerService
                     'err'    => $e->getMessage(),
                 ]);
             } finally {
-                // release lock (markSuccess/markFailure đã set locked_until=null rồi, nhưng để chắc)
+                // Release lock (success/failure already clears locked_until; ensure release)
                 $this->crawler->releaseLock($sourceKey, $symbol);
             }
         }
@@ -76,10 +76,10 @@ class NewsCrawlerService
     }
 
     /**
-     * Lưu articles vào knowledge_docs, chống trùng bằng source=url.
-     * KHÔNG thêm attribute cho knowledge_docs.
+     * Persist articles to knowledge_docs; dedupe by unique source (URL).
+     * Does not add extra columns to knowledge_docs.
      *
-     * Article format tối thiểu:
+     * Minimum article shape:
      * [
      *  'title' => string,
      *  'content' => string,
@@ -114,24 +114,17 @@ class NewsCrawlerService
 
         if (!$rows) return 0;
 
-        /**
-         * CÁCH 1 (khuyến nghị): insertOrIgnore + unique index on source
-         * - nhanh
-         * - tự bỏ qua bản ghi trùng source
-         */
+        // insertOrIgnore with unique index on source (fast; skips duplicate URLs)
         return DB::table('knowledge_docs')->insertOrIgnore($rows);
     }
 
-    /**
-     * Dummy fetch - bạn thay bằng RSS/API thật.
-     */
+    /** Placeholder fetch; replace with real RSS/API. */
     protected function fetchArticlesDummy(string $symbol, array $checkpoint): array
     {
-        // Ví dụ checkpoint dùng last_published_at để incremental
+        // Example: incremental fetch using last_published_at from checkpoint
         $lastTs = $checkpoint['last_published_at'] ?? null;
 
-        // TODO: thay bằng fetch RSS/API theo $symbol
-        // return list articles mới hơn $lastTs
+        // TODO: fetch RSS/API for $symbol; return articles newer than $lastTs
 
         return [
             [

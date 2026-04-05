@@ -3,6 +3,7 @@
 namespace App\Services\Elastic;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ElasticSyncService
@@ -11,6 +12,52 @@ class ElasticSyncService
         protected ElasticClientService $elasticClientService
     ) {}
 
+    /**
+     * Single company_profile document for Elasticsearch (kept in sync with index mapping).
+     *
+     * @param  object|array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    public static function buildCompanyProfileDocument(object|array $row): array
+    {
+        $r = is_array($row) ? $row : get_object_vars($row);
+
+        $name = $r['company_name'] ?? '';
+        $sym = $r['symbol'] ?? '';
+        $sector = $r['sector'] ?? '';
+        $industry = $r['industry'] ?? '';
+        $descPlain = preg_replace('/\s+/', ' ', strip_tags((string) ($r['description'] ?? '')));
+        $descSnippet = Str::limit(trim($descPlain), 450, '');
+
+        $searchAll = strtolower(trim(implode(' ', array_filter([
+            $sym,
+            $name,
+            $sector,
+            $industry,
+            $descSnippet,
+        ]))));
+
+        return [
+            'instrument_id' => $r['instrument_id'] ?? null,
+            'exchange' => $r['exchange'] ?? null,
+            'company_name' => $r['company_name'] ?? null,
+            'company_search_sayt' => $name,
+            'symbol' => $r['symbol'] ?? null,
+            'search_all' => $searchAll,
+            'industry' => $r['industry'] ?? null,
+            'sector' => $r['sector'] ?? null,
+            'website' => $r['website'] ?? null,
+            'description' => $r['description'] ?? null,
+            'ceo' => $r['ceo'] ?? null,
+            'country' => $r['country'] ?? null,
+            'image' => $r['image'] ?? null,
+            'full_time_employees' => $r['full_time_employees'] ?? null,
+            'ipo_date' => $r['ipo_date'] ?? null,
+            'created_at' => $r['created_at'] ?? null,
+            'updated_at' => $r['updated_at'] ?? null,
+        ];
+    }
+
     public function syncKnowledgeDocs(int $chunkSize = 200): array
     {
         $client = $this->elasticClientService->client();
@@ -18,7 +65,7 @@ class ElasticSyncService
 
         $total = 0;
 
-        DB::table('knowledge_docs_temp')
+        DB::table('knowledge_docs')
             ->orderBy('id')
             ->chunk($chunkSize, function ($rows) use ($client, $index, &$total) {
                 $body = [];
@@ -33,7 +80,7 @@ class ElasticSyncService
 
                     $body[] = [
                         'id' => (string) $row->id,
-                        'hash_key' => $row->hash_key,
+                        'hash_key' => $row->hash_key ?? (string) $row->id,
                         'title' => $row->title,
                         'content' => $row->content,
                         'published_at' => $row->published_at,
@@ -85,23 +132,7 @@ class ElasticSyncService
                         ],
                     ];
 
-                    $body[] = [
-                        'instrument_id' => $row->instrument_id,
-                        'exchange' => $row->exchange,
-                        'company_name' => $row->company_name,
-                        'symbol' => $row->symbol,
-                        'industry' => $row->industry,
-                        'sector' => $row->sector,
-                        'website' => $row->website,
-                        'description' => $row->description,
-                        'ceo' => $row->ceo,
-                        'country' => $row->country,
-                        'image' => $row->image,
-                        'full_time_employees' => $row->full_time_employees,
-                        'ipo_date' => $row->ipo_date,
-                        'created_at' => $row->created_at,
-                        'updated_at' => $row->updated_at,
-                    ];
+                    $body[] = self::buildCompanyProfileDocument($row);
 
                     $total++;
                 }

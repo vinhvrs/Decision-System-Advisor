@@ -16,7 +16,7 @@ class BuildSnapshot extends Command
 
         $now = now();
 
-        // Lấy tất cả instrument daily periods
+        // All daily instrument periods
         $periods = DB::table('instrument_periods')
             ->where('period', 'daily')
             ->select('id', 'instrument_id')
@@ -26,7 +26,7 @@ class BuildSnapshot extends Command
 
         foreach ($periods as $p) {
 
-            // lấy candle mới nhất bằng created_at
+            // Latest candle by created_at
             $d = DB::table('instrument_data')
                 ->where('instrument_period_id', $p->id)
                 ->orderByDesc('created_at')

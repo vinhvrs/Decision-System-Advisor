@@ -1,6 +1,5 @@
 import logging
 from .models import SmoothContext, SmoothResult
-# Import các rules từ app/rules
 from app.rules.text_processing import NormalizeText, FixTypos, TokenizeText, TextProcessor
 from app.rules.semantic_analysis import BuildSemanticDictionary, DetectIntent, SentenceTreeBuilder
 from app.rules.entity_management import NormalizeEntities, DecisionBuilder
@@ -8,7 +7,7 @@ from app.analyze.composer.engine import ComposeResponse
 
 class LanguageSmoother:
     def __init__(self):
-        # Khởi tạo các thành phần pipeline
+        # NLP pipeline stages
         self.normalizer = NormalizeText()
         self.typo_fixer = FixTypos()
         self.tokenizer = TokenizeText()
@@ -24,27 +23,24 @@ class LanguageSmoother:
         original = text
         current_text = text
 
-        # =====================================================
-        # INBOUND — Phân tích đầu vào (giống PHP flow)
-        # =====================================================
+        # --- Inbound (user text) ---
         if ctx.direction == 'in':
             ctx.memory = {} 
             
-            # 1. Tiền xử lý văn bản
+            # 1) Normalize text
             current_text = self.normalizer.handle(current_text, ctx)
             current_text = self.typo_fixer.handle(current_text, ctx)
             
-            # 2. Phân tích ngữ nghĩa & Thực thể
+            # 2) Semantics and entities
             current_text = self.tokenizer.handle(current_text, ctx)
-            current_text = self.semantic_builder.handle(current_text, ctx) # Xác định constraints
-            current_text = self.entity_normalizer.handle(current_text, ctx) # Trích xuất Tickers/Indicators
-            
-            # 3. Dựng cây quyết định (Branching Tree) - BƯỚC QUAN TRỌNG
-            # Bước này gom Action + Target + Constraints về một Frame chuẩn
+            current_text = self.semantic_builder.handle(current_text, ctx)
+            current_text = self.entity_normalizer.handle(current_text, ctx)
+
+            # 3) Intent + sentence tree (action, target, constraints)
             current_text = self.intent_detector.handle(current_text, ctx)
             current_text = self.tree_builder.handle(current_text, ctx) 
             
-            # 4. Chốt quyết định cuối cùng dựa trên Tree
+            # 4) Final decision frame
             current_text = self.decision_builder.handle(current_text, ctx) 
             
             return SmoothResult(
@@ -53,18 +49,16 @@ class LanguageSmoother:
                 intent=ctx.get('intent'),
                 entities=ctx.get('entities'),
                 decision=ctx.get('decision'),
-                notes={'tree': ctx.get('sentence_tree')} # Lưu lại để debug logic "đọc hiểu"
+                notes={'tree': ctx.get('sentence_tree')}
             )
 
-        # =====================================================
-        # OUTBOUND — Tạo phản hồi (giống PHP flow)
-        # =====================================================
+        # --- Outbound (response text) ---
         else:
-            # 1. Compose: Ghép prefix, body và follow-up
+            # 1) Compose prefix, body, follow-up
             intent = ctx.get('intent', 'unknown')
             composed_text = self.composer.handle(current_text, ctx, intent)
             
-            # 2. Hậu xử lý (Glossary, Punctuation)
+            # 2) Glossary / punctuation cleanup
             final_text = self.post_processor.post_process(composed_text)
             
             return SmoothResult(

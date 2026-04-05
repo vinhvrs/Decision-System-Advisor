@@ -1,0 +1,64 @@
+@startuml Decision_System_Advisor_Use_Cases
+title Decision System Advisor — use cases
+skinparam dpi 120
+skinparam defaultFontSize 13
+skinparam nodesep 48
+skinparam ranksep 38
+skinparam usecase {
+  BorderColor #333333
+  BackgroundColor #F8F8F8
+}
+skinparam actor {
+  BorderColor #333333
+}
+
+left to right direction
+
+actor User
+
+rectangle "Decision System Advisor" {
+  agent " " as COL_GAP #Transparent;line:Transparent
+
+  usecase "Manage User Profile" as UC_PROF
+  usecase "Select Analysis Strategy" as UC_STRAT
+  usecase "View Charts & Market Data" as UC_CHART
+  usecase "Receive Advisory Signals" as UC_ADV
+  usecase "Read Indicator Explanation" as UC_IND
+  usecase "Chat with AI Assistant" as UC_CHAT
+  usecase "Register / Login" as UC_REG
+
+  UC_PROF -[hidden]down- UC_STRAT
+  UC_STRAT -[hidden]down- UC_CHART
+  UC_CHART -[hidden]down- UC_ADV
+  UC_ADV -[hidden]down- UC_IND
+  UC_IND -[hidden]down- UC_CHAT
+
+  UC_PROF -[hidden]right- COL_GAP
+  UC_STRAT -[hidden]right- COL_GAP
+  UC_CHART -[hidden]right- COL_GAP
+  UC_ADV -[hidden]right- COL_GAP
+  UC_IND -[hidden]right- COL_GAP
+  UC_CHAT -[hidden]right- COL_GAP
+  COL_GAP -[hidden]right- UC_REG
+
+  UC_PROF .> UC_REG : <<include>> Authenticate
+  UC_STRAT .> UC_REG : <<include>> Authenticate
+  UC_CHART .> UC_ADV : <<include>> Show signals
+  UC_IND <.. UC_CHAT : <<extend>> Ask meaning
+}
+
+User --> UC_REG
+User --> UC_PROF
+User --> UC_STRAT
+User --> UC_CHART
+User --> UC_IND
+User --> UC_CHAT
+
+note left of User
+  User is **not** associated with
+  **Receive Advisory Signals**
+  (only via <<include>> from
+  **View Charts & Market Data**).
+end note
+
+@enduml

@@ -40,17 +40,10 @@ class LanguageSmoother
         $this->stylePresets     = $this->responseProfiles['profiles'] ?? [];
     }
 
-    /* =========================================================
-     | MAIN PIPELINE
-     ========================================================= */
-
     public function smooth(string $text, SmoothContext $ctx): SmoothResult
     {
         $original = $text;
 
-        /* =====================================================
-         | INBOUND — USER INPUT → DECISION
-         ===================================================== */
         if ($ctx->direction === 'in') {
 
             // reset memory per request
@@ -84,11 +77,7 @@ class LanguageSmoother
             $text = (new DecisionBuilder())->handle($text, $ctx);
             $this->logStep('DecisionBuilder', $ctx);
 
-            /**
-             * ✅ FIX QUAN TRỌNG
-             * - constraints PHẢI lấy từ decision['constraints']
-             * - KHÔNG lấy từ modifiers
-             */
+            // Constraints must come from decision['constraints'], not modifiers.
             return new SmoothResult(
                 originalText: $original,
                 cleanText: $text,
@@ -104,10 +93,6 @@ class LanguageSmoother
                 ]
             );
         }
-
-        /* =====================================================
-         | OUTBOUND — DECISION → RESPONSE TEXT
-         ===================================================== */
 
         $preset = $this->stylePresets[$ctx->stylePreset]
             ?? ($this->stylePresets['standard'] ?? ['max_sentences' => 8]);
@@ -134,10 +119,6 @@ class LanguageSmoother
             notes: []
         );
     }
-
-    /* =========================================================
-     | DEBUG LOGGER (READ-ONLY)
-     ========================================================= */
 
     private function logStep(string $step, SmoothContext $ctx): void
     {

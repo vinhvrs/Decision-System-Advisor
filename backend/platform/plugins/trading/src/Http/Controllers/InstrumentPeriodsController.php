@@ -23,7 +23,7 @@ class InstrumentPeriodsController extends Controller{
     {
                 set_time_limit(0);
 
-        // Lấy toàn bộ instruments KHÔNG phân trang
+        // All instruments (no pagination cap in practice)
         $instruments = $this->instrumentRepository->findAll([], ['*'], 99999, 1, null)->items();
 
         $createdCount = 0;

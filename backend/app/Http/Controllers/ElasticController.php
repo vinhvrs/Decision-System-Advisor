@@ -56,13 +56,16 @@ class ElasticController extends Controller
                 'from' => ['nullable', 'integer', 'min:0'],
             ]);
 
+            $withSuggest = ! $request->boolean('no_suggest', false);
+            $validated['no_suggest'] = $withSuggest ? 0 : 1;
             $ttl = (int) config('performance.elastic_get_ttl', 60);
-            $cacheKey = 'elastic.simple_search.v1:' . md5(json_encode($validated));
-            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($validated) {
+            $cacheKey = 'elastic.simple_search.v2:' . md5(json_encode($validated));
+            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($validated, $withSuggest) {
                 return $this->companySearchService->search(
                     query: $validated['q'],
                     size: (int) ($validated['size'] ?? 20),
                     from: (int) ($validated['from'] ?? 0),
+                    withSuggest: $withSuggest,
                 );
             });
 
@@ -74,6 +77,33 @@ class ElasticController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Search failed.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /elastic/demo/top-symbols?limit=20 — stable demo list (symbol ASC) for UI onboarding.
+     */
+    public function demoTopSymbols(Request $request): JsonResponse
+    {
+        try {
+            // Allow larger limits for client-side caches (e.g. chat IndexedDB seed); capped for cluster safety.
+            $limit = min(2000, max(1, (int) $request->query('limit', 20)));
+            $ttl = (int) config('performance.elastic_get_ttl', 120);
+            $cacheKey = 'elastic.demo_top_symbols.v1:'.$limit;
+            $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($limit) {
+                return $this->companySearchService->demoTopSymbols($limit);
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load demo symbols.',
                 'error' => $e->getMessage(),
             ], 500);
         }

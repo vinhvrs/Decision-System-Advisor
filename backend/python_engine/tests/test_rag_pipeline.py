@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from app.data_collect.collectors.news_crawler import db_conn, crawl_symbol
+from app.data_collect.collectors.news_crawler import db_conn, crawl_symbol, get_company_mapping
 from backend.python_engine.app.services.embedding.embedding_service import embedding_service
 from app.connect.qdrant_client import QdrantService
 
@@ -8,7 +8,7 @@ async def test_full_rag_flow(symbol="AAPL"):
     print(f"--- 1. Cào tin tức cho {symbol} ---")
     conn = db_conn()
     # news_crawler.py đã có hàm crawl_symbol xử lý việc cào và lưu MySQL
-    stats = crawl_symbol(conn, symbol, set())
+    stats = crawl_symbol(conn, symbol, set(), get_company_mapping(conn))
     print(f"Kết quả crawl: {stats}")
 
     if stats['inserted'] == 0:

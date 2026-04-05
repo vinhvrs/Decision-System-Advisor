@@ -18,7 +18,7 @@ class ResponseComposerService
         $profile = $options['profile'] ?? 'spoken_professional';
         $style   = $options['style']   ?? 'standard';
 
-        // ✅ Prefer reasons from Aggregator (new pipeline)
+        // Prefer reasons from aggregator when present
         $highlights = $this->mergeReasons(
             $decision['highlights'] ?? [],
             $this->buildHighlights($decision) // fallback old logic
@@ -34,15 +34,12 @@ class ResponseComposerService
             'confidence'     => (int)($decision['confidence_score'] ?? 0),
             'message'        => $this->buildMessage($decision, $profile, $style),
 
-            // ✅ now not empty if aggregator provided them
+            // Non-empty when aggregator supplied reasons
             'highlights'     => $highlights,
             'warnings'       => $warnings,
         ];
     }
 
-    /* ======================================================
-     * CORE MESSAGE BUILDER
-     * ====================================================== */
 
     private function buildMessage(array $d, string $profile, string $style): string
     {
@@ -88,10 +85,6 @@ class ResponseComposerService
         return $response;
     }
 
-    /* ======================================================
-     * HIGHLIGHTS (fallback rules)
-     * Supports signal strength -2..+2
-     * ====================================================== */
 
     private function buildHighlights(array $d): array
     {
@@ -100,7 +93,7 @@ class ResponseComposerService
         $sma = (int)($d['signals']['sma'] ?? 0);
         $ema = (int)($d['signals']['ema'] ?? 0);
 
-        // ✅ old rule was === 1; now accept >= 1
+        // Accept >= 1 (legacy used === 1)
         if ($sma >= 1 && $ema >= 1) {
             $out[] = $this->pick([
                 'Price remains above key moving averages.',
@@ -116,10 +109,6 @@ class ResponseComposerService
         return array_values(array_filter($out));
     }
 
-    /* ======================================================
-     * WARNINGS (fallback rules)
-     * Supports signal strength -2..+2
-     * ====================================================== */
 
     private function buildWarnings(array $d): array
     {
@@ -128,7 +117,7 @@ class ResponseComposerService
         $sto = (int)($d['signals']['stochastic'] ?? 0);
         $bb  = (int)($d['signals']['bollinger'] ?? 0);
 
-        // ✅ old rule was === -1; now accept <= -1
+        // Accept <= -1 (legacy used === -1)
         if ($sto <= -1) {
             $warnings[] = $this->pick([
                 'Short-term momentum suggests potential overbought conditions.',
@@ -146,10 +135,6 @@ class ResponseComposerService
         return array_values(array_filter($warnings));
     }
 
-    /* ======================================================
-     * MERGE + CLEAN
-     * ====================================================== */
-
     private function mergeReasons(array $primary, array $fallback): array
     {
         // normalize strings + remove empties
@@ -162,10 +147,6 @@ class ResponseComposerService
         // keep concise
         return array_slice($merged, 0, 6);
     }
-
-    /* ======================================================
-     * RANDOM HELPER
-     * ====================================================== */
 
     private function pick(array $items): ?string
     {

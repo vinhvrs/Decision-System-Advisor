@@ -135,14 +135,14 @@ class ChatBotService
         $tickers = $entities['tickers'] ?? [];
         $analysisIntents = ['analysis_request', 'buy_decision', 'sell_decision'];
 
-        // ✅ NOT analysis intent → return chat reply directly
+        // Non-analysis intent: return chat reply directly
         if (!in_array($intent, $analysisIntents, true)) {
-            // ✅ if reply is structured object (news/definition/...)
+            // Structured reply payload (news, definition, etc.)
             if (is_array($chat['reply'])) {
                 return response()->json($chat['reply']);
             }
 
-            // ✅ normal text chat
+            // Plain text chat
             return response()->json([
                 'type' => 'chat',
                 'response' => $chat['reply'],
@@ -327,7 +327,7 @@ class ChatBotService
         })->filter()->unique()->values()->all();
 
         // 4) query DB: knowledge_chunks + knowledge
-        // ⚠️ adjust selected fields if your knowledge table uses url_slug instead of url
+        // Adjust selected columns if the knowledge table uses different field names
         $rows = \DB::table('knowledge_chunks as kc')
             ->leftJoin('knowledge as k', 'k.id', '=', 'kc.knowledge_id')
             ->whereIn('kc.id', $chunkIds)
@@ -418,7 +418,7 @@ class ChatBotService
             if (isset($r['error'])) {
                 $messages[] = "{$r['symbol']}: {$r['error']}";
             } else {
-                // ✅ CHỈ LẤY MESSAGE (string)
+                // Use message string from structured response when present
                 $text = is_array($r['response'])
                     ? ($r['response']['message'] ?? '')
                     : $r['response'];

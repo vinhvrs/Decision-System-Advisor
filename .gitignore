@@ -38,3 +38,4 @@ Thumbs.db
 /frontend/out
 /frontend/.vercel
 *.sql
+*secret*

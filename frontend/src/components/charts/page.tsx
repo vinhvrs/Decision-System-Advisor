@@ -12,8 +12,10 @@ import { usePositions } from "@/src/hooks/usePositions";
 import { Instrument } from "@/src/types/Instrument";
 import { get, set } from "idb-keyval";
 import { IDB_KEYS } from "@/src/libs/idbKeys";
+import { isDemoDevMode } from "@/src/libs/devMode";
 import { SimpleSocket } from "@/src/libs/socket";
 import { CompanyService } from "@/src/services/Company.service";
+import { stripParentheticals } from "@/src/libs/displayString";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -50,16 +52,20 @@ const INDICATOR_OPTIONS = [
 
 function getInstrumentDisplayName(item: Partial<InstrumentLike> | null | undefined) {
   if (!item) return "";
-  return item.name || item.company_name || item.symbol || "Unknown";
+  const raw = item.name || item.company_name || item.symbol || "Unknown";
+  return stripParentheticals(raw) || String(item.symbol || "Unknown");
 }
 
 function normalizeInstrument(item: any, index = 0): InstrumentLike {
+  const sym = item?.symbol ?? "";
+  const rawName = item?.name || item?.company_name || sym || "Unknown";
+  const display = stripParentheticals(rawName) || sym || "Unknown";
   return {
     ...item,
     id: item?.id ?? item?._id ?? item?.symbol ?? `instrument-${index}`,
-    symbol: item?.symbol ?? "",
-    name: item?.name || item?.company_name || item?.symbol || "Unknown",
-    company_name: item?.company_name || item?.name || item?.symbol || "Unknown",
+    symbol: sym,
+    name: display,
+    company_name: display,
   };
 }
 
@@ -292,7 +298,10 @@ export default function TradingChart({
   useEffect(() => {
     const loadInstruments = async () => {
       try {
-        const cached = await get(IDB_KEYS.INSTRUMENTS);
+        const instrumentsCacheKey = isDemoDevMode()
+          ? IDB_KEYS.INSTRUMENTS_DEMO
+          : IDB_KEYS.INSTRUMENTS;
+        const cached = await get(instrumentsCacheKey);
 
         if (Array.isArray(cached) && cached.length > 0) {
           const normalizedCached = normalizeInstrumentList(cached);
@@ -309,7 +318,7 @@ export default function TradingChart({
           return;
         }
 
-        const res = await CompanyService.getCompanies(30000, 1, [
+        const res = await CompanyService.getCompanies(isDemoDevMode() ? 50 : 30000, 1, [
           "symbol",
           "company_name",
         ]);
@@ -317,7 +326,7 @@ export default function TradingChart({
         const normalizedRes = normalizeInstrumentList(res || []);
 
         setInstruments(normalizedRes);
-        await set(IDB_KEYS.INSTRUMENTS, normalizedRes);
+        await set(instrumentsCacheKey, normalizedRes);
 
         const preferred =
           normalizedRes.find((i) => i.symbol === defaultSymbol) ||
@@ -529,8 +538,8 @@ export default function TradingChart({
         </div>
       )}
 
-      <div className="flex-1 flex gap-4 w-full h-full min-h-0">
-        <div className="flex-1 relative min-w-0">
+      <div className="flex h-full min-h-0 w-full flex-1 gap-4">
+        <div className="relative min-h-0 min-w-0 flex-1">
           {isFixed && (
             <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
               {selectedInstrument?.symbol || defaultSymbol}
@@ -549,16 +558,18 @@ export default function TradingChart({
             {chartError}
           </div>
         ) : candles.length ? (
-          <LightChart
-            symbol={selectedInstrument?.symbol || defaultSymbol}
-            data={candles}
-            realtimeCandle={realtimeCandle}
-            onLoadMore={loadMoreCandles}
-            period={selectedPeriod}
-            indicators={selectedIndicators}
-            showTrading={!isFixed}
-            positionsForSymbol={positions.filter((p) => (p.symbol || "").toUpperCase() === (selectedInstrument?.symbol || defaultSymbol).toUpperCase())}
-          />
+          <div className="h-full min-h-[220px] min-w-0">
+            <LightChart
+              symbol={selectedInstrument?.symbol || defaultSymbol}
+              data={candles}
+              realtimeCandle={realtimeCandle}
+              onLoadMore={loadMoreCandles}
+              period={selectedPeriod}
+              indicators={selectedIndicators}
+              showTrading={!isFixed}
+              positionsForSymbol={positions.filter((p) => (p.symbol || "").toUpperCase() === (selectedInstrument?.symbol || defaultSymbol).toUpperCase())}
+            />
+          </div>
         ) : (
           <div className="flex items-center justify-center h-full text-yellow-400 text-sm">
             No candle data for {selectedInstrument?.symbol || defaultSymbol}

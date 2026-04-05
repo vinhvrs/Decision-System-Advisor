@@ -36,6 +36,19 @@ class AutoAnalyzeService:
             vector, tech_data = await asyncio.gather(*tasks)
 
             if not tech_data:
+                # DB candles missing (e.g. symbol not in local DB) but Laravel / batch jobs may
+                # still have summary:analysis:{SYMBOL} in Redis — use that instead of failing.
+                redis_snapshot = await analysis_cache_service.get_analysis(symbol)
+                if redis_snapshot and isinstance(redis_snapshot, dict):
+                    hl = redis_snapshot.get("highlights")
+                    ind = redis_snapshot.get("indicators")
+                    if hl is not None or (isinstance(ind, dict) and ind):
+                        self.logger.info(
+                            "No SQL candles for %s; using existing Redis analysis snapshot",
+                            symbol,
+                        )
+                        return redis_snapshot
+
                 return self._build_error_payload(symbol, "Technical dataset is missing.")
 
             # 2. RAG retrieval

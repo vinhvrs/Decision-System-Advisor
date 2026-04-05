@@ -7,7 +7,7 @@ class QdrantRetriever:
         self.qdrant = qdrant_service
 
     async def search(self, vector: List[float], limit: int = 5, symbol: Optional[str] = None) -> List[dict]:
-        """SỬA LỖI: Sử dụng await và truyền đúng query_vector"""
+        """Search by embedding; optional symbol filter."""
         query_filter = None
         if symbol:
             query_filter = models.Filter(

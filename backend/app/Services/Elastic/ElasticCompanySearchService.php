@@ -16,73 +16,83 @@ class ElasticCompanySearchService
 
     /**
      * Search companies by name or symbol.
-     * Query matches both company_name and symbol with symbol boosted higher for exact matches.
+     * Includes fuzzy / typo-tolerant matching and optional term suggestions (spellcheck-style).
      */
-    public function search(string $query, int $size = 20, int $from = 0): array
+    public function search(string $query, int $size = 20, int $from = 0, bool $withSuggest = true): array
     {
         $client = $this->elasticClientService->client();
         $index = config('elasticsearch.indices.company_profiles');
 
         $query = trim($query);
         if ($query === '') {
-            return ['total' => 0, 'items' => []];
+            return ['total' => 0, 'items' => [], 'suggestions' => []];
         }
 
         try {
             $queryUpper = strtoupper($query);
-            $should = [];
+            $should = $this->buildCompanyShouldClauses($query, $queryUpper);
 
-            // symbol is keyword: use prefix and term (exact)
-            $should[] = [
-                'prefix' => [
-                    'symbol' => [
-                        'value' => $queryUpper,
-                        'boost' => 5,
+            $body = [
+                'from' => $from,
+                'size' => $size,
+                'query' => [
+                    'bool' => [
+                        'should' => $should,
+                        'minimum_should_match' => 1,
                     ],
                 ],
-            ];
-            $should[] = [
-                'term' => [
-                    'symbol' => [
-                        'value' => $queryUpper,
-                        'boost' => 6,
-                    ],
+                'sort' => [
+                    ['_score' => ['order' => 'desc']],
+                    ['company_name.keyword' => ['order' => 'asc']],
                 ],
             ];
 
-            // company_name is text: use match and match_phrase_prefix
-            $should[] = [
-                'match' => [
-                    'company_name' => [
-                        'query' => $query,
-                        'boost' => 3,
-                        'operator' => 'or',
+            if ($withSuggest && strlen($query) >= 3) {
+                $body['suggest'] = [
+                    'company_term' => [
+                        'text' => $query,
+                        'term' => [
+                            'field' => 'company_name',
+                            'size' => 6,
+                            'suggest_mode' => 'popular',
+                            'sort' => 'score',
+                        ],
                     ],
-                ],
-            ];
-            $should[] = [
-                'match_phrase_prefix' => [
-                    'company_name' => [
-                        'query' => $query,
-                        'boost' => 2,
-                    ],
-                ],
-            ];
+                ];
+            }
 
             $response = $client->search([
                 'index' => $index,
+                'body' => $body,
+            ]);
+
+            $data = $this->toArray($response);
+            $formatted = $this->formatSearchResponse($data);
+            $formatted['suggestions'] = $withSuggest ? $this->extractTermSuggestions($data) : [];
+
+            return $formatted;
+        } catch (Throwable $e) {
+            throw $e;
+        }
+    }
+
+    /**
+     * Demo list: first N companies by symbol (for empty query / onboarding UI).
+     */
+    public function demoTopSymbols(int $limit = 20): array
+    {
+        $client = $this->elasticClientService->client();
+        $index = config('elasticsearch.indices.company_profiles');
+        $limit = max(1, min(50, $limit));
+
+        try {
+            $response = $client->search([
+                'index' => $index,
                 'body' => [
-                    'from' => $from,
-                    'size' => $size,
-                    'query' => [
-                        'bool' => [
-                            'should' => $should,
-                            'minimum_should_match' => 1,
-                        ],
-                    ],
+                    'size' => $limit,
+                    'query' => ['match_all' => (object) []],
                     'sort' => [
-                        ['_score' => ['order' => 'desc']],
-                        ['company_name.keyword' => ['order' => 'asc']],
+                        ['symbol' => ['order' => 'asc']],
                     ],
                 ],
             ]);
@@ -91,6 +101,144 @@ class ElasticCompanySearchService
         } catch (Throwable $e) {
             throw $e;
         }
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    protected function buildCompanyShouldClauses(string $query, string $queryUpper): array
+    {
+        $should = [];
+
+        // search_as_you_type: strong for partial tokens & name-like typos (e.g. “nvdia” → NVIDIA)
+        $should[] = [
+            'multi_match' => [
+                'query' => $query,
+                'type' => 'bool_prefix',
+                'fields' => [
+                    'company_search_sayt^3',
+                    'company_search_sayt._2gram',
+                    'company_search_sayt._3gram',
+                ],
+                'boost' => 4,
+            ],
+        ];
+
+        // Edge n-grams on ticker (partial symbol match)
+        if ($queryUpper !== '') {
+            $edgeQ = strlen($queryUpper) <= 12 ? $queryUpper : substr($queryUpper, 0, 12);
+            $should[] = [
+                'match' => [
+                    'symbol.edge' => [
+                        'query' => $edgeQ,
+                        'boost' => 5.5,
+                    ],
+                ],
+            ];
+        }
+
+        // Denormalized catch-all (symbol + name + sector + industry + description snippet)
+        $should[] = [
+            'match' => [
+                'search_all' => [
+                    'query' => $query,
+                    'boost' => 2,
+                    'operator' => 'or',
+                ],
+            ],
+        ];
+
+        $should[] = [
+            'prefix' => [
+                'symbol' => [
+                    'value' => $queryUpper,
+                    'boost' => 5,
+                ],
+            ],
+        ];
+        $should[] = [
+            'term' => [
+                'symbol' => [
+                    'value' => $queryUpper,
+                    'boost' => 6,
+                ],
+            ],
+        ];
+
+        if (strlen($queryUpper) >= 2 && strlen($queryUpper) <= 6) {
+            $should[] = [
+                'wildcard' => [
+                    'symbol' => [
+                        'value' => '*'.$queryUpper.'*',
+                        'boost' => 0.8,
+                        'case_insensitive' => true,
+                    ],
+                ],
+            ];
+        }
+
+        $should[] = [
+            'match' => [
+                'company_name' => [
+                    'query' => $query,
+                    'boost' => 3,
+                    'operator' => 'or',
+                ],
+            ],
+        ];
+        $should[] = [
+            'match_phrase_prefix' => [
+                'company_name' => [
+                    'query' => $query,
+                    'boost' => 2,
+                ],
+            ],
+        ];
+
+        // Fuzzy: names, blended blob, and long description
+        $should[] = [
+            'multi_match' => [
+                'query' => $query,
+                'fields' => [
+                    'company_name^2',
+                    'search_all^1.2',
+                    'description',
+                ],
+                'type' => 'best_fields',
+                'fuzziness' => 'AUTO',
+                'prefix_length' => 0,
+                'boost' => 1.2,
+            ],
+        ];
+
+        return $should;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function extractTermSuggestions(array $response): array
+    {
+        $out = [];
+        $seen = [];
+        $buckets = $response['suggest']['company_term'] ?? [];
+
+        foreach ($buckets as $entry) {
+            foreach ($entry['options'] ?? [] as $opt) {
+                $text = $opt['text'] ?? null;
+                if (! is_string($text) || $text === '') {
+                    continue;
+                }
+                $k = strtolower($text);
+                if (isset($seen[$k])) {
+                    continue;
+                }
+                $seen[$k] = true;
+                $out[] = $text;
+            }
+        }
+
+        return array_slice($out, 0, 8);
     }
 
     /**

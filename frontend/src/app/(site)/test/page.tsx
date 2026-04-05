@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import BeginnerTestHome from "./BeginnerTestHome";
+import HomeHeroBanner from "../HomeHeroBanner";
+import HomeMarketView from "../HomeMarketView";
 
 export const metadata: Metadata = {
-  title: "Beginner market view | DSA",
+  title: "Test · Redis daily board | DSA",
   description:
-    "Dashboard-style view: ranked symbols, radar scores, snapshot price and change, volume, liquidity, and watchlist interest — explained in plain language.",
+    "Same layout as the homepage, fed by precomputed Redis dashboard:daily (python warm_up) — Str-ranked board with extended close series.",
 };
 
-export default function TestBeginnerPage() {
-  return <BeginnerTestHome />;
+/** Clone of `/` but market view reads `/api/.../rankings/dashboard-daily` instead of beginner-board. */
+export default function TestHomeClonePage() {
+  return (
+    <>
+      <HomeHeroBanner />
+      <HomeMarketView variant="dashboard-daily" />
+    </>
+  );
 }

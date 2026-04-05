@@ -116,6 +116,31 @@ export const InstrumentService = {
         }
     },
 
+    /** One POST: daily closes per symbol (oldest first), max 100 symbols. */
+    batchDailyCloses: async (symbols: string[], limit: number = 40): Promise<Record<string, number[]>> => {
+        const clean = [...new Set(symbols.map((s) => String(s || "").trim().toUpperCase()).filter(Boolean))].slice(0, 100);
+        if (!clean.length) return {};
+        try {
+            const response = await api.post(
+                `/instruments/data/batch-daily-closes`,
+                { symbols: clean, limit },
+                { timeout: 120_000 }
+            );
+            const raw = response.data?.data;
+            if (!raw || typeof raw !== "object") return {};
+            const out: Record<string, number[]> = {};
+            for (const [k, v] of Object.entries(raw)) {
+                if (Array.isArray(v)) {
+                    out[k] = v.map((x) => Number(x)).filter((n) => Number.isFinite(n));
+                }
+            }
+            return out;
+        } catch (error) {
+            console.error("Error batchDailyCloses:", error);
+            return {};
+        }
+    },
+
     getInstrumentDataByPeriod: async (periodId: string, limit: number = 5000, page: number = 1) => {
         try {
             const response = await api.get(`/instruments/data/period/${encodeURIComponent(periodId)}`, {

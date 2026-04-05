@@ -28,4 +28,36 @@ export const AdminService = {
   statistics: {
     mostWatched: () => api.get(`${ADMIN_PREFIX}/statistics/most-watched`).then((r) => r.data),
   },
+  logs: {
+    tail: () => api.get(`${ADMIN_PREFIX}/logs`).then((r) => r.data?.data ?? r.data),
+    laravelEntries: (params?: { levels?: string; limit?: number }) =>
+      api.get(`${ADMIN_PREFIX}/logs/laravel-entries`, { params }).then((r) => r.data?.data ?? r.data),
+    activity: (params?: {
+      page?: number;
+      per_page?: number;
+      level?: string;
+      channel?: string;
+      search?: string;
+    }) => api.get(`${ADMIN_PREFIX}/logs/activity`, { params }).then((r) => r.data),
+  },
+  email: {
+    config: () => api.get(`${ADMIN_PREFIX}/email/config`).then((r) => r.data?.data ?? r.data),
+    messages: (params?: { page?: number; per_page?: number; direction?: "inbound" | "outbound" }) =>
+      api.get(`${ADMIN_PREFIX}/email/messages`, { params }).then((r) => r.data),
+    sendTest: (to: string) => api.post(`${ADMIN_PREFIX}/email/test`, { to }).then((r) => r.data),
+    send: (payload: {
+      to: string;
+      subject: string;
+      body: string;
+      reply_to?: string;
+      client_user_id?: string;
+    }) => api.post(`${ADMIN_PREFIX}/email/send`, payload).then((r) => r.data),
+    recordInbound: (payload: {
+      from_email: string;
+      to_email: string;
+      subject: string;
+      body_text: string;
+      client_user_id?: string;
+    }) => api.post(`${ADMIN_PREFIX}/email/inbound`, payload).then((r) => r.data),
+  },
 };

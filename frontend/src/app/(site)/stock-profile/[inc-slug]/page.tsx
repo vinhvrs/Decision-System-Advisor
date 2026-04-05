@@ -3,6 +3,7 @@
 "use client";
 
 import React, { use, useState, useEffect, useCallback } from 'react';
+import Link from "next/link";
 import dynamic from 'next/dynamic';
 import {
   ShieldCheck,
@@ -25,9 +26,14 @@ const FundamentalRadar = dynamic(() => import('./FundamentalRadar'), {
 
 import AddToWatchlistButton from '@/src/components/watchlist/AddToWatchlistButton';
 import { InstrumentService } from "@/src/services/Instrument.service";
-import { CompanyService } from "@/src/services/Company.service"; 
-// Thay thế Echo bằng SimpleSocket
-import { SimpleSocket } from "@/src/libs/socket"; 
+import { CompanyService } from "@/src/services/Company.service";
+import { SimpleSocket } from "@/src/libs/socket";
+import { stripParentheticals } from "@/src/libs/displayString";
+import {
+  newsSourceLabel,
+  pickNewsThumbImage,
+  resolveNewsHref,
+} from "@/src/libs/newsArticle"; 
 
 interface Props {
   params: Promise<{ "inc-slug": string }>;
@@ -183,7 +189,9 @@ const StockProfile = ({ params }: Props) => {
             </div>
             <div>
               <div className="flex items-center gap-2 tablet:gap-3">
-                <h1 className="text-xl phone:text-2xl tablet:text-3xl font-black text-white tracking-tight uppercase">{details?.company_name || instrument?.name}</h1>
+                <h1 className="text-xl phone:text-2xl tablet:text-3xl font-black text-white tracking-tight uppercase">
+                  {stripParentheticals(details?.company_name || instrument?.name) || instrument?.symbol || ""}
+                </h1>
                 <ShieldCheck className="text-blue-500" size={20} />
               </div>
               <div className="flex gap-4 mt-1 text-xs font-bold items-center uppercase tracking-wider text-gray-500">
@@ -228,13 +236,15 @@ const StockProfile = ({ params }: Props) => {
                   </div>
                 </div>
               </div>
-              <div className="h-[280px] phone:h-[350px] tablet:h-[400px] laptop:h-[450px] w-full p-2">
-                <LightChart 
-                  symbol={instrument?.symbol}
-                  data={candles}
-                  realtimeCandle={realtimeCandle}
-                  period={selectedPeriod?.period as any}
-                />
+              <div className="flex h-[300px] w-full flex-col p-2 pb-3 phone:h-[360px] tablet:h-[420px] laptop:h-[470px]">
+                <div className="min-h-0 flex-1">
+                  <LightChart
+                    symbol={instrument?.symbol}
+                    data={candles}
+                    realtimeCandle={realtimeCandle}
+                    period={selectedPeriod?.period as any}
+                  />
+                </div>
               </div>
             </section>
 
@@ -245,23 +255,55 @@ const StockProfile = ({ params }: Props) => {
                 <h2 className="text-sm font-black text-white uppercase tracking-widest">Market Intelligence</h2>
               </div>
               <div className="grid grid-cols-1 gap-4">
-                {news.map((item, idx) => (
-                  <a key={idx} href={item.url} target="_blank" className="bg-[#131722] p-5 rounded-2xl border border-gray-800 hover:border-blue-500/50 transition-all group flex gap-5">
-                    {item.image && (
-                      <div className="w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-gray-800">
-                        <img src={item.image} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" alt="news" />
+                {news.map((item, idx) => {
+                  const { kind, href } = resolveNewsHref(item);
+                  const label = newsSourceLabel(item);
+                  const thumb = pickNewsThumbImage(item);
+                  const published = item.published_at || item.created_at;
+                  const cardClass =
+                    "bg-[#131722] p-5 rounded-2xl border border-gray-800 hover:border-blue-500/50 transition-all group flex gap-5";
+                  const inner = (
+                    <>
+                      {thumb ? (
+                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-gray-800">
+                          <img
+                            src={thumb}
+                            className="h-full w-full object-cover grayscale transition-all duration-500 group-hover:grayscale-0"
+                            alt=""
+                          />
+                        </div>
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="rounded border border-blue-500/10 bg-blue-500/5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-500">
+                            {label}
+                          </span>
+                          <span className="font-mono text-[10px] italic text-gray-600">
+                            {published ? new Date(published).toLocaleDateString() : "—"}
+                          </span>
+                        </div>
+                        <h3 className="mb-2 line-clamp-1 text-sm font-bold text-white transition-colors group-hover:text-blue-400">
+                          {item.title}
+                        </h3>
+                        <p className="line-clamp-2 text-xs font-light leading-relaxed text-gray-500">
+                          {item.content || ""}
+                        </p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/5 px-2 py-0.5 rounded border border-blue-500/10">{item.site || "Financial News"}</span>
-                        <span className="text-[10px] text-gray-600 font-mono italic">{new Date(item.publishedDate).toLocaleDateString()}</span>
-                      </div>
-                      <h3 className="text-white font-bold group-hover:text-blue-400 transition-colors mb-2 line-clamp-1 text-sm">{item.title}</h3>
-                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed font-light">{item.text}</p>
-                    </div>
-                  </a>
-                ))}
+                    </>
+                  );
+                  if (kind === "external") {
+                    return (
+                      <a key={item.id || idx} href={href} target="_blank" rel="noreferrer" className={cardClass}>
+                        {inner}
+                      </a>
+                    );
+                  }
+                  return (
+                    <Link key={item.id || idx} href={href} className={cardClass}>
+                      {inner}
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           </div>

@@ -37,6 +37,88 @@ class InstrumentDataRepository implements InstrumentDataInterface {
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
+    /**
+     * Last N bars for a symbol/period, oldest first (for charts).
+     *
+     * @return list<array{timestamps: mixed, open: float|int|null, high: float|int|null, low: float|int|null, close: float|int|null, volume: float|int|null}>
+     */
+    public function getRecentBarsForSymbol(string $symbol, string $period, int $limit): array
+    {
+        $period = $period !== '' && $period !== null ? strtolower((string) $period) : 'daily';
+        $slug = strtolower(trim((string) $symbol)).'-'.$period;
+        $periodId = DB::table('instrument_periods')->where('slug', $slug)->value('id');
+        if (! $periodId) {
+            return [];
+        }
+        $limit = max(1, min($limit, 5000));
+        $rows = InstrumentData::query()
+            ->where('instrument_period_id', $periodId)
+            ->orderByDesc('timestamps')
+            ->limit($limit)
+            ->select(['timestamps', 'open', 'high', 'low', 'close', 'volume'])
+            ->get();
+        $out = [];
+        foreach ($rows->reverse() as $row) {
+            $out[] = [
+                'timestamps' => $row->timestamps,
+                'open' => $row->open !== null ? (float) $row->open : null,
+                'high' => $row->high !== null ? (float) $row->high : null,
+                'low' => $row->low !== null ? (float) $row->low : null,
+                'close' => $row->close !== null ? (float) $row->close : null,
+                'volume' => $row->volume !== null ? (float) $row->volume : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Daily closing prices for many symbols in one request (keys = uppercase symbol).
+     *
+     * @param  list<string>  $symbols
+     * @return array<string, list<float>>
+     */
+    public function batchDailyCloses(array $symbols, int $limit): array
+    {
+        $limit = max(1, min($limit, 500));
+        $symbols = array_values(array_unique(array_filter(array_map(
+            fn ($s) => strtoupper(trim((string) $s)),
+            $symbols
+        ))));
+        if ($symbols === []) {
+            return [];
+        }
+        $symbols = array_slice($symbols, 0, 100);
+        $slugToSymbol = [];
+        $slugs = [];
+        foreach ($symbols as $sym) {
+            $slug = strtolower($sym).'-daily';
+            $slugs[] = $slug;
+            $slugToSymbol[$slug] = $sym;
+        }
+        $periodRows = DB::table('instrument_periods')->whereIn('slug', $slugs)->get(['id', 'slug']);
+        $result = [];
+        foreach ($symbols as $sym) {
+            $result[$sym] = [];
+        }
+        foreach ($periodRows as $pr) {
+            $sym = $slugToSymbol[$pr->slug] ?? null;
+            if ($sym === null) {
+                continue;
+            }
+            $closes = InstrumentData::query()
+                ->where('instrument_period_id', $pr->id)
+                ->orderByDesc('timestamps')
+                ->limit($limit)
+                ->pluck('close')
+                ->all();
+            $closes = array_map(fn ($c) => (float) $c, $closes);
+            $result[$sym] = array_values(array_reverse($closes));
+        }
+
+        return $result;
+    }
+
     public function findByPeriod(string $periodId, int $perPage): LengthAwarePaginator 
     {
         return InstrumentData::query()

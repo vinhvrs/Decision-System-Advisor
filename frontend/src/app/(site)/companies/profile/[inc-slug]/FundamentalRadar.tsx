@@ -1,37 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { memo, useMemo } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-const RadarChartClient = dynamic(
+import BeginnerRadarChart from "@/src/app/(site)/test/BeginnerRadarChart";
+import { BeginnerService, type BeginnerFormalRadarPayload } from "@/src/services/Beginner.service";
+
+/** Legacy 6-axis chart when no symbol (0–100, profile heuristics). */
+const LegacyRadarChartClient = dynamic(
   () =>
     import("recharts").then((mod) => {
-      const {
-        Radar,
-        RadarChart,
-        PolarGrid,
-        PolarAngleAxis,
-        PolarRadiusAxis,
-        ResponsiveContainer,
-        Tooltip,
-      } = mod;
+      const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } = mod;
 
-      return function Chart({ data }: { data: any[] }) {
+      return function LegacyChart({ data }: { data: { subject: string; value: number }[] }) {
         return (
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart cx="50%" cy="50%" outerRadius="78%" data={data}>
               <PolarGrid stroke="#374151" />
-              <PolarAngleAxis
-                dataKey="subject"
-                tick={{ fill: "#9ca3af", fontSize: 10 }}
-              />
-              <PolarRadiusAxis
-                angle={30}
-                domain={[0, 100]}
-                tick={{ fill: "#6b7280", fontSize: 10 }}
-              />
+              <PolarAngleAxis dataKey="subject" tick={{ fill: "#9ca3af", fontSize: 10 }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} />
               <Tooltip
+                formatter={(v) => [`${v ?? "—"} / 100`, "Score"]}
                 contentStyle={{
                   backgroundColor: "#111827",
                   border: "1px solid #374151",
@@ -75,10 +65,7 @@ function scoreFromIpoDate(ipoDate?: string | null) {
   if (!ipoDate) return 45;
   const year = new Date(ipoDate).getFullYear();
   if (!year || Number.isNaN(year)) return 45;
-
-  const currentYear = new Date().getFullYear();
-  const age = currentYear - year;
-
+  const age = new Date().getFullYear() - year;
   if (age >= 40) return 95;
   if (age >= 25) return 88;
   if (age >= 15) return 78;
@@ -89,60 +76,37 @@ function scoreFromIpoDate(ipoDate?: string | null) {
 
 function scoreGrowth(industry?: string, sector?: string) {
   const text = `${industry || ""} ${sector || ""}`.toLowerCase();
-
-  if (
-    text.includes("semiconductor") ||
-    text.includes("artificial intelligence") ||
-    text.includes("software") ||
-    text.includes("cloud")
-  ) {
+  if (text.includes("semiconductor") || text.includes("artificial intelligence") || text.includes("software") || text.includes("cloud")) {
     return 92;
   }
-
-  if (
-    text.includes("technology") ||
-    text.includes("communication") ||
-    text.includes("cybersecurity")
-  ) {
+  if (text.includes("technology") || text.includes("communication") || text.includes("cybersecurity")) {
     return 84;
   }
-
-  if (
-    text.includes("healthcare") ||
-    text.includes("consumer") ||
-    text.includes("industrial")
-  ) {
+  if (text.includes("healthcare") || text.includes("consumer") || text.includes("industrial")) {
     return 72;
   }
-
   return 60;
 }
 
 function scoreLeadership(details: any) {
   let score = 35;
-
   if (details?.ceo) score += 20;
   if (details?.website) score += 15;
   if (details?.description) score += 15;
   if (details?.country) score += 5;
   if (details?.company_name) score += 10;
-
   return clamp(score);
 }
 
 function scoreMarketPresence(details: any) {
   let score = 40;
-
   const exchange = String(details?.exchange || "").toUpperCase();
   if (exchange.includes("NASDAQ") || exchange.includes("NYSE")) score += 25;
   else if (exchange) score += 15;
-
   if (details?.country === "US") score += 15;
   else if (details?.country) score += 10;
-
   if (details?.image) score += 8;
   if (details?.symbol) score += 6;
-
   return clamp(score);
 }
 
@@ -161,49 +125,113 @@ function scoreTransparency(details: any) {
     details?.full_time_employees,
     details?.ipo_date,
   ];
-
   const filled = fields.filter((v) => v !== null && v !== undefined && v !== "").length;
   return clamp((filled / fields.length) * 100);
 }
 
-const FundamentalRadar = memo(({ details }: { details: any }) => {
-  const chartData = useMemo(() => {
-    const employees = Number(details?.full_time_employees || 0);
+function legacyFundamentalChartData(details: any) {
+  const employees = Number(details?.full_time_employees || 0);
+  return [
+    { subject: "Growth", value: scoreGrowth(details?.industry, details?.sector) },
+    { subject: "Scale", value: scoreFromEmployees(employees) },
+    { subject: "Leadership", value: scoreLeadership(details) },
+    { subject: "Maturity", value: scoreFromIpoDate(details?.ipo_date) },
+    { subject: "Presence", value: scoreMarketPresence(details) },
+    { subject: "Transparency", value: scoreTransparency(details) },
+  ];
+}
 
-    return [
-      {
-        subject: "Growth",
-        value: scoreGrowth(details?.industry, details?.sector),
-      },
-      {
-        subject: "Scale",
-        value: scoreFromEmployees(employees),
-      },
-      {
-        subject: "Leadership",
-        value: scoreLeadership(details),
-      },
-      {
-        subject: "Maturity",
-        value: scoreFromIpoDate(details?.ipo_date),
-      },
-      {
-        subject: "Presence",
-        value: scoreMarketPresence(details),
-      },
-      {
-        subject: "Transparency",
-        value: scoreTransparency(details),
-      },
-    ];
-  }, [details]);
+export type FundamentalRadarProps = {
+  /** When set, loads the same 1–5 radar + F&amp;G as the beginner homepage. */
+  symbol?: string;
+  poolLimit?: number;
+  compact?: boolean;
+  showFearGreed?: boolean;
+  /** Fallback when `symbol` is omitted (profile-only heuristics). */
+  details?: any;
+};
 
-  return (
-    <div className="h-[280px] w-full">
-      <RadarChartClient data={chartData} />
-    </div>
-  );
-});
+const FundamentalRadar = memo(
+  ({
+    symbol,
+    poolLimit = 100,
+    compact = false,
+    showFearGreed = true,
+    details,
+  }: FundamentalRadarProps) => {
+    const [formal, setFormal] = useState<BeginnerFormalRadarPayload | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+      const sym = symbol?.trim();
+      if (!sym) {
+        setFormal(null);
+        return;
+      }
+      let cancelled = false;
+      setLoading(true);
+      BeginnerService.getFormalRadar(sym.toUpperCase(), poolLimit)
+        .then((d) => {
+          if (!cancelled) setFormal(d);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [symbol, poolLimit]);
+
+    const legacyData = useMemo(() => {
+      if (!details || typeof details !== "object") return null;
+      return legacyFundamentalChartData(details);
+    }, [details]);
+
+    if (symbol?.trim()) {
+      if (loading) {
+        return (
+          <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
+            Loading radar…
+          </p>
+        );
+      }
+      if (formal?.radar?.length) {
+        return (
+          <BeginnerRadarChart
+            data={formal.radar}
+            fearGreed={showFearGreed ? formal.fear_greed : null}
+            variant={compact ? "compact" : "default"}
+          />
+        );
+      }
+      return (
+        <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
+          Radar unavailable for this symbol yet.
+        </p>
+      );
+    }
+
+    if (legacyData) {
+      return (
+        <div className="w-full">
+          {!compact ? (
+            <p className="mb-2 text-[10px] leading-snug text-gray-500">
+              Profile-only snapshot (no symbol / API radar). Open a company profile with a ticker for the homepage
+              radar.
+            </p>
+          ) : null}
+          <div className={compact ? "h-[200px] w-full" : "h-[280px] w-full"}>
+            <LegacyRadarChartClient data={legacyData} />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <p className={`text-center text-gray-500 ${compact ? "text-[10px]" : "text-sm"}`}>No data for radar yet.</p>
+    );
+  }
+);
 
 FundamentalRadar.displayName = "FundamentalRadar";
 

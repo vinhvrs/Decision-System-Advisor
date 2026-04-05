@@ -19,6 +19,7 @@ Route::prefix('/instruments')->group(function () {
     Route::get('/data', [InstrumentDataController::class, 'index']);
     // Route::get('/data/period/classify/{symbol}', [InstrumentDataController::class, 'classifyPeriods']);
     // Must be registered before /data/{symbol} so paths like data/period/{uuid} are not parsed as symbol "period"
+    Route::post('/data/batch-daily-closes', [InstrumentDataController::class, 'batchDailyCloses']);
     Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
     // Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
     // Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);

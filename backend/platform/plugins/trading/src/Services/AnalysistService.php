@@ -52,7 +52,7 @@ class AnalysistService
         $series = $closes->pluck('close')->map(fn($v) => (float) $v)->values()->all();
         $smaSeries = $this->indicatorMath->calculateSMA(data: $series, period: $n);
 
-        // lấy index cuối của chính smaSeries
+        // Last index of SMA series (not price series)
         $lastIdx = count($smaSeries) - 1;
 
         return response()->json([
@@ -153,7 +153,7 @@ class AnalysistService
         $series = $closes->pluck('close')->map(fn($v) => (float) $v)->values()->all();
         [$lowerBand, $middleBand, $upperBand] = $this->indicatorMath->calculateBollingerBands($series, $n, $stdDevMultiplier);
 
-        // last index của bands (vì bands có thể ngắn hơn series)
+        // Last valid band index (bands can be shorter than price series)
         $bbLastIdx = min(count($lowerBand), count($middleBand), count($upperBand)) - 1;
 
         return response()->json([

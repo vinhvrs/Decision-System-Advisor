@@ -13,6 +13,8 @@ import {
   LogOut,
   Menu,
   X,
+  Terminal,
+  Mail,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -21,6 +23,8 @@ const NAV_ITEMS = [
   { href: "/admin/companies", label: "Company / Symbol", icon: Building2 },
   { href: "/admin/news", label: "News Management", icon: Newspaper },
   { href: "/admin/statistics", label: "Most Watched", icon: BarChart3 },
+  { href: "/admin/logs", label: "Logs & activity", icon: Terminal },
+  { href: "/admin/email", label: "Email desk", icon: Mail },
 ];
 
 export default function AdminLayout({
@@ -35,6 +39,14 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (pathname === "/admin/auth") return;
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      localStorage.removeItem("user");
+      router.replace("/admin/auth");
+      return;
+    }
+
     const u = localStorage.getItem("user");
     if (u) {
       try {

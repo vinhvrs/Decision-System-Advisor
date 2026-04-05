@@ -10,20 +10,13 @@ use Platform\Plugins\Trading\Src\Services\MarketMoveService;
 
 class MarketMove extends Command
 {
-    /**
-     * Tên và chữ ký của lệnh console.
-     * Chạy lệnh bằng cách dùng: php artisan market:update-movers
-     */
     protected $signature = 'market:update-movers';
 
-    /**
-     * Mô tả lệnh.
-     */
-    protected $description = 'Tính toán Top Gainer/Loser cho toàn bộ stocks bằng cách chia nhỏ dữ liệu (Chunking)';
+    protected $description = 'Compute top gainers/losers for all stocks (chunked processing)';
 
     public function handle()
     {
-        $this->info('Bắt đầu tính toán Market Movers...');
+        $this->info('Computing market movers...');
 
         $service = app(MarketMoveService::class);
         $count = $service->rebuildDaily();

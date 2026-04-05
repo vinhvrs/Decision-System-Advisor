@@ -29,7 +29,7 @@ interface Props {
   /** When false, only candles are shown (no paper trading overlay). Default true. */
   showTrading?: boolean;
   /** Market type for ticket API. Default "stock". */
-  market?: "stock" | "crypto" | "forex";
+  market?: "stock";
   /** Open positions for current symbol from API - syncs paper trading & chart */
   positionsForSymbol?: Array<{ id: string; type: string; volume: number; price: number; leverage?: number }>;
 }
@@ -253,6 +253,8 @@ export default function LightChart({
   const seriesMarkersRef = useRef<any>(null);
   /** Tickets created for current position: [{ id, volume }] */
   const ticketIdsRef = useRef<Array<{ id: string; volume: number }>>([]);
+  /** Run timeScale.fitContent once per symbol after first non-empty data (not on every realtime tick). */
+  const shouldFitTimeScaleRef = useRef(true);
 
   const [vol, setVol] = useState<number>(1);
   const [leverage, setLeverage] = useState<number>(1);
@@ -268,6 +270,10 @@ export default function LightChart({
   useEffect(() => {
     positionRef.current = position;
   }, [position]);
+
+  useEffect(() => {
+    shouldFitTimeScaleRef.current = true;
+  }, [symbol]);
 
   const { enqueueCreate, enqueueClose } = useTradeApiQueue({
     onTicketCreated: (ticketId, volume) => {
@@ -332,9 +338,19 @@ export default function LightChart({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: 500,
+    const el = containerRef.current;
+    const minChartHeight = 200;
+    const syncChartSize = () => {
+      if (!containerRef.current || !chartRef.current) return;
+      const box = containerRef.current;
+      const w = Math.floor(box.clientWidth);
+      const h = Math.max(Math.floor(box.clientHeight), minChartHeight);
+      chartRef.current.applyOptions({ width: w, height: h });
+    };
+
+    const chart = createChart(el, {
+      width: Math.max(1, el.clientWidth),
+      height: Math.max(minChartHeight, el.clientHeight || minChartHeight),
       layout: {
         background: { type: ColorType.Solid, color: "#0B1220" },
         textColor: "#DDD",
@@ -346,6 +362,7 @@ export default function LightChart({
       timeScale: {
         borderColor: "#334155",
         timeVisible: true,
+        secondsVisible: false,
       },
       rightPriceScale: {
         borderColor: "#334155",
@@ -388,17 +405,24 @@ export default function LightChart({
 
     chart.subscribeCrosshairMove(crosshairMove);
 
-    const handleResize = () => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
-      }
-    };
+    syncChartSize();
 
-    window.addEventListener("resize", handleResize);
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            syncChartSize();
+          })
+        : null;
+    resizeObserver?.observe(el);
+
+    const handleWindowResize = () => syncChartSize();
+    window.addEventListener("resize", handleWindowResize);
+    requestAnimationFrame(() => syncChartSize());
 
     return () => {
       chart.unsubscribeCrosshairMove(crosshairMove);
-      window.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", handleWindowResize);
       indicatorSeriesRef.current = [];
       displayMapRef.current.clear();
       try {
@@ -736,6 +760,24 @@ export default function LightChart({
       console.error("Candle setData error:", e);
     }
 
+    const chart = chartRef.current;
+    const box = containerRef.current;
+    if (chart && box) {
+      const w = Math.max(1, Math.floor(box.clientWidth));
+      const h = Math.max(200, Math.floor(box.clientHeight));
+      chart.applyOptions({ width: w, height: h });
+      if (shouldFitTimeScaleRef.current && sortedData.length > 0) {
+        shouldFitTimeScaleRef.current = false;
+        requestAnimationFrame(() => {
+          try {
+            chart.timeScale().fitContent();
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+    }
+
     // re-apply markers after any full setData()
     markTradesOnChart();
 
@@ -976,8 +1018,8 @@ export default function LightChart({
   }, [onLoadMore]);
 
   return (
-    <div className="w-full h-full relative min-h-[500px]">
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="relative h-full min-h-[200px] w-full min-w-0">
+      <div ref={containerRef} className="absolute inset-0 min-h-[200px]" />
 
       {showTrading && (
       <div className="absolute top-3 left-3 z-10 rounded-lg border border-slate-700/60 bg-slate-900/70 backdrop-blur px-3 py-2 text-slate-100 text-xs shadow">

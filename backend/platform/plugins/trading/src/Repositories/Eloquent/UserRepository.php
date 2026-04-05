@@ -11,8 +11,17 @@ class UserRepository implements UserInterface {
         return Users::create($user);
     }
 
+    /** Password value must already be hashed (e.g. after OTP verification). */
+    public function createWithHashedPassword(array $user): Users {
+        return Users::create($user);
+    }
+
     public function find(string $id): ?Users {
         return Users::find($id);
+    }
+
+    public function findByEmail(string $email): ?Users {
+        return Users::where('email', $email)->first();
     }
 
     public function findAll($filter, $select, $perPage): LengthAwarePaginator {

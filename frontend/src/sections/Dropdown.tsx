@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import { ChevronDown, Check, Search } from "lucide-react";
 
-/* ================= TYPES ================= */
 interface Option {
   id: string;
   label: string;
@@ -23,7 +22,6 @@ interface SelectDropdownProps {
   maxRender?: number;
 }
 
-/* ================= COMPONENT ================= */
 export default function SelectDropdown({
   options,
   selected,
@@ -31,7 +29,6 @@ export default function SelectDropdown({
   placeholder = "Select an option",
   maxRender = 100,
 }: SelectDropdownProps) {
-  /* ================= STATE ================= */
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -41,7 +38,6 @@ export default function SelectDropdown({
   const listRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  /* ================= HELPERS (DECLARE FIRST!) ================= */
   const closeDropdown = () => {
     setIsOpen(false);
     setSearchTerm("");
@@ -59,7 +55,6 @@ export default function SelectDropdown({
     closeDropdown();
   };
 
-  /* ================= FILTER ================= */
   const filteredOptions = useMemo(() => {
     if (!searchTerm) return options.slice(0, maxRender);
 
@@ -69,30 +64,27 @@ export default function SelectDropdown({
       .slice(0, maxRender);
   }, [options, searchTerm, maxRender]);
 
-  /* ================= RESET WHEN SEARCH CLEARED ================= */
   useEffect(() => {
     if (searchTerm === "" && listRef.current) {
       listRef.current.scrollTop = 0;
     }
   }, [searchTerm]);
 
-  /* ================= CLICK OUTSIDE ================= */
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(e.target as Node)
       ) {
-        closeDropdown(); // ✅ an toàn
+        closeDropdown();
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () =>
       document.removeEventListener("mousedown", handleClickOutside);
-  }, []); // ❗ KHÔNG thêm closeDropdown vào deps
+  }, []);
 
-  /* ================= KEYBOARD ================= */
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!isOpen) return;
 
@@ -120,7 +112,6 @@ export default function SelectDropdown({
     }
   };
 
-  /* ================= SCROLL ACTIVE ================= */
   useEffect(() => {
     const el = itemRefs.current[activeIndex];
     if (el) {
@@ -128,7 +119,6 @@ export default function SelectDropdown({
     }
   }, [activeIndex]);
 
-  /* ================= RENDER ================= */
   return (
     <div
       className="relative"
@@ -153,10 +143,8 @@ export default function SelectDropdown({
         />
       </button>
 
-      {/* DROPDOWN */}
       {isOpen && (
         <div className="absolute z-[100] w-[260px] mt-2 bg-[#161D2C] border border-white/10 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-150">
-          {/* SEARCH */}
           <div className="p-2 border-b border-white/5">
             <div className="relative">
               <Search
@@ -178,7 +166,6 @@ export default function SelectDropdown({
             </div>
           </div>
 
-          {/* LIST */}
           <div
             ref={listRef}
             className="max-h-64 overflow-y-auto custom-scrollbar"

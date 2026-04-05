@@ -16,7 +16,7 @@ class NewsManagementController extends Controller
         $symbol = $request->input('symbol');
 
         // Omit `content` in list payload (large) — still filter by title/content when searching
-        $query = DB::table('knowledge_docs_temp')
+        $query = DB::table('knowledge_docs')
             ->select(['id', 'title', 'symbol', 'published_at', 'source', 'author', 'created_at', 'updated_at'])
             ->orderByDesc('published_at');
 
@@ -36,7 +36,7 @@ class NewsManagementController extends Controller
 
     public function show(string $id)
     {
-        $news = DB::table('knowledge_docs_temp')->where('id', $id)->first();
+        $news = DB::table('knowledge_docs')->where('id', $id)->first();
         if (!$news) {
             return response()->json(['message' => 'News not found'], 404);
         }
@@ -45,7 +45,7 @@ class NewsManagementController extends Controller
 
     public function destroy(string $id)
     {
-        $deleted = DB::table('knowledge_docs_temp')->where('id', $id)->delete();
+        $deleted = DB::table('knowledge_docs')->where('id', $id)->delete();
         if (!$deleted) {
             return response()->json(['message' => 'News not found'], 404);
         }

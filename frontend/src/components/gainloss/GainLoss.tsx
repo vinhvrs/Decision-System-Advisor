@@ -5,51 +5,42 @@ import React, { useEffect, useState } from "react";
 import { CompanyService } from "../../services/Company.service";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
+import { formatCompactVolume, stripParentheticals } from "@/src/libs/displayString";
 
-const GainLossLogo = () => (
-  <svg 
-    width="28" 
-    height="24" 
-    viewBox="0 0 28 24" 
-    fill="none" 
-    xmlns="http://www.w3.org/2000/svg"
-    className="overflow-visible"
-  >
-    <path 
-      d="M4 11L8 7L12 11M8 7V17" 
-      stroke="#22c55e" 
-      strokeWidth="2.5" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className="drop-shadow-[0_0_5px_rgba(34,197,94,0.7)]"
-    />
-    <path 
-      d="M16 13L20 17L24 13M20 17V7" 
-      stroke="#ef4444" 
-      strokeWidth="2.5" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className="drop-shadow-[0_0_5px_rgba(239,68,68,0.7)]"
-    />
-  </svg>
-);
+function VolumeListLogo({ symbol, url }: { symbol: string; url?: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (url && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt=""
+        className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/10"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white ring-1 ring-white/10">
+      {symbol.slice(0, 1)}
+    </span>
+  );
+}
 
 export default function GainLoss() {
   const [gainers, setGainers] = useState<any[]>([]);
   const [losers, setLosers] = useState<any[]>([]);
+  const [updatedNote, setUpdatedNote] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchMarketMovers = async () => {
       try {
         setLoading(true);
-        const [topGainers, topLosers] = await Promise.all([
-          CompanyService.topGainers(5),
-          CompanyService.topLosers(5)
-        ]);
-
-        setGainers(topGainers);
-        setLosers(topLosers);
+        const { gainers: g, losers: l, updated_note } = await CompanyService.topVolumeMovers(5);
+        setGainers(g);
+        setLosers(l);
+        setUpdatedNote(updated_note);
       } catch (error) {
         console.error("Failed to fetch market movers:", error);
       } finally {
@@ -60,86 +51,103 @@ export default function GainLoss() {
     fetchMarketMovers();
   }, []);
 
-  const StockItem = ({ stock, type }: { stock: any, type: 'gainer' | 'loser' }) => (
-    <Link href={`/companies/profile/${String(stock.symbol || "").toLowerCase()}`}>
-      <li className="flex justify-between items-center group cursor-pointer border-b border-white/5 pb-3 last:border-0 transition-all hover:translate-x-1 py-2">
-        <div className="flex items-center gap-3">
-          {/* <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center overflow-hidden p-1">
-             <img 
-               src={`https://images.financialmodelingprep.com/symbol/${stock.symbol}.png`} 
-               alt={stock.symbol}
-               onError={(e: any) => e.target.src = "/fallback-logo.png"} 
-             />
-          </div> */}
-          <div>
-            <span className="block font-bold text-white/90 group-hover:text-blue-400 transition-colors">{stock.symbol}</span>
-            <span className="text-[10px] text-white/30 uppercase font-bold truncate max-w-[100px] block">
+  const StockItem = ({ stock, type }: { stock: any; type: "gainer" | "loser" }) => {
+    const ch = Number(stock.change_pct);
+    const name = stripParentheticals(stock.company_name);
+    const showName = name && name.toUpperCase() !== String(stock.symbol || "").toUpperCase();
+
+    return (
+      <li className="border-b border-white/5 py-3 last:border-0">
+        <Link
+          href={`/companies/profile/${String(stock.symbol || "").toLowerCase()}`}
+          className="group flex cursor-pointer items-center gap-3 transition-all hover:translate-x-0.5"
+        >
+          <VolumeListLogo symbol={String(stock.symbol || "")} url={stock.logo_url} />
+          <div className="min-w-0 flex-1">
+            <span className="block font-bold text-white/90 transition-colors group-hover:text-blue-400">
               {stock.symbol}
             </span>
+            {showName ? (
+              <span className="mt-0.5 block truncate text-[11px] font-medium leading-snug text-white/40">
+                {name}
+              </span>
+            ) : null}
           </div>
-        </div>
-        <div className="text-right">
-          <span className={`block font-mono font-bold ${type === 'gainer' ? 'text-green-400' : 'text-red-400'}`}>
-            {type === 'gainer' ? '+' : ''}{stock.change_pct?.toFixed(2)}%
-          </span>
-          {/* <span className="text-[10px] text-white/30 font-mono tracking-tighter">
-            ${stock.price?.toFixed(2)}
-          </span> */}
-        </div>
+          <div className="shrink-0 text-right font-mono text-xs tabular-nums text-white/80">
+            {formatCompactVolume(Number(stock.volume))}
+          </div>
+          <div className="w-[4.5rem] shrink-0 text-right">
+            <span
+              className={`font-mono text-sm font-bold tabular-nums ${
+                type === "gainer" ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {type === "gainer" ? "+" : ""}
+              {Number.isFinite(ch) ? `${ch.toFixed(2)}%` : "—"}
+            </span>
+          </div>
+        </Link>
       </li>
-    </Link>
-  );
+    );
+  };
 
   return (
-    <section className="px-4 phone:px-5 tablet:px-6 py-10 tablet:py-12 laptop:py-16 bg-[#0b1220] border-t border-white/5">
-      <div className="max-w-7xl mx-auto">
-        {/* <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
-              <GainLossLogo />
-            </div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">Market Movers</h2>
-          </div>
-          <span className="text-[10px] font-mono text-gray-500 bg-white/5 px-3 py-1 rounded-full border border-white/5 uppercase tracking-widest">
-            Live updates
-          </span>
-        </div> */}
-
+    <section className="border-t border-white/5 bg-[#0b1220] px-4 py-10 phone:px-5 tablet:px-6 tablet:py-12 laptop:py-16">
+      <div className="mx-auto max-w-7xl">
         {loading ? (
-          <div className="h-[300px] flex flex-col items-center justify-center gap-4 text-blue-500/50">
+          <div className="flex h-[300px] flex-col items-center justify-center gap-4 text-blue-500/50">
             <Loader2 className="animate-spin" size={32} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Analyzing Market...</span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-6 tablet:gap-8">
-            {/* Top Gainers */}
-            <div className="rounded-2xl tablet:rounded-[2rem] bg-[#161D2C]/80 border border-white/10 p-5 tablet:p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-green-500/10 transition-all"></div>
-              <div className="flex items-center gap-2 mb-6">
-                <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                <h3 className="font-black uppercase tracking-widest text-xs text-green-400">Top Gainers</h3>
+          <>
+            <div className="grid grid-cols-1 gap-6 tablet:grid-cols-2 tablet:gap-8">
+              <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#161D2C]/80 p-5 shadow-2xl backdrop-blur-xl tablet:rounded-[2rem] tablet:p-8">
+                <div className="absolute -right-16 -top-16 h-32 w-32 rounded-full bg-green-500/5 blur-3xl transition-all group-hover:bg-green-500/10" />
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-green-400">Top Gainers</h3>
+                </div>
+                <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/10 pb-2 text-[9px] font-semibold uppercase tracking-wide text-white/35">
+                  <span className="min-w-0 flex-1 pl-12">Symbol</span>
+                  <span className="shrink-0">Volume</span>
+                  <span className="w-[4.5rem] shrink-0 text-right">Change</span>
+                </div>
+                <ul className="space-y-0">
+                  {gainers.length > 0 ? (
+                    gainers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="gainer" />)
+                  ) : (
+                    <p className="text-xs italic text-gray-600">No gainers found</p>
+                  )}
+                </ul>
               </div>
-              <ul className="space-y-2">
-                {gainers.length > 0 ? gainers.map((stock) => (
-                  <StockItem key={stock.symbol} stock={stock} type="gainer" />
-                )) : <p className="text-xs text-gray-600 italic">No gainers found</p>}
-              </ul>
-            </div>
 
-            {/* Top Losers */}
-            <div className="rounded-2xl tablet:rounded-[2rem] bg-[#161D2C]/80 border border-white/10 p-5 tablet:p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-red-500/10 transition-all"></div>
-              <div className="flex items-center gap-2 mb-6">
-                <div className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-                <h3 className="font-black uppercase tracking-widest text-xs text-red-400">Top Losers</h3>
+              <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#161D2C]/80 p-5 shadow-2xl backdrop-blur-xl tablet:rounded-[2rem] tablet:p-8">
+                <div className="absolute -right-16 -top-16 h-32 w-32 rounded-full bg-red-500/5 blur-3xl transition-all group-hover:bg-red-500/10" />
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-red-400">Top Losers</h3>
+                </div>
+                <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/10 pb-2 text-[9px] font-semibold uppercase tracking-wide text-white/35">
+                  <span className="min-w-0 flex-1 pl-12">Symbol</span>
+                  <span className="shrink-0">Volume</span>
+                  <span className="w-[4.5rem] shrink-0 text-right">Change</span>
+                </div>
+                <ul className="space-y-0">
+                  {losers.length > 0 ? (
+                    losers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="loser" />)
+                  ) : (
+                    <p className="text-xs italic text-gray-600">No losers found</p>
+                  )}
+                </ul>
               </div>
-              <ul className="space-y-2">
-                {losers.length > 0 ? losers.map((stock) => (
-                  <StockItem key={stock.symbol} stock={stock} type="loser" />
-                )) : <p className="text-xs text-gray-600 italic">No losers found</p>}
-              </ul>
             </div>
-          </div>
+            {updatedNote ? (
+              <p className="mx-auto mt-6 max-w-4xl text-center text-[10px] leading-relaxed text-white/35">
+                {updatedNote}
+              </p>
+            ) : null}
+          </>
         )}
       </div>
     </section>

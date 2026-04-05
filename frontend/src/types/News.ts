@@ -1,17 +1,16 @@
 export type News = {
     id: string;
+    hash_key?: string | null;
     title: string;
     content: string;
-    author: string;
-    source: string;
-    published_at: Date;
+    author?: string | null;
+    source?: string | null;
+    published_at: string | Date;
+    image?: string | null;
+    category?: string | null;
+    symbol?: string | null;
+    language?: string | null;
+    is_processed?: number | boolean;
 };
 
-export interface NewsApi {
-    id: string;
-    title: string;
-    content: string;
-    author: string;
-    source: string;
-    published_at: Date;
-};
+export interface NewsApi extends News {}

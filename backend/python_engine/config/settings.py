@@ -3,69 +3,108 @@ import pymysql.cursors
 from pathlib import Path
 from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-env_path = BASE_DIR / '.env'
-if not env_path.exists():
-    raise FileNotFoundError(f"❌ File .env không tồn tại tại: {env_path.absolute()}")
+# config/ → python_engine root
+ENGINE_ROOT = Path(__file__).resolve().parent.parent
+# python_engine/ → Laravel backend root (…/backend/.env)
+BACKEND_ROOT = ENGINE_ROOT.parent
 
-load_dotenv(dotenv_path=env_path)
+# Prefer Laravel ``backend/.env``; fall back to ``python_engine/.env`` if missing.
+_env_backend = BACKEND_ROOT / ".env"
+_env_engine = ENGINE_ROOT / ".env"
+
+if _env_backend.is_file():
+    load_dotenv(dotenv_path=_env_backend, override=True)
+elif _env_engine.is_file():
+    load_dotenv(dotenv_path=_env_engine, override=True)
+else:
+    raise FileNotFoundError(
+        f"No .env found. Expected backend env at {_env_backend} "
+        f"or python_engine env at {_env_engine}"
+    )
+
+
+def _e(key: str, default: str = "") -> str:
+    return os.environ.get(key, default)
+
+
+def _e_int(key: str, default: int) -> int:
+    raw = os.environ.get(key)
+    if raw is None or str(raw).strip() == "":
+        return default
+    return int(raw)
+
+
+def _resolve_db_host() -> str:
+    """
+    Laravel in Docker often uses DB_HOST=host.docker.internal so PHP can reach MySQL on the machine.
+    Native Python on Windows/macOS should use loopback when the DB port is published to the host.
+
+    Override explicitly with DB_HOST_PYTHON in backend/.env (e.g. DB_HOST_PYTHON=127.0.0.1 or DB_HOST_PYTHON=db).
+    Set DB_KEEP_DOCKER_INTERNAL=1 to force host.docker.internal from the host (rare).
+    """
+    explicit = _e("DB_HOST_PYTHON").strip()
+    if explicit:
+        return explicit
+    raw = os.environ.get("DB_HOST", "").strip()
+    if not raw:
+        raise KeyError("DB_HOST")
+    if raw.lower() != "host.docker.internal":
+        return raw
+    if _e("DB_KEEP_DOCKER_INTERNAL", "").lower() in ("1", "true", "yes"):
+        return raw
+    # Linux container runs typically have /.dockerenv; keep hostname for in-container pymysql.
+    if Path("/.dockerenv").exists():
+        return raw
+    return "127.0.0.1"
+
 
 class Settings:
     def __init__(self):
-        try:
-            # --- APP ---
-            self.APP_NAME = os.environ["APP_NAME"]
-            self.APP_ENV = os.environ["APP_ENV"]
-            self.APP_DEBUG = os.environ["APP_DEBUG"].lower() == 'true'
-            self.APP_PORT = int(os.environ["APP_PORT"])
-            self.TOP_N = int(os.environ["LIMIT"]) if os.environ.get("LIMIT") else 300
+        # Laravel app vars — optional for collectors / CLI that only need DB & Redis
+        self.APP_NAME = _e("APP_NAME", "DSA")
+        self.APP_ENV = _e("APP_ENV", "local")
+        self.APP_DEBUG = _e("APP_DEBUG", "false").lower() == "true"
+        self.APP_PORT = _e_int("APP_PORT", 8000)
+        self.TOP_N = _e_int("LIMIT", 300)
 
-            # --- DATABASE (MySQL) ---
+        # Database (required for ingest / sync)
+        try:
             self.DB_CONFIG = {
-                "host": os.environ["DB_HOST"],
+                "host": _resolve_db_host(),
                 "port": int(os.environ["DB_PORT"]),
                 "database": os.environ["DB_DATABASE"],
                 "user": os.environ["DB_USERNAME"],
                 "password": os.environ["DB_PASSWORD"],
-                "cursorclass": pymysql.cursors.DictCursor
+                "cursorclass": pymysql.cursors.DictCursor,
             }
-
-            # --- REDIS ---
-            self.REDIS_HOST = os.environ["REDIS_HOST"]
-            self.REDIS_PORT = int(os.environ["REDIS_PORT"])
-            self.REDIS_PASSWORD = os.environ["REDIS_PASSWORD"]
-            self.REDIS_DB = int(os.environ["REDIS_DB"])
-            self.REDIS_PREFIX = 'summary' 
-            
-            # --- ELASTICSEARCH ---
-            self.ELASTIC_HOST = os.environ["ELASTIC_HOST"]
-            self.ELASTIC_INDEX = os.environ["ELASTIC_INDEX"]
-
-            # --- QDRANT ---
-            self.QDRANT_URL = os.environ["QDRANT_URL"]
-            self.QDRANT_COLLECTION = os.environ["QDRANT_COLLECTION"]
-
-            # --- EMBEDDING ---
-            self.EMBEDDING_URL = os.environ["EMBEDDING_URL"]
-
-            # --- EXTERNAL API KEYS ---
-            self.ALPHA_VANTAGE_API_KEY = os.environ["ALPHA_VANTAGE_API_KEY"]
-            self.TWELVE_DATA_API_KEY = os.environ["TWELVE_DATA_API_KEY"]
-            self.FMP_API_KEY = os.environ["FMP_API_KEY"]
-            self.FINNHUB_API_KEY = os.environ["FINNHUB_API_KEY"]
-            self.GNEWS_API_KEY = os.environ["GNEWS_API_KEY"]
-            self.NEWSAPI_KEY = os.environ["NEWSAPI_KEY"]
-            self.MASSIVE_API_KEY = os.environ["MASSIVE_API_KEY"]
-            self.NEWSAPIORG_KEY = os.environ["NEWSAPIORG_KEY"]
-            self.NEWSDATA_KEY = os.environ["NEWSDATA_API_KEY"]
-
         except KeyError as e:
-            print(f"❌ Lỗi: Thiếu tham số bắt buộc {e} trong file .env")
-            exit(1)
-        except ValueError as e:
-            print(f"❌ Lỗi: Sai kiểu dữ liệu (ép kiểu INT thất bại): {e}")
+            print(f"Missing required DB .env key: {e}")
             exit(1)
 
-# Khởi tạo instance
+        self.REDIS_HOST = _e("REDIS_HOST", "127.0.0.1")
+        self.REDIS_PORT = _e_int("REDIS_PORT", 6379)
+        self.REDIS_PASSWORD = _e("REDIS_PASSWORD", "")
+        self.REDIS_DB = _e_int("REDIS_DB", 0)
+        self.REDIS_PREFIX = _e("REDIS_PREFIX", "summary") or "summary"
+
+        self.ELASTIC_HOST = _e("ELASTIC_HOST", "http://localhost:9200")
+        self.ELASTIC_INDEX = _e("ELASTIC_INDEX", "dsa_entities")
+
+        self.QDRANT_URL = _e("QDRANT_URL", "http://localhost:6333")
+        self.QDRANT_COLLECTION = _e("QDRANT_COLLECTION", "knowledge_chunks_v1")
+
+        self.EMBEDDING_URL = _e("EMBEDDING_URL", "http://127.0.0.1:8000")
+
+        self.ALPHA_VANTAGE_API_KEY = _e("ALPHA_VANTAGE_API_KEY")
+        self.TWELVE_DATA_API_KEY = _e("TWELVE_DATA_API_KEY")
+        self.FMP_API_KEY = _e("FMP_API_KEY")
+        self.FINNHUB_API_KEY = _e("FINNHUB_API_KEY")
+        self.GNEWS_API_KEY = _e("GNEWS_API_KEY")
+        self.NEWSAPI_KEY = _e("NEWSAPI_KEY")
+        self.MASSIVE_API_KEY = _e("MASSIVE_API_KEY")
+        self.NEWSAPIORG_KEY = _e("NEWSAPIORG_KEY")
+        self.NEWSDATA_KEY = _e("NEWSDATA_API_KEY")
+
+
 Config = Settings()
 settings = Config
