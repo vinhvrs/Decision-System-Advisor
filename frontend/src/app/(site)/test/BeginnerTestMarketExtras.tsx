@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
 import { Newspaper, Activity, LayoutGrid, ExternalLink } from "lucide-react";
 import newsService from "@/src/services/News.service";
-import { BeginnerService, type TopByVolumeRow } from "@/src/services/Beginner.service";
+import { BeginnerService, type BeginnerBoardRow, type TopByVolumeRow } from "@/src/services/Beginner.service";
 import heatmapService from "@/src/services/Heatmap.service";
 import { stripParentheticals } from "@/src/libs/displayString";
 
@@ -83,7 +83,9 @@ type HeatmapDatum = {
   children?: HeatmapDatum[];
 };
 
-function CompactHeatmap({ data }: { data: Array<{ symbol: string; liquidity?: number; change_pct?: number }> }) {
+type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number };
+
+function CompactHeatmap({ data }: { data: HeatmapListRow[] }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ width: 600, height: 260 });
@@ -171,15 +173,69 @@ function CompactHeatmap({ data }: { data: Array<{ symbol: string; liquidity?: nu
   );
 }
 
-export default function BeginnerTestMarketExtras() {
+function boardRowToVolumeMover(r: BeginnerBoardRow): TopByVolumeRow {
+  return {
+    symbol: r.symbol,
+    company_name: r.company_name,
+    logo_url: r.logo_url ?? null,
+    volume: r.volume,
+    change_pct: r.change_pct_snapshot,
+    price: r.price,
+    liquidity: r.liquidity,
+  };
+}
+
+/** Gainers / losers / heatmap cells from the same rows as Redis ``dashboard:daily``. */
+function deriveMarketExtrasFromDashboardRows(rows: BeginnerBoardRow[], heatmapLimit = 72) {
+  const finiteChg = rows.filter((r) => Number.isFinite(r.change_pct_snapshot));
+  const gainers = [...finiteChg]
+    .sort((a, b) => b.change_pct_snapshot - a.change_pct_snapshot)
+    .slice(0, 5)
+    .map(boardRowToVolumeMover);
+  const losers = [...finiteChg]
+    .sort((a, b) => a.change_pct_snapshot - b.change_pct_snapshot)
+    .slice(0, 5)
+    .map(boardRowToVolumeMover);
+  const heatmap = [...rows]
+    .filter((r) => Number.isFinite(r.liquidity) && (r.liquidity ?? 0) > 0)
+    .sort((a, b) => (Number(b.liquidity) || 0) - (Number(a.liquidity) || 0))
+    .slice(0, heatmapLimit)
+    .map((r) => ({
+      symbol: r.symbol,
+      liquidity: r.liquidity,
+      change_pct: r.change_pct_snapshot,
+    }));
+  return { gainers, losers, heatmap };
+}
+
+type BeginnerTestMarketExtrasProps = {
+  /** When true, movers + heatmap come from ``dashboardRows`` (Redis daily board), not separate ranking APIs. */
+  dashboardDailyMode?: boolean;
+  dashboardRows?: BeginnerBoardRow[];
+  boardLoading?: boolean;
+  dashboardUpdatedAt?: string | null;
+};
+
+export default function BeginnerTestMarketExtras({
+  dashboardDailyMode = false,
+  dashboardRows = [],
+  boardLoading = false,
+  dashboardUpdatedAt = null,
+}: BeginnerTestMarketExtrasProps) {
   const [news, setNews] = useState<NewsRow[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [volumeGainers, setVolumeGainers] = useState<TopByVolumeRow[]>([]);
   const [volumeLosers, setVolumeLosers] = useState<TopByVolumeRow[]>([]);
   const [volumeNote, setVolumeNote] = useState<string | null>(null);
   const [volumeLoading, setVolumeLoading] = useState(true);
-  const [heatmap, setHeatmap] = useState<Array<{ symbol: string; liquidity?: number; change_pct?: number }>>([]);
+  const [heatmap, setHeatmap] = useState<HeatmapListRow[]>([]);
   const [heatmapLoading, setHeatmapLoading] = useState(true);
+
+  useEffect(() => {
+    if (!dashboardDailyMode) return;
+    setVolumeLoading(false);
+    setHeatmapLoading(false);
+  }, [dashboardDailyMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +257,7 @@ export default function BeginnerTestMarketExtras() {
   }, []);
 
   useEffect(() => {
+    if (dashboardDailyMode) return;
     let cancelled = false;
     setVolumeLoading(true);
     BeginnerService.getTopByVolume(5)
@@ -223,9 +280,10 @@ export default function BeginnerTestMarketExtras() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dashboardDailyMode]);
 
   useEffect(() => {
+    if (dashboardDailyMode) return;
     let cancelled = false;
     setHeatmapLoading(true);
     heatmapService
@@ -242,7 +300,26 @@ export default function BeginnerTestMarketExtras() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dashboardDailyMode]);
+
+  const fromDashboard = useMemo(() => {
+    if (!dashboardDailyMode || !dashboardRows.length) {
+      return { gainers: [] as TopByVolumeRow[], losers: [] as TopByVolumeRow[], heatmap: [] as HeatmapListRow[] };
+    }
+    return deriveMarketExtrasFromDashboardRows(dashboardRows, 72);
+  }, [dashboardDailyMode, dashboardRows]);
+
+  const displayGainers = dashboardDailyMode ? fromDashboard.gainers : volumeGainers;
+  const displayLosers = dashboardDailyMode ? fromDashboard.losers : volumeLosers;
+  const displayHeatmap = dashboardDailyMode ? fromDashboard.heatmap : heatmap;
+  const displayVolumeLoading = dashboardDailyMode ? boardLoading : volumeLoading;
+  const displayHeatmapLoading = dashboardDailyMode ? boardLoading : heatmapLoading;
+
+  const displayVolumeNote = dashboardDailyMode
+    ? dashboardUpdatedAt
+      ? `Same symbol pool as Redis dashboard:daily (updated ${new Date(dashboardUpdatedAt).toLocaleString()}). Top 5 by snapshot % change; heatmap = up to 72 rows by liquidity.`
+      : "Same symbol pool as Redis dashboard:daily. Top 5 gainers/losers by snapshot % change; heatmap sized by liquidity on this list."
+    : volumeNote;
 
   return (
     <section className={`mt-8 space-y-4 border-t ${C.line} pt-8`} aria-label="Market extras">
@@ -250,7 +327,16 @@ export default function BeginnerTestMarketExtras() {
         <div>
           <h2 className={`text-sm font-semibold text-white`}>News &amp; market map</h2>
           <p className={`mt-0.5 text-[11px] ${C.muted}`}>
-            Latest ingested headlines, top gainers/losers by snapshot volume (refreshed ~3h), and liquidity-sized heatmap.
+            {dashboardDailyMode ? (
+              <>
+                Latest ingested headlines; movers and treemap use the same Redis{" "}
+                <code className="text-white/45">dashboard:daily</code> list as the board above (not the volume-movers API).
+              </>
+            ) : (
+              <>
+                Latest ingested headlines, top gainers/losers by snapshot volume (refreshed ~3h), and liquidity-sized heatmap.
+              </>
+            )}
           </p>
         </div>
         <Link href="/news" className={`inline-flex items-center gap-1 text-[11px] font-semibold text-[#7b9cff] hover:underline`}>
@@ -299,10 +385,14 @@ export default function BeginnerTestMarketExtras() {
               <Activity className="h-4 w-4 text-[#7b9cff]" />
               <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Volume movers</h3>
             </div>
-            {volumeLoading ? (
+            {displayVolumeLoading ? (
               <p className={`animate-pulse text-sm ${C.muted}`}>Loading…</p>
-            ) : volumeGainers.length === 0 && volumeLosers.length === 0 ? (
-              <p className={`text-xs ${C.muted}`}>No snapshot volume data yet.</p>
+            ) : displayGainers.length === 0 && displayLosers.length === 0 ? (
+              <p className={`text-xs ${C.muted}`}>
+                {dashboardDailyMode
+                  ? "No rows in dashboard:daily yet. Run python warm_up or check Redis."
+                  : "No snapshot volume data yet."}
+              </p>
             ) : (
               <div className="space-y-6">
                 <div>
@@ -319,7 +409,7 @@ export default function BeginnerTestMarketExtras() {
                     <span className="w-[4.75rem] shrink-0 text-right">Price change</span>
                   </div>
                   <ul className="max-h-[min(280px,45vh)] space-y-1.5 overflow-y-auto pr-1 font-mono text-sm">
-                    {volumeGainers.map((r, i) => {
+                    {displayGainers.map((r, i) => {
                       const ch = Number(r.change_pct);
                       return (
                         <li key={`g-${r.symbol}`} className="flex items-center justify-between gap-2 tabular-nums">
@@ -346,7 +436,7 @@ export default function BeginnerTestMarketExtras() {
                       );
                     })}
                   </ul>
-                  {!volumeLoading && volumeGainers.length === 0 && (
+                  {!displayVolumeLoading && displayGainers.length === 0 && (
                     <p className={`mt-1 text-[10px] ${C.muted}`}>No positive movers in the scanned set.</p>
                   )}
                 </div>
@@ -364,7 +454,7 @@ export default function BeginnerTestMarketExtras() {
                     <span className="w-[4.75rem] shrink-0 text-right">Price change</span>
                   </div>
                   <ul className="max-h-[min(280px,45vh)] space-y-1.5 overflow-y-auto pr-1 font-mono text-sm">
-                    {volumeLosers.map((r, i) => {
+                    {displayLosers.map((r, i) => {
                       const ch = Number(r.change_pct);
                       return (
                         <li key={`l-${r.symbol}`} className="flex items-center justify-between gap-2 tabular-nums">
@@ -391,15 +481,16 @@ export default function BeginnerTestMarketExtras() {
                       );
                     })}
                   </ul>
-                  {!volumeLoading && volumeLosers.length === 0 && (
+                  {!displayVolumeLoading && displayLosers.length === 0 && (
                     <p className={`mt-1 text-[10px] ${C.muted}`}>No negative movers in the scanned set.</p>
                   )}
                 </div>
               </div>
             )}
-            {!volumeLoading && (
+            {!displayVolumeLoading && (
               <p className={`mt-3 text-[10px] leading-snug ${C.muted}`}>
-                {volumeNote || "From instrument_snapshot ranked by volume; server cache up to 3 hours."}
+                {displayVolumeNote ||
+                  "From instrument_snapshot ranked by volume; server cache up to 3 hours."}
               </p>
             )}
           </div>
@@ -416,10 +507,10 @@ export default function BeginnerTestMarketExtras() {
             Heatmap on trading
           </Link>
         </div>
-        {heatmapLoading ? (
+        {displayHeatmapLoading ? (
           <div className={`flex h-[220px] items-center justify-center text-sm ${C.muted} animate-pulse`}>Loading map…</div>
         ) : (
-          <CompactHeatmap data={heatmap} />
+          <CompactHeatmap data={displayHeatmap} />
         )}
       </div>
     </section>

@@ -50,6 +50,9 @@ export type BeginnerBoardPayload = {
   axes: string[];
   rows: BeginnerBoardRow[];
   legend?: { strong_rule?: string; tie_break?: string; buy_sell?: string };
+  /** ISO timestamp from Redis ``dashboard:daily`` warm-up. */
+  updated_at?: string;
+  meta?: Record<string, unknown>;
 };
 
 /** Same radar + F&amp;G as beginner homepage (`/rankings/beginner-radar/{symbol}`). */

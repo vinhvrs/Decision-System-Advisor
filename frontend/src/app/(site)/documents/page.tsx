@@ -144,8 +144,10 @@ function RankingCalculationsContent() {
       <section>
         <h3 className="mb-3 text-lg font-semibold text-white">4. Board “effective %” &amp; sparkline change (beginner UI)</h3>
         <p className="mb-2 text-sm text-gray-400">
-          For averaged header metrics and Fear &amp; Greed inputs, the app may use the last two{" "}
-          <strong className="text-gray-300">daily closes</strong> from fetched OHLC history when available:
+          For some <strong className="text-gray-300">averaged header %</strong> widgets, the app may use the last two{" "}
+          <strong className="text-gray-300">daily closes</strong> from fetched OHLC history when available. Fear &amp; Greed
+          uses snapshot <code className="rounded bg-gray-800 px-1">change_pct</code> only (see sections 7–8), not this
+          effective series.
         </p>
         <MathPanel>
           <M>
@@ -235,10 +237,13 @@ function RankingCalculationsContent() {
       </section>
 
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-white">7. Fear &amp; Greed — per symbol (row hover strip)</h3>
+        <h3 className="mb-3 text-lg font-semibold text-white">7. Fear &amp; Greed — per symbol (profile + row hover)</h3>
         <p className="mb-2 text-sm text-gray-400">
-          Let r<sub>i</sub> be the symbol&apos;s daily snapshot percent change (open→close in our snapshot data). If r is
-          missing or non-finite, use F = 50 (Neutral).
+          Let r<sub>i</sub> be the symbol&apos;s daily snapshot percent change (same as{" "}
+          <code className="rounded bg-gray-800 px-1">change_pct_snapshot</code> / Laravel beginner radar). The Next.js app
+          computes the strip from this value with{" "}
+          <code className="rounded bg-gray-800 px-1">fearGreedFromChangePct</code> so it always matches the documented
+          mapping. If r is missing or non-finite, use F = 50 (Neutral).
         </p>
         <MathPanel>
           <M>
@@ -260,33 +265,30 @@ function RankingCalculationsContent() {
       <section>
         <h3 className="mb-3 text-lg font-semibold text-white">8. Fear &amp; Greed — board / toolbar gauge</h3>
         <p className="mb-2 text-sm text-gray-400">
-          Over all ranked rows j with a valid <strong className="text-gray-300">effective</strong> change r<sub>j</sub>{" "}
-          (sparkline last step or snapshot): let n be the count, avg = (1/n)Σr<sub>j</sub>, and p = (1/n)|&#123;j : r
-          <sub>j</sub> &gt; 0&#125;| (fraction up). If n = 0, F = 50.
+          Same mapping as section 7, applied <strong className="text-gray-300">once</strong> to the arithmetic mean of
+          snapshot % changes over ranked rows that have a finite snapshot value. No separate breadth term — one formula for
+          the whole product.
         </p>
         <MathPanel>
           <M>
-            <em>r̄</em> = <Frac num={<>Σ<sub>j=1</sub><sup>n</sup> <em>r</em>
+            <em>r̄</em> = <Frac num={<>Σ <em>r</em>
               <sub>j</sub></>} den={<em>n</em>} />
-          </M>
-          <M>
-            <em>p</em> = <Frac num={<span>∣&#123; <em>j</em> : <em>r</em>
-              <sub>j</sub> &gt; 0 &#125;∣</span>} den={<em>n</em>} />
-            &nbsp;&nbsp;(fraction of names up)
+            &nbsp;&nbsp;over rows with finite snapshot <em>r</em>
+            <sub>j</sub> = Δ<sub>%</sub> from the snapshot bar
           </M>
           <M>
             <em>F</em>
             <sub>board</sub> = round
             <span className="whitespace-nowrap">
               {" "}
-              ( min(100, max(0, 50 + 3.25 · <em>r̄</em> + 42 · (<em>p</em> − <Frac num={<>1</>} den={<>2</>} />))) )
+              ( min(100, max(0, 50 + 3.25 · <em>r̄</em>)) )
             </span>
           </M>
           <M className="text-sm text-gray-400">If <em>n</em> = 0, set <em>F</em>
             <sub>board</sub> = 50.</M>
         </MathPanel>
         <p className="mt-2 text-sm text-gray-500">
-          3.25 scales average return around neutral 50; 42·(p−½) tilts with market breadth (more names up → greedier).
+          Implemented as <code className="rounded bg-gray-800 px-1">fearGreedFromBoardRows</code> in the Next.js app.
         </p>
       </section>
 
@@ -535,8 +537,8 @@ function RankingCalculationsContent() {
         <h3 className="mb-3 text-lg font-semibold text-white">19. Beginner market view — board averages</h3>
         <p className="mb-2 text-sm text-gray-400">
           When the header shows “avg price / liquidity / volume”, values are arithmetic means over the ranked list (top N
-          rows), using finite snapshot fields only. Average % uses the same effective change per row as Fear &amp; Greed
-          where applicable.
+          rows), using finite snapshot fields only. The &quot;avg move&quot; % tile uses effective change per row (sparkline
+          or snapshot) where applicable; Fear &amp; Greed uses snapshot % only (sections 7–8).
         </p>
         <MathPanel>
           <M>

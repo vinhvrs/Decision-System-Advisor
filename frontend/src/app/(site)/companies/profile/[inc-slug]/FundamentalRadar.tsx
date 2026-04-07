@@ -5,6 +5,7 @@ import React, { memo, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
 import BeginnerRadarChart from "@/src/app/(site)/test/BeginnerRadarChart";
+import { fearGreedFromChangePct } from "@/src/libs/fearGreed";
 import { BeginnerService, type BeginnerFormalRadarPayload } from "@/src/services/Beginner.service";
 
 /** Legacy 6-axis chart when no symbol (0–100, profile heuristics). */
@@ -199,7 +200,7 @@ const FundamentalRadar = memo(
         return (
           <BeginnerRadarChart
             data={formal.radar}
-            fearGreed={showFearGreed ? formal.fear_greed : null}
+            fearGreed={showFearGreed ? fearGreedFromChangePct(formal.change_pct_snapshot) : null}
             variant={compact ? "compact" : "default"}
           />
         );
