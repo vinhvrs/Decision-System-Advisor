@@ -15,6 +15,7 @@ import BeginnerRadarChart from "./BeginnerRadarChart";
 import BeginnerTestMarketExtras from "./BeginnerTestMarketExtras";
 import { stripParentheticals } from "@/src/libs/displayString";
 import { isDemoDevMode } from "@/src/libs/devMode";
+import { fearGreedFromBoardRows, fearGreedFromChangePct } from "@/src/libs/fearGreed";
 import { DEV_SYMBOL_SEED, type SymbolDevCompany } from "@/src/libs/symbolDevIdb";
 import {
   Heart,
@@ -349,37 +350,9 @@ function TableSparkline({ values }: { values: number[] }) {
 }
 
 /**
- * Fear & Greed buckets (0–100 scale, not Alternative.me).
- */
-function fearGreedLabelFromValue(v: number): string {
-  if (v <= 24) return "Extreme Fear";
-  if (v <= 44) return "Fear";
-  if (v <= 55) return "Neutral";
-  if (v <= 74) return "Greed";
-  return "Extreme Greed";
-}
-
-/**
- * Per-symbol index for hover strip / thesis (same sensitivity on return as board average term).
- *
- * Let r_i be symbol i’s daily snapshot percent change (open→close in our data). Define
- *   F_i = round( clamp_{[0,100]}( 50 + 3.25 · r_i ) )
- * where clamp_{[0,100]}(x) = min(100, max(0, x)). Sentiment label maps F_i to {Extreme Fear, Fear, Neutral, Greed, Extreme Greed} by fixed thresholds (≤24, ≤44, ≤55, ≤74, else).
- */
-function computeFearGreedForSymbol(changePctSnapshot: number | null | undefined): { value: number; label: string } {
-  const r = Number(changePctSnapshot);
-  if (!Number.isFinite(r)) {
-    return { value: 50, label: "Neutral" };
-  }
-  const raw = 50 + r * 3.25;
-  const v = Math.round(Math.max(0, Math.min(100, raw)));
-  return { value: v, label: fearGreedLabelFromValue(v) };
-}
-
-/**
  * Prefer last two daily closes from the row sparkline (fresh OHLC) when available;
- * otherwise snapshot % from the API. Avoids a frozen gauge when the board cache is stale
- * or snapshot.change_pct is stuck at 0.
+ * otherwise snapshot % from the API. Used for avg-move / header % badges — not for Fear & Greed
+ * (F&G uses snapshot % only via {@link fearGreedFromChangePct}).
  */
 function effectiveChangeForFearGreed(row: BeginnerBoardRow, closes: number[] | undefined): number | null {
   if (closes && closes.length >= 2) {
@@ -390,38 +363,6 @@ function effectiveChangeForFearGreed(row: BeginnerBoardRow, closes: number[] | u
   }
   const c = row.change_pct_snapshot;
   return Number.isFinite(c) ? c : null;
-}
-
-/**
- * Board-level Fear & Greed (toolbar gauge): aggregates all ranked rows.
- *
- * Let r_j be the effective % change for each row j (sparkline last daily move, else snapshot),
- * n their count, avg = (1/n) Σ r_j, and p = (1/n) · |{ j : r_j > 0 }|. Define
- *   F_board = round( clamp_{[0,100]}( 50 + 3.25 · avg + 42 · (p − ½) ) ).
- */
-function computeFearGreedFromBoard(
-  rows: BeginnerBoardRow[],
-  closesBySymbol: Record<string, number[]>
-): { value: number; label: string } {
-  if (!rows.length) {
-    return { value: 50, label: "Neutral" };
-  }
-  let sum = 0;
-  let n = 0;
-  let ups = 0;
-  for (const r of rows) {
-    const closes = closesBySymbol[r.symbol] ?? closesBySymbol[r.symbol.toUpperCase()];
-    const c = effectiveChangeForFearGreed(r, closes);
-    if (c == null || !Number.isFinite(c)) continue;
-    sum += c;
-    n++;
-    if (c > 0) ups++;
-  }
-  const avg = n ? sum / n : 0;
-  const breadth = n ? ups / n : 0.5;
-  const raw = 50 + avg * 3.25 + (breadth - 0.5) * 42;
-  const v = Math.round(Math.max(0, Math.min(100, raw)));
-  return { value: v, label: fearGreedLabelFromValue(v) };
 }
 
 function FearGreedGauge({ value }: { value: number }) {
@@ -582,6 +523,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     tie_break?: string;
     buy_sell?: string;
   } | null>(null);
+  const [dashboardUpdatedAt, setDashboardUpdatedAt] = useState<string | null>(null);
   const [boardLoading, setBoardLoading] = useState(true);
   const [hoverRadarRow, setHoverRadarRow] = useState<BeginnerBoardRow | null>(null);
   const [radarPopover, setRadarPopover] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -653,6 +595,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             const rows = payload?.rows ?? [];
             setBoardRows(rows);
             setBoardLegend(payload?.legend ?? null);
+            setDashboardUpdatedAt(typeof payload?.updated_at === "string" ? payload.updated_at : null);
           })
         : BeginnerService.getRankingBoard(fetchLimit).then(async (payload) => {
             if (cancelled) return;
@@ -666,6 +609,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             if (cancelled) return;
             setBoardRows(rows);
             setBoardLegend(payload?.legend ?? null);
+            setDashboardUpdatedAt(null);
           });
 
       chain
@@ -673,6 +617,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           if (!cancelled && first) {
             setBoardRows([]);
             setBoardLegend(null);
+            setDashboardUpdatedAt(null);
           }
         })
         .finally(() => {
@@ -856,10 +801,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     return next;
   }, [isTestRoute, boardRows, tableSort, rowSparklines]);
 
-  const fearGreed = useMemo(
-    () => computeFearGreedFromBoard(boardRows, rowSparklines),
-    [boardRows, rowSparklines]
-  );
+  const fearGreed = useMemo(() => fearGreedFromBoardRows(boardRows), [boardRows]);
 
   const headerStatsReady = !boardLoading && boardRows.length > 0 && boardAggregates != null;
 
@@ -990,10 +932,6 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               </div>
               <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-white">{fearGreed.value}</p>
               <p className="text-xs font-medium text-[#eaecef]">{fearGreed.label}</p>
-              <p className={`mt-1 text-[9px] leading-snug ${C.muted}`}>
-                Board sentiment from latest daily bar moves (refreshed with the list); falls back to snapshot %. Not a
-                third-party index.
-              </p>
             </div>
           </div>
         </section>
@@ -1354,13 +1292,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                   </summary>
                   <ul className={`mt-2 list-inside list-disc space-y-1.5 text-[10px] leading-relaxed ${C.muted}`}>
                     <li>
-                      <strong className="text-white/80">Fear &amp; Greed — toolbar (board):</strong> Uses effective % per row
-                      (last daily bar move when available, else snapshot), then avg, breadth, and F = round(clamp(50 + 3.25·avg
-                      + 42·(p − ½), 0, 100)).
-                    </li>
-                    <li>
-                      <strong className="text-white/80">Fear &amp; Greed — row hover strip:</strong> Single-symbol formula
-                      only (50 + 3.25·r) — intentionally different from the toolbar bar, so numbers will not match.
+                      <strong className="text-white/80">Fear &amp; Greed (everywhere):</strong> One mapping:{" "}
+                      <code className="text-white/60">F = round(clamp(50 + 3.25·r, 0, 100))</code> with{" "}
+                      <code className="text-white/60">r</code> = daily snapshot % (<code className="text-white/60">change_pct_snapshot</code>
+                      ). Toolbar applies it to the <em>mean</em> snapshot % across listed symbols; row hover and company profile
+                      apply it to that symbol&apos;s snapshot % — same formula as the Laravel beginner-radar API field.
                     </li>
                     <li>
                       <strong className="text-white/80">Row trend line:</strong> Last ~28 daily closes from instrument data;
@@ -1478,7 +1414,12 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           </div>
         </div>
 
-        <BeginnerTestMarketExtras />
+        <BeginnerTestMarketExtras
+          dashboardDailyMode={isRedisDaily}
+          dashboardRows={boardRows}
+          boardLoading={boardLoading}
+          dashboardUpdatedAt={dashboardUpdatedAt}
+        />
 
         <p className={`mt-6 flex items-center justify-center gap-2 pb-8 text-[11px] ${C.muted}`}>
           <Clock className="h-3.5 w-3.5" />
@@ -1507,17 +1448,17 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               </span>
             </div>
             <p className={`mb-2 text-[10px] leading-snug ${C.muted}`}>
-              Per-symbol radar and Fear &amp; Greed strip (50 + 3.25×r for this row). The header Fear &amp; Greed bar uses the
-              full-board formula — values differ on purpose.{" "}
+              Per-symbol radar and Fear &amp; Greed strip — same{" "}
+              <code className="text-white/45">50 + 3.25×r</code> as the company profile, with{" "}
+              <code className="text-white/45">r</code> = this row&apos;s snapshot %. The header gauge uses the mean snapshot %
+              across the list with the same mapping.{" "}
               <span className="text-[#7b9cff]">Click anywhere to open the company profile.</span>
             </p>
             {/* Recharts captures clicks; let them pass through so the wrapping Link navigates. */}
             <div className="pointer-events-none">
               <BeginnerRadarChart
                 data={hoverRadarRow.radar}
-                fearGreed={computeFearGreedForSymbol(
-                  effectiveChangeForFearGreed(hoverRadarRow, rowSparklines[hoverRadarRow.symbol])
-                )}
+                fearGreed={fearGreedFromChangePct(hoverRadarRow.change_pct_snapshot)}
               />
             </div>
           </Link>,
