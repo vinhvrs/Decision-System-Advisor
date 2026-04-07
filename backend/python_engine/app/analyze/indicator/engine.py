@@ -7,19 +7,13 @@ import pandas_ta
 class IndicatorService:
     """
     Pure indicator calculator.
-    Input: pandas DataFrame có các cột:
-        - open
-        - high
-        - low
-        - close
-        - volume
-        - timestamps (optional)
+    Input DataFrame columns: open, high, low, close, volume; optional timestamps.
 
-    Responsibility:
-        1. Chuẩn hóa dữ liệu
-        2. Tính technical indicators
-        3. Tổng hợp output theo format cũ
-        4. Tính confidence score
+    Steps:
+        1. Normalize input
+        2. Compute technical indicators
+        3. Build legacy-shaped output
+        4. Rule-based confidence score
     """
 
     MIN_REQUIRED_CANDLES = 100
@@ -43,11 +37,8 @@ class IndicatorService:
 
     def prepare_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Chuẩn hóa DataFrame đầu vào:
-        - lower columns
-        - convert numeric
-        - sort timestamps tăng dần
-        - drop close null
+        Normalize OHLCV frame: lowercase columns, coerce numeric,
+        sort by timestamps ascending, drop rows with null close.
         """
         if df is None or df.empty:
             return pd.DataFrame()
@@ -70,10 +61,7 @@ class IndicatorService:
         return df
 
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Tính toàn bộ indicator cần thiết.
-        Trả về DataFrame mới đã append các cột indicator.
-        """
+        """Compute RSI/MACD/stoch/EMA/Bollinger columns via pandas_ta."""
         df = self.prepare_dataframe(df)
         if df.empty:
             return df
@@ -98,9 +86,7 @@ class IndicatorService:
         return df
 
     def _resolve_states(self, prev_row: pd.Series, last_row: pd.Series, df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        Tính các state/signal phụ trợ từ dòng cuối cùng.
-        """
+        """Derive crossover and zone states from the last two rows."""
         e20_p = self._safe_float(prev_row.get("EMA_20"))
         e100_p = self._safe_float(prev_row.get("EMA_100"))
         e20_c = self._safe_float(last_row.get("EMA_20"))
@@ -188,15 +174,10 @@ class IndicatorService:
 
     def calculate_confidence(self, states: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Tính confidence score theo rule-based scoring.
-        Có thể chỉnh trọng số sau mà không ảnh hưởng format output.
+        Rule-based confidence (weights tunable without changing output shape).
 
-        Cấu trúc trả về:
-        {
-            "score": 75.0,
-            "label": "high",
-            "signals": {...}
-        }
+        Returns:
+            {"score": float, "label": str, "signals": dict}
         """
         score = 50.0
         signals = {}
@@ -293,12 +274,7 @@ class IndicatorService:
         }
 
     def build_analysis_payload(self, symbol: str, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-        """
-        Hàm tổng hợp cuối cùng:
-        - nhận raw df
-        - tính indicators
-        - build payload theo format cũ
-        """
+        """End-to-end: raw OHLCV -> indicators -> API payload."""
         symbol = (symbol or "").strip().upper()
         calculated_df = self.calculate_indicators(df)
 

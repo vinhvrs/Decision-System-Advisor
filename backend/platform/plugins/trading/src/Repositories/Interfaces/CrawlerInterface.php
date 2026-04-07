@@ -8,19 +8,17 @@ use Illuminate\Support\Collection;
 interface CrawlerInterface
 {
     /**
-     * Lấy danh sách symbols để crawl theo chunk.
-     * $source = tên nguồn crawl (vd: yahoo_rss, news_api, etc.)
+     * Symbols to crawl in one chunk.
+     * $source: crawl source key (e.g. yahoo_rss, news_api).
      */
     public function getSymbolsChunk(string $source, int $chunkSize = 500, ?string $afterSymbol = null): Collection;
 
-    /**
-     * Lấy hoặc tạo crawler state theo (source, symbol).
-     */
+    /** Get or create crawler state for (source, symbol). */
     public function getOrCreateState(string $source, string $symbol): CrawlerState;
 
     /**
-     * Cố gắng acquire "soft lock" để tránh 2 process crawl cùng 1 symbol/source.
-     * Trả về true nếu lock được.
+     * Try to acquire a soft lock so two workers do not crawl the same symbol/source.
+     * Returns true if the lock was acquired.
      */
     public function acquireLock(string $source, string $symbol, int $lockSeconds = 600): bool;
 
@@ -29,18 +27,12 @@ interface CrawlerInterface
      */
     public function releaseLock(string $source, string $symbol): void;
 
-    /**
-     * Mark crawl thành công (update checkpoint).
-     */
+    /** Mark successful crawl (update checkpoint). */
     public function markSuccess(string $source, string $symbol, ?\Carbon\Carbon $publishedAt = null, ?string $guid = null): void;
 
-    /**
-     * Mark crawl thất bại.
-     */
+    /** Mark failed crawl. */
     public function markFailure(string $source, string $symbol, string $error): void;
 
-    /**
-     * Lấy checkpoint (last_published_at, last_guid) để incremental.
-     */
+    /** Checkpoint for incremental crawl (last_published_at, last_guid). */
     public function getCheckpoint(string $source, string $symbol): array;
 }

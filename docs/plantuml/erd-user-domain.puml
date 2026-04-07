@@ -1,0 +1,211 @@
+/' Figure 1 — User domain
+   Source: backend/database/migrations
+   - 2025_08_09_014500_create_users_table.php
+   - 2025_08_09_014530_create_users_slug_table.php
+   - 2025_08_09_014640_create_history.php
+   - 2025_08_09_014850_create_payment_table.php
+   - 2025_08_09_014851_create_payment_status_table.php
+   - 2025_08_09_014900_create_bills_table.php
+   - 2025_08_09_999999_relationship.php (FKs)
+   - 2026_03_19_000000_create_tickets_table.php
+   - 2026_03_19_000001_add_indexes_to_tickets_table.php
+   - 2026_03_19_000002_create_watchlist_table.php
+   - 2026_03_28_000001_create_admin_activity_logs_table.php
+   - 2026_03_28_000002_create_email_messages_table.php
+'/
+
+@startuml erd_user_domain
+!theme plain
+
+title Figure 1 — User domain (Laravel migrations)\nIdentity · sessions · history · billing · tickets · watchlist · admin
+
+skinparam dpi 120
+skinparam defaultFontSize 10
+skinparam roundcorner 8
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam package {
+  BorderColor #6B7280
+  BackgroundColor #FAFAFA
+}
+
+hide circle
+hide methods
+left to right direction
+
+package "Identity & routing" {
+  entity users {
+    * **id** : uuid <<PK>>
+    --
+    * **username** : varchar(50) <<UK>>
+    * **password** : varchar
+    * **name** : varchar
+    * **email** : varchar <<UK>>
+    **phone** : varchar(15) <<UK>>
+    * **role** : enum(admin,staff,paid,unpaid)
+    **email_verified_at** : timestamp
+    **remember_token** : varchar
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity users_slug {
+    * **id** : uuid <<PK>>
+    --
+    * **user_id** : uuid <<FK users.id>>
+    * **slug** : varchar <<UK>>
+    **prefix** : text
+    **suffix** : text
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity sessions {
+    * **id** : varchar <<PK>>
+    --
+    **user_id** : uuid <<FK users.id>>
+    **ip_address** : varchar(45)
+    **user_agent** : text
+    * **payload** : longtext
+    * **last_activity** : int
+  }
+}
+
+package "Chat log" {
+  entity history {
+    * **id** : uuid <<PK>>
+    --
+    * **user_id** : uuid <<FK users.id>>
+    * **request** : varchar
+    * **response** : varchar
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+}
+
+package "Billing" {
+  entity bills {
+    * **id** : uuid <<PK>>
+    --
+    * **user_id** : uuid <<FK users.id>>
+    * **amount** : decimal(10,2)
+    * **status** : varchar(50)
+    * **due_date** : datetime
+    **description** : varchar
+    * **currency** : varchar(3)
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity payment {
+    * **id** : uuid <<PK>>
+    --
+    * **user_id** : uuid <<FK users.id>>
+    **visa_number** : varchar(16)
+    **cardholder_name** : varchar(100)
+    **CCV** : varchar(3)
+    **expiry** : date
+    **valid** : date
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity payment_status {
+    * **id** : uuid <<PK>>
+    --
+    * **payment_id** : uuid <<logical FK payment.id>>
+    * **amount** : double
+    * **currency** : varchar(3)
+    * **status_code** : varchar(10)
+    **status_message** : varchar(255)
+    **status_updated_at** : timestamp
+    * **status** : enum(pending,completed,failed)
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+}
+
+package "Trading (UI)" {
+  entity tickets {
+    * **id** : uuid <<PK>>
+    --
+    * **user_id** : uuid <<FK users.id>>
+    * **type** : enum(Buy,Sell)
+    * **market** : enum(stock,crypto,forex)
+    * **symbol** : varchar(32)
+    * **leverage** : decimal(12,4)
+    * **volume** : decimal(18,8)
+    * **price** : decimal(18,8)
+    * **status** : enum(open,closed,cancelled)
+    **profit** : decimal(18,8)
+    **open** : timestamp
+    **close** : timestamp
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity watchlist {
+    * **id** : uuid <<PK>>
+    --
+    * **user_id** : uuid <<FK users.id>>
+    * **symbol** : varchar(32)
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+}
+
+package "Admin audit" {
+  entity admin_activity_logs {
+    * **id** : uuid <<PK>>
+    --
+    **user_id** : uuid <<FK users.id nullable>>
+    * **level** : varchar(32)
+    * **channel** : varchar(64)
+    * **message** : varchar(1024)
+    **context** : json
+    **ip_address** : varchar(45)
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity email_messages {
+    * **id** : uuid <<PK>>
+    --
+    **admin_user_id** : uuid <<FK users.id nullable>>
+    **client_user_id** : uuid <<FK users.id nullable>>
+    * **direction** : varchar(16)
+    * **from_email** : varchar(320)
+    * **to_email** : varchar(320)
+    * **subject** : varchar(512)
+    * **body_text** : text
+    * **status** : varchar(32)
+    **error_message** : text
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+}
+
+' --- Relationships (FKs from migrations) ---
+users ||--o| users_slug : "1 : 0..1"
+users ||--o{ sessions : "1 : N"
+users ||--o{ history : "1 : N"
+users ||--o{ bills : "1 : N"
+users ||--o{ payment : "1 : N"
+users ||--o{ tickets : "1 : N"
+users ||--o{ watchlist : "1 : N"
+users ||--o{ admin_activity_logs : "1 : N"
+users ||--o{ email_messages : "1 : N\n(admin or client FK)"
+
+payment ||..o{ payment_status : "1 : N\n(no DB FK yet)"
+
+note as N1
+  **Omitted:** jobs, cache, password_reset_tokens,
+  personal_access_tokens (framework / Sanctum).
+end note
+
+note bottom of payment_status
+  Add **foreign('payment_id')** in a migration
+  to enforce **payment_status** → **payment**.
+end note
+
+@enduml

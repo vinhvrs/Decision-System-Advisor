@@ -4,31 +4,31 @@ import json
 import asyncio
 from datetime import datetime
 
-# Thêm đường dẫn gốc vào hệ thống để import được các module app
+# Add repo root so `app` imports resolve
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from app.analyze.nlp.resolver import LanguageSmoother
 from app.analyze.nlp.models import SmoothContext
-from app.analyze.indicator.engine import IndicatorService  # Module bạn đã upload
+from app.analyze.indicator.engine import IndicatorService
 
 class SystemTest:
     def __init__(self):
         self.smoother = LanguageSmoother()
         self.indicator_service = IndicatorService()
         self.test_messages = [
-            # 1. Phủ định 1 phần: Phải trích xuất AMZN, loại bỏ AAPL
+            # 1) Partial negation: expect AMZN, not AAPL
             "Analyze AMZN ",      
 
-            # 2. Phủ định hoàn toàn: Decision phải báo status 'failed' hoặc không có targets
+            # 2) Full negation: failed decision or no targets
             "I don't need the RSI of GOOG",                   
 
-            # 3. Phủ định Indicator: Trích xuất AMD, nhưng MACD phải nằm trong 'negated'
+            # 3) Negate indicator: AMD tickers, MACD in negated list
             "Analyze AMD but not with MACD",                 
 
-            # 4. Phủ định của phủ định: Phải trích xuất MSFT thành công (Double Negation)
+            # 4) Double negation: still extract MSFT
             "Don't ignore MSFT analysis",                    
 
-            # 5. Loại trừ: Phải trích xuất các mã khác và đánh dấu GOOGL là loại trừ
+            # 5) Exclusion: other symbols ok, GOOGL excluded
             "Show me everything except for GOOGL"             
         ]
         self.output_file = os.path.join(os.path.dirname(__file__), "output.txt")
@@ -40,11 +40,11 @@ class SystemTest:
             for msg in self.test_messages:
                 f.write(f"USER REQUEST: {msg}\n")
                 
-                # 1. Chạy NLP Inbound để lấy Ticker
+                # 1) NLP inbound -> tickers
                 ctx = SmoothContext(direction='in')
                 analysis = self.smoother.smooth(msg, ctx)
                 
-                # Lấy symbol từ kết quả phân tích entities
+                # First extracted ticker
                 tickers = analysis.entities.get('tickers', [])
                 symbol = tickers[0] if tickers else None
 
@@ -53,8 +53,7 @@ class SystemTest:
                 else:
                     f.write(f"EXTRACTED SYMBOL: {symbol}\n")
                     
-                    # 2. Truy xuất dữ liệu từ Redis (Dữ liệu đã được Warmup bởi IndicatorService)
-                    # Theo logic của engine.py: redis_key = f"{Config.REDIS_PREFIX}:analysis:{symbol}"
+                    # 2) Redis cache (warmup from IndicatorService): key pattern analysis:{symbol}
                     from config.settings import settings
                     redis_key = f"{settings.REDIS_PREFIX}:analysis:{symbol}"
                     
@@ -64,22 +63,18 @@ class SystemTest:
                         if raw_data:
                             redis_data = json.loads(raw_data)
 
-                    # 3. Ghi kết quả vào file
-                    # Sửa đoạn ghi kết quả trong test_analysis.py
+                    # 3) Write snapshot to file
                     if redis_data:
                         f.write(f"REDIS STATUS: Data Found\n")
-                        # Đổi 'technical_summary' thành 'indicators' theo thực tế Redis
                         f.write(f"INDICATORS: {json.dumps(redis_data.get('indicators'), indent=2)}\n")
-                        # Đổi 'summary' thành 'summary' (đảm bảo đúng key)
                         f.write(f"SIGNALS: {json.dumps(redis_data.get('summary'), indent=2)}\n")
-                        # Thêm thông tin cập nhật
                         f.write(f"UPDATED AT: {redis_data.get('updated_at')}\n")
                     else:
                         f.write(f"REDIS STATUS: No data found for {symbol}. (Ensure Warmup is running)\n")
                 
                 f.write("-" * 50 + "\n")
             
-            print(f"✅ Test complete. Results saved to: {self.output_file}")
+            print(f"Test complete. Results saved to: {self.output_file}")
 
 if __name__ == "__main__":
     tester = SystemTest()

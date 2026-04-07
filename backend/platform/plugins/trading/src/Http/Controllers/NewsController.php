@@ -23,13 +23,21 @@ class NewsController extends Controller
     {
         $filter = $request->input('filter', []);
         $select = $request->input('select');
-        $perPage = $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 15);
+        $perPage = max(1, min(100, $perPage));
 
-        // $news = $this->newsRepository->findAll($filter, $select, $perPage);
-        $news = DB::table('knowledge_docs_temp')
-            ->select($select ?? ['id', 'title', 'content', 'published_at', 'source', 'author'])
-            ->where($filter)
-            ->orderBy('published_at', 'desc')
+        $columns = is_array($select) && $select !== []
+            ? $select
+            : NewsService::KNOWLEDGE_DOC_COLUMNS;
+
+        $query = DB::table('knowledge_docs')->select($columns);
+
+        if (is_array($filter) && $filter !== []) {
+            $query->where($filter);
+        }
+
+        $news = $query
+            ->orderByRaw('COALESCE(published_at, created_at) DESC')
             ->paginate($perPage);
 
         return response()->json($news);
@@ -59,13 +67,18 @@ class NewsController extends Controller
         return response()->json(['error' => 'News not found'], 404);
     }
 
-    public function getBySymbol(string $symbol, int $limit = 10)
+    public function getBySymbol(Request $request, string $symbol)
     {
-        if (!$symbol){
-            return response()->json(['error' => 'Symbol must required'], 404);
+        $symbol = trim($symbol);
+        if ($symbol === '') {
+            return response()->json(['error' => 'Symbol is required'], 404);
         }
-        $newsService = new NewsService();
-        $news = $newsService->getBySymbol($symbol, $limit);
+
+        $limit = (int) $request->query('limit', 20);
+        $limit = max(1, min(50, $limit));
+
+        $news = $this->newsService->getBySymbol($symbol, $limit);
+
         return response()->json($news);
     }
 }

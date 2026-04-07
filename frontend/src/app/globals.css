@@ -1,9 +1,12 @@
+/*
+ * DSA UI: Tailwind utilities; shell ~#0b1220; cards slate with border-white/10; links blue-400;
+ * positive/negative green-400 / red-400; responsive names phone / tablet / laptop / pc where used.
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* light default */
   --background: #ffffff;
   --foreground: #111827;
 }
@@ -17,8 +20,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0B1220; /* dark bg */
-    --foreground: #E5E7EB; /* light text */
+    --background: #0B1220;
+    --foreground: #E5E7EB;
   }
 }
 
@@ -28,27 +31,35 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* ===== CUSTOM DARK SCROLLBAR ===== */
-.custom-scrollbar {
-  scrollbar-width: thin;                 /* Firefox */
-  scrollbar-color: rgba(255,255,255,0.25) transparent;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
-/* Chrome, Edge, Safari */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;                            /* 👈 độ mỏng */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(255,255,255,0.2);
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
   border-radius: 999px;
   transition: background-color 0.2s ease;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255,255,255,0.45);
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }

@@ -30,7 +30,7 @@ class FetchCompanyProfile extends Command
 
                 foreach ($instruments as $instrument) {
 
-                    // Skip nếu đã tồn tại
+                    // Skip if profile already exists
                     $exists = DB::table('company_profile')
                         ->where('symbol', $instrument->symbol)
                         ->exists();

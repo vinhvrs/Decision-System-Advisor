@@ -128,7 +128,7 @@ class PeriodClassifyService
         $weeklyData = $this->sortByTimestamp($weeklyData);
 
         $grouped = $weeklyData->groupBy(function ($r) {
-            $ts = $this->getField($r, 'timestamp'); // timestamp = cuối tuần
+            $ts = $this->getField($r, 'timestamp'); // week-ending timestamp
             return date('Y-m', strtotime((string) $ts));
         });
 

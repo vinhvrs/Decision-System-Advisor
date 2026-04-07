@@ -36,7 +36,7 @@ class CrawlNews extends Command
 
             $this->line("Batch {$i}: processed={$result['processed']} inserted={$result['inserted']} skipped={$result['skipped']} failed={$result['failed']} lastSymbol=" . ($result['lastSymbol'] ?? 'NULL'));
 
-            // nếu batch rỗng -> hết symbols
+            // Empty batch: no more symbols
             if (empty($result['lastSymbol'])) {
                 $this->info('No more symbols. Stop.');
                 break;

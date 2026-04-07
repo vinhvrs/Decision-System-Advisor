@@ -20,7 +20,7 @@ class ElasticKnowledgeDocService
         $failed = 0;
         $errors = [];
 
-        DB::table('knowledge_docs_temp')
+        DB::table('knowledge_docs')
             ->orderBy('id')
             ->chunk($chunkSize, function ($rows) use ($client, $index, &$total, &$failed, &$errors) {
                 $body = [];
@@ -96,7 +96,7 @@ class ElasticKnowledgeDocService
             'id' => $id,
             'body' => [
                 'id' => $id,
-                'hash_key' => $payload['hash_key'] ?? null,
+                'hash_key' => $payload['hash_key'] ?? $id,
                 'title' => $payload['title'] ?? null,
                 'content' => $payload['content'] ?? null,
                 'published_at' => $payload['published_at'] ?? null,
@@ -144,16 +144,35 @@ class ElasticKnowledgeDocService
 
         if (trim($query) !== '') {
             $must[] = [
-                'multi_match' => [
-                    'query' => $query,
-                    'fields' => [
-                        'title^4',
-                        'content^2',
-                        'author',
-                        'source',
+                'bool' => [
+                    'should' => [
+                        [
+                            'multi_match' => [
+                                'query' => $query,
+                                'fields' => [
+                                    'title^4',
+                                    'content^2',
+                                    'author',
+                                    'source',
+                                ],
+                                'type' => 'best_fields',
+                                'operator' => 'or',
+                            ],
+                        ],
+                        [
+                            'multi_match' => [
+                                'query' => $query,
+                                'fields' => [
+                                    'title^3',
+                                    'content^2',
+                                ],
+                                'type' => 'best_fields',
+                                'fuzziness' => 'AUTO',
+                                'prefix_length' => 1,
+                            ],
+                        ],
                     ],
-                    'type' => 'best_fields',
-                    'operator' => 'or',
+                    'minimum_should_match' => 1,
                 ],
             ];
         } else {
@@ -220,7 +239,7 @@ class ElasticKnowledgeDocService
     {
         return [
             'id' => (string) $row->id,
-            'hash_key' => $row->hash_key,
+            'hash_key' => $row->hash_key ?? (string) $row->id,
             'title' => $row->title,
             'content' => $row->content,
             'published_at' => $row->published_at,

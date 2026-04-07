@@ -16,6 +16,18 @@ export function instrumentMapper(apiData: InstrumentAPI[]): Instrument[] {
     }));
 }
 
+/** Single instrument from GET /instruments/{id|symbol|slug} */
+export function instrumentFromApi(apiData: InstrumentAPI): Instrument {
+    return {
+        id: apiData.id,
+        name: apiData.name,
+        symbol: apiData.symbol,
+        type: apiData.type,
+        exchange: apiData.exchange,
+        slug: apiData.slug,
+    };
+}
+
 export function instrumentPeriodMapper(apiData: InstrumentPeriodAPI[]): InstrumentPeriod[] {
     return apiData.map(data => ({
         id: data.id,
@@ -77,6 +89,7 @@ export function userMapper(apiData: UserAPI): User {
         username: apiData.username,
         email: apiData.email,
         phone: apiData.phone,
+        role: apiData.role,
     };
 }
 

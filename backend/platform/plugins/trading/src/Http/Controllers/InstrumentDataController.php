@@ -18,7 +18,7 @@ class InstrumentDataController extends Controller{
     public function index(Request $request) {
         $filter = $request->input('filter', []);
         $select = $request->input('select', ['*']);
-        $perPage = $request->input('per_page', 15);
+        $perPage = min(max((int) $request->input('per_page', 15), 1), 500);
 
         $data = $this->instrumentDataRepository->findAll($filter, $select, $perPage);
         return response()->json($data);
@@ -26,20 +26,37 @@ class InstrumentDataController extends Controller{
 
     public function get(Request $request, $symbol) {
         $period = $request->input('period', 'daily');
-        $perPage = $request->input('per_page', 15);
-        $page = $request->input('page', 1);
+        $perPage = min(max((int) $request->input('per_page', 500), 1), 5000);
+        $page = max((int) $request->input('page', 1), 1);
 
         $data = $this->instrumentService->show($symbol, $period, $perPage, $page);
         return response()->json($data);
      }
 
-    public function showByPeriod($periodId) {
-        set_time_limit(0);
-        $perPage = request()->input('per_page', 15);
+    /**
+     * POST JSON: { "symbols": ["NVDA","AAPL"], "limit": 40 } — daily closes per symbol (oldest first).
+     */
+    public function batchDailyCloses(Request $request)
+    {
+        $symbols = $request->input('symbols');
+        if (! is_array($symbols)) {
+            return response()->json(['message' => 'symbols must be an array of ticker strings'], 422);
+        }
+        $limit = min(max((int) $request->input('limit', 40), 1), 500);
+        $symbols = array_slice(array_values($symbols), 0, 100);
+        $data = $this->instrumentDataRepository->batchDailyCloses($symbols, $limit);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function showByPeriod(string $periodId) {
+        $perPage = min(max((int) request()->input('per_page', 500), 1), 10000);
+
         $data = $this->instrumentDataRepository->findByPeriod($periodId, $perPage);
         if ($data) {
             return response()->json($data);
         }
+
         return response()->json(['message' => 'Instrument data not found'], 404);
     }
 

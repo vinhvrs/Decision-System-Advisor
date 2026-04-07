@@ -18,7 +18,7 @@ class DecisionBuilder
         $intent   = $ctx->memory['intent']   ?? 'unknown';
         $entities = $ctx->memory['entities'] ?? [];
 
-        // 1️⃣ Resolve strategy
+        // 1) Resolve strategy
         $strategy = $this->strategies[$intent]
             ?? $this->strategies['unknown']
             ?? [
@@ -27,7 +27,7 @@ class DecisionBuilder
                 'allow_llm' => true,
             ];
         
-        // 2️⃣ Validate required data
+        // 2) Validate required data
         if (($strategy['require_data'] ?? false) === true) {
             if (empty($entities['tickers'])) {
                 $ctx->memory['decision'] = [
@@ -38,12 +38,12 @@ class DecisionBuilder
                     'confidence' => 0.2,
                 ];
 
-                // ⚠️ KHÔNG trả text
+                // Return pipeline text as-is (no extra wording here)
                 return $text;
             }
         }
 
-        // 3️⃣ Store final decision
+        // 3) Store final decision
         $ctx->memory['decision'] = [
             'intent'   => $intent,
             'entities' => $entities,

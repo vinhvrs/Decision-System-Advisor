@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Newspaper, X, Clock, Calendar } from "lucide-react";
 import newsService from "@/src/services/News.service";
 import { News } from "@/src/types/News";
+import { pickNewsThumbImage } from "@/src/libs/newsArticle";
 
 export default function NewsListPage() {
   const [items, setItems] = useState<News[]>([]);
@@ -70,19 +71,17 @@ export default function NewsListPage() {
       setHasMore(false);
     } finally {
       setIsLoading(false);
-      setIsMoreLoading(false);
+      setIsLoadingMore(false);
     }
   };
-
-  function setIsMoreLoading(val: boolean) { setIsLoadingMore(val); }
 
   useEffect(() => { fetchPage(1, "replace"); }, []);
 
   return (
-    <main className="flex h-[calc(100vh-64px)] w-full overflow-hidden bg-[#0B1220] text-white font-sans">
+    <main className="flex h-[calc(100vh-56px)] phone:h-[calc(100vh-64px)] w-full overflow-hidden bg-[#0B1220] text-white font-sans">
       
       {/* Cột danh sách bên trái */}
-      <section className="flex h-full w-full flex-col border-r border-white/10 md:w-[400px] lg:w-[450px]">
+      <section className="flex h-full w-full flex-col border-r border-white/10 tablet:w-[340px] laptop:w-[400px] pc:w-[450px]">
         <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
           <h1 className="text-lg font-bold flex items-center gap-2">
             <Newspaper size={18} className="text-blue-400" />
@@ -98,6 +97,7 @@ export default function NewsListPage() {
             <div className="divide-y divide-white/5">
               {items.map((item) => {
                 const { imageUrl } = parseContent(item.content || "");
+                const thumb = imageUrl || pickNewsThumbImage(item as any);
                 const timeLabel = formatDisplayDate((item as any).published_at);
                 const isRecent = timeLabel.includes('ago');
 
@@ -115,7 +115,9 @@ export default function NewsListPage() {
                           <Clock size={12} />
                           {timeLabel}
                         </div>
-                        <span className="text-blue-400/80 font-medium">• {item.author?.split(',')[0] || "Reuters"}</span>
+                        <span className="text-blue-400/80 font-medium">
+                          • {(item as any).author?.split?.(",")?.[0]?.trim() || "News"}
+                        </span>
                       </div>
                       <h2 className={`text-sm font-semibold leading-snug line-clamp-2 ${
                         selectedNews?.id === item.id ? "text-blue-400" : "text-white/90"
@@ -123,9 +125,9 @@ export default function NewsListPage() {
                         {item.title}
                       </h2>
                     </div>
-                    {imageUrl && (
+                    {thumb && (
                       <div className="relative h-14 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-white/5 bg-white/5">
-                        <img src={imageUrl} alt="thumb" className="h-full w-full object-cover" />
+                        <img src={thumb} alt="thumb" className="h-full w-full object-cover" />
                       </div>
                     )}
                   </div>
@@ -142,14 +144,14 @@ export default function NewsListPage() {
       </section>
 
       {/* Cột nội dung bên phải */}
-      <section className="hidden h-full flex-1 flex-col bg-[#0b1220] md:flex">
+      <section className="hidden h-full flex-1 flex-col bg-[#0b1220] tablet:flex">
         {selectedNews ? (
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-end p-4 border-b border-white/5 bg-[#0B1220]">
                <button onClick={() => setSelectedNews(null)} className="text-white/40 hover:text-white transition-colors"><X size={24} /></button>
             </div>
             
-            <article className="flex-1 overflow-y-auto p-8 lg:p-12 custom-scrollbar bg-[#0B1220]">
+            <article className="flex-1 overflow-y-auto p-4 tablet:p-6 laptop:p-8 pc:p-12 custom-scrollbar bg-[#0B1220]">
               <div className="max-w-3xl mx-auto">
                 {(() => {
                   const { imageUrl, body } = parseContent(selectedNews.content || "");
@@ -165,7 +167,7 @@ export default function NewsListPage() {
                         </span>
                       </div>
 
-                      <h1 className="text-3xl lg:text-4xl font-black leading-tight mb-8 text-white">{selectedNews.title}</h1>
+                      <h1 className="text-xl phone:text-2xl tablet:text-3xl laptop:text-4xl font-black leading-tight mb-6 tablet:mb-8 text-white">{selectedNews.title}</h1>
 
                       {imageUrl && (
                         <div className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 shadow-2xl">

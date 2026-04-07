@@ -24,7 +24,7 @@ class EntityResolverService
     {
         $q = $this->norm($query);
 
-        // 1️⃣ Exact alias match
+        // 1) Exact alias match
         $exact = DB::table('stock_entity_aliases as a')
             ->join('stock_entities as e', 'e.id', '=', 'a.entity_id')
             ->where('e.type', 'company')
@@ -43,7 +43,7 @@ class EntityResolverService
             ];
         }
 
-        // 2️⃣ LIKE alias candidates
+        // 2) LIKE alias candidates
         $cands = DB::table('stock_entity_aliases as a')
             ->join('stock_entities as e', 'e.id', '=', 'a.entity_id')
             ->where('e.type', 'company')
@@ -54,7 +54,7 @@ class EntityResolverService
             ->select('e.symbol', 'e.name', 'a.alias_norm', 'a.weight', 'e.priority')
             ->get();
 
-        // 3️⃣ Fallback by entity name
+        // 3) Fallback by entity name
         if ($cands->isEmpty()) {
             $cands = DB::table('stock_entities')
                 ->where('type', 'company')
@@ -75,7 +75,7 @@ class EntityResolverService
             return null;
         }
 
-        // 4️⃣ Levenshtein best match
+        // 4) Levenshtein best match
         $best = null;
         $bestScore = PHP_INT_MAX;
 

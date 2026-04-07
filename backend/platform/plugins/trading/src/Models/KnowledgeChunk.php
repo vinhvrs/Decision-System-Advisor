@@ -7,7 +7,7 @@ class KnowledgeChunk extends Model
 {
     protected $table = 'knowledge_chunks';
     protected $keyType = 'string';
-    public $incrementing = false; // Quan trọng khi dùng UUID
+    public $incrementing = false;
 
     protected $fillable = [
         'docs_id',
@@ -26,7 +26,7 @@ class KnowledgeChunk extends Model
         'qdrant_upserted_at' => 'datetime',
     ];
 
-    // Thay đổi relation trỏ về bảng chứa dữ liệu thô
+    /** Parent row in knowledge_docs */
     public function document()
     {
         return $this->belongsTo(KnowledgeDoc::class, 'docs_id');

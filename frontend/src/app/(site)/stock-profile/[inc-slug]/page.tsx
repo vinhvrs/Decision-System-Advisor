@@ -3,19 +3,37 @@
 "use client";
 
 import React, { use, useState, useEffect, useCallback } from 'react';
-import { 
-  ShieldCheck, TrendingUp, Users, 
-  Building2, Calendar, Newspaper, 
-  ChevronRight, Globe, Loader2,
-  Layers
-} from 'lucide-react';
+import Link from "next/link";
+import dynamic from 'next/dynamic';
+import {
+  ShieldCheck,
+  TrendingUp,
+  Newspaper,
+  Globe,
+  Loader2,
+  Layers,
+} from "lucide-react";
 
-import LightChart from '@/src/components/charts/LightChart'; 
-import FundamentalRadar from './FundamentalRadar';
+const LightChart = dynamic(() => import('@/src/components/charts/LightChart'), {
+  ssr: false,
+  loading: () => <div className="h-full min-h-[280px] w-full animate-pulse rounded-lg bg-gray-800/40" />,
+});
+
+const FundamentalRadar = dynamic(() => import('./FundamentalRadar'), {
+  ssr: false,
+  loading: () => <div className="h-64 w-full animate-pulse rounded-lg bg-gray-800/40" />,
+});
+
+import AddToWatchlistButton from '@/src/components/watchlist/AddToWatchlistButton';
 import { InstrumentService } from "@/src/services/Instrument.service";
-import { CompanyService } from "@/src/services/Company.service"; 
-// Thay thế Echo bằng SimpleSocket
-import { SimpleSocket } from "@/src/libs/socket"; 
+import { CompanyService } from "@/src/services/Company.service";
+import { SimpleSocket } from "@/src/libs/socket";
+import { stripParentheticals } from "@/src/libs/displayString";
+import {
+  newsSourceLabel,
+  pickNewsThumbImage,
+  resolveNewsHref,
+} from "@/src/libs/newsArticle"; 
 
 interface Props {
   params: Promise<{ "inc-slug": string }>;
@@ -60,11 +78,13 @@ const StockProfile = ({ params }: Props) => {
     const initData = async () => {
       try {
         setLoading(true);
-        const all = await InstrumentService.getInstruments(3000);
-        const current = all.find((i: any) => 
-          i.slug === slug || i.symbol?.toLowerCase() === slug?.toLowerCase()
-        );
-        
+        let current = null;
+        try {
+          current = await InstrumentService.getBySlugOrSymbol(slug);
+        } catch {
+          current = null;
+        }
+
         if (current) {
           setInstrument(current);
           const symbol = current.symbol;
@@ -147,19 +167,31 @@ const StockProfile = ({ params }: Props) => {
     </div>
   );
 
+  if (!instrument) {
+    return (
+      <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-white/70 px-4 text-center">
+        <p className="text-lg font-semibold mb-2">Symbol or profile not found</p>
+        <p className="text-sm text-white/50 mb-6">Try a valid ticker or pick a company from Search / Companies.</p>
+        <a href="/companies" className="text-blue-400 hover:underline">Browse companies</a>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-[#0b0e11] min-h-screen text-gray-300 p-4 md:p-8 font-sans">
+    <div className="bg-[#0b0e11] min-h-screen text-gray-300 p-4 phone:p-5 tablet:p-6 laptop:p-8 font-sans">
       <div className="max-w-7xl mx-auto">
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between mb-8 border-b border-gray-800 pb-8 gap-6 items-start md:items-center">
+        <div className="flex flex-col tablet:flex-row justify-between mb-6 tablet:mb-8 border-b border-gray-800 pb-6 tablet:pb-8 gap-4 tablet:gap-6 items-start tablet:items-center">
           <div className="flex items-center gap-6">
             <div className="relative group">
                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-400 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-               <img src={details?.image || instrument?.image} className="relative w-16 h-16 bg-white rounded-xl p-2 object-contain" alt={instrument?.symbol} />
+               <img src={details?.image || instrument?.image} className="relative w-12 h-12 phone:w-14 phone:h-14 tablet:w-16 tablet:h-16 bg-white rounded-xl p-2 object-contain" alt={instrument?.symbol} />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-black text-white tracking-tight uppercase">{details?.company_name || instrument?.name}</h1>
+              <div className="flex items-center gap-2 tablet:gap-3">
+                <h1 className="text-xl phone:text-2xl tablet:text-3xl font-black text-white tracking-tight uppercase">
+                  {stripParentheticals(details?.company_name || instrument?.name) || instrument?.symbol || ""}
+                </h1>
                 <ShieldCheck className="text-blue-500" size={20} />
               </div>
               <div className="flex gap-4 mt-1 text-xs font-bold items-center uppercase tracking-wider text-gray-500">
@@ -181,15 +213,17 @@ const StockProfile = ({ params }: Props) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8 space-y-8">
+        <div className="grid grid-cols-1 laptop:grid-cols-12 gap-6 tablet:gap-8">
+          <div className="laptop:col-span-8 space-y-6 tablet:space-y-8">
             {/* CHART */}
             <section className="bg-[#131722] border border-gray-800 rounded-2xl overflow-hidden">
               <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-black/20">
                 <h2 className="text-xs font-black text-white flex items-center gap-2 uppercase tracking-widest">
                   <TrendingUp className="text-blue-500" size={16} /> Technical Chart
                 </h2>
-                <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-gray-800">
+                <div className="flex items-center gap-3">
+                  <AddToWatchlistButton symbol={instrument?.symbol || ''} />
+                  <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-gray-800">
                   {periods.map(p => (
                     <button 
                       key={p.id} 
@@ -199,15 +233,18 @@ const StockProfile = ({ params }: Props) => {
                       {p.period}
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
-              <div className="h-[450px] w-full p-2">
-                <LightChart 
-                  symbol={instrument?.symbol}
-                  data={candles}
-                  realtimeCandle={realtimeCandle}
-                  period={selectedPeriod?.period as any}
-                />
+              <div className="flex h-[300px] w-full flex-col p-2 pb-3 phone:h-[360px] tablet:h-[420px] laptop:h-[470px]">
+                <div className="min-h-0 flex-1">
+                  <LightChart
+                    symbol={instrument?.symbol}
+                    data={candles}
+                    realtimeCandle={realtimeCandle}
+                    period={selectedPeriod?.period as any}
+                  />
+                </div>
               </div>
             </section>
 
@@ -218,29 +255,61 @@ const StockProfile = ({ params }: Props) => {
                 <h2 className="text-sm font-black text-white uppercase tracking-widest">Market Intelligence</h2>
               </div>
               <div className="grid grid-cols-1 gap-4">
-                {news.map((item, idx) => (
-                  <a key={idx} href={item.url} target="_blank" className="bg-[#131722] p-5 rounded-2xl border border-gray-800 hover:border-blue-500/50 transition-all group flex gap-5">
-                    {item.image && (
-                      <div className="w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-gray-800">
-                        <img src={item.image} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" alt="news" />
+                {news.map((item, idx) => {
+                  const { kind, href } = resolveNewsHref(item);
+                  const label = newsSourceLabel(item);
+                  const thumb = pickNewsThumbImage(item);
+                  const published = item.published_at || item.created_at;
+                  const cardClass =
+                    "bg-[#131722] p-5 rounded-2xl border border-gray-800 hover:border-blue-500/50 transition-all group flex gap-5";
+                  const inner = (
+                    <>
+                      {thumb ? (
+                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-gray-800">
+                          <img
+                            src={thumb}
+                            className="h-full w-full object-cover grayscale transition-all duration-500 group-hover:grayscale-0"
+                            alt=""
+                          />
+                        </div>
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="rounded border border-blue-500/10 bg-blue-500/5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-500">
+                            {label}
+                          </span>
+                          <span className="font-mono text-[10px] italic text-gray-600">
+                            {published ? new Date(published).toLocaleDateString() : "—"}
+                          </span>
+                        </div>
+                        <h3 className="mb-2 line-clamp-1 text-sm font-bold text-white transition-colors group-hover:text-blue-400">
+                          {item.title}
+                        </h3>
+                        <p className="line-clamp-2 text-xs font-light leading-relaxed text-gray-500">
+                          {item.content || ""}
+                        </p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/5 px-2 py-0.5 rounded border border-blue-500/10">{item.site || "Financial News"}</span>
-                        <span className="text-[10px] text-gray-600 font-mono italic">{new Date(item.publishedDate).toLocaleDateString()}</span>
-                      </div>
-                      <h3 className="text-white font-bold group-hover:text-blue-400 transition-colors mb-2 line-clamp-1 text-sm">{item.title}</h3>
-                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed font-light">{item.text}</p>
-                    </div>
-                  </a>
-                ))}
+                    </>
+                  );
+                  if (kind === "external") {
+                    return (
+                      <a key={item.id || idx} href={href} target="_blank" rel="noreferrer" className={cardClass}>
+                        {inner}
+                      </a>
+                    );
+                  }
+                  return (
+                    <Link key={item.id || idx} href={href} className={cardClass}>
+                      {inner}
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           </div>
 
           {/* SIDEBAR */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="laptop:col-span-4 space-y-4 tablet:space-y-6">
             <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800 shadow-2xl">
                <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-6 text-center italic">Fundamental Analysis</h2>
                <FundamentalRadar details={details} />
@@ -250,9 +319,9 @@ const StockProfile = ({ params }: Props) => {
               <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-5 flex items-center gap-2">
                 <Layers size={14} className="text-blue-500" /> Industry Peers
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 tablet:gap-3">
                 {similar.map((comp: any, idx: number) => (
-                  <a key={idx} href={`/stock-profile/${comp.symbol}`} className="flex flex-col items-center p-3 rounded-xl bg-black/20 border border-gray-800/50 hover:border-blue-500/50 transition-all group">
+                  <a key={idx} href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`} className="flex flex-col items-center p-3 rounded-xl bg-black/20 border border-gray-800/50 hover:border-blue-500/50 transition-all group">
                     <div className="w-10 h-10 bg-white rounded-lg p-1.5 mb-2">
                       <img src={`https://images.financialmodelingprep.com/symbol/${comp.symbol}.png`} alt={comp.symbol} className="w-full h-full object-contain" />
                     </div>

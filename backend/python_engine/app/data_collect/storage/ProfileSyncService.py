@@ -6,7 +6,7 @@ import requests
 import time
 from datetime import datetime
 
-# Import cấu hình chuẩn
+# Project settings (DB, etc.)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 from config.settings import settings
 
@@ -14,7 +14,7 @@ class ProfileSyncService:
     def __init__(self):
         self.db_config = settings.DB_CONFIG.copy()
         self.db_config['cursorclass'] = pymysql.cursors.DictCursor
-        # Đảm bảo lấy API Key từ môi trường
+        # Finnhub key from environment
         self.FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
 
     def get_finnhub_logo(self, symbol):
@@ -34,7 +34,7 @@ class ProfileSyncService:
         conn.autocommit(True)
         try:
             with conn.cursor() as cur:
-                # Lấy các mã thiếu Profile hoặc thiếu Image
+                # Rows missing profile fields or logo
                 sql = """
                 SELECT s.symbol, s.instrument_id, p.image 
                 FROM instrument_snapshot s
@@ -45,16 +45,16 @@ class ProfileSyncService:
                 """
                 cur.execute(sql)
                 targets = cur.fetchall()
-                print(f"🚀 Found {len(targets)} symbols to process.")
+                print(f"[profile-sync] {len(targets)} symbol(s) to process.")
 
                 for target in targets:
                     symbol = target['symbol']
                     inst_id = target['instrument_id']
                     current_image = target.get('image')
                     
-                    print(f"🔄 Processing: {symbol}...")
+                    print(f"[profile-sync] Processing {symbol}...")
 
-                    # 1. Lấy dữ liệu từ yfinance
+                    # 1) yfinance profile
                     info = {}
                     try:
                         ticker = yf.Ticker(symbol)
@@ -62,16 +62,16 @@ class ProfileSyncService:
                     except:
                         pass
 
-                    # 2. Lấy Logo từ Finnhub nếu cột image đang trống
+                    # 2) Finnhub logo if image empty
                     logo_url = current_image
                     if not current_image or current_image == '':
                         logo_url = self.get_finnhub_logo(symbol)
 
-                    # 3. Trích xuất thông tin (Bổ sung Exchange để fix lỗi 1364)
+                    # 3) Map fields (exchange required for NOT NULL / strict mode)
                     name = info.get('longName') or symbol
                     industry = info.get('industry')
                     sector = info.get('sector')
-                    exchange = info.get('exchange', 'UNKNOWN') # Mặc định UNKNOWN nếu thiếu
+                    exchange = info.get('exchange', 'UNKNOWN')
                     website = info.get('website')
                     desc = info.get('longBusinessSummary')
                     country = info.get('country')
@@ -81,7 +81,7 @@ class ProfileSyncService:
                     if officers:
                         ceo = officers[0].get('name', '')
 
-                    # 4. Thực thi SQL (Đã bổ sung cột exchange)
+                    # 4) Upsert company_profile
                     sql_upsert = """
                     INSERT INTO company_profile 
                         (instrument_id, symbol, company_name, exchange, industry, sector, website, description, ceo, country, image, updated_at)
@@ -100,8 +100,8 @@ class ProfileSyncService:
                         website, desc, ceo, country, logo_url
                     ))
                     
-                    print(f"   ✅ Done: {symbol} (Exchange: {exchange})")
-                    time.sleep(1.2) # Chống bị Yahoo/Finnhub chặn IP
+                    print(f"[profile-sync] Done {symbol} (exchange={exchange})")
+                    time.sleep(1.2)  # throttle external APIs
 
         finally:
             conn.close()

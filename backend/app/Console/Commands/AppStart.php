@@ -12,7 +12,7 @@ class AppStart extends Command
 
     public function handle()
     {
-        $this->info('🚀 Starting full dev stack...');
+        $this->info('Starting full dev stack...');
 
         $processes = [
 
@@ -46,7 +46,7 @@ class AppStart extends Command
         while (true) {
             foreach ($processes as $process) {
                 if (!$process->isRunning()) {
-                    $this->error('⚠️ A process stopped!');
+                    $this->error('A process stopped.');
                 }
             }
             sleep(1);

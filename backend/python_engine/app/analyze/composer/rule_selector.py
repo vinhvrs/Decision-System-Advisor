@@ -1,7 +1,7 @@
 class RuleSelector:
     @staticmethod
     def should_include_momentum(result: dict) -> bool:
-        # Đối chiếu logic lọc chỉ báo trong PHP
+        # Mirror PHP: skip flat momentum in copy
         summary = result.get('technical_summary', {})
         return summary.get('momentum') not in ['neutral', None]
 
@@ -11,15 +11,13 @@ class RuleSelector:
 
     @staticmethod
     def detect_intent(semantic_actions: list, intent_phrases: dict) -> str:
-        """
-        Logic từ DetectIntent.php: Tìm giao điểm giữa hành động nhận diện được và bộ từ điển
-        """
+        """Map semantic action tokens to first matching intent bucket."""
         if not semantic_actions:
             return 'unknown'
             
         actions_set = set(semantic_actions)
         for intent_name, keywords in intent_phrases.items():
-            # array_intersect tương đương set intersection
+            # PHP array_intersect ~ set intersection
             if actions_set.intersection(set(keywords)):
                 return intent_name
                 
@@ -27,6 +25,6 @@ class RuleSelector:
 
     @staticmethod
     def filter_by_style(phrases: list, style_preset: dict) -> list:
-        # Giới hạn số câu nếu có quy định max_sentences (giống ApplyStylePreset.php)
+        # Optional max_sentences from style preset
         max_s = style_preset.get('max_sentences')
         return phrases[:max_s] if max_s else phrases

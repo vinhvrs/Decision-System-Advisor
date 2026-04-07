@@ -1,0 +1,71 @@
+@startuml DSA_Admin_Use_Cases
+title DSA admin backend — use cases
+skinparam dpi 120
+skinparam defaultFontSize 13
+skinparam nodesep 50
+skinparam ranksep 40
+skinparam usecase {
+  BorderColor #333333
+  BackgroundColor #F8F8F8
+}
+skinparam actor {
+  BorderColor #333333
+}
+
+left to right direction
+
+actor "Administrator / staff" as Admin
+
+rectangle "DSA admin backend" {
+  agent " " as COL_GAP #Transparent;line:Transparent
+
+  usecase "Configure / monitor email" as UC_MAIL
+  usecase "View service logs" as UC_LOGS
+  usecase "View statistics" as UC_STATS
+  usecase "Manage news" as UC_NEWS
+  usecase "Manage companies / symbols" as UC_COMP
+  usecase "Manage users" as UC_USERS
+  usecase "Open admin dashboard" as UC_DASH
+  usecase "Sign in to admin" as UC_LOGIN
+
+  UC_MAIL -[hidden]down- UC_LOGS
+  UC_LOGS -[hidden]down- UC_STATS
+  UC_STATS -[hidden]down- UC_NEWS
+  UC_NEWS -[hidden]down- UC_COMP
+  UC_COMP -[hidden]down- UC_USERS
+  UC_USERS -[hidden]down- UC_DASH
+
+  UC_MAIL -[hidden]right- COL_GAP
+  UC_LOGS -[hidden]right- COL_GAP
+  UC_STATS -[hidden]right- COL_GAP
+  UC_NEWS -[hidden]right- COL_GAP
+  UC_COMP -[hidden]right- COL_GAP
+  UC_USERS -[hidden]right- COL_GAP
+  UC_DASH -[hidden]right- COL_GAP
+  COL_GAP -[hidden]right- UC_LOGIN
+
+  UC_DASH .> UC_LOGIN : <<include>> Authenticate
+  UC_USERS .> UC_LOGIN : <<include>> Authenticate
+  UC_COMP .> UC_LOGIN : <<include>> Authenticate
+  UC_NEWS .> UC_LOGIN : <<include>> Authenticate
+  UC_STATS .> UC_LOGIN : <<include>> Authenticate
+  UC_LOGS .> UC_LOGIN : <<include>> Authenticate
+  UC_MAIL .> UC_LOGIN : <<include>> Authenticate
+}
+
+Admin --> UC_LOGIN
+Admin --> UC_DASH
+Admin --> UC_USERS
+Admin --> UC_COMP
+Admin --> UC_NEWS
+Admin --> UC_STATS
+Admin --> UC_LOGS
+Admin --> UC_MAIL
+
+note bottom of Admin
+  Omit **Admin --> Sign in** if you want
+  authentication only via <<include>>
+  from other use cases.
+end note
+
+@enduml

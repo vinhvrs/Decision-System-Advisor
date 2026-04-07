@@ -94,26 +94,13 @@ class ElasticCompanyProfileService
         $docId = $payload['instrument_id']
             ?? md5(($payload['symbol'] ?? '') . '|' . ($payload['company_name'] ?? ''));
 
+        $doc = ElasticSyncService::buildCompanyProfileDocument($payload);
+        $doc['full_time_employees'] = $this->toNullableInt($payload['full_time_employees'] ?? null);
+
         return $client->index([
             'index' => $index,
             'id' => $docId,
-            'body' => [
-                'instrument_id' => $payload['instrument_id'] ?? null,
-                'exchange' => $payload['exchange'] ?? null,
-                'company_name' => $payload['company_name'] ?? null,
-                'symbol' => $payload['symbol'] ?? null,
-                'industry' => $payload['industry'] ?? null,
-                'sector' => $payload['sector'] ?? null,
-                'website' => $payload['website'] ?? null,
-                'description' => $payload['description'] ?? null,
-                'ceo' => $payload['ceo'] ?? null,
-                'country' => $payload['country'] ?? null,
-                'image' => $payload['image'] ?? null,
-                'full_time_employees' => $this->toNullableInt($payload['full_time_employees'] ?? null),
-                'ipo_date' => $payload['ipo_date'] ?? null,
-                'created_at' => $payload['created_at'] ?? null,
-                'updated_at' => $payload['updated_at'] ?? null,
-            ],
+            'body' => $doc,
             'refresh' => true,
         ])->asArray();
     }
@@ -152,7 +139,10 @@ class ElasticCompanyProfileService
                     'query' => $query,
                     'fields' => [
                         'company_name^4',
+                        'company_search_sayt^3',
+                        'search_all^2',
                         'symbol^5',
+                        'symbol.edge^4',
                         'description^2',
                         'sector',
                         'industry',
@@ -160,6 +150,7 @@ class ElasticCompanyProfileService
                     ],
                     'type' => 'best_fields',
                     'operator' => 'or',
+                    'fuzziness' => 'AUTO',
                 ],
             ];
         } else {
@@ -221,23 +212,10 @@ class ElasticCompanyProfileService
 
     protected function transformRowToDocument(object $row): array
     {
-        return [
-            'instrument_id' => $row->instrument_id,
-            'exchange' => $row->exchange,
-            'company_name' => $row->company_name,
-            'symbol' => $row->symbol,
-            'industry' => $row->industry,
-            'sector' => $row->sector,
-            'website' => $row->website,
-            'description' => $row->description,
-            'ceo' => $row->ceo,
-            'country' => $row->country,
-            'image' => $row->image,
-            'full_time_employees' => $this->toNullableInt($row->full_time_employees),
-            'ipo_date' => $row->ipo_date,
-            'created_at' => $row->created_at,
-            'updated_at' => $row->updated_at,
-        ];
+        $doc = ElasticSyncService::buildCompanyProfileDocument($row);
+        $doc['full_time_employees'] = $this->toNullableInt($row->full_time_employees);
+
+        return $doc;
     }
 
     protected function formatSearchResponse(array $response): array

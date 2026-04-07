@@ -6,11 +6,16 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import SelectDropdown from "@/src/sections/Dropdown";
 import LightChart from "./LightChart";
+import PositionsPanel from "@/src/components/trading/PositionsPanel";
+import AddToWatchlistButton from "@/src/components/watchlist/AddToWatchlistButton";
+import { usePositions } from "@/src/hooks/usePositions";
 import { Instrument } from "@/src/types/Instrument";
 import { get, set } from "idb-keyval";
 import { IDB_KEYS } from "@/src/libs/idbKeys";
+import { isDemoDevMode } from "@/src/libs/devMode";
 import { SimpleSocket } from "@/src/libs/socket";
 import { CompanyService } from "@/src/services/Company.service";
+import { stripParentheticals } from "@/src/libs/displayString";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -47,16 +52,20 @@ const INDICATOR_OPTIONS = [
 
 function getInstrumentDisplayName(item: Partial<InstrumentLike> | null | undefined) {
   if (!item) return "";
-  return item.name || item.company_name || item.symbol || "Unknown";
+  const raw = item.name || item.company_name || item.symbol || "Unknown";
+  return stripParentheticals(raw) || String(item.symbol || "Unknown");
 }
 
 function normalizeInstrument(item: any, index = 0): InstrumentLike {
+  const sym = item?.symbol ?? "";
+  const rawName = item?.name || item?.company_name || sym || "Unknown";
+  const display = stripParentheticals(rawName) || sym || "Unknown";
   return {
     ...item,
     id: item?.id ?? item?._id ?? item?.symbol ?? `instrument-${index}`,
-    symbol: item?.symbol ?? "",
-    name: item?.name || item?.company_name || item?.symbol || "Unknown",
-    company_name: item?.company_name || item?.name || item?.symbol || "Unknown",
+    symbol: sym,
+    name: display,
+    company_name: display,
   };
 }
 
@@ -150,17 +159,22 @@ function mergeCandles(prev: any[], next: any[]) {
 
 function buildRealtimeBucketCandle({
   price,
+  volume,
   rawTs,
   period,
   previousRealtime,
   latestHistorical,
+  currentCandleFromDB,
   symbol,
 }: {
   price: number;
+  volume?: number;
   rawTs: number;
   period: TF;
   previousRealtime: any | null;
   latestHistorical: any | null;
+  /** Current period candle from DB (initial_quote) - open price to avoid gap */
+  currentCandleFromDB: any | null;
   symbol: string;
 }) {
   const bucketTime = getPeriodBucketMs(rawTs, period);
@@ -176,7 +190,12 @@ function buildRealtimeBucketCandle({
       ? latestHistorical
       : null;
 
-  const base = sameRealtimeBucket || sameHistoricalBucket;
+  const sameDbBucket =
+    currentCandleFromDB && Number(currentCandleFromDB.time) === Number(bucketTime)
+      ? currentCandleFromDB
+      : null;
+
+  const base = sameRealtimeBucket || sameDbBucket || sameHistoricalBucket;
 
   if (!base) {
     return {
@@ -186,9 +205,12 @@ function buildRealtimeBucketCandle({
       high: price,
       low: price,
       close: price,
-      volume: 0,
+      volume: volume != null && volume > 0 ? volume : 0,
     };
   }
+
+  const baseVol = Number(base.volume || 0);
+  const vol = volume != null && volume > 0 ? volume : baseVol;
 
   return {
     symbol,
@@ -197,7 +219,7 @@ function buildRealtimeBucketCandle({
     high: Math.max(Number(base.high ?? price), price),
     low: Math.min(Number(base.low ?? price), price),
     close: price,
-    volume: Number(base.volume || 0),
+    volume: vol,
   };
 }
 
@@ -219,10 +241,13 @@ export default function TradingChart({
   const [loadingChart, setLoadingChart] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
 
+  const { positions, loading: positionsLoading, error: positionsError, refetch: refetchPositions, closePosition } = usePositions();
+
   const loadingMoreCandlesRef = useRef(false);
   const candlePageRef = useRef(1);
   const requestKeyRef = useRef(0);
   const candlesRef = useRef<any[]>([]);
+  const currentCandleFromDBRef = useRef<any>(null);
 
   const PAGE_SIZE = 1000;
 
@@ -273,7 +298,10 @@ export default function TradingChart({
   useEffect(() => {
     const loadInstruments = async () => {
       try {
-        const cached = await get(IDB_KEYS.INSTRUMENTS);
+        const instrumentsCacheKey = isDemoDevMode()
+          ? IDB_KEYS.INSTRUMENTS_DEMO
+          : IDB_KEYS.INSTRUMENTS;
+        const cached = await get(instrumentsCacheKey);
 
         if (Array.isArray(cached) && cached.length > 0) {
           const normalizedCached = normalizeInstrumentList(cached);
@@ -290,7 +318,7 @@ export default function TradingChart({
           return;
         }
 
-        const res = await CompanyService.getCompanies(30000, 1, [
+        const res = await CompanyService.getCompanies(isDemoDevMode() ? 50 : 30000, 1, [
           "symbol",
           "company_name",
         ]);
@@ -298,7 +326,7 @@ export default function TradingChart({
         const normalizedRes = normalizeInstrumentList(res || []);
 
         setInstruments(normalizedRes);
-        await set(IDB_KEYS.INSTRUMENTS, normalizedRes);
+        await set(instrumentsCacheKey, normalizedRes);
 
         const preferred =
           normalizedRes.find((i) => i.symbol === defaultSymbol) ||
@@ -371,11 +399,26 @@ export default function TradingChart({
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
 
+    currentCandleFromDBRef.current = null;
+
     const socket = new SimpleSocket((data) => {
-      if ((data as { type?: string }).type !== "quote") return;
-      if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol) return;
+      const msg = data as { type?: string; symbol?: string; current_candle?: any };
+      const sym = msg.symbol;
+
+      if (msg.type === "initial_quote") {
+        if (sym !== selectedInstrument.symbol) return;
+        if (msg.current_candle) {
+          currentCandleFromDBRef.current = msg.current_candle;
+          setRealtimeCandle(msg.current_candle);
+        }
+        return;
+      }
+
+      if (msg.type !== "quote") return;
+      if (sym !== selectedInstrument.symbol) return;
 
       const price = Number((data as { price: number }).price);
+      const volume = Number((data as { volume?: number }).volume) || undefined;
       const ts = Number((data as { ts?: number }).ts || Date.now());
 
       if (!Number.isFinite(price) || price <= 0) return;
@@ -389,10 +432,12 @@ export default function TradingChart({
 
         return buildRealtimeBucketCandle({
           price,
+          volume,
           rawTs: ts,
           period: selectedPeriod,
           previousRealtime: prev,
           latestHistorical,
+          currentCandleFromDB: currentCandleFromDBRef.current,
           symbol: selectedInstrument.symbol,
         });
       });
@@ -404,6 +449,7 @@ export default function TradingChart({
       socket.send({
         type: "subscribe",
         symbols: [selectedInstrument.symbol],
+        period: selectedPeriod,
       });
     }, 500);
 
@@ -411,6 +457,7 @@ export default function TradingChart({
       clearTimeout(timer);
       socket.disconnect();
       setRealtimeCandle(null);
+      currentCandleFromDBRef.current = null;
     };
   }, [selectedInstrument?.symbol, selectedPeriod]);
 
@@ -425,7 +472,7 @@ export default function TradingChart({
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-[#0B1220]">
       {!isFixed && (
-        <div className="p-2 flex gap-4 border-b border-white/5 flex-none items-center">
+        <div className="p-2 flex flex-wrap gap-2 tablet:gap-4 border-b border-white/5 flex-none items-center">
           <SelectDropdown
             options={instruments.map((i) => ({
               id: i.id,
@@ -491,14 +538,18 @@ export default function TradingChart({
         </div>
       )}
 
-      <div className="flex-1 relative w-full h-full">
-        {isFixed && (
-          <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
-            {selectedInstrument?.symbol || defaultSymbol}
+      <div className="flex h-full min-h-0 w-full flex-1 gap-4">
+        <div className="relative min-h-0 min-w-0 flex-1">
+          {isFixed && (
+            <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
+              {selectedInstrument?.symbol || defaultSymbol}
+            </div>
+          )}
+          <div className="absolute top-2 right-2 z-10">
+            <AddToWatchlistButton symbol={selectedInstrument?.symbol || defaultSymbol} />
           </div>
-        )}
 
-        {loadingChart ? (
+          {loadingChart ? (
           <div className="flex items-center justify-center h-full text-gray-400">
             Loading chart...
           </div>
@@ -507,17 +558,39 @@ export default function TradingChart({
             {chartError}
           </div>
         ) : candles.length ? (
-          <LightChart
-            symbol={selectedInstrument?.symbol || defaultSymbol}
-            data={candles}
-            realtimeCandle={realtimeCandle}
-            onLoadMore={loadMoreCandles}
-            period={selectedPeriod}
-            indicators={selectedIndicators}
-          />
+          <div className="h-full min-h-[220px] min-w-0">
+            <LightChart
+              symbol={selectedInstrument?.symbol || defaultSymbol}
+              data={candles}
+              realtimeCandle={realtimeCandle}
+              onLoadMore={loadMoreCandles}
+              period={selectedPeriod}
+              indicators={selectedIndicators}
+              showTrading={!isFixed}
+              positionsForSymbol={positions.filter((p) => (p.symbol || "").toUpperCase() === (selectedInstrument?.symbol || defaultSymbol).toUpperCase())}
+            />
+          </div>
         ) : (
           <div className="flex items-center justify-center h-full text-yellow-400 text-sm">
             No candle data for {selectedInstrument?.symbol || defaultSymbol}
+          </div>
+        )}
+        </div>
+
+        {!isFixed && (
+          <div className="hidden laptop:flex w-72 pc:w-96 shrink-0 flex-col">
+            <PositionsPanel
+              positions={positions}
+              loading={positionsLoading}
+              error={positionsError}
+              refetch={refetchPositions}
+              closePosition={closePosition}
+              currentPriceBySymbol={
+                selectedInstrument?.symbol && realtimeCandle?.close != null
+                  ? { [selectedInstrument.symbol]: Number(realtimeCandle.close) }
+                  : undefined
+              }
+            />
           </div>
         )}
       </div>

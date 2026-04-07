@@ -1,0 +1,285 @@
+/' Figure 2 — Instruments & content domain
+   Source: backend/database/migrations
+   - 2025_08_09_014600_create_instruments_table.php
+   - 2025_08_09_014630_create_instrument_periods_table.php
+   - 2025_08_09_014700_create_instrument_data_table.php
+   - 2025_08_09_014730_create_indicators_table.php
+   - 2025_08_09_014750_create_knowledge_docs_table.php
+   - 2025_08_09_014800_create_knowledge_table.php
+   - 2025_08_09_014801_create_knowledge_chunk_table.php
+   - 2025_08_09_999999_relationship.php (FKs, uniques)
+   - 2025_09_06_110100_create_stock_attributes_table.php
+   - 2026_01_22_123326_create_stock_entities_table.php
+   - 2026_01_22_123327_create_stock_entity_aliases_table.php
+   - 2026_02_08_084251_create_instrument_snapshot_table.php
+   - 2026_02_12_094627_create_company_profile.php
+   - 2026_02_27_021841_create_crawler_states_table.php
+   - 2026_03_20_000001_add_index_instrument_data_slug.php (index slug)
+'/
+
+@startuml erd_instruments_domain
+!theme plain
+
+title Figure 2 — Instruments & content (Laravel migrations)\nOHLC · fundamentals · RAG · NLP · crawler
+
+skinparam dpi 120
+skinparam defaultFontSize 10
+skinparam roundcorner 8
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam package {
+  BorderColor #6B7280
+  BackgroundColor #FAFAFA
+}
+
+hide circle
+hide methods
+left to right direction
+
+package "Market core" {
+  entity instruments {
+    * **id** : varchar(36) <<PK>>
+    --
+    * **symbol** : varchar(16)
+    * **name** : varchar(500)
+    * **type** : enum(stock,bond,commodity,currency)
+    * **slug** : varchar(300) <<UK>>
+    **exchange** : varchar(255)
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    **deleted_at** : timestamp
+    ..
+    <<UK (symbol,exchange)\n+ slug UK per migrations>>
+  }
+
+  entity instrument_periods {
+    * **id** : uuid <<PK>>
+    --
+    * **instrument_id** : varchar(36) <<FK instruments.id>>
+    * **period** : enum(...)
+    * **market** : varchar(50)
+    * **slug** : varchar <<UK>>
+    **prefix** : varchar
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<UK (instrument_id,period,market)>>
+  }
+
+  entity instrument_data {
+    * **id** : uuid <<PK>>
+    --
+    * **instrument_period_id** : uuid <<FK instrument_periods.id>>
+    * **timestamps** : uuid
+    **open** : decimal(20,10)
+    **high** : decimal(20,10)
+    **low** : decimal(20,10)
+    **close** : decimal(20,10)
+    **volume** : bigint unsigned
+    **source** : varchar
+    * **slug** : varchar
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<UK (instrument_period_id,timestamps)\n+ idx slug>>
+  }
+}
+
+package "Fundamentals & quote" {
+  entity company_profile {
+    * **instrument_id** : varchar(36) <<FK instruments.id>>
+    --
+    * **exchange** : varchar
+    * **company_name** : varchar
+    * **symbol** : varchar
+    **market_cap** : double
+    **industry** : varchar
+    **sector** : varchar
+    **website** : varchar
+    **description** : text
+    **ceo** : varchar
+    **country** : varchar
+    **image** : varchar
+    **full_time_employees** : int
+    **ipo_date** : date
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<no surrogate PK\nin migration>>
+  }
+
+  entity stock_attributes {
+    * **id** : uuid <<PK>>
+    --
+    * **instrument_id** : varchar(36) <<FK instruments.id>>
+    * **date** : date
+    **revenue_low** : bigint
+    **revenue_high** : bigint
+    **revenue_avg** : bigint
+    **ebitda_low** : bigint
+    **ebitda_high** : bigint
+    **ebitda_avg** : bigint
+    **ebit_low** : bigint
+    **ebit_high** : bigint
+    **ebit_avg** : bigint
+    **net_income_low** : bigint
+    **net_income_high** : bigint
+    **net_income_avg** : bigint
+    **sga_expense_low** : bigint
+    **sga_expense_high** : bigint
+    **sga_expense_avg** : bigint
+    **eps_low** : decimal(10,4)
+    **eps_high** : decimal(10,4)
+    **eps_avg** : decimal(10,4)
+    * **num_analysts_revenue** : int unsigned
+    * **num_analysts_eps** : int unsigned
+    **confidence_score** : decimal(5,2)
+    **recommendation** : enum(Buy,Hold,Sell)
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity instrument_snapshot {
+    * **instrument_id** : uuid <<PK>>
+    --
+    * **symbol** : varchar(20)
+    * **price** : double
+    * **open** : double
+    * **volume** : double
+    * **liquidity** : double
+    * **change_pct** : double
+    * **updated_at** : timestamp
+    ..
+    <<no FK to instruments\nin migration>>
+  }
+}
+
+package "Indicator catalogue" {
+  entity indicators {
+    * **id** : uuid <<PK>>
+    --
+    * **name** : varchar(100)
+    **description** : varchar
+    * **slug** : varchar <<UK>>
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<standalone; no strategy join>>
+  }
+}
+
+package "Knowledge (RAG)" {
+  entity knowledge_docs {
+    * **id** : uuid <<PK>>
+    --
+    * **title** : varchar(500)
+    **content** : longtext
+    **image** : varchar(1000)
+    * **category** : enum(article,report,manual)
+    **symbol** : varchar(50)
+    * **source** : varchar <<UK>>
+    **author** : varchar(500)
+    * **language** : varchar(50)
+    * **is_processed** : tinyint
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity knowledge_chunks {
+    * **id** : uuid <<PK>>
+    --
+    * **docs_id** : uuid <<FK knowledge_docs.id>>
+    * **chunk_index** : int
+    * **content** : longtext
+    * **token** : int
+    **data** : json
+    **qdrant_point_id** : uuid
+    **qdrant_upserted_at** : timestamp
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<UK (docs_id,chunk_index)>>
+  }
+
+  entity knowledge {
+    * **id** : uuid <<PK>>
+    --
+    * **topic** : varchar(500)
+    * **content** : text
+    **source_docs_ids** : json
+    **author** : varchar(100)
+    **url_slug** : varchar(500)
+    **published_at** : timestamp
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<JSON refs docs;\nnot relational FK>>
+  }
+}
+
+package "NLP resolution" {
+  entity stock_entities {
+    * **id** : bigint <<PK>>
+    --
+    * **type** : varchar(20)
+    **symbol** : varchar(20)
+    * **name** : varchar(255)
+    * **priority** : int
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+
+  entity stock_entity_aliases {
+    * **id** : bigint <<PK>>
+    --
+    * **entity_id** : bigint <<FK stock_entities.id>>
+    * **alias** : varchar(255)
+    * **alias_norm** : varchar(255)
+    * **weight** : int
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+  }
+}
+
+package "Crawler" {
+  entity crawler_states {
+    * **id** : char(36) <<PK>>
+    --
+    * **source** : varchar(100)
+    * **symbol** : varchar(10)
+    **last_published_at** : timestamp
+    **last_guid** : varchar(500)
+    * **fail_count** : int unsigned
+    **last_error** : text
+    **last_run_at** : timestamp
+    **locked_until** : timestamp
+    * **created_at** : timestamp
+    * **updated_at** : timestamp
+    ..
+    <<UK (source,symbol)>>
+  }
+}
+
+' --- Declared FKs (solid) ---
+instruments ||--o{ instrument_periods : "1 : N"
+instrument_periods ||--o{ instrument_data : "1 : N"
+instruments ||--o{ company_profile : "1 : N"
+instruments ||--o{ stock_attributes : "1 : N"
+
+knowledge_docs ||--o{ knowledge_chunks : "1 : N"
+stock_entities ||--o{ stock_entity_aliases : "1 : N"
+
+' --- Logical only (dotted) ---
+instruments ||..o| instrument_snapshot : "1 : 0..1"
+
+note as N2
+  **knowledge** / **indicators** / **crawler_states**
+  are not FK-linked to **instruments** in schema.
+end note
+
+note bottom of instruments
+  **instruments**: **slug** UK; also **(symbol, exchange)** UK
+  from relationship migration (alongside create-time indexes).
+end note
+
+@enduml

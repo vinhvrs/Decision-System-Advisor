@@ -1,44 +1,49 @@
+"""
+GDELT ingest, title filtering / dedup, article body resolution, and scheduled pipelines.
+
+RSS Yahoo crawl stays in ``news_crawler``. Set ``NEWS_HANDLE_ENABLED`` to turn this on.
+"""
 import hashlib
+import json
 import logging
 import re
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
-import pymysql
 import requests
-import yfinance as yf
-from newspaper import Article
 
-from config.settings import Config
-from app.pipeline.pipeline_processor import calculate_price_impact
+from app.data_collect.collectors.news_crawler import db_conn, fetch_article_content, run_yahoo_rss_crawl
+from app.data_collect.symbol_ingest import fetch_companies_for_ingest, resolve_ingest_scope
 
 logger = logging.getLogger(__name__)
 
+# Master switch: GDELT + run_daily_update / run_deep_news_backfill (off until explicitly enabled).
+NEWS_HANDLE_ENABLED = False
+
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 
-BLACKLIST = re.compile(
+GDELT_BLACKLIST = re.compile(
     r"(?i)(zacks rank|should you buy|stock of the day|market wrap|what to watch|"
     r"opinion|dow jones|s&p 500|wall street fell|wall street hits|buy or sell|"
     r"is it too late|top stocks|stocks to watch)"
 )
 
-EVENT_TRIGGERS = re.compile(
+GDELT_EVENT_TRIGGERS = re.compile(
     r"(?i)(earnings|revenue|guidance|q[1-4]|dividend|launches|unveils|"
     r"acquires|merger|partnership|secures|resigns|steps down|lawsuit|sued|"
     r"fda approval|layoffs|cuts jobs|bankruptcy)"
 )
 
-PATTERN_RULES = {
-    "EARNINGS": r"\b(earnings|q[1-4]|revenue|guidance)\b",
-    "PRODUCT": r"\b(launches|unveils|releases|new product)\b",
-    "M&A": r"\b(acquires|merger|partnership|takeover)\b",
-    "REGULATORY": r"\b(fda|lawsuit|sec|sued|investigation)\b",
-    "MACRO": r"\b(fed|interest rate|inflation|cpi)\b",
-    "MANAGEMENT": r"\b(ceo|resigns|steps down|layoffs)\b",
-}
+RELAXED_STOCK_NEWS = re.compile(
+    r"(?i)\b(stock|stocks|shares?|investors?|trading|traders?|nasdaq|nyse|"
+    r"quarter|quarterly|profit|loss|sales|revenue|forecast|guidance|"
+    r"upgrade|downgrade|analyst|price target|eps|dividend|buyback|"
+    r"ceo|cfo|chairman|board|reports?|announces?|warns?|beats?|miss(es)?)\b"
+)
 
-HEADERS = {
+GDELT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -49,26 +54,20 @@ HEADERS = {
 }
 
 
-def get_db_connection():
-    db_params = Config.DB_CONFIG.copy()
-    if "cursorclass" not in db_params:
-        db_params["cursorclass"] = pymysql.cursors.DictCursor
-    return pymysql.connect(**db_params)
+def get_all_companies(
+    symbol_scope: Optional[str] = None,
+    top_n: Optional[int] = None,
+) -> List[Dict]:
+    """
+    Companies for GDELT + corporate ingest.
 
-
-def get_all_companies() -> List[Dict]:
-    conn = get_db_connection()
+    ``symbol_scope`` / ``top_n`` default from env ``SYMBOL_INGEST_MODE`` (``all`` | ``top_snapshot``)
+    and ``SYMBOL_INGEST_TOP_N`` (default 20).
+    """
+    mode, n = resolve_ingest_scope(symbol_scope, top_n)
+    conn = db_conn()
     try:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT symbol, company_name
-                FROM company_profile
-                WHERE symbol IS NOT NULL
-                  AND company_name IS NOT NULL
-                """
-            )
-            return cursor.fetchall()
+        return fetch_companies_for_ingest(conn, symbol_scope=mode, top_n=n)
     finally:
         conn.close()
 
@@ -84,8 +83,38 @@ def normalize_company_tokens(company_name: str) -> List[str]:
     return [t for t in tokens if len(t) > 2 and t not in stop]
 
 
+def parse_gdelt_seendate(raw: Optional[str]) -> Optional[datetime]:
+    if not raw:
+        return None
+    s = str(raw).strip().rstrip("Z")
+    attempts: List[Tuple[str, str]] = []
+    if len(s) >= 15 and "T" in s:
+        attempts.append((s[:15], "%Y%m%dT%H%M%S"))
+    if len(s) >= 14 and s[:8].isdigit():
+        attempts.append((s[:14], "%Y%m%d%H%M%S"))
+    if len(s) >= 10 and s[4] == "-":
+        attempts.append((s[:19], "%Y-%m-%dT%H:%M:%S"))
+    if len(s) >= 8 and s[:8].isdigit():
+        attempts.append((s[:8], "%Y%m%d"))
+    for val, fmt in attempts:
+        try:
+            return datetime.strptime(val, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def build_gdelt_query(symbol: str, company_name: str) -> str:
+    sym = (symbol or "").strip().upper()
+    name = re.sub(r'["\']', " ", company_name or "")
+    name = " ".join(name.split()).strip()[:140]
+    if name and name.upper() != sym:
+        return f"{sym} OR ({name})"
+    return sym
+
+
 def is_valuable_event(title: str, symbol: str, company_name: str) -> bool:
-    if not title:
+    if not title or len(title.strip()) < 12:
         return False
 
     title_lower = title.lower()
@@ -93,18 +122,21 @@ def is_valuable_event(title: str, symbol: str, company_name: str) -> bool:
     company_tokens = normalize_company_tokens(company_name)
 
     has_symbol = bool(re.search(rf"\b{re.escape(symbol_lower)}\b", title_lower))
-    has_company = any(tok in title_lower for tok in company_tokens[:2])
+    has_company = any(tok in title_lower for tok in company_tokens[:8])
 
     if not (has_symbol or has_company):
         return False
 
-    if BLACKLIST.search(title_lower):
+    if GDELT_BLACKLIST.search(title_lower):
         return False
 
-    if not EVENT_TRIGGERS.search(title_lower):
-        return False
+    if GDELT_EVENT_TRIGGERS.search(title_lower):
+        return True
 
-    return True
+    if RELAXED_STOCK_NEWS.search(title_lower):
+        return True
+
+    return False
 
 
 def get_jaccard_similarity(text1: str, text2: str) -> float:
@@ -129,15 +161,7 @@ def deduplicate_news(articles: List[Dict], threshold: float = 0.45) -> List[Dict
     return unique_events
 
 
-def extract_pattern_type(title: str) -> str:
-    title_lower = (title or "").lower()
-    for pattern_type, regex in PATTERN_RULES.items():
-        if re.search(regex, title_lower):
-            return pattern_type
-    return "GENERAL"
-
-
-def save_to_knowledge_docs(
+def save_gdelt_to_knowledge_docs(
     conn,
     doc_id: str,
     symbol: str,
@@ -146,80 +170,69 @@ def save_to_knowledge_docs(
     published_at,
     url: str,
 ) -> None:
+    now = datetime.now()
+    hash_key = doc_id if len(doc_id) == 32 else hashlib.md5(doc_id.encode("utf-8")).hexdigest()
     with conn.cursor() as cursor:
-        sql = """
-            INSERT IGNORE INTO knowledge_docs_temp
-            (id, symbol, title, content, published_at, source, is_processed)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """
         cursor.execute(
-            sql,
-            (doc_id, symbol, title, content, published_at, url, 1),
-        )
-
-
-def save_to_inference_results(conn, event: Dict, source_name: str = "GDELT") -> None:
-    if event["candles_elapsed"] < 7:
-        rec = "Maybe up trend" if event["pre_trend"] > 0 else "Maybe down trend"
-        status = "PENDING"
-    else:
-        rec = "BUY" if event["post_trend"] > 1.5 else ("SELL" if event["post_trend"] < -1.5 else "HOLD")
-        status = "COMPLETED"
-
-    inference_id = generate_doc_id(
-        event["symbol"],
-        event["title"],
-        event["published_at"],
-        f"{source_name}|{event.get('doc_id', '0')}",
-    )
-
-    with conn.cursor() as cursor:
-        sql = """
-            INSERT IGNORE INTO knowledge_inference_results
-            (id, symbol, doc_id, title, published_at, pre_trend, post_trend,
-             recommendation, pattern_type, status, candles_elapsed)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(
-            sql,
+            """
+            INSERT IGNORE INTO knowledge_docs
+            (id, hash_key, title, content, published_at, image, category, symbol, source, author, language, created_at, updated_at, is_processed)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
             (
-                inference_id,
-                event["symbol"],
-                event.get("doc_id", "0"),
-                event["title"][:450],
-                event["published_at"],
-                event["pre_trend"],
-                event["post_trend"],
-                rec,
-                event.get("pattern_type", "GENERAL"),
-                status,
-                event.get("candles_elapsed", 0),
+                doc_id,
+                hash_key,
+                title,
+                content,
+                published_at,
+                None,
+                "article",
+                symbol,
+                url,
+                None,
+                "en",
+                now,
+                now,
+                0,
             ),
         )
 
 
 def fetch_content_waterfall(url: str, title: str) -> Tuple[str, Optional[datetime]]:
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        if article.text and len(article.text) > 150:
-            return article.text, article.publish_date
-    except Exception:
-        pass
+    content, p_date = fetch_article_content(url)
+    if content:
+        return content, p_date
+    return f"Brief: {title}. Read more: {url}", None
 
-    return f"News Brief: {title}. Full article content available at: {url}", None
+
+def ensure_article_body(url: str, title: str) -> Optional[str]:
+    text, _ = fetch_content_waterfall(url, title)
+    text = (text or "").strip()
+    if len(text) >= 60:
+        return text
+    try:
+        host = urlparse(url).netloc or "publisher"
+    except Exception:
+        host = "publisher"
+    stub = (
+        f"{title.strip()}\n\n"
+        f"Automated summary: full article text could not be extracted (publisher may block bots). "
+        f"Source: {host}. The original URL is stored in the news record for reference."
+    )
+    return stub if len(stub) >= 60 else None
 
 
 def request_gdelt_chunk(
     session: requests.Session,
+    symbol: str,
     company_name: str,
     chunk_start: datetime,
     chunk_end: datetime,
     mode: str = "daily",
 ) -> Optional[Dict]:
+    q = build_gdelt_query(symbol=symbol, company_name=company_name)
     params = {
-        "query": f'"{company_name}" stock',
+        "query": f"({q}) (stock OR shares OR investor OR earnings OR nasdaq OR nyse OR company)",
         "mode": "ArtList",
         "maxrecords": 75,
         "format": "json",
@@ -230,7 +243,7 @@ def request_gdelt_chunk(
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            res = session.get(GDELT_URL, params=params, headers=HEADERS, timeout=45)
+            res = session.get(GDELT_URL, params=params, headers=GDELT_HEADERS, timeout=45)
 
             if res.status_code == 429:
                 sleep_time = (30 if mode == "daily" else 300) * (attempt + 1)
@@ -245,9 +258,11 @@ def request_gdelt_chunk(
 
             if res.status_code != 200:
                 wait_time = 10 * (attempt + 1)
+                snippet = (res.text or "")[:180].replace("\n", " ")
                 logger.warning(
-                    "GDELT returned HTTP %s. Retry %d/%d after %ss.",
+                    "GDELT HTTP %s (body prefix %r). Retry %d/%d after %ss.",
                     res.status_code,
+                    snippet,
                     attempt + 1,
                     max_retries,
                     wait_time,
@@ -255,16 +270,47 @@ def request_gdelt_chunk(
                 time.sleep(wait_time)
                 continue
 
-            return res.json()
+            raw = (res.text or "").strip()
+            if not raw:
+                wait_time = 10 * (attempt + 1)
+                logger.warning(
+                    "GDELT empty response body. Retry %d/%d after %ss.",
+                    attempt + 1,
+                    max_retries,
+                    wait_time,
+                )
+                time.sleep(wait_time)
+                continue
+
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as je:
+                wait_time = 10 * (attempt + 1)
+                logger.warning(
+                    "GDELT not JSON (%s). First 160 chars: %r. Retry %d/%d after %ss.",
+                    je,
+                    raw[:160],
+                    attempt + 1,
+                    max_retries,
+                    wait_time,
+                )
+                time.sleep(wait_time)
+                continue
 
         except requests.RequestException as e:
             wait_time = 10 * (attempt + 1)
+            hint = ""
+            if "Connection refused" in str(e) or "Errno 111" in str(e):
+                hint = " Check outbound HTTPS to api.gdeltproject.org (firewall/DNS/proxy). Set HTTPS_PROXY if required."
+            elif "Failed to resolve" in str(e) or "Name or service not known" in str(e):
+                hint = " Check DNS resolution for api.gdeltproject.org."
             logger.warning(
-                "GDELT request failed: %s. Retry %d/%d after %ss.",
+                "GDELT request failed: %s. Retry %d/%d after %ss.%s",
                 e,
                 attempt + 1,
                 max_retries,
                 wait_time,
+                hint,
             )
             time.sleep(wait_time)
 
@@ -279,7 +325,10 @@ def fetch_and_fill_window(
     session: Optional[requests.Session] = None,
     mode: str = "daily",
 ) -> None:
-    logger.info("Sliding Window: %s <- %s", start_dt.date(), end_dt.date())
+    if not NEWS_HANDLE_ENABLED:
+        return
+
+    logger.info("GDELT window: %s <- %s", start_dt.date(), end_dt.date())
 
     own_session = False
     if session is None:
@@ -291,7 +340,7 @@ def fetch_and_fill_window(
         while current_chunk_end > start_dt:
             current_chunk_start = max(current_chunk_end - timedelta(days=30), start_dt)
             logger.info(
-                "Scanning GDELT for %s: %s to %s",
+                "GDELT chunk %s: %s to %s",
                 symbol,
                 current_chunk_start.date(),
                 current_chunk_end.date(),
@@ -299,6 +348,7 @@ def fetch_and_fill_window(
 
             payload = request_gdelt_chunk(
                 session=session,
+                symbol=symbol,
                 company_name=company_name,
                 chunk_start=current_chunk_start,
                 chunk_end=current_chunk_end,
@@ -319,9 +369,8 @@ def fetch_and_fill_window(
                     if not is_valuable_event(title, symbol, company_name):
                         continue
 
-                    try:
-                        pub_date = datetime.strptime(art["seendate"], "%Y%m%dT%H%M%SZ")
-                    except Exception:
+                    pub_date = parse_gdelt_seendate(art.get("seendate"))
+                    if not pub_date:
                         continue
 
                     valid_articles.append(
@@ -334,15 +383,15 @@ def fetch_and_fill_window(
 
                 unique_articles = deduplicate_news(valid_articles)
                 logger.info(
-                    "%s raw -> %s filtered -> %s unique for %s",
+                    "%s raw %s -> filtered %s -> unique %s",
+                    symbol,
                     len(articles),
                     len(valid_articles),
                     len(unique_articles),
-                    symbol,
                 )
 
                 if unique_articles:
-                    conn = get_db_connection()
+                    conn = db_conn()
                     try:
                         for art in unique_articles:
                             url = art.get("url")
@@ -350,47 +399,33 @@ def fetch_and_fill_window(
                                 continue
 
                             logger.info("Fetching content: %s", art["title"][:80])
-                            content, _ = fetch_content_waterfall(url, art["title"])
-
-                            if not content or len(content) < 100:
+                            content = ensure_article_body(url, art["title"])
+                            if not content:
                                 continue
 
                             doc_id = generate_doc_id(symbol, art["title"], art["published_at"], url)
+                            sym_upper = str(symbol).strip().upper()
 
-                            save_to_knowledge_docs(
-                                conn=conn,
-                                doc_id=doc_id,
-                                symbol=symbol,
-                                title=art["title"],
-                                content=content,
-                                published_at=art["published_at"],
-                                url=url,
-                            )
-
-                            pre, post, trade_date, elapsed = calculate_price_impact(art["published_at"], symbol)
-
-                            if trade_date:
-                                save_to_inference_results(
+                            try:
+                                save_gdelt_to_knowledge_docs(
                                     conn=conn,
-                                    event={
-                                        "doc_id": doc_id,
-                                        "symbol": symbol,
-                                        "title": art["title"],
-                                        "published_at": art["published_at"],
-                                        "pre_trend": pre,
-                                        "post_trend": post,
-                                        "pattern_type": extract_pattern_type(art["title"]),
-                                        "candles_elapsed": elapsed,
-                                    },
-                                    source_name="GDELT",
+                                    doc_id=doc_id,
+                                    symbol=sym_upper,
+                                    title=art["title"],
+                                    content=content,
+                                    published_at=art["published_at"],
+                                    url=url,
                                 )
+                            except Exception as exc:
+                                logger.exception("knowledge_docs insert failed for %s: %s", sym_upper, exc)
+                                continue
 
                         conn.commit()
                     finally:
                         conn.close()
 
             except Exception as e:
-                logger.exception("Parsing Error for %s: %s", symbol, e)
+                logger.exception("GDELT parse error for %s: %s", symbol, e)
 
             time.sleep(2 if mode == "daily" else 15)
             current_chunk_end = current_chunk_start - timedelta(seconds=1)
@@ -400,119 +435,131 @@ def fetch_and_fill_window(
             session.close()
 
 
-def fetch_corporate_actions(
-    symbol: str,
-    company_name: str,
-    start_dt: Optional[datetime] = None,
-    end_dt: Optional[datetime] = None,
+def run_daily_update(
+    lookback_days: int = 1,
+    symbol_scope: Optional[str] = None,
+    top_n: Optional[int] = None,
 ) -> None:
-    logger.info("Fetching Corporate Actions for %s", symbol)
-    try:
-        tk = yf.Ticker(symbol)
-        actions = tk.actions
-        if actions.empty:
-            return
+    """
+    Scheduled ingest: Yahoo corporate actions (``stock_sync``) + optional GDELT, then Yahoo RSS → ``knowledge_docs``.
 
-        if start_dt is not None:
-            # Ensure timezone-aware comparison is valid by aligning tz info
-            idx = actions.index
-            if idx.tz is not None and start_dt.tzinfo is None:
-                start_dt = start_dt.replace(tzinfo=idx.tz)
-            actions = actions[actions.index >= start_dt]
-        if end_dt is not None:
-            idx = actions.index
-            if idx.tz is not None and end_dt.tzinfo is None:
-                end_dt = end_dt.replace(tzinfo=idx.tz)
-            actions = actions[actions.index <= end_dt]
+    ``symbol_scope`` / ``top_n`` select universe for corporate/GDELT (see ``get_all_companies``).
+    RSS symbols come from ``news_crawler.list_rss_symbols`` (default: fixed 20-ticker demo list).
+    Corporate sync runs when companies exist; GDELT only when ``NEWS_HANDLE_ENABLED`` is True.
+    """
+    from app.data_collect.collectors.stock_sync import sync_corporate_actions
 
-        if actions.empty:
-            return
-
-        conn = get_db_connection()
-        try:
-            for date, row in actions.iterrows():
-                event_type = "Dividend" if row.get("Dividends", 0) > 0 else "Stock Split"
-                value = row.get("Dividends", 0) if event_type == "Dividend" else row.get("Stock Splits", 0)
-                title = f"[{symbol}] Corporate Action: {event_type} of {value}"
-
-                impact_result = calculate_price_impact(date, symbol)
-                if len(impact_result) == 4:
-                    pre, post, trade_date, elapsed = impact_result
-                else:
-                    pre, post, trade_date = impact_result
-                    elapsed = 7
-
-                if not trade_date:
-                    continue
-
-                doc_id = generate_doc_id(symbol, title, date, "YFinance_Action")
-
-                save_to_knowledge_docs(
-                    conn=conn,
-                    doc_id=doc_id,
-                    symbol=symbol,
-                    title=title,
-                    content=f"Official corporate action data from Yahoo Finance: {event_type} of {value}",
-                    published_at=date,
-                    url="YFinance_Action",
-                )
-
-                save_to_inference_results(
-                    conn=conn,
-                    event={
-                        "doc_id": doc_id,
-                        "symbol": symbol,
-                        "title": title,
-                        "published_at": date,
-                        "pre_trend": pre,
-                        "post_trend": post,
-                        "pattern_type": "CORPORATE_ACTION",
-                        "candles_elapsed": elapsed,
-                    },
-                    source_name="YFinance",
-                )
-
-            conn.commit()
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.exception("Corporate Action Error for %s: %s", symbol, e)
-
-
-def run_daily_update(lookback_days: int = 1) -> None:
-    companies = get_all_companies()
+    companies = get_all_companies(symbol_scope=symbol_scope, top_n=top_n)
     if not companies:
-        logger.error("No companies found in database.")
-        return
+        logger.warning("No companies from ingest scope; corporate actions + GDELT loop skipped.")
+
+    if not NEWS_HANDLE_ENABLED:
+        logger.info("news_handle: GDELT/analysis disabled (NEWS_HANDLE_ENABLED=False); corporate sync only.")
 
     end_dt = datetime.now()
     start_dt = end_dt - timedelta(days=lookback_days)
 
-    session = requests.Session()
+    session = requests.Session() if NEWS_HANDLE_ENABLED else None
     try:
         for co in companies:
             symbol = co["symbol"]
             company_name = co["company_name"]
 
             logger.info("=" * 60)
-            logger.info("DAILY UPDATE: %s | %s -> %s", symbol, start_dt.date(), end_dt.date())
+            logger.info("NEWS INGEST: %s | %s -> %s", symbol, start_dt.date(), end_dt.date())
 
-            fetch_corporate_actions(symbol, company_name, start_dt, end_dt)
-            fetch_and_fill_window(
-                symbol=symbol,
-                company_name=company_name,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                session=session,
-                mode="daily",
-            )
+            sync_corporate_actions(symbol, company_name, start_dt, end_dt)
+            if NEWS_HANDLE_ENABLED and session is not None:
+                fetch_and_fill_window(
+                    symbol=symbol,
+                    company_name=company_name,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    session=session,
+                    mode="daily",
+                )
 
             time.sleep(1)
     finally:
-        session.close()
+        if session is not None:
+            session.close()
+
+    try:
+        rss_stats = run_yahoo_rss_crawl()
+        logger.info("Yahoo RSS → knowledge_docs: %s", rss_stats)
+    except Exception as e:
+        logger.exception("Yahoo RSS crawl failed: %s", e)
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    run_daily_update(lookback_days=1)
+def run_deep_news_backfill(
+    limit_year: int = 2018,
+    symbol_scope: Optional[str] = None,
+    top_n: Optional[int] = None,
+) -> None:
+    """
+    Historical GDELT windows + full corporate history (replaces ``all_in_one_v3.run_deep_fill_process``).
+    """
+    if not NEWS_HANDLE_ENABLED:
+        logger.info("news_handle: run_deep_news_backfill skipped (NEWS_HANDLE_ENABLED=False).")
+        return
+
+    from app.data_collect.collectors.stock_sync import sync_corporate_actions
+
+    companies = get_all_companies(symbol_scope=symbol_scope, top_n=top_n)
+    if not companies:
+        logger.error("No companies for deep backfill.")
+        return
+
+    for co in companies:
+        symbol = co["symbol"]
+        company_name = co["company_name"]
+        logger.info("%s\n[backfill] %s", "=" * 60, symbol)
+
+        sync_corporate_actions(symbol, company_name)
+
+        conn = db_conn()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT MIN(published_at) AS oldest
+                    FROM knowledge_docs
+                    WHERE symbol = %s
+                      AND IFNULL(source, '') != 'YFinance_Action'
+                    """,
+                    (symbol,),
+                )
+                res = cursor.fetchone()
+                current_end = res["oldest"] if res and res["oldest"] else datetime.now()
+        finally:
+            conn.close()
+
+        target_limit = datetime(limit_year, 1, 1)
+        logger.info("[backfill] oldest anchor %s | target >= %s", current_end.date(), limit_year)
+
+        session = requests.Session()
+        try:
+            while current_end > target_limit:
+                current_start = current_end - timedelta(days=365)
+                fetch_and_fill_window(
+                    symbol,
+                    company_name,
+                    current_start,
+                    current_end,
+                    session=session,
+                    mode="backfill",
+                )
+                current_end = current_start
+                logger.info("[backfill] next anchor %s", current_end.date())
+                time.sleep(3)
+        finally:
+            session.close()
+
+
+__all__ = [
+    "NEWS_HANDLE_ENABLED",
+    "run_daily_update",
+    "run_deep_news_backfill",
+    "get_all_companies",
+    "fetch_and_fill_window",
+]

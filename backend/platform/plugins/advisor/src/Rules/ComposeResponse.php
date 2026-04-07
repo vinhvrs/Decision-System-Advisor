@@ -23,17 +23,17 @@ class ComposeResponse
         $decision = $ctx->memory['decision'] ?? [];
         $strategy = $decision['strategy'] ?? [];
 
-        // 1️⃣ Nếu cần data nhưng thiếu entity
+        // 1) Data required but entity missing
         if (($strategy['require_data'] ?? false) && empty($decision['entities'])) {
             return $this->fallbackMissingEntity();
         }
 
-        // 2️⃣ Nếu không cho phép LLM / phrasing
+        // 2) LLM / phrasing not allowed
         if (($strategy['allow_llm'] ?? false) === false) {
             return $text;
         }
 
-        // 3️⃣ Compose phrased response
+        // 3) Compose phrased response
         $prefix   = $this->pickPrefix($ctx, $strategy);
         $body     = $this->pickIntentPhrase($intent);
         $followUp = $this->pickFollowUp($ctx);

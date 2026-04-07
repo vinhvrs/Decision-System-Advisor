@@ -4,6 +4,7 @@ export type User = {
     email: string;
     phone: string;
     name: string;
+    role?: string;
 };
 
 export interface UserAPI {
@@ -12,4 +13,5 @@ export interface UserAPI {
     email: string;
     phone: string;
     name: string;
+    role?: string;
 }
