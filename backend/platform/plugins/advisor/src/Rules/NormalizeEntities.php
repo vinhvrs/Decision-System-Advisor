@@ -26,11 +26,7 @@ class NormalizeEntities
             'indicators' => [],
         ];
 
-        /**
-         * --------------------------------------------------
-         * 1️⃣ INDICATORS (EXPLICIT, FROM DICTIONARY)
-         * --------------------------------------------------
-         */
+        /* 1) Indicators (explicit, from dictionary) */
         foreach ($tokens as $token) {
             $lower = strtolower($token);
 
@@ -39,11 +35,7 @@ class NormalizeEntities
             }
         }
 
-        /**
-         * --------------------------------------------------
-         * 2️⃣ BUILD BLACKLIST (DO NOT BECOME TICKER)
-         * --------------------------------------------------
-         */
+        /* 2) Blacklist tokens that must not become tickers */
         $blacklist = array_merge(
             $semantic['actions'] ?? [],
             array_keys($semantic['constraints'] ?? []),
@@ -51,7 +43,7 @@ class NormalizeEntities
             array_keys($semantic['features'] ?? []),
             $this->strategy['verbs'] ?? [],
             $this->strategy['fillers'] ?? [],
-            $this->strategy['stopwords'] ?? [],   // 👈 CHÌA KHÓA CUỐI
+            $this->strategy['stopwords'] ?? [],
             $this->strategy['negations'] ?? [],
             $this->strategy['domain_nouns'] ?? []
         );
@@ -59,36 +51,28 @@ class NormalizeEntities
 
         $blacklist = array_map('strtolower', $blacklist);
 
-        /**
-         * --------------------------------------------------
-         * 3️⃣ TICKER CANDIDATES (STRICT)
-         * --------------------------------------------------
-         */
+        /* 3) Ticker candidates (strict) */
         foreach ($tokens as $token) {
             $upper = strtoupper($token);
             $lower = strtolower($token);
 
-            // ❌ Skip anything already classified
+            // Skip blacklisted tokens
             if (in_array($lower, $blacklist, true)) {
                 continue;
             }
 
-            // ❌ Skip indicators
+            // Skip dictionary indicators
             if (isset($this->indicators[$lower])) {
                 continue;
             }
 
-            // ✅ Heuristic: stock ticker format
+            // Heuristic: stock ticker shape
             if (preg_match('/^[A-Z]{2,6}$/', $upper)) {
                 $entities['tickers'][] = $upper;
             }
         }
 
-        /**
-         * --------------------------------------------------
-         * 4️⃣ DEDUP
-         * --------------------------------------------------
-         */
+        /* 4) Deduplicate */
         $entities['tickers'] = array_values(array_unique($entities['tickers']));
         $entities['indicators'] = array_values(array_unique($entities['indicators']));
 

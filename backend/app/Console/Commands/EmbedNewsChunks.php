@@ -72,13 +72,12 @@ class EmbedNewsChunks extends Command
                 'knowledge_id' => $chunk->knowledge_id ? (string) $chunk->knowledge_id : null,
 
                 'type' => $meta['type'] ?? 'news',
-                'symbol' => $symbol, // ✅ filter luôn theo symbol, nhưng lấy từ ticker nếu cần
+                'symbol' => $symbol,
 
                 'title' => $meta['title'] ?? null,
                 'url' => $meta['url'] ?? null,
                 'source' => $chunk->source ?? ($meta['source'] ?? null),
 
-                // event_date đang có sẵn trong data của bạn
                 'published_at' => $meta['published_at'] ?? $meta['event_date'] ?? null,
                 'tags' => $meta['tags'] ?? [],
             ];

@@ -15,7 +15,7 @@ class RedisInit extends Command
 
     public function handle()
     {
-        $this->info('🔌 Checking Redis connection...');
+        $this->info('Checking Redis connection...');
 
         Redis::set('ping', 'ok');
 
@@ -26,8 +26,7 @@ class RedisInit extends Command
 
         $this->info('Redis OK');
 
-        // ⚠️ chỉ bật nếu muốn reset
-        // Redis::flushall();
+        // Uncomment to wipe Redis: Redis::flushall();
 
         $this->info('Building liquidity...');
         app(LiquidityService::class)->rebuildDaily();

@@ -29,7 +29,7 @@ class ElasticRetriever
                             ],
                         ],
                     ],
-                    'filter' => [], // ✅ luôn có để push filter
+                    'filter' => [],
                 ],
             ],
             'sort' => [
@@ -38,12 +38,8 @@ class ElasticRetriever
         ];
 
         if ($symbol) {
-            // ✅ CHỌN 1 trong 2 dòng bên dưới tùy mapping của bạn
-
-            // (A) symbol top-level:
-            // $body['query']['bool']['filter'][] = ['term' => ['symbol.keyword' => $symbol]];
-
-            // (B) symbol trong data:
+            // Use (A) or (B) depending on index mapping:
+            // (A) $body['query']['bool']['filter'][] = ['term' => ['symbol.keyword' => $symbol]];
             $body['query']['bool']['filter'][] = ['term' => ['data.symbol.keyword' => $symbol]];
         }
 

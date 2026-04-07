@@ -61,10 +61,10 @@ class FetchNewsBackfillGNews extends Command
                     if ($inserted === 0) {
                         $emptyCount++;
                     } else {
-                        $emptyCount = 0; // reset nếu có bài
+                        $emptyCount = 0;
                     }
 
-                    // Nếu X quý liên tiếp không có bài -> bỏ symbol, chuyển sang symbol khác
+                    // After N consecutive empty quarters, move to the next symbol
                     if ($emptyCount >= $emptyLimit) {
                         $this->warn("No data for {$symbol} in {$emptyCount} consecutive windows. Switching symbol...");
                         break 2; // break both month loop + year loop

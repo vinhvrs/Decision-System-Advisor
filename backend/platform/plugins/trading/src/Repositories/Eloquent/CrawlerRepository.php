@@ -11,12 +11,12 @@ use Illuminate\Support\Facades\DB;
 class CrawlerRepository implements CrawlerInterface
 {
     /**
-     * Lấy symbols theo chunk: ưu tiên instruments, fallback company_profile.
-     * afterSymbol dùng để paging theo alphabet (A -> Z).
+     * Symbols for one chunk: prefer instruments, fallback company_profile.
+     * afterSymbol: alphabet paging (A–Z).
      */
     public function getSymbolsChunk(string $source, int $chunkSize = 500, ?string $afterSymbol = null): Collection
     {
-        // instruments là nguồn chuẩn nhất vì có type/slug/exchange...
+        // instruments is the canonical source (type, slug, exchange, …)
         $q = DB::table('instruments')
             ->select('symbol')
             ->whereNotNull('symbol')
@@ -29,7 +29,7 @@ class CrawlerRepository implements CrawlerInterface
 
         $symbols = $q->limit($chunkSize)->pluck('symbol');
 
-        // nếu instruments trống (hiếm), fallback company_profile
+        // Rare: empty instruments → company_profile
         if ($symbols->isEmpty()) {
             $q2 = DB::table('company_profile')
                 ->select('symbol')
@@ -64,9 +64,9 @@ class CrawlerRepository implements CrawlerInterface
     }
 
     /**
-     * Soft lock bằng locked_until (cần cột locked_until trong migration).
-     * - Nếu locked_until null hoặc đã hết hạn => set locked_until = now + lockSeconds
-     * - Trả true nếu update thành công (tức lock được)
+     * Soft lock via locked_until (requires column in migration).
+     * If null or expired, set locked_until = now + lockSeconds.
+     * Returns true when the conditional update acquired the lock.
      */
     public function acquireLock(string $source, string $symbol, int $lockSeconds = 600): bool
     {
@@ -74,7 +74,7 @@ class CrawlerRepository implements CrawlerInterface
         $now = now();
         $until = $now->copy()->addSeconds($lockSeconds);
 
-        // update có điều kiện để tránh race
+        // Conditional update to avoid races
         $updated = DB::table('crawler_states')
             ->where('source', $source)
             ->where('symbol', $symbol)
@@ -87,7 +87,7 @@ class CrawlerRepository implements CrawlerInterface
                 'updated_at' => $now,
             ]);
 
-        // Nếu state chưa tồn tại thì tạo trước rồi lock lại
+        // No row matched: create state then retry lock
         if ($updated === 0) {
             $this->getOrCreateState($source, $symbol);
 

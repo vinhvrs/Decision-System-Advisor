@@ -8,13 +8,9 @@ class ElasticRetriever:
         self.url = settings.ELASTIC_HOST.rstrip('/')
         self.index = settings.ELASTIC_INDEX
         self.logger = logging.getLogger(__name__)
-        # TỐI ƯU: Khởi tạo HTTP client dùng chung để giữ kết nối (Connection Pooling/Keep-Alive)
         self.client = httpx.AsyncClient(timeout=10.0)
 
     async def search(self, query: str, limit: int = 10, symbol: Optional[str] = None) -> List[dict]:
-        """
-        Tìm kiếm từ khóa (Full-text search) trên Elasticsearch
-        """
         body = {
             "size": limit,
             "query": {
@@ -35,15 +31,11 @@ class ElasticRetriever:
         }
 
         if symbol:
-            # Lọc chính xác theo mã chứng khoán
-            # 💡 LƯU Ý: Nếu Elasticsearch của bạn lưu phẳng {"symbol": "NVDA"}, 
-            # hãy sửa dòng dưới thành: "term": {"symbol.keyword": symbol.upper()}
             body["query"]["bool"]["filter"].append({
                 "term": {"data.symbol.keyword": symbol.upper()}
             })
 
         try:
-            # Dùng trực tiếp self.client, bỏ block "async with" để không tạo kết nối mới mỗi lần query
             response = await self.client.post(
                 f"{self.url}/{self.index}/_search",
                 json=body
@@ -57,7 +49,7 @@ class ElasticRetriever:
                     "id": hit["_id"],
                     "score": hit["_score"],
                     "payload": hit["_source"],
-                    "source": "elastic" # Bổ sung để Merger nhận diện
+                    "source": "elastic",
                 } for hit in hits
             ]
         except Exception as e:

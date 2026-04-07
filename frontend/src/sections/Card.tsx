@@ -7,6 +7,8 @@ interface CardProps {
   rightSlot?: ReactNode; // % change, badge, icon
   children: ReactNode;
   className?: string;
+  /** Merged onto the inner content wrapper (default: padding). Use e.g. `flex-1 min-h-0 p-0` for charts. */
+  bodyClassName?: string;
 }
 
 export default function Card({
@@ -15,6 +17,7 @@ export default function Card({
   rightSlot,
   children,
   className,
+  bodyClassName,
 }: CardProps) {
   return (
     <div
@@ -26,7 +29,7 @@ export default function Card({
       )}
     >
       {(title || rightSlot) && (
-        <div className="flex items-center justify-between px-5 pt-4">
+        <div className="flex items-center justify-between px-4 tablet:px-5 pt-3 tablet:pt-4">
           <div>
             {title && (
               <h3 className="text-sm font-semibold text-white">
@@ -48,7 +51,12 @@ export default function Card({
         </div>
       )}
 
-      <div className="px-5 pb-5 pt-3">
+      <div
+        className={clsx(
+          "px-4 tablet:px-5 pb-4 tablet:pb-5 pt-2 tablet:pt-3",
+          bodyClassName
+        )}
+      >
         {children}
       </div>
     </div>

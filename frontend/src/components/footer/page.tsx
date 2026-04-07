@@ -34,9 +34,9 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="bg-[#0b1220] border-t border-white/5 pt-16 pb-8 px-6">
+    <footer className="bg-[#0b1220] border-t border-white/5 pt-10 pb-6 phone:pt-12 tablet:pt-16 tablet:pb-8 px-4 phone:px-5 tablet:px-6">
       <div className="max-w-screen-xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
+        <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-5 gap-8 tablet:gap-10 laptop:gap-12 mb-8 tablet:mb-12">
           {/* Brand Column */}
           <div className="lg:col-span-2">
             <Link href="/" className="text-xl font-bold flex items-center gap-2">
@@ -45,7 +45,7 @@ export default function Footer() {
               </div>
               Decision Stocks Advisor
             </Link>
-            <p className="mt-4 text-white/50 text-sm leading-relaxed max-w-sm">
+            <p className="mt-3 tablet:mt-4 text-white/50 text-xs phone:text-sm leading-relaxed max-w-sm">
               Empowering traders with real-time analytics, institutional-grade indicators, 
               and AI-driven market insights. Stay ahead of the curve with DSA.
             </p>
@@ -74,17 +74,15 @@ export default function Footer() {
           ))}
         </div>
 
-        {/* Disclaimer */}
-        <div className="border-y border-white/5 py-8 mb-8 text-center md:text-left">
-          <p className="text-[11px] text-white/30 leading-relaxed uppercase tracking-tighter">
+        <div className="border-y border-white/5 py-6 tablet:py-8 mb-6 tablet:mb-8 text-center tablet:text-left">
+          <p className="text-[10px] phone:text-[11px] text-white/30 leading-relaxed uppercase tracking-tighter">
             <span className="text-orange-500/60 font-bold mr-1 italic">RISK DISCLOSURE:</span> 
-            Trading stocks, forex, and crypto involves significant risk. The information provided on DSA is for educational purposes only 
+            Trading stocks involves significant risk. The information provided on DSA is for educational purposes only 
             and does not constitute financial advice. Decision Stocks Advisor (DSA) is an academic project.
           </p>
         </div>
 
-        {/* Bottom */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-white/30 text-[12px]">
+        <div className="flex flex-col tablet:flex-row justify-between items-center gap-3 tablet:gap-4 text-white/30 text-[11px] phone:text-[12px]">
           <p>© {currentYear} DSA Team. All rights reserved.</p>
           <div className="flex items-center gap-2">
             <Globe size={14} />

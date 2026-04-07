@@ -1,29 +1,26 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Settings, LogOut, Loader2 } from 'lucide-react'; // Thêm Loader2
-import Link from 'next/link'; // Sử dụng Link thay vì <a>
-// 💡 CẦN ĐIỀU CHỈNH ĐƯỜNG DẪN IMPORT NÀY THEO CẤU TRÚC THƯ MỤC CỦA BẠN
-import { AuthService } from '../services/Auth.service'; 
+import { useState, useRef, useEffect, memo } from 'react';
+import { ChevronDown, Settings, LogOut, Loader2, Shield } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { AuthService } from '../services/Auth.service';
 
-// Định nghĩa kiểu dữ liệu cơ bản cho người dùng (phải khớp với userMapper)
 interface User {
     id: string;
     name: string;
     username: string;
     email: string;
     phone?: string;
-    // Thêm các trường khác nếu cần
+    role?: string;
 }
 
 interface UserProfileDropdownProps {
-    user: User; // Nhận dữ liệu người dùng qua props
+    user: User;
 }
 
-/**
- * Menu Dropdown cho Tài khoản (Settings, Log Out)
- */
-export default function UserProfileDropdown({ user }: UserProfileDropdownProps) {
+function UserProfileDropdown({ user }: UserProfileDropdownProps) {
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,26 +36,17 @@ export default function UserProfileDropdown({ user }: UserProfileDropdownProps) 
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // 🚀 Xử lý Đăng xuất
     const handleLogout = async () => {
         setIsLoggingOut(true);
+        setIsOpen(false);
         try {
             await AuthService.logout();
-            
-            // Xóa user và token khỏi localStorage (đã được thực hiện trong AuthService,
-            // nhưng cần đảm bảo trạng thái ứng dụng được cập nhật)
-            localStorage.removeItem('token');
-            localStorage.removeItem('user'); 
-            
-            // Tải lại trang hoặc chuyển hướng đến trang chủ/đăng nhập
-            window.location.href = '/auth/login'; // Tải lại để cập nhật Header
-
+            router.replace("/auth/login");
         } catch (error) {
             console.error("Logout failed:", error);
             alert("Đăng xuất thất bại. Vui lòng thử lại.");
         } finally {
             setIsLoggingOut(false);
-            setIsOpen(false);
         }
     };
 
@@ -100,12 +88,24 @@ export default function UserProfileDropdown({ user }: UserProfileDropdownProps) 
                     {/* Account Settings */}
                     <Link 
                         href="/profile" 
-                        onClick={() => setIsOpen(false)} // Đóng menu khi click
+                        onClick={() => setIsOpen(false)}
                         className="flex items-center px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600"
                     >
                         <Settings size={18} className="mr-3" />
                         Account Settings
                     </Link>
+
+                    {/* Admin Dashboard */}
+                    {(user.role === 'admin' || user.role === 'staff') && (
+                        <Link 
+                            href="/admin" 
+                            onClick={() => setIsOpen(false)}
+                            className="flex items-center px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+                        >
+                            <Shield size={18} className="mr-3" />
+                            Admin Dashboard
+                        </Link>
+                    )}
 
                     {/* Log Out */}
                     <button 
@@ -125,3 +125,5 @@ export default function UserProfileDropdown({ user }: UserProfileDropdownProps) 
         </div>
     );
 }
+
+export default memo(UserProfileDropdown);

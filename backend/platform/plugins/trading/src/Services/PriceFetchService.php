@@ -105,14 +105,14 @@ class PriceFetchService
         try {
             $json = json_decode($this->client->get($url)->getBody()->getContents(), true);
 
-            // tìm series
+            // Find the time-series block in the response
             foreach ($json as $key => $series) {
                 if (!str_contains($key, "Time Series")) continue;
 
                 $rows = [];
                 foreach ($series as $date => $candle) {
                     $rows[] = [
-                        'timestamps' => $date . " 13:30:00", // chuẩn NYSE
+                        'timestamps' => $date . " 13:30:00", // NYSE regular session convention
                         'open'       => $candle['1. open'],
                         'high'       => $candle['2. high'],
                         'low'        => $candle['3. low'],
@@ -131,9 +131,7 @@ class PriceFetchService
     }
 
 
-    /** -----------------------------
-     *  FINNHUB PARSER
-     *  ----------------------------*/
+    /** Finnhub candle parser */
     private function fetchFinnhub(string $symbol, string $period)
     {
         $map = [

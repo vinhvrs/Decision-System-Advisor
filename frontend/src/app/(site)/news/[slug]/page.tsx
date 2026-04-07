@@ -9,6 +9,7 @@ import { Clock, Newspaper, ArrowUp, ChevronLeft } from "lucide-react";
 // Đảm bảo đường dẫn import chính xác theo cấu trúc thư mục của bạn
 import newsService from "@/src/services/News.service";
 import { News } from "@/src/types/News";
+import { pickNewsThumbImage } from "@/src/libs/newsArticle";
 
 export default function NewsDetailPage() {
   const params = useParams();
@@ -61,6 +62,7 @@ export default function NewsDetailPage() {
   if (!news) return null;
 
   const { imageUrl, body } = parseContent(news.content || "");
+  const heroImage = pickNewsThumbImage(news as any) || imageUrl;
 
   return (
     <main className="min-h-screen bg-[#0B1220] text-white selection:bg-blue-500/30 relative">
@@ -83,13 +85,13 @@ export default function NewsDetailPage() {
         </h1>
 
         {/* FEATURED IMAGE */}
-        {imageUrl && (
+        {heroImage && (
           <div className="relative mb-16 overflow-hidden rounded-[2.5rem] border border-white/10 bg-white/5 shadow-2xl">
-            <img 
-              src={imageUrl} 
-              alt="feature" 
-              className="w-full object-cover max-h-[550px]" 
-              onError={(e) => (e.currentTarget.style.display = 'none')}
+            <img
+              src={heroImage}
+              alt="feature"
+              className="w-full object-cover max-h-[550px]"
+              onError={(e) => (e.currentTarget.style.display = "none")}
             />
           </div>
         )}

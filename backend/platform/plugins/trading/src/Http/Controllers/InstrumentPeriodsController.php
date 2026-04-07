@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentPeriodsRepository;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentRepository;
+use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
 
 
 class InstrumentPeriodsController extends Controller{
@@ -22,7 +23,7 @@ class InstrumentPeriodsController extends Controller{
     {
                 set_time_limit(0);
 
-        // Lấy toàn bộ instruments KHÔNG phân trang
+        // All instruments (no pagination cap in practice)
         $instruments = $this->instrumentRepository->findAll([], ['*'], 99999, 1, null)->items();
 
         $createdCount = 0;
@@ -69,14 +70,15 @@ class InstrumentPeriodsController extends Controller{
         return response()->json($instrumentPeriods);
     }
 
-    public function show($id) {
-        $instrumentPeriod = $this->instrumentPeriodsRepository->findAll(['instrument_id' => $id], ['*'], 20);
+    public function show(string $id)
+    {
+        $rows = InstrumentPeriods::query()
+            ->where('instrument_id', $id)
+            ->orderBy('period')
+            ->select(['id', 'instrument_id', 'period', 'market', 'slug', 'prefix', 'created_at', 'updated_at'])
+            ->get();
 
-        if (!$instrumentPeriod) {
-            return response()->json(['message' => 'Instrument Period not found'], 404);
-        }
-
-        return response()->json($instrumentPeriod);
+        return response()->json(['data' => $rows]);
     }
 
     public function store(Request $request) {

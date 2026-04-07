@@ -26,7 +26,7 @@ class KnowledgeController extends Controller
         $select = $request->input('select', ['*']);
         $perPage = $request->input('per_page', 15);
 
-        $knowledges = DB::table('knowledge_docs_temp')
+        $knowledges = DB::table('knowledge_docs')
             ->select('id', 'title', 'content', 'published_at', 'source', 'author')
             ->orderBy('published_at', 'desc')
             ->paginate($perPage);

@@ -48,4 +48,13 @@ return [
         'url' => env('EMBEDDING_SERVICE_URL', 'http://127.0.1:8000'),
     ],
 
+    /*
+    | Optional Gmail OAuth (API / future XOAUTH2). Core Laravel SMTP still uses MAIL_USERNAME + MAIL_PASSWORD
+    | (Gmail app password). These are stored for reference or custom integrations only.
+    */
+    'mail_google' => [
+        'client_id' => env('MAIL_CLIENT_ID'),
+        'client_secret' => env('MAIL_CLIENT_SECRET'),
+    ],
+
 ];

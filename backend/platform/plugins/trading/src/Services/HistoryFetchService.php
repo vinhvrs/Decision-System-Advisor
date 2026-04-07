@@ -18,9 +18,7 @@ class HistoryFetchService
         $this->client = new Client(['verify' => false, 'timeout' => 20]);
     }
 
-    /**
-     * Fetch full HISTORY từ Yahoo từ đầu tới cuối
-     */
+    /** Fetch full daily history from Yahoo (long range). */
     public function fetchFullHistory(string $symbol): array|bool
     {
         $url = "https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval=1d&range=100y";
@@ -123,7 +121,7 @@ class HistoryFetchService
                 continue;
             $pid = $periodIds[$period];
 
-            // Chuẩn bị mảng $bulk
+            // Build upsert rows
             $bulk = [];
             foreach ($rows as $row) {
                 $bulk[] = [
@@ -142,7 +140,7 @@ class HistoryFetchService
                 ];
             }
 
-            // Chia chunk 500 rows để upsert
+            // Upsert in chunks of 500
             foreach (array_chunk($bulk, 500) as $chunk) {
                 DB::table('instrument_data')->upsert(
                     $chunk,

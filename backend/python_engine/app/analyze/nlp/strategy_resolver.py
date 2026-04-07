@@ -5,11 +5,11 @@ class StrategyResolverService:
         self.strategy_dict = STRATEGY
 
     def resolve(self, intent: str) -> dict:
-        """Lấy cấu hình xử lý cho Intent (giống strategy.php)"""
+        """Return strategy config for intent (see STRATEGY dict)."""
         return self.strategy_dict.get(intent, self.strategy_dict['unknown'])
 
     def get_blacklist_keywords(self) -> list:
-        """Hợp nhất các danh sách từ cấm để lọc Ticker (đối chiếu PHP)"""
+        """Merged stop/verb/filler lists for ticker filtering."""
         return (
             self.strategy_dict.get('verbs', []) +
             self.strategy_dict.get('fillers', []) +
@@ -19,10 +19,10 @@ class StrategyResolverService:
         )
 
     def is_llm_allowed(self, intent: str) -> bool:
-        """Kiểm tra xem Intent có được phép dùng AI để diễn đạt lại không"""
+        """Whether this intent allows LLM-style phrasing."""
         strat = self.resolve(intent)
         return strat.get('allow_llm', True)
 
     def get_mode(self, intent: str) -> str:
-        """Lấy mode (informative, advisory, v.v.)"""
+        """Response mode (informative, advisory, etc.)."""
         return self.resolve(intent).get('mode', 'fallback')

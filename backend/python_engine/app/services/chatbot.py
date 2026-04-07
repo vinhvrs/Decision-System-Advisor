@@ -1,10 +1,23 @@
 import logging
+import re
 from typing import Dict, Any, List
 
 from app.analyze.nlp.resolver import LanguageSmoother
 from app.analyze.nlp.models import SmoothContext
 from app.analyze.analysis_cache import analysis_cache_service
 from app.analyze.auto_analyze import auto_analyze_service
+
+# WebSocket scoped messages look like: "[Focus: market news]\nAMD"
+# Entity extraction must not run on the focus line or it treats Focus/MARKET/NEWS as tickers.
+_FOCUS_PREFIX_RE = re.compile(r"^\[Focus:[^\]]+\]\s*\n?", re.IGNORECASE)
+
+
+def _text_for_entity_extraction(user_text: str) -> str:
+    t = (user_text or "").strip()
+    m = _FOCUS_PREFIX_RE.match(t)
+    if not m:
+        return t
+    return t[m.end() :].strip()
 
 
 class ChatBotService:
@@ -15,7 +28,8 @@ class ChatBotService:
     async def handle_message(self, user_text: str, style: str = "standard") -> Dict[str, Any]:
         try:
             ctx = SmoothContext(direction="in", style_preset=style)
-            inbound_result = self.smoother.smooth(user_text, ctx)
+            text_for_nlp = _text_for_entity_extraction(user_text)
+            inbound_result = self.smoother.smooth(text_for_nlp, ctx)
 
             tickers: List[str] = inbound_result.entities.get("tickers") or []
             if ctx.has_error() or not tickers:
@@ -37,10 +51,10 @@ class ChatBotService:
                 cached_data = await analysis_cache_service.get_analysis(symbol)
 
                 if cached_data and isinstance(cached_data, dict):
-                    self.logger.info(f"✅ Cache hit for {symbol}")
+                    self.logger.info(f"Cache hit for {symbol}")
                     response_payload = self._normalize_response_payload(symbol, cached_data)
                 else:
-                    self.logger.info(f"⚠️ Cache miss for {symbol}, calling auto analyze")
+                    self.logger.info(f"Cache miss for {symbol}, calling auto analyze")
 
                     analyzed_payload = await auto_analyze_service.analyze_symbol(
                         symbol=symbol,
@@ -49,13 +63,13 @@ class ChatBotService:
 
                     response_payload = self._normalize_response_payload(symbol, analyzed_payload)
 
-                    # chỉ save nếu payload không rỗng và có khung chuẩn
+                    # Save only non-empty payloads with the expected shape
                     if self._is_cacheable_payload(response_payload):
                         success = await analysis_cache_service.set_analysis(symbol, response_payload)
                         if success:
-                            self.logger.info(f"✅ Saved fresh analysis to Redis for {symbol}")
+                            self.logger.info(f"Saved fresh analysis to Redis for {symbol}")
                         else:
-                            self.logger.error(f"❌ Failed to save fresh analysis for {symbol}")
+                            self.logger.error(f"Failed to save fresh analysis for {symbol}")
                     else:
                         self.logger.warning(f"Skipped Redis save for {symbol} because payload is not cacheable")
 
@@ -164,9 +178,7 @@ class ChatBotService:
         return normalized
 
     def _is_cacheable_payload(self, payload: Dict[str, Any]) -> bool:
-        """
-        Chỉ cache payload hợp lệ, tránh lưu {} hoặc object lỗi.
-        """
+        """Return True only for well-formed payloads; skip {} or malformed dicts."""
         if not isinstance(payload, dict) or not payload:
             return False
 
@@ -192,5 +204,5 @@ class ChatBotService:
         return True
 
 
-# Khởi tạo service dùng chung
+# Shared singleton
 chatbot_service = ChatBotService()

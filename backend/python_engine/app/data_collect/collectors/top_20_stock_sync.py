@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 import sys
 
-# Thêm đường dẫn để import config
+# Repo root for config import
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 from config.settings import settings
 
@@ -18,20 +18,18 @@ class DSADemoSync:
             self.db_config['cursorclass'] = pymysql.cursors.DictCursor
             self.conn = pymysql.connect(**self.db_config)
             self.conn.autocommit(False) 
-            print(f"✅ Connected to DB: {self.db_config['database']}")
+            print(f"Connected to DB: {self.db_config['database']}")
         except Exception as e:
-            print(f"❌ DB Connection Error: {e}")
+            print(f"DB connection error: {e}")
             exit(1)
 
     def generate_slug(self, symbol, period, dt_obj):
-        """
-        Format chuẩn: symbol-period-YYYY-MM-DD HH:mm:ss
-        """
+        """Slug: symbol-period-YYYY-MM-DD 00:00:00."""
         time_part = dt_obj.strftime('%Y-%m-%d 00:00:00')
         return f"{symbol.lower()}-{period.lower()}-{time_part}"
 
     def fetch_symbols(self):
-        """Lấy chính xác Top 20 Symbol dựa trên Volume Snapshot"""
+        """Top 20 symbols by snapshot volume."""
         with self.conn.cursor() as cur:
             sql = """
                 SELECT i.id, i.symbol 
@@ -65,15 +63,15 @@ class DSADemoSync:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
-            # DEMO: Chỉ lấy 3 ngày gần nhất
+            # Demo: last 3 days only
             df = ticker.history(period="3d", interval="1d", auto_adjust=True)
             if df.empty: 
-                print(f"   ⚠️ No data found for {symbol}")
+                print(f"   No data for {symbol}")
                 return
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # --- Xử lý Daily ---
+            # Daily rows
             daily_values = []
             for dt, row in df.iterrows():
                 dt_str = dt.strftime('%Y-%m-%d 00:00:00')
@@ -89,12 +87,11 @@ class DSADemoSync:
             if daily_values:
                 self._execute_upsert(daily_values)
 
-            # --- Xử lý Aggregate (Weekly, Monthly, Yearly) ---
-            # Ngay cả demo 3 ngày, vẫn chạy aggregate để đảm bảo logic code hoạt động
+            # Still run aggregates on the short window to exercise resample path
             self.aggregate_for_symbol(symbol, p_ids, df, now_str)
 
         except Exception as e:
-            print(f"   ❌ Error {symbol}: {e}")
+            print(f"   Error {symbol}: {e}")
             self.conn.rollback()
 
     def _execute_upsert(self, values):
@@ -138,17 +135,17 @@ class DSADemoSync:
         instruments = self.fetch_symbols()
         total = len(instruments)
         
-        print(f"🚀 Starting Demo Sync (Top 20 symbols - 3 Days Backfill)...")
+        print("Starting demo sync (top 20 symbols, 3d backfill)...")
         
         for idx, inst in enumerate(instruments):
             start_time = time.time()
             sym = inst['symbol'].upper()
             self.update_stock(inst['id'], sym)
             elapsed = time.time() - start_time
-            print(f"   ✅ [{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
+            print(f"   [{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
             
         self.conn.close()
-        print(f"🏁 Demo Finish! Total time: {time.time() - start_demo:.2f} seconds.")
+        print(f"Demo done. Total time: {time.time() - start_demo:.2f}s.")
 
 if __name__ == "__main__":
     DEMO = DSADemoSync()

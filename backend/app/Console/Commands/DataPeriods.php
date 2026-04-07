@@ -25,7 +25,7 @@ class DataPeriods extends Command
     ];
 
 
-    // Backfill window for incremental rebuild (tùy bạn chỉnh)
+    // Backfill window for incremental rebuild (tune as needed)
     private int $dailyBackfillDays = 20;
     private int $weeklyBackfillWeeks = 16;
     private int $monthlyBackfillMonths = 18;
@@ -34,7 +34,7 @@ class DataPeriods extends Command
     private const SYMBOL_ABORT = 'abort';
 
 
-    // “baseline” cho logic DB (không dùng để gọi Yahoo)
+    // DB baseline only (not sent to Yahoo)
     private string $minValidPeriodStart = '1000-01-01';
 
     // ---------- core ----------
@@ -73,7 +73,7 @@ class DataPeriods extends Command
                 Log::warning('[SymbolSkipped] Aborted due to invalid data', [
                     'symbol' => $symbol,
                 ]);
-                continue; // ⛔ KHÔNG snapshot, KHÔNG aggregate
+                continue; // skip snapshot and aggregates for this symbol
             }
             Log::info("[Daily] $symbol upserted=$insertedDaily");
             app(SnapshotService::class)
@@ -246,7 +246,7 @@ class DataPeriods extends Command
 
         $start = $latestDailyTs
             ? Carbon::parse($latestDailyTs)->subDays($this->dailyBackfillDays)
-            : Carbon::create(2000, 1, 1); // ⛔ chặn pre-2000
+            : Carbon::create(2000, 1, 1); // floor: no data before 2000-01-01
 
         $end = now();
 
@@ -287,7 +287,7 @@ class DataPeriods extends Command
 
             $body = $response->body();
 
-            // ⛔ fail fast nếu JSON quá lớn
+            // fail fast on oversized JSON
             if (strlen($body) > 5_000_000) {
                 Log::error('[YahooAbort] Response too large', [
                     'symbol' => $symbol,
@@ -310,7 +310,7 @@ class DataPeriods extends Command
 
             $result = $json['chart']['result'][0] ?? null;
             if (!$result) {
-                continue; // window rỗng → không abort
+                continue; // empty window, not an abort
             }
 
             $timestamps = $result['timestamp'] ?? [];
@@ -318,7 +318,7 @@ class DataPeriods extends Command
 
             foreach ($timestamps as $i => $ts) {
 
-                // ⛔ validate timestamp
+                // validate timestamp
                 if (!is_int($ts) && !ctype_digit((string) $ts)) {
                     Log::error('[YahooAbort] Invalid timestamp', [
                         'symbol' => $symbol,
@@ -327,7 +327,7 @@ class DataPeriods extends Command
                     return [self::SYMBOL_ABORT, 0];
                 }
 
-                // ⛔ validate candle (price)
+                // validate candle prices
                 if ($this->isInvalidYahooCandle($quotes, $i)) {
                     Log::error('[YahooAbort] Invalid candle detected', [
                         'symbol' => $symbol,
@@ -336,7 +336,7 @@ class DataPeriods extends Command
                     return [self::SYMBOL_ABORT, 0];
                 }
 
-                // ⛔ đảm bảo đồng bộ quote index
+                // ensure quote arrays align on index i
                 if (
                     !isset(
                     $quotes['open'][$i],

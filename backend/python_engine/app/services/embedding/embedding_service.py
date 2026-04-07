@@ -23,7 +23,8 @@ class EmbeddingService:
                 return data['vector']
             return data if isinstance(data, list) else [0.0] * 384
         except Exception as e:
-            self.logger.error(f"Embedding Error: {e}")
+            # Downgrade noise when /api/v1/embed is down (e.g. model not loaded); callers treat zero vector as failure.
+            self.logger.warning("Embedding request failed: %s", e)
             return [0.0] * 384
 
 embedding_service = EmbeddingService()
