@@ -29,6 +29,26 @@ class NewsService
         'is_processed',
     ];
 
+    /**
+     * Public news index (`GET /news`) — never select full `content` (LONGTEXT) for every row (timeouts on large tables).
+     * Excerpt is enough for list cards / `pickNewsThumbImage` heuristics.
+     */
+    public const KNOWLEDGE_DOC_INDEX_SELECT = [
+        'id',
+        'hash_key',
+        'title',
+        'published_at',
+        'image',
+        'category',
+        'symbol',
+        'source',
+        'author',
+        'language',
+        'created_at',
+        'updated_at',
+        'is_processed',
+    ];
+
     /** Fields for list/card APIs — avoids shipping full `content` (longText). */
     private const KNOWLEDGE_DOC_SYMBOL_LIST_SELECT = [
         'id',

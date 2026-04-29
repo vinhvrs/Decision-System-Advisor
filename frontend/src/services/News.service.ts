@@ -5,7 +5,7 @@ class NewsService {
     // Fetch all news with pagination
     async getAllNews(params?: { page?: number; per_page?: number; }) {
         try {
-            const response = await api.get('/news', { params });
+            const response = await api.get("/news", { params, timeout: 25_000 });
             const paginated = response.data;
             const rows = normalizeNewsListResponse(paginated?.data ?? paginated);
             return {

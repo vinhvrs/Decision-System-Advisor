@@ -1,25 +1,10 @@
-"""
-Precompute the daily dashboard JSON and store it in Redis under ``dashboard:daily``.
-
-Ranking board (sorted by ``str`` / strong_count first, same tie-breakers as ``dashboard`` module):
-  name, symbol, change, bias, suggestion, str, liquidity, care, chart (≥90 daily closes by default).
-
-Run from ``python_engine`` root (the folder that contains ``config/`` and ``app/``)::
-
-    python -m app.warm_up.warm_up
-    python -m app.warm_up.warm_up --limit 150 --chart-bars 120
-
-Docker (example; use your service name and engine workdir, often ``/app``)::
-
-    docker exec -w /app dsa-data-engine python -m app.warm_up.warm_up
-"""
-
 from __future__ import annotations
 
 import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Tuple
 
 
 def _python_engine_root() -> Path:
@@ -46,6 +31,48 @@ from app.analyze.dashboard.dashboard import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
+def run_dashboard_daily_warmup(
+    *,
+    limit: int = 100,
+    chart_bars: int = 90,
+    skip_validation: bool = False,
+) -> Tuple[bool, bool, int]:
+    """
+    Push ``dashboard:daily`` to Redis (for APScheduler / FastAPI lifespan).
+
+    Returns:
+        (redis_set_ok, validation_ok, row_count)
+    """
+    lim = max(1, min(500, int(limit)))
+    cb = max(2, min(500, int(chart_bars)))
+    payload = compute_dashboard_daily(limit=lim, chart_bars=cb)
+    rows = payload.get("ranking_board") or payload.get("rows") or []
+    row_count = len(rows)
+    ok_val, issues = validate_dashboard_daily_payload(payload, chart_bars_max=cb)
+    if issues:
+        for msg in issues:
+            (logger.error if not ok_val else logger.warning)("dashboard validate: %s", msg)
+    if not ok_val and not skip_validation:
+        logger.error(
+            "dashboard warm-up skipped: validation failed (rows=%s). "
+            "If rows=0, run ranking sync first so instrument_snapshot is populated.",
+            row_count,
+        )
+        return False, False, row_count
+    redis_ok = bool(push_redis_payload(REDIS_KEY_DAILY, payload))
+    meta = payload.get("meta") or {}
+    logger.info(
+        "dashboard warm-up key=%s rows=%s redis_ok=%s chart_len min=%s max=%s validate_ok=%s",
+        REDIS_KEY_DAILY,
+        row_count,
+        redis_ok,
+        meta.get("chart_length_min"),
+        meta.get("chart_length_max"),
+        ok_val,
+    )
+    return redis_ok, ok_val, row_count
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="Warm Redis dashboard:daily from DB + analysis keys.")
@@ -69,23 +96,14 @@ def main() -> None:
     args = parser.parse_args()
     lim = max(1, min(500, int(args.limit)))
     chart_bars = max(2, min(500, int(args.chart_bars)))
-    payload = compute_dashboard_daily(limit=lim, chart_bars=chart_bars)
-    rows = payload.get("ranking_board") or payload.get("rows") or []
-
-    ok_val, issues = validate_dashboard_daily_payload(payload, chart_bars_max=chart_bars)
-    if issues:
-        for msg in issues:
-            (logger.error if not ok_val else logger.warning)("dashboard validate: %s", msg)
-    if not ok_val and not args.skip_validation:
-        raise SystemExit(1)
-
-    ok = push_redis_payload(REDIS_KEY_DAILY, payload)
-    meta = payload.get("meta") or {}
-    print(
-        f"Redis key={REDIS_KEY_DAILY} rows={len(rows)} ok={ok} "
-        f"chart_len_min={meta.get('chart_length_min')} max={meta.get('chart_length_max')} "
-        f"validate_ok={ok_val}"
+    redis_ok, val_ok, n = run_dashboard_daily_warmup(
+        limit=lim,
+        chart_bars=chart_bars,
+        skip_validation=bool(args.skip_validation),
     )
+    if not val_ok and not args.skip_validation:
+        raise SystemExit(1)
+    print(f"Redis key={REDIS_KEY_DAILY} rows={n} validate_ok={val_ok} redis_set_ok={redis_ok}")
 
 
 if __name__ == "__main__":

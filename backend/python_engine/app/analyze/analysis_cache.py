@@ -3,19 +3,12 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-import redis
 from config.settings import settings
 
 
 class AnalysisCacheService:
     def __init__(self):
-        self.redis_client = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            password=getattr(settings, "REDIS_PASSWORD", None),
-            decode_responses=True,
-        )
+        self.redis_client = settings.redis_client()
         self.logger = logging.getLogger(__name__)
         self.ttl_seconds = 60 * 60 * 3  # 3h
 

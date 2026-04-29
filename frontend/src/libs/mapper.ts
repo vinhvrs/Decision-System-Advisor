@@ -42,7 +42,8 @@ export function instrumentDataMapper(apiData: InstrumentDataAPI[]): InstrumentDa
     return apiData.map(data => ({
         id: data.id,
         instrument_period_id: data.instrument_period_id,
-        timestamp: data.timestamps,
+        // Backward-compatible: API may return either "timestamps" or "timestamp".
+        timestamp: data.timestamps ?? data.timestamp ?? "",
         open: data.open,
         high: data.high,
         low: data.low,

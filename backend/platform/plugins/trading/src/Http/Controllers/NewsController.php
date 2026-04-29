@@ -26,11 +26,15 @@ class NewsController extends Controller
         $perPage = (int) $request->input('per_page', 15);
         $perPage = max(1, min(100, $perPage));
 
-        $columns = is_array($select) && $select !== []
-            ? $select
-            : NewsService::KNOWLEDGE_DOC_COLUMNS;
+        $useDefaultList = ! is_array($select) || $select === [];
 
-        $query = DB::table('knowledge_docs')->select($columns);
+        if ($useDefaultList) {
+            $query = DB::table('knowledge_docs')->select(array_merge(NewsService::KNOWLEDGE_DOC_INDEX_SELECT, [
+                DB::raw('LEFT(content, 2048) AS content'),
+            ]));
+        } else {
+            $query = DB::table('knowledge_docs')->select($select);
+        }
 
         if (is_array($filter) && $filter !== []) {
             $query->where($filter);

@@ -225,12 +225,17 @@ class SnapshotService
     {
         $limit = $this->sanitizeLimit($limit);
 
-        $data = Redis::connection()->hgetall($this->heatmapKey);
+        $data = [];
+        try {
+            $data = Redis::connection()->hgetall($this->heatmapKey);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
-        if (!empty($data)) {
+        if (! empty($data)) {
             return collect($data)
                 ->map(fn ($row) => json_decode($row, true))
-                ->filter(fn ($row) => is_array($row) && !empty($row['symbol']))
+                ->filter(fn ($row) => is_array($row) && ! empty($row['symbol']))
                 ->sortByDesc(fn ($row) => (float) ($row['liquidity'] ?? 0))
                 ->take($limit)
                 ->map(function ($row) {
@@ -253,7 +258,17 @@ class SnapshotService
                 ->toArray();
         }
 
-        $topSnapshots = DB::table('instrument_snapshot as s')
+        return Cache::remember('heatmap_daily_db_'.$limit, now()->addSeconds(90), function () use ($limit) {
+            return $this->heatmapDailyFromDatabase($limit);
+        });
+    }
+
+    /**
+     * Fallback when Redis heatmap hash is empty: single table read by liquidity (no subquery / company_profile join).
+     */
+    protected function heatmapDailyFromDatabase(int $limit): array
+    {
+        return DB::table('instrument_snapshot as s')
             ->select([
                 's.instrument_id',
                 's.symbol',
@@ -265,31 +280,17 @@ class SnapshotService
                 's.change_pct',
             ])
             ->orderByDesc('s.liquidity')
-            ->limit($limit);
-
-        return DB::query()
-            ->fromSub($topSnapshots, 't')
-            ->leftJoin('company_profile as cp', 'cp.symbol', '=', 't.symbol')
-            ->select([
-                't.instrument_id',
-                't.symbol',
-                DB::raw('COALESCE(cp.company_name, t.symbol) as name'),
-                't.price',
-                't.open',
-                't.volume',
-                't.market_cap',
-                't.liquidity',
-                't.change_pct',
-            ])
+            ->limit($limit)
             ->get()
             ->map(function ($row) {
                 $marketCap = (float) ($row->market_cap ?? 0);
                 $changePct = (float) ($row->change_pct ?? 0);
+                $sym = strtoupper((string) $row->symbol);
 
                 return [
                     'instrument_id' => (int) $row->instrument_id,
-                    'symbol' => strtoupper((string) $row->symbol),
-                    'name' => $row->name ?: strtoupper((string) $row->symbol),
+                    'symbol' => $sym,
+                    'name' => $sym,
                     'price' => (float) ($row->price ?? 0),
                     'open' => (float) ($row->open ?? 0),
                     'volume' => (float) ($row->volume ?? 0),

@@ -13,7 +13,8 @@ export type InstrumentData = {
 export interface InstrumentDataAPI {
     id: string;
     instrument_period_id: string;
-    timestamps: string;
+    timestamps?: string;
+    timestamp?: string;
     open: number;
     high: number;
     low: number;
