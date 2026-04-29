@@ -69,6 +69,9 @@ services:
       # - NEWS_INTERVAL_HOURS: GDELT → knowledge_docs (default 1h).
       # - NEWS_EMBED_*: embed unprocessed docs → chunks + Qdrant (replaces Artisan embed/qdrant).
       # - SCHEDULE_INTERVAL_HOURS: stock candle sync + auto_analyze share this interval.
+      # - backend/.env must include REDIS_* for Laravel + engine. Python needs REDIS_USERNAME for Redis Cloud ACL
+      #   (same as Laravel) or AUTH fails silently and dashboard:daily never appears.
+      # - DASHBOARD_WARM_UP_BOOTSTRAP_SEC: seconds after startup for first warm-up (default 120).
       - SCHEDULE_INTERVAL_HOURS=3
       - NEWS_INTERVAL_HOURS=1
       - NEWS_EMBED_ENABLED=0

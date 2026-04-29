@@ -84,8 +84,16 @@ class Settings:
         self.REDIS_HOST = _e("REDIS_HOST", "127.0.0.1")
         self.REDIS_PORT = _e_int("REDIS_PORT", 6379)
         self.REDIS_PASSWORD = _e("REDIS_PASSWORD", "")
+        un = _e("REDIS_USERNAME", "").strip()
+        self.REDIS_USERNAME = un if un else None
         self.REDIS_DB = _e_int("REDIS_DB", 0)
         self.REDIS_PREFIX = _e("REDIS_PREFIX", "summary") or "summary"
+        try:
+            self.REDIS_SOCKET_TIMEOUT = float(_e("REDIS_SOCKET_TIMEOUT", "20"))
+        except ValueError:
+            self.REDIS_SOCKET_TIMEOUT = 20.0
+        if self.REDIS_SOCKET_TIMEOUT <= 0:
+            self.REDIS_SOCKET_TIMEOUT = 20.0
 
         self.ELASTIC_HOST = _e("ELASTIC_HOST", "http://localhost:9200")
         self.ELASTIC_INDEX = _e("ELASTIC_INDEX", "dsa_entities")
@@ -104,6 +112,29 @@ class Settings:
         self.MASSIVE_API_KEY = _e("MASSIVE_API_KEY")
         self.NEWSAPIORG_KEY = _e("NEWSAPIORG_KEY")
         self.NEWSDATA_KEY = _e("NEWSDATA_API_KEY")
+
+    def redis_client(self):
+        """
+        Match Laravel Redis config (incl. ``REDIS_USERNAME`` for Redis Cloud / ACL).
+        Without username, managed Redis often rejects AUTH and no key is written.
+        """
+        import redis as redis_lib
+
+        pw = self.REDIS_PASSWORD
+        if pw is None or str(pw).strip() == "":
+            pw = None
+        kwargs = {
+            "host": self.REDIS_HOST,
+            "port": self.REDIS_PORT,
+            "db": self.REDIS_DB,
+            "password": pw,
+            "decode_responses": True,
+            "socket_connect_timeout": self.REDIS_SOCKET_TIMEOUT,
+            "socket_timeout": self.REDIS_SOCKET_TIMEOUT,
+        }
+        if self.REDIS_USERNAME:
+            kwargs["username"] = self.REDIS_USERNAME
+        return redis_lib.Redis(**kwargs)
 
 
 Config = Settings()

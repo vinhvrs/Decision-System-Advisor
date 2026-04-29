@@ -193,10 +193,11 @@ function clampRadarPopoverPosition(clientX: number, clientY: number) {
 }
 
 /** Refresh cached beginner board so Fear & Greed and % badges track snapshot updates. */
-const BOARD_REFRESH_MS = 90_000;
+const BOARD_REFRESH_MS = 150_000;
 
 /** Re-pull daily closes for sparklines / Fear & Greed bar moves. */
-const SPARKLINE_REFRESH_MS = 120_000;
+const SPARKLINE_REFRESH_MS = 240_000;
+const VISIBILITY_REFRESH_MIN_GAP_MS = 20_000;
 
 function formatUsd(n: number): string {
   if (!Number.isFinite(n) || n === 0) return "—";
@@ -583,8 +584,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   useEffect(() => {
     let cancelled = false;
     let first = true;
+    let lastRefreshMs = 0;
 
     const refreshBoard = (showSpinner: boolean) => {
+      lastRefreshMs = Date.now();
       if (showSpinner) setBoardLoading(true);
       const devMode = isDemoDevMode() && !isRedisDaily;
       const fetchLimit = devMode ? DEV_BOARD_FETCH_LIMIT : BOARD_LIMIT_PROD;
@@ -632,7 +635,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     }, BOARD_REFRESH_MS);
 
     const onVis = () => {
-      if (!cancelled && document.visibilityState === "visible") refreshBoard(false);
+      if (cancelled || document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefreshMs < VISIBILITY_REFRESH_MIN_GAP_MS) return;
+      refreshBoard(false);
     };
     document.addEventListener("visibilitychange", onVis);
 

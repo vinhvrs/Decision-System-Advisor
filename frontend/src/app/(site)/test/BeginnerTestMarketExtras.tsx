@@ -26,11 +26,26 @@ type NewsRow = {
   source?: string;
 };
 
+const UI_LOCALE = "en-US";
+const UI_TIMEZONE = "UTC";
+const compactVolFormatter = new Intl.NumberFormat(UI_LOCALE, { notation: "compact", maximumFractionDigits: 2 });
+const newsDateFormatter = new Intl.DateTimeFormat(UI_LOCALE, { month: "short", day: "numeric", timeZone: UI_TIMEZONE });
+const updatedAtFormatter = new Intl.DateTimeFormat(UI_LOCALE, {
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: UI_TIMEZONE,
+});
+
 function formatNewsDate(iso?: string): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return Number.isNaN(d.getTime()) ? "" : newsDateFormatter.format(d);
   } catch {
     return "";
   }
@@ -38,7 +53,7 @@ function formatNewsDate(iso?: string): string {
 
 function formatCompactVol(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 2 }).format(n);
+  return compactVolFormatter.format(n);
 }
 
 function VolumeListLogo({ symbol, url }: { symbol: string; url?: string | null }) {
@@ -317,7 +332,7 @@ export default function BeginnerTestMarketExtras({
 
   const displayVolumeNote = dashboardDailyMode
     ? dashboardUpdatedAt
-      ? `Same symbol pool as Redis dashboard:daily (updated ${new Date(dashboardUpdatedAt).toLocaleString()}). Top 5 by snapshot % change; heatmap = up to 72 rows by liquidity.`
+      ? `Same symbol pool as Redis dashboard:daily (updated ${updatedAtFormatter.format(new Date(dashboardUpdatedAt))} UTC). Top 5 by snapshot % change; heatmap = up to 72 rows by liquidity.`
       : "Same symbol pool as Redis dashboard:daily. Top 5 gainers/losers by snapshot % change; heatmap sized by liquidity on this list."
     : volumeNote;
 

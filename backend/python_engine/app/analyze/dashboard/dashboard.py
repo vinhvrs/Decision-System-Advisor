@@ -47,7 +47,11 @@ logger = logging.getLogger(__name__)
 BEGINNER_STRONG_TRAIT_MIN_SCORE = 4
 CHART_BARS = 40
 CHART_BARS_DAILY = 90  # warm-up / dashboard:daily line chart
-DASHBOARD_TTL_SECONDS = 60 * 60 * 3  # 3h, same order of magnitude as beginner board cache
+# Stale JSON is better than a missing key for Laravel/Next. Scheduler refreshes every few hours; extend TTL so
+# the key survives missed runs (was 3h — key often expired before the next warm-up).
+DASHBOARD_TTL_SECONDS = int(
+    os.environ.get("DASHBOARD_DAILY_REDIS_TTL_SEC", str(60 * 60 * 72))
+)  # default 72h
 REDIS_KEY_DAILY = "dashboard:daily"
 
 RADAR_AXES = ["Signal", "Price", "Change", "Volume", "Liquidity", "Watchers"]
@@ -439,16 +443,7 @@ def compute_dashboard(limit: int = 20) -> Dict[str, Any]:
     conn = pymysql.connect(**cfg)
     try:
         snapshot_rows = query_top_snapshot_rows(conn, limit)
-        pw = getattr(settings, "REDIS_PASSWORD", None)
-        if pw == "":
-            pw = None
-        r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            password=pw,
-            decode_responses=True,
-        )
+        r = settings.redis_client()
         rows = build_ranking_rows(conn, r, snapshot_rows, chart_bars=CHART_BARS)
         return {
             "axes": RADAR_AXES,
@@ -540,16 +535,7 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
     conn = pymysql.connect(**cfg)
     try:
         snapshot_rows = query_top_snapshot_rows(conn, limit)
-        pw = getattr(settings, "REDIS_PASSWORD", None)
-        if pw == "":
-            pw = None
-        r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            password=pw,
-            decode_responses=True,
-        )
+        r = settings.redis_client()
         rows = build_ranking_rows(conn, r, snapshot_rows, chart_bars=chart_bars)
         chart_lens = [len(r.get("chart") or []) for r in rows] if rows else []
         return {
@@ -577,16 +563,7 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
 
 
 def _redis_client() -> redis.Redis:
-    pw = getattr(settings, "REDIS_PASSWORD", None)
-    if pw == "":
-        pw = None
-    return redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        password=pw,
-        decode_responses=True,
-    )
+    return settings.redis_client()
 
 
 def push_redis_payload(redis_key: str, payload: Dict[str, Any], ttl_seconds: int = DASHBOARD_TTL_SECONDS) -> bool:

@@ -1018,11 +1018,13 @@ export default function LightChart({
   }, [onLoadMore]);
 
   return (
-    <div className="relative h-full min-h-[200px] w-full min-w-0">
-      <div ref={containerRef} className="absolute inset-0 min-h-[200px]" />
+    <div className="flex h-full min-h-[260px] w-full min-w-0 flex-col gap-3">
+      <div className={`relative w-full min-w-0 ${showTrading ? "h-[460px] min-h-[360px]" : "h-full min-h-[220px]"}`}>
+        <div ref={containerRef} className="h-full w-full min-h-[220px]" />
+      </div>
 
       {showTrading && (
-      <div className="absolute top-3 left-3 z-10 rounded-lg border border-slate-700/60 bg-slate-900/70 backdrop-blur px-3 py-2 text-slate-100 text-xs shadow">
+      <div className="rounded-lg border border-slate-700/60 bg-slate-900/70 backdrop-blur px-3 py-2 text-slate-100 text-xs shadow">
         <div className="flex items-center gap-2">
           <div className="font-semibold">Paper trading</div>
           <div className="text-slate-300">

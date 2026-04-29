@@ -16,13 +16,7 @@ class MarketSyncService:
         self.db_config = settings.DB_CONFIG.copy()
         self.db_config['cursorclass'] = pymysql.cursors.DictCursor
 
-        self.r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            password=getattr(settings, 'REDIS_PASSWORD', None),
-            decode_responses=True
-        )
+        self.r = settings.redis_client()
 
         self.heatmap_key = 'heatmap:daily'
         self.mcap_ranking_key = 'marketcap:ranking:daily'
@@ -170,10 +164,11 @@ class MarketSyncService:
 
                 pipe = self.r.pipeline()
                 pipe.delete(self.heatmap_key)
-                pipe.delete(self.mcap_ranking_key)
-                pipe.delete(self.liq_ranking_key)
+                # Paused: Laravel / UI can use DB or other sources; refresh when re-enabled.
+                # pipe.delete(self.mcap_ranking_key)
+                # pipe.delete(self.liq_ranking_key)
                 pipe.delete(self.change_ranking_key)
-                pipe.delete(self.fear_greed_key)
+                # pipe.delete(self.fear_greed_key)
 
                 sql_snapshot = """
                     INSERT INTO instrument_snapshot
@@ -240,8 +235,8 @@ class MarketSyncService:
                         change_pct
                     ))
 
-                    pipe.zadd(self.mcap_ranking_key, {symbol: market_cap})
-                    pipe.zadd(self.liq_ranking_key, {symbol: liquidity})
+                    # pipe.zadd(self.mcap_ranking_key, {symbol: market_cap})
+                    # pipe.zadd(self.liq_ranking_key, {symbol: liquidity})
                     pipe.zadd(self.change_ranking_key, {symbol: change_pct})
 
                     fg_val, fg_label = self.calc_fear_greed_per_symbol(change_pct)
@@ -250,7 +245,7 @@ class MarketSyncService:
                         'label': fg_label,
                         'change_pct': change_pct,
                     }
-                    pipe.hset(self.fear_greed_key, symbol, json.dumps(fg_payload))
+                    # pipe.hset(self.fear_greed_key, symbol, json.dumps(fg_payload))
 
                     heatmap_item = {
                         'symbol': symbol,
@@ -270,10 +265,10 @@ class MarketSyncService:
                     processed += 1
 
                 pipe.expire(self.heatmap_key, self.ttl)
-                pipe.expire(self.mcap_ranking_key, self.ttl)
-                pipe.expire(self.liq_ranking_key, self.ttl)
+                # pipe.expire(self.mcap_ranking_key, self.ttl)
+                # pipe.expire(self.liq_ranking_key, self.ttl)
                 pipe.expire(self.change_ranking_key, self.ttl)
-                pipe.expire(self.fear_greed_key, self.ttl)
+                # pipe.expire(self.fear_greed_key, self.ttl)
                 pipe.execute()
 
                 print(f"SYNC DONE: processed={processed}, skipped={skipped}, total={len(rows)}")

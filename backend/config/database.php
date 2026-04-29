@@ -158,6 +158,9 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
+            // Fail fast when Redis is unreachable (avoids HTTP requests hanging until client timeout).
+            'read_timeout' => (float) env('REDIS_READ_TIMEOUT', 3),
+            'timeout' => (float) env('REDIS_CONNECT_TIMEOUT', 3),
         ],
 
         'cache' => [
@@ -167,6 +170,8 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_CACHE_DB', '1'),
+            'read_timeout' => (float) env('REDIS_READ_TIMEOUT', 3),
+            'timeout' => (float) env('REDIS_CONNECT_TIMEOUT', 3),
         ],
 
         /*
@@ -180,6 +185,8 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
+            'read_timeout' => (float) env('REDIS_READ_TIMEOUT', 3),
+            'timeout' => (float) env('REDIS_CONNECT_TIMEOUT', 3),
             'options' => [
                 'prefix' => '',
             ],

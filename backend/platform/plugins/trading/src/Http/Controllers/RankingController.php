@@ -182,7 +182,7 @@ class RankingController extends Controller
     /**
      * Redis `dashboard:daily` payload (python_engine warm_up) — same overall shape as beginner board.
      */
-    public function dashboardDaily()
+    public function dashboardDaily(Request $request)
     {
         $data = $this->snapshotService->dashboardDailyFromPythonRedis();
 
@@ -192,7 +192,52 @@ class RankingController extends Controller
             ], 404);
         }
 
-        return response()->json(['data' => $data]);
+        $lite = filter_var($request->query('lite', false), FILTER_VALIDATE_BOOL);
+        if ($lite) {
+            $data = $this->stripDashboardDailyHeavyAliases($data);
+        }
+
+        $etag = '"'.sha1(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)).'"';
+        if ($request->headers->get('If-None-Match') === $etag) {
+            return response('', 304, [
+                'ETag' => $etag,
+                'Cache-Control' => 'public, max-age=15, stale-while-revalidate=60',
+                'Vary' => 'Accept, Authorization',
+            ]);
+        }
+
+        return response()
+            ->json(['data' => $data])
+            ->header('ETag', $etag)
+            ->header('Cache-Control', 'public, max-age=15, stale-while-revalidate=60')
+            ->header('Vary', 'Accept, Authorization');
+    }
+
+    /**
+     * Remove duplicate aliases from Python payload to cut transfer size.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function stripDashboardDailyHeavyAliases(array $payload): array
+    {
+        if (! isset($payload['rows']) || ! is_array($payload['rows'])) {
+            return $payload;
+        }
+
+        $payload['rows'] = array_map(function ($row) {
+            if (! is_array($row)) {
+                return $row;
+            }
+            unset($row['name'], $row['change'], $row['bias'], $row['suggestion'], $row['str'], $row['care']);
+            return $row;
+        }, $payload['rows']);
+
+        if (isset($payload['ranking_board']) && is_array($payload['ranking_board'])) {
+            $payload['ranking_board'] = $payload['rows'];
+        }
+
+        return $payload;
     }
 
     /**

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
@@ -26,6 +26,7 @@ from app.analyze.auto_analyze import auto_analyze_service
 from app.data_collect.collectors.news_handle import run_daily_update
 from app.data_collect.collectors.stock_sync import DSATurbo
 from app.data_collect.symbol_ingest import snapshot_limit_for_stock_sync
+from app.storage.storage.snapshot_update import run_snapshot_update
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,11 @@ news_lock = Lock()
 news_embed_lock = Lock()
 stock_sync_lock = Lock()
 auto_analyze_lock = Lock()
+dashboard_warmup_lock = Lock()
+snapshot_update_lock = Lock()
+
+# Last dashboard:daily warm-up (for GET /health/scheduler debugging).
+_last_dashboard_warmup: dict = {}
 
 
 def _env_float(name: str, default: float, *, minimum: float) -> float:
@@ -73,10 +79,22 @@ def _env_float(name: str, default: float, *, minimum: float) -> float:
 
 # Env-tunable cadence (Docker / systemd should set these; defaults suit dev).
 SCHEDULE_INTERVAL_HOURS = float(os.environ.get("SCHEDULE_INTERVAL_HOURS", "3"))
-# Ranking sync (Redis heatmap, instrument_snapshot, fear_greed hash).
+# Ranking sync (Redis heatmap + change zset; marketcap / liquidity zsets + fear_greed hash paused in stock_compare.py).
 RANKING_SYNC_INTERVAL_HOURS = float(
     os.environ.get("RANKING_SYNC_INTERVAL_HOURS", str(SCHEDULE_INTERVAL_HOURS))
 )
+# Precompute Laravel/Next ``dashboard:daily`` in Redis (``app.warm_up``).
+DASHBOARD_WARM_UP_INTERVAL_HOURS = float(
+    os.environ.get("DASHBOARD_WARM_UP_INTERVAL_HOURS", str(RANKING_SYNC_INTERVAL_HOURS))
+)
+try:
+    _WARM_UP_LIMIT = max(1, min(500, int(os.environ.get("DASHBOARD_WARM_UP_LIMIT", "100"))))
+except ValueError:
+    _WARM_UP_LIMIT = 100
+try:
+    _WARM_UP_CHART_BARS = max(2, min(500, int(os.environ.get("DASHBOARD_WARM_UP_CHART_BARS", "90"))))
+except ValueError:
+    _WARM_UP_CHART_BARS = 90
 # News ingest: default hourly, independent of candle sync interval (min 5 minutes).
 NEWS_INTERVAL_HOURS = _env_float("NEWS_INTERVAL_HOURS", 1.0, minimum=5.0 / 60.0)
 _NEWS_INTERVAL_RAW = os.environ.get("NEWS_INTERVAL_HOURS", "")
@@ -115,6 +133,81 @@ def run_ranking_sync():
         logger.error(f"[Schedule] Ranking sync error: {str(e)}", exc_info=True)
     finally:
         pipeline_lock.release()
+
+
+def run_dashboard_warm_up():
+    global _last_dashboard_warmup
+    if not dashboard_warmup_lock.acquire(blocking=False):
+        logger.warning("Dashboard warm-up skipped because previous run is still active.")
+        return
+    at_start = datetime.now(timezone.utc).isoformat()
+    try:
+        from config.settings import settings
+
+        try:
+            settings.redis_client().ping()
+        except Exception as e:
+            logger.error(
+                "[Schedule] Redis PING failed before dashboard warm-up "
+                "(set REDIS_HOST / REDIS_PORT / REDIS_PASSWORD and REDIS_USERNAME for Redis Cloud): %s",
+                e,
+                exc_info=True,
+            )
+            _last_dashboard_warmup = {
+                "at": at_start,
+                "redis_ok": False,
+                "validate_ok": None,
+                "row_count": None,
+                "redis_key": "dashboard:daily",
+                "error": f"redis_ping:{e!s}",
+            }
+            return
+
+        from app.warm_up.warm_up import run_dashboard_daily_warmup
+
+        logger.info(
+            "[Schedule] Starting dashboard:daily warm-up (limit=%s, chart_bars=%s)...",
+            _WARM_UP_LIMIT,
+            _WARM_UP_CHART_BARS,
+        )
+        redis_ok, val_ok, row_count = run_dashboard_daily_warmup(
+            limit=_WARM_UP_LIMIT,
+            chart_bars=_WARM_UP_CHART_BARS,
+            skip_validation=False,
+        )
+        err = None
+        if not redis_ok:
+            err = "redis_set_failed"
+        elif not val_ok:
+            err = "validation_failed"
+        elif row_count == 0:
+            err = "empty_snapshot_run_ranking_sync_first"
+        logger.info(
+            "[Schedule] Dashboard warm-up finished redis_ok=%s validate_ok=%s rows=%s",
+            redis_ok,
+            val_ok,
+            row_count,
+        )
+        _last_dashboard_warmup = {
+            "at": datetime.now(timezone.utc).isoformat(),
+            "redis_ok": redis_ok,
+            "validate_ok": val_ok,
+            "row_count": row_count,
+            "redis_key": "dashboard:daily",
+            "error": err,
+        }
+    except Exception as e:
+        logger.error("[Schedule] Dashboard warm-up error: %s", e, exc_info=True)
+        _last_dashboard_warmup = {
+            "at": datetime.now(timezone.utc).isoformat(),
+            "redis_ok": False,
+            "validate_ok": None,
+            "row_count": None,
+            "redis_key": "dashboard:daily",
+            "error": str(e),
+        }
+    finally:
+        dashboard_warmup_lock.release()
 
 
 def run_news_daily_update():
@@ -180,11 +273,31 @@ def run_stock_sync():
             snapshot_limit=snapshot_limit_for_stock_sync(SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N)
         )
         turbo.run()
+        # Build all 3 snapshot tables after each candle sync cycle.
+        run_snapshot_tables_update()
         logger.info("[Schedule] Stock sync completed.")
     except Exception as e:
         logger.error(f"[Schedule] Stock sync error: {str(e)}", exc_info=True)
     finally:
         stock_sync_lock.release()
+
+
+def run_snapshot_tables_update():
+    if not snapshot_update_lock.acquire(blocking=False):
+        logger.warning("Snapshot update skipped because previous run is still active.")
+        return
+    try:
+        logger.info(
+            "[Schedule] Starting snapshot tables update (scope=%s, top_n=%s)...",
+            SYMBOL_INGEST_MODE,
+            SYMBOL_INGEST_TOP_N,
+        )
+        out = run_snapshot_update(symbol_scope=SYMBOL_INGEST_MODE, top_n=SYMBOL_INGEST_TOP_N)
+        logger.info("[Schedule] Snapshot tables update completed: %s", out)
+    except Exception as e:
+        logger.error("[Schedule] Snapshot tables update error: %s", e, exc_info=True)
+    finally:
+        snapshot_update_lock.release()
 
 
 async def _run_auto_analyze_refresh_async():
@@ -310,6 +423,8 @@ async def lifespan(app: FastAPI):
         ("ranking_sync", timedelta(minutes=0)),
         ("stock_sync", timedelta(minutes=4)),
         ("auto_analyze_refresh", timedelta(minutes=6)),
+        # After ranking_sync fills instrument_snapshot (~same time as first ranking run).
+        ("dashboard_warm_up", timedelta(minutes=3)),
     ]
 
     scheduler.add_job(
@@ -318,6 +433,17 @@ async def lifespan(app: FastAPI):
         hours=RANKING_SYNC_INTERVAL_HOURS,
         id="ranking_sync",
         next_run_time=base + dict(stagger)["ranking_sync"],
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        run_dashboard_warm_up,
+        trigger="interval",
+        hours=DASHBOARD_WARM_UP_INTERVAL_HOURS,
+        id="dashboard_warm_up",
+        next_run_time=base + dict(stagger)["dashboard_warm_up"],
         max_instances=1,
         coalesce=True,
         replace_existing=True,
@@ -392,13 +518,28 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     app.state.scheduler = scheduler
 
+    # One-off run soon after startup so ``dashboard:daily`` appears without waiting for the interval.
+    _bootstrap_warm = datetime.now() + timedelta(seconds=int(os.environ.get("DASHBOARD_WARM_UP_BOOTSTRAP_SEC", "120")))
+    scheduler.add_job(
+        run_dashboard_warm_up,
+        trigger="date",
+        run_date=_bootstrap_warm,
+        id="dashboard_warm_up_bootstrap",
+        replace_existing=True,
+    )
     logger.info(
-        "Background scheduler started: ranking_sync every %sh (staggered), news ingest every %sh "
-        "(env=%r → %s, first_run_at=%s) lookback_days=%s; "
+        "[Schedule] dashboard_warm_up bootstrap at %s (env DASHBOARD_WARM_UP_BOOTSTRAP_SEC to change delay)",
+        _bootstrap_warm.isoformat(timespec="seconds"),
+    )
+
+    logger.info(
+        "Background scheduler started: ranking_sync every %sh, dashboard_warm_up every %sh (staggered), "
+        "news ingest every %sh (env=%r → %s, first_run_at=%s) lookback_days=%s; "
         "news_embed+Qdrant %s (every %sh, batch=%s, first_run~%s); "
-        "stock_sync/auto_analyze every %sh; misfire_grace=%ss. "
+        "stock_sync/auto_analyze every %sh; snapshot tables refresh runs after each stock_sync; misfire_grace=%ss. "
         "Laravel news:* schedules are disabled — python_engine owns this pipeline. GET /health/scheduler.",
         RANKING_SYNC_INTERVAL_HOURS,
+        DASHBOARD_WARM_UP_INTERVAL_HOURS,
         NEWS_INTERVAL_HOURS,
         _NEWS_INTERVAL_RAW,
         NEWS_INTERVAL_HOURS,
@@ -491,6 +632,7 @@ async def health_scheduler(request: Request):
         "news_embed_enabled": NEWS_EMBED_ENABLED,
         "news_embed_interval_hours": NEWS_EMBED_INTERVAL_HOURS,
         "news_embed_batch_limit": NEWS_EMBED_BATCH_LIMIT,
+        "dashboard_warm_up_last": _last_dashboard_warmup or None,
         "jobs": jobs,
     }
 

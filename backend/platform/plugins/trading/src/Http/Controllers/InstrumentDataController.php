@@ -33,6 +33,30 @@ class InstrumentDataController extends Controller{
         return response()->json($data);
      }
 
+    public function getHistory(Request $request, string $symbol)
+    {
+        $period = strtolower((string) $request->query('period', 'daily'));
+        $from = (string) $request->query('from', '');
+        $to = (string) $request->query('to', '');
+
+        if ($from === '') {
+            return response()->json([
+                'message' => 'Missing required query parameter: from',
+            ], 422);
+        }
+        if ($to === '') {
+            $to = now()->toDateTimeString();
+        }
+
+        try {
+            $data = $this->instrumentService->history($symbol, $period, $from, $to);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['data' => $data]);
+    }
+
     /**
      * POST JSON: { "symbols": ["NVDA","AAPL"], "limit": 40 } — daily closes per symbol (oldest first).
      */

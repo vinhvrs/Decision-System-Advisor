@@ -41,6 +41,12 @@ export default function TradingHomePage() {
               >
                 View Dashboard
               </a>
+              <Link
+                href="/trading/history"
+                className="px-5 py-2 rounded border border-blue-400/70 text-blue-200 hover:bg-blue-500/10"
+              >
+                History Simulator
+              </Link>
               <a
                 href="#market-news"
                 className="px-5 py-2 rounded border border-white/60 text-white"
