@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation";
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
 import heatmapService from "@/src/services/Heatmap.service";
+import { HEATMAP_SECTOR_TECHNOLOGY } from "@/src/libs/marketViewConstants";
 
 const DEFAULT_MAX_TILES = 42;
 const FETCH_LIMIT = 80;
@@ -87,7 +88,7 @@ export default function HeatmapPage({ maxTiles = DEFAULT_MAX_TILES }: HeatmapPag
   useEffect(() => {
     setLoading(true);
     heatmapService
-      .getHeatmapData({ limit: FETCH_LIMIT })
+      .getHeatmapData({ limit: FETCH_LIMIT, sector: HEATMAP_SECTOR_TECHNOLOGY })
       .then((rows) => {
         setRaw(Array.isArray(rows) ? rows : []);
         setLoadError(false);
@@ -172,7 +173,7 @@ export default function HeatmapPage({ maxTiles = DEFAULT_MAX_TILES }: HeatmapPag
             height={dimensions.height}
             className="block max-h-full"
             role="img"
-            aria-label="Market heatmap by liquidity and daily change"
+            aria-label="Technology sector market heatmap by liquidity and daily change"
           >
             <g transform={`translate(${SVG_INSET},${SVG_INSET})`}>
               {layout.leaves().map((leaf: any) => {

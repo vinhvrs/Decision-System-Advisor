@@ -1,16 +1,10 @@
-from __future__ import annotations
+"""
+Backward-compatible shim.
 
-from typing import Dict, Optional
+Use `app.storage.snapshot_update` instead of this legacy module path.
+"""
 
-from snapshot_build import build_snapshots
-
-
-def run_snapshot_update(symbol_scope: Optional[str] = None, top_n: Optional[int] = None) -> Dict:
-    """
-    Refresh snapshot_daily, snapshot_monthly, snapshot_annual.
-    Rule: each update run recalculates daily and then monthly+annual in the same pass.
-    """
-    return build_snapshots(symbol_scope=symbol_scope, top_n=top_n)
+from app.storage.snapshot_update import run_snapshot_update
 
 
 if __name__ == "__main__":

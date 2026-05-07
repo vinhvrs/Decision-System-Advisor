@@ -31,7 +31,7 @@ export default function TradingHomePage() {
               Decision Stocks Advisor
             </h1>
             <p className="mt-3 phone:mt-4 text-base phone:text-lg tablet:text-xl laptop:text-2xl text-white/80">
-              All information you need — chart, indicators, news, heatmap, and market movers in one place.
+              All information you need for investing — chart, indicators, news, heatmap, and market movers in one place.
             </p>
 
             <div className="mt-6 phone:mt-8 flex flex-col phone:flex-row gap-2 phone:gap-3">
@@ -45,7 +45,7 @@ export default function TradingHomePage() {
                 href="/trading/history"
                 className="px-5 py-2 rounded border border-blue-400/70 text-blue-200 hover:bg-blue-500/10"
               >
-                History Simulator
+                Investing History Simulator
               </Link>
               <a
                 href="#market-news"

@@ -50,7 +50,7 @@ const C = {
 };
 
 /** Short list for the beginner board (API + UI). */
-const BOARD_LIMIT_PROD = 20;
+const BOARD_LIMIT_PROD = 10;
 /** Wider fetch in dev so the fixed demo tickers are likely present in the ranking payload. */
 const DEV_BOARD_FETCH_LIMIT = 200;
 
@@ -259,7 +259,22 @@ function dayBiasFromRow(r: BeginnerBoardRow): "buy" | "sell" | "flat" {
   return "flat";
 }
 
-function MiniSparkline({ values, className }: { values: number[]; className?: string }) {
+function investingBiasLabel(bias: "buy" | "sell" | "flat"): string {
+  if (bias === "buy") return "Buy";
+  if (bias === "sell") return "Sell";
+  return "Hold";
+}
+
+function MiniSparkline({
+  values,
+  className,
+  netChangePct,
+}: {
+  values: number[];
+  className?: string;
+  /** When set, line color matches the same sign as the dashboard % badge (snapshot / mean). */
+  netChangePct?: number | null;
+}) {
   const w = 120;
   const h = 36;
   const pad = 2;
@@ -281,8 +296,14 @@ function MiniSparkline({ values, className }: { values: number[]; className?: st
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-  const up = values[values.length - 1] >= values[0];
-  const stroke = up ? "#16c784" : "#ea3943";
+  let stroke: string;
+  if (netChangePct != null && Number.isFinite(netChangePct)) {
+    if (netChangePct > 0) stroke = "#16c784";
+    else if (netChangePct < 0) stroke = "#ea3943";
+    else stroke = "#848e9c";
+  } else {
+    stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
+  }
   return (
     <svg
       width="100%"
@@ -318,7 +339,14 @@ function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | nul
 }
 
 /** Compact line sparkline in each table cell (not candlesticks). */
-function TableSparkline({ values }: { values: number[] }) {
+function TableSparkline({
+  values,
+  snapshotChangePct,
+}: {
+  values: number[];
+  /** Same field as the 24h % column; keeps line color in sync with the badge. */
+  snapshotChangePct?: number | null;
+}) {
   const w = 88;
   const h = 28;
   const pad = 1;
@@ -335,8 +363,14 @@ function TableSparkline({ values }: { values: number[] }) {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-  const up = values[values.length - 1] >= values[0];
-  const stroke = up ? "#16c784" : "#ea3943";
+  let stroke: string;
+  if (snapshotChangePct != null && Number.isFinite(snapshotChangePct)) {
+    if (snapshotChangePct > 0) stroke = "#16c784";
+    else if (snapshotChangePct < 0) stroke = "#ea3943";
+    else stroke = "#848e9c";
+  } else {
+    stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
+  }
   return (
     <svg
       width={88}
@@ -432,6 +466,28 @@ function sparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<string, n
   return arr.length <= 28 ? arr : arr.slice(-28);
 }
 
+/**
+ * Fallback when a symbol has snapshot price but no daily close series.
+ * This keeps row sparklines visible (e.g. BE) by deriving a 2-point line
+ * from snapshot price and snapshot percent change.
+ */
+function ensureSparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<string, number[]>): number[] {
+  const values = sparklineValuesForRow(row, batchMap);
+  if (values.length >= 2) return values;
+
+  const price = Number(row.price);
+  if (!Number.isFinite(price) || price <= 0) return values;
+
+  const ch = Number(row.change_pct_snapshot);
+  if (Number.isFinite(ch) && ch > -99.9) {
+    const prev = price / (1 + ch / 100);
+    if (Number.isFinite(prev) && prev > 0) return [prev, price];
+  }
+
+  // Last-resort tiny slope so the row doesn't appear as missing data.
+  return [price * 0.995, price];
+}
+
 /** For table sort: last − first close in the same series as the sparkline (NaN if not enough points). */
 function trendDeltaForSort(row: BeginnerBoardRow, sparkMap: Record<string, number[]>): number {
   const v = sparklineValuesForRow(row, sparkMap);
@@ -459,6 +515,8 @@ type BoardSortKey = "rank" | "name" | "price" | "change" | "bias" | "strong" | "
 
 type BoardSortHeaderProps = {
   label: string;
+  /** Optional native tooltip for column meaning (metrics source). */
+  title?: string;
   columnKey: BoardSortKey;
   sort: { key: BoardSortKey; dir: "asc" | "desc" };
   onSort: (key: BoardSortKey, dir: "asc" | "desc") => void;
@@ -466,7 +524,15 @@ type BoardSortHeaderProps = {
   className?: string;
 };
 
-function BoardSortHeader({ label, columnKey, sort, onSort, align = "left", className = "" }: BoardSortHeaderProps) {
+function BoardSortHeader({
+  label,
+  title,
+  columnKey,
+  sort,
+  onSort,
+  align = "left",
+  className = "",
+}: BoardSortHeaderProps) {
   const flex =
     align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
   const activeUp = sort.key === columnKey && sort.dir === "asc";
@@ -479,7 +545,7 @@ function BoardSortHeader({ label, columnKey, sort, onSort, align = "left", class
   return (
     <th scope="col" className={className}>
       <div className={`flex items-center gap-1 ${flex}`}>
-        <span>{label}</span>
+        <span title={title}>{label}</span>
         <span className="inline-flex shrink-0 flex-col leading-none" role="group" aria-label={`Sort by ${label}`}>
           <button
             type="button"
@@ -595,7 +661,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       const chain = isRedisDaily
         ? BeginnerService.getDashboardDaily().then(async (payload) => {
             if (cancelled) return;
-            const rows = payload?.rows ?? [];
+            let rows = payload?.rows ?? [];
+            // Keep Redis daily board aligned with the fixed demo symbol set/order.
+            rows = filterBoardRowsForDevMode(rows);
+            rows = await ensureDevBoardRowsComplete(rows);
+            rows = rows.slice(0, BOARD_LIMIT_PROD);
             setBoardRows(rows);
             setBoardLegend(payload?.legend ?? null);
             setDashboardUpdatedAt(typeof payload?.updated_at === "string" ? payload.updated_at : null);
@@ -606,6 +676,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             if (devMode) {
               rows = filterBoardRowsForDevMode(rows);
               rows = await ensureDevBoardRowsComplete(rows);
+              rows = rows.slice(0, BOARD_LIMIT_PROD);
             } else {
               rows = rows.slice(0, BOARD_LIMIT_PROD);
             }
@@ -665,7 +736,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         if (cancelled) return;
         const next: Record<string, number[]> = {};
         for (const r of boardRows) {
-          next[r.symbol] = sparklineValuesForRow(r, map);
+          next[r.symbol] = ensureSparklineValuesForRow(r, map);
         }
         setRowSparklines(next);
       };
@@ -818,21 +889,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           <div className="flex min-w-0 flex-1 flex-col gap-2 phone:flex-row phone:items-center phone:gap-4">
             <div className="min-w-0">
               <h1 className="text-sm font-semibold tracking-tight text-white sm:text-base">
-                {isRedisDaily ? "Beginner market view (Redis daily)" : "Beginner market view"}
+                Market view
               </h1>
-              <p className={`text-[11px] sm:text-xs ${C.muted}`}>
-                {isRedisDaily ? (
-                  <>
-                    Top {listLimit} ranked by Str · precomputed{" "}
-                    <code className="text-white/50">dashboard:daily</code> — longer chart series in each row.
-                  </>
-                ) : (
-                  <>
-                    Top {listLimit} by volume{isDemoDevMode() ? " (demo symbols)" : ""} — header metrics are averages across
-                    this list; Fear &amp; Greed is board-wide.
-                  </>
-                )}
-              </p>
             </div>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 phone:w-auto">
@@ -855,7 +913,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white phone:flex-none`}
             >
               <Home className="h-3.5 w-3.5" />
-              Trading site
+              Investing site
             </Link>
           </div>
         </div>
@@ -868,7 +926,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             className={`relative min-w-0 overflow-hidden rounded-2xl ${C.card} p-4 xl:min-w-[200px] xl:shrink-0 2xl:min-w-[220px]`}
           >
             <div className="pointer-events-none absolute inset-x-0 bottom-0 top-8 opacity-[0.35]">
-              <MiniSparkline values={boardAvgSparkline} />
+              <MiniSparkline values={boardAvgSparkline} netChangePct={boardAggregates?.avgChangePct ?? null} />
             </div>
             <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg price</p>
             {!headerStatsReady ? (
@@ -885,7 +943,6 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                     <span className={`text-sm ${C.muted}`}>—</span>
                   )}
                 </div>
-                <p className={`relative mt-1 text-[10px] ${C.muted}`}>Mean across list · % from last bar move or snapshot</p>
               </>
             ) : (
               <p className={`relative mt-2 text-sm ${C.muted}`}>—</p>
@@ -893,13 +950,12 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           </div>
 
           <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[180px] xl:shrink-0 2xl:min-w-[200px]`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg liquidity</p>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg Vol $</p>
             {!headerStatsReady ? (
               <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
             ) : boardAggregates?.avgLiquidity != null ? (
               <>
                 <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatUsd(boardAggregates.avgLiquidity)}</p>
-                <p className={`mt-1 text-[11px] ${C.muted}`}>Mean price × volume per row (snapshot)</p>
               </>
             ) : (
               <p className={`mt-2 text-sm ${C.muted}`}>—</p>
@@ -921,9 +977,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           </div>
 
           <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[180px] xl:shrink-0`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Board liquidity (sum)</p>
+            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Board Vol $ (sum)</p>
             <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{formatUsd(boardLiquiditySum)}</p>
-            <p className={`mt-1 text-[11px] ${C.muted}`}>Top {boardRows.length} on this list</p>
+            <p className={`mt-1 text-[11px] ${C.muted}`}>Sum of price × volume for rows on this list (not market cap)</p>
           </div>
 
           <div className={`relative flex min-w-0 flex-row items-center gap-3 overflow-hidden rounded-2xl ${C.card} p-3 xl:min-w-[220px] xl:flex-1 xl:shrink-0 2xl:min-w-[260px]`}>
@@ -983,22 +1039,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             <div className="flex min-w-0 items-center gap-2">
               <Trophy className="h-5 w-5 shrink-0 text-[#f0b90b]" />
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-white">Friendly radar ranking</h2>
-                <p className={`text-[11px] ${C.muted}`}>
-                  {isRedisDaily ? (
-                    <>
-                      Top {listLimit} by Str · Redis <code className="text-white/45">dashboard:daily</code> · scores 1–5 ·{" "}
-                      <span className="hidden tablet:inline">hover a row — radar follows cursor</span>
-                      <span className="tablet:hidden">per-symbol rows; header = list averages</span>
-                    </>
-                  ) : (
-                    <>
-                      Top {listLimit} by volume (refreshed ~3h){isDemoDevMode() ? " · demo set" : ""} · scores 1–5 ·{" "}
-                      <span className="hidden tablet:inline">hover a row — radar follows cursor</span>
-                      <span className="tablet:hidden">per-symbol rows; header = list averages</span>
-                    </>
-                  )}
-                </p>
+                <h2 className="text-sm font-semibold text-white">Ideal Investing Ranking</h2>
               </div>
             </div>
             <p className={`min-w-0 text-[11px] ${C.muted} sm:shrink-0`}>
@@ -1054,7 +1095,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           {sparklinesLoading ? (
                             <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
                           ) : (
-                            <TableSparkline values={rowSparklines[r.symbol] ?? []} />
+                            <TableSparkline
+                              values={rowSparklines[r.symbol] ?? []}
+                              snapshotChangePct={r.change_pct_snapshot}
+                            />
                           )}
                         </div>
                       </div>
@@ -1085,7 +1129,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                                     : `${C.muted} bg-white/[0.06]`
                               }`}
                             >
-                              {bias === "buy" ? "Buy" : bias === "sell" ? "Sell" : "Flat"}
+                              {investingBiasLabel(bias)}
                             </span>
                             <span className="font-mono tabular-nums">
                               <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
@@ -1094,7 +1138,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           </div>
                         </div>
                         <div className="col-span-2">
-                          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Liq</p>
+                          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`} title="Price × share volume (snapshot), not market cap">
+                            Vol $
+                          </p>
                           <p className="mt-0.5 font-mono text-xs tabular-nums">{formatUsd(r.liquidity)}</p>
                         </div>
                       </div>
@@ -1133,6 +1179,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           />
                           <BoardSortHeader
                             label="24h %"
+                            title="Daily snapshot percent change from the data feed (same sign as Buy/Sell bias)."
                             columnKey="change"
                             sort={tableSort}
                             onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1156,7 +1203,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                             className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                           />
                           <BoardSortHeader
-                            label="Liq"
+                            label="Vol $"
+                            title="Dollar trading activity: last snapshot price × share volume (not market capitalization)."
                             columnKey="liquidity"
                             sort={tableSort}
                             onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1173,6 +1221,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           />
                           <BoardSortHeader
                             label="Trend"
+                            title="Recent daily closes; line color matches the 24h % column (same snapshot sign)."
                             columnKey="trend"
                             sort={tableSort}
                             onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1185,12 +1234,27 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>#</th>
                           <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>Name</th>
                           <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>Price</th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>24h %</th>
+                          <th
+                            className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}
+                            title="Daily snapshot % from the data feed."
+                          >
+                            24h %
+                          </th>
                           <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Bias</th>
                           <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Str</th>
-                          <th className={`hidden border-b ${C.line} px-2 py-2.5 text-right sm:table-cell lg:px-3`}>Liq</th>
+                          <th
+                            className={`hidden border-b ${C.line} px-2 py-2.5 text-right sm:table-cell lg:px-3`}
+                            title="Dollar trading activity (price × volume, snapshot) — not market cap."
+                          >
+                            Vol $
+                          </th>
                           <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>Care</th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Trend</th>
+                          <th
+                            className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}
+                            title="Recent daily closes; color matches 24h % snapshot sign."
+                          >
+                            Trend
+                          </th>
                         </>
                       )}
                     </tr>
@@ -1257,7 +1321,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                                       : `${C.muted} bg-white/[0.06]`
                                 }`}
                               >
-                                {bias === "buy" ? "Buy" : bias === "sell" ? "Sell" : "Flat"}
+                                {investingBiasLabel(bias)}
                               </span>
                             </td>
                             <td className="px-3 py-2.5 text-center font-mono tabular-nums">
@@ -1272,7 +1336,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                               {sparklinesLoading ? (
                                 <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
                               ) : (
-                                <TableSparkline values={rowSparklines[r.symbol] ?? []} />
+                                <TableSparkline
+                                  values={rowSparklines[r.symbol] ?? []}
+                                  snapshotChangePct={r.change_pct_snapshot}
+                                />
                               )}
                             </td>
                           </tr>
@@ -1287,7 +1354,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                   </span>
                   <span className="hidden tablet:inline">
                     Hover a row — the radar card follows your cursor (clamped to the viewport). Click the popover or a company
-                    name for profile. Trend = daily close line (not candles).
+                    name for profile. Trend shows recent daily closes; its color matches the 24h % column.
                   </span>
                 </p>
 
@@ -1313,7 +1380,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                       <code className="text-white/60">strong_count</code> from the API (five spokes, score ≥ 4).
                     </li>
                     <li>
-                      <strong className="text-white/80">Buy / Sell badge:</strong> Sign of the same daily snapshot %
+                      <strong className="text-white/80">Buy / Hold / Sell badge:</strong> Sign of the same daily snapshot %
                       change as the heatmap snapshot (not trading advice).
                     </li>
                   </ul>

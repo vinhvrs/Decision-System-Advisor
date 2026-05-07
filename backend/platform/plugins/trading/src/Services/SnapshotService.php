@@ -12,6 +12,8 @@ class SnapshotService
 {
     /** Count a “strong” radar trait when its 1–5 score is >= this value (not 5). */
     private const BEGINNER_STRONG_TRAIT_MIN_SCORE = 4;
+    /** Dashboard daily response should always show top 10 rows. */
+    private const DASHBOARD_DAILY_LIMIT = 10;
 
     protected string $heatmapKey = 'heatmap:daily';
     protected string $marketCapRankingKey = 'marketcap:ranking:daily';
@@ -221,9 +223,14 @@ class SnapshotService
             ->toArray();
     }
 
-    public function heatmapDaily(int $limit = 100): array
+    /**
+     * Daily heatmap rows (Redis hash or DB fallback). Optional {@code $sector} filters by {@code company_profile.sector}
+     * (case-insensitive substring, e.g. "Technology" matches "Information Technology").
+     */
+    public function heatmapDaily(int $limit = 100, ?string $sector = null): array
     {
         $limit = $this->sanitizeLimit($limit);
+        $sector = $this->normalizeSectorFilter($sector);
 
         $data = [];
         try {
@@ -233,9 +240,26 @@ class SnapshotService
         }
 
         if (! empty($data)) {
-            return collect($data)
+            $rows = collect($data)
                 ->map(fn ($row) => json_decode($row, true))
-                ->filter(fn ($row) => is_array($row) && ! empty($row['symbol']))
+                ->filter(fn ($row) => is_array($row) && ! empty($row['symbol']));
+
+            if ($sector !== null) {
+                $symbols = $rows
+                    ->map(fn ($row) => strtoupper(trim((string) ($row['symbol'] ?? ''))))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+                $allowed = $this->symbolsAllowedForSectorFilter($symbols, $sector);
+                $rows = $rows->filter(fn ($row) => in_array(
+                    strtoupper(trim((string) ($row['symbol'] ?? ''))),
+                    $allowed,
+                    true
+                ));
+            }
+
+            return $rows
                 ->sortByDesc(fn ($row) => (float) ($row['liquidity'] ?? 0))
                 ->take($limit)
                 ->map(function ($row) {
@@ -258,17 +282,61 @@ class SnapshotService
                 ->toArray();
         }
 
-        return Cache::remember('heatmap_daily_db_'.$limit, now()->addSeconds(90), function () use ($limit) {
-            return $this->heatmapDailyFromDatabase($limit);
+        $cacheKey = 'heatmap_daily_db_'.$limit.'_'.sha1((string) $sector);
+
+        return Cache::remember($cacheKey, now()->addSeconds(90), function () use ($limit, $sector) {
+            return $this->heatmapDailyFromDatabase($limit, $sector);
         });
     }
 
-    /**
-     * Fallback when Redis heatmap hash is empty: single table read by liquidity (no subquery / company_profile join).
-     */
-    protected function heatmapDailyFromDatabase(int $limit): array
+    protected function normalizeSectorFilter(?string $sector): ?string
     {
-        return DB::table('instrument_snapshot as s')
+        if ($sector === null) {
+            return null;
+        }
+        $t = trim($sector);
+
+        return $t === '' ? null : $t;
+    }
+
+    /**
+     * @param  list<string>  $upperSymbols
+     * @return list<string>
+     */
+    protected function symbolsAllowedForSectorFilter(array $upperSymbols, string $sectorNeedle): array
+    {
+        if ($upperSymbols === []) {
+            return [];
+        }
+        $needle = mb_strtolower(trim($sectorNeedle));
+        if ($needle === '') {
+            return $upperSymbols;
+        }
+
+        $rows = DB::table('company_profile')
+            ->whereIn(DB::raw('UPPER(TRIM(symbol))'), $upperSymbols)
+            ->get(['symbol', 'sector']);
+
+        $out = [];
+        foreach ($rows as $r) {
+            $sec = (string) ($r->sector ?? '');
+            if ($sec === '') {
+                continue;
+            }
+            if (mb_stripos(mb_strtolower($sec), $needle) !== false) {
+                $out[] = strtoupper(trim((string) $r->symbol));
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * Fallback when Redis heatmap hash is empty: read by liquidity; optional sector join on company_profile.
+     */
+    protected function heatmapDailyFromDatabase(int $limit, ?string $sector = null): array
+    {
+        $q = DB::table('instrument_snapshot as s')
             ->select([
                 's.instrument_id',
                 's.symbol',
@@ -278,8 +346,19 @@ class SnapshotService
                 's.market_cap',
                 's.liquidity',
                 's.change_pct',
-            ])
-            ->orderByDesc('s.liquidity')
+            ]);
+
+        if ($sector !== null && $sector !== '') {
+            $needle = mb_strtolower(trim($sector));
+            $q->join('company_profile as cp', function ($join) {
+                $join->whereRaw('UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))');
+            })
+                ->whereNotNull('cp.sector')
+                ->where('cp.sector', '!=', '')
+                ->whereRaw('LOWER(cp.sector) LIKE ?', ['%'.$needle.'%']);
+        }
+
+        return $q->orderByDesc('s.liquidity')
             ->limit($limit)
             ->get()
             ->map(function ($row) {
@@ -735,6 +814,16 @@ class SnapshotService
 
         if (! isset($data['rows']) && isset($data['ranking_board'])) {
             $data['rows'] = $data['ranking_board'];
+        }
+        if (isset($data['rows']) && is_array($data['rows'])) {
+            $data['rows'] = array_values(array_slice($data['rows'], 0, self::DASHBOARD_DAILY_LIMIT));
+        }
+        if (isset($data['ranking_board']) && is_array($data['ranking_board'])) {
+            $data['ranking_board'] = array_values(array_slice($data['ranking_board'], 0, self::DASHBOARD_DAILY_LIMIT));
+        }
+        if (isset($data['meta']) && is_array($data['meta'])) {
+            $data['meta']['row_count'] = isset($data['rows']) && is_array($data['rows']) ? count($data['rows']) : 0;
+            $data['meta']['pool_limit'] = self::DASHBOARD_DAILY_LIMIT;
         }
 
         return $data;

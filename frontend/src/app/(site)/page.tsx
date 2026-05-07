@@ -12,7 +12,7 @@ export default function HomePage() {
   return (
     <>
       <HomeHeroBanner />
-      <HomeMarketView />
+      <HomeMarketView variant="dashboard-daily" />
     </>
   );
 }

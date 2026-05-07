@@ -42,6 +42,9 @@ services:
       - "6333:6333"
 
   # Python Data Engine (Process news, analyze, embed)
+  # One-off candle backfill (from repo root): docker compose run --rm data-engine python3 -m app.data_collect.collectors.stock_sync --days 30
+  # If backend/.env uses DB_HOST=db (API hits MySQL in Compose), add: -e DB_HOST_PYTHON=db
+  # If .env uses host.docker.internal (DB on host), omit DB_HOST_PYTHON so pymysql matches Laravel.
   data-engine:
     build:
       context: ./backend/python_engine

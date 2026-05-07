@@ -47,8 +47,8 @@ export function FearGreedSpectrumStrip({ value, label, compact }: FearGreedStrip
         />
       </div>
       <p className={`leading-snug text-[#848e9c] ${compact ? "mt-1 text-[8px]" : "mt-1.5 text-[9px]"}`}>
-        This row: F = round(clamp(50 + 3.25 × snapshot %, 0, 100)). Header{" "}
-        <strong className="font-semibold text-[#aeb4c0]">Fear &amp; Greed</strong> bar uses the full-board formula.
+        From this symbol&apos;s daily snapshot price change in our feed (0–100 scale). Illustrative only — not investment
+        advice.
       </p>
     </div>
   );
@@ -127,7 +127,7 @@ const RadarChartClient = dynamic(
 
 type BeginnerRadarChartProps = {
   data: BeginnerRadarPoint[];
-  /** Per-row Fear &amp; Greed strip (same F scale as header bar; formula differs). */
+  /** Per-row Fear &amp; Greed strip (same 0–100 scale as the board header). */
   fearGreed?: FearGreedStripProps | null;
   /** Smaller layout for profile sidebar cards. */
   variant?: "default" | "compact";

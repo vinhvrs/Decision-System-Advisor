@@ -239,6 +239,58 @@ def fetch_daily_closes_for_charts(
     return {iid: list(reversed(closes)) for iid, closes in buckets.items()}
 
 
+def fetch_daily_last_prev_close(
+    conn: pymysql.connections.Connection,
+    instrument_ids: List[str],
+) -> Dict[str, Tuple[float, Optional[float]]]:
+    """
+    Latest and previous daily close per instrument (same basis as profile chart math).
+    Returns: instrument_id -> (last_close, prev_close_or_none)
+    """
+    instrument_ids = [str(x) for x in dict.fromkeys(instrument_ids) if x]
+    if not instrument_ids:
+        return {}
+    ph = ",".join(["%s"] * len(instrument_ids))
+    sql = f"""
+        SELECT instrument_id,
+            MAX(CASE WHEN rn = 1 THEN c_last END) AS last_close,
+            MAX(CASE WHEN rn = 2 THEN c_last END) AS prev_close
+        FROM (
+            SELECT p.instrument_id,
+                CAST(d.close AS DECIMAL(20,10)) AS c_last,
+                ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
+            FROM instrument_data AS d
+            INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+            WHERE p.instrument_id IN ({ph})
+              AND d.close IS NOT NULL
+        ) AS z
+        WHERE rn <= 2
+        GROUP BY instrument_id
+    """
+    out: Dict[str, Tuple[float, Optional[float]]] = {}
+    with conn.cursor() as cur:
+        cur.execute(sql, instrument_ids)
+        for row in cur.fetchall():
+            iid = str(row["instrument_id"])
+            try:
+                last = float(row["last_close"] or 0)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(last) or last <= 0:
+                continue
+            prev_raw = row.get("prev_close")
+            prev: Optional[float] = None
+            if prev_raw is not None:
+                try:
+                    pv = float(prev_raw)
+                    if math.isfinite(pv) and pv > 0:
+                        prev = pv
+                except (TypeError, ValueError):
+                    prev = None
+            out[iid] = (last, prev)
+    return out
+
+
 def query_top_snapshot_rows(conn: pymysql.connections.Connection, limit: int) -> List[Dict[str, Any]]:
     limit = max(1, min(500, int(limit)))
     sql_with_cp = """
@@ -334,6 +386,7 @@ def build_ranking_rows(
     iids = [str(r["instrument_id"]) for r in snapshot_rows]
     vs_prev = beginner_vs_prev_close_abs_pct(conn, iids)
     charts = fetch_daily_closes_for_charts(conn, iids, chart_bars)
+    last_prev_close = fetch_daily_last_prev_close(conn, iids)
     conf_by_sym = fetch_confidence_batch(redis_client, symbols)
 
     by_symbol: Dict[str, Dict[str, Any]] = {}
@@ -348,17 +401,36 @@ def build_ranking_rows(
         logo = r.get("company_logo")
         logo_url = str(logo).strip() if logo else None
 
+        snap_price = float(r.get("price") or 0)
+        snap_change = float(r.get("change_pct") or 0)
+        last_close, prev_close = last_prev_close.get(iid, (0.0, None))
+        # Dashboard should reflect "today" style move: current snapshot price vs previous close.
+        # If snapshot price is unavailable, fall back to latest daily close; if prev close missing,
+        # keep snapshot-provided change.
+        price = snap_price if snap_price > 0 else last_close
+        if prev_close is not None and prev_close > 0 and price > 0:
+            change_pct = (price - prev_close) / prev_close * 100.0
+        else:
+            change_pct = snap_change
+        chart_vals = [round(x, 4) for x in charts.get(iid, [])]
+        if price > 0:
+            # Keep sparkline aligned with displayed price by appending latest snapshot value.
+            if not chart_vals or abs(chart_vals[-1] - round(price, 4)) > 1e-9:
+                chart_vals = chart_vals + [round(price, 4)]
+        if len(chart_vals) > chart_bars:
+            chart_vals = chart_vals[-chart_bars:]
+
         by_symbol[sym] = {
             "instrument_id": iid,
             "company_name": str(r.get("company_name") or sym),
             "logo_url": logo_url,
-            "price": float(r.get("price") or 0),
+            "price": price,
             "volume": float(r.get("volume") or 0),
             "liquidity": float(r.get("liquidity") or 0),
-            "change_pct": float(r.get("change_pct") or 0),
+            "change_pct": change_pct,
             "people_watching": people,
             "candle_move_abs_pct": round(candle_move, 4),
-            "chart": [round(x, 4) for x in charts.get(iid, [])],
+            "chart": chart_vals,
         }
 
     price_scores = quintile_scores_by_symbol({s: d["price"] for s, d in by_symbol.items() if d["price"] > 0})

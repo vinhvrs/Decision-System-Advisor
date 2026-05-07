@@ -17,8 +17,7 @@ const ROWS_KEY = "symbol_dev_rows";
 const symbolDevStore = createStore(DB_NAME, SYMBOL_DEV_STORE_NAME);
 
 /**
- * Ten demo tickers (TESLA→TSLA, APPLE→AAPL, Oracle→ORCL for real API routes).
- * Order matches the product request list.
+ * Twenty demo tickers (mega-cap tech + large tech names). Order is stable for dev board sorting.
  */
 export const DEV_SYMBOL_SEED: SymbolDevCompany[] = [
   {
@@ -80,6 +79,66 @@ export const DEV_SYMBOL_SEED: SymbolDevCompany[] = [
     id: "AVGO",
     name: "Broadcom Inc.",
     symbol: "AVGO",
+  },
+  {
+    company_name: "Advanced Micro Devices, Inc.",
+    id: "AMD",
+    name: "Advanced Micro Devices, Inc.",
+    symbol: "AMD",
+  },
+  {
+    company_name: "Adobe Inc.",
+    id: "ADBE",
+    name: "Adobe Inc.",
+    symbol: "ADBE",
+  },
+  {
+    company_name: "Salesforce, Inc.",
+    id: "CRM",
+    name: "Salesforce, Inc.",
+    symbol: "CRM",
+  },
+  {
+    company_name: "Cisco Systems, Inc.",
+    id: "CSCO",
+    name: "Cisco Systems, Inc.",
+    symbol: "CSCO",
+  },
+  {
+    company_name: "ASML Holding N.V.",
+    id: "ASML",
+    name: "ASML Holding N.V.",
+    symbol: "ASML",
+  },
+  {
+    company_name: "Intuit Inc.",
+    id: "INTU",
+    name: "Intuit Inc.",
+    symbol: "INTU",
+  },
+  {
+    company_name: "QUALCOMM Incorporated",
+    id: "QCOM",
+    name: "QUALCOMM Incorporated",
+    symbol: "QCOM",
+  },
+  {
+    company_name: "ServiceNow, Inc.",
+    id: "NOW",
+    name: "ServiceNow, Inc.",
+    symbol: "NOW",
+  },
+  {
+    company_name: "Palo Alto Networks, Inc.",
+    id: "PANW",
+    name: "Palo Alto Networks, Inc.",
+    symbol: "PANW",
+  },
+  {
+    company_name: "Snowflake Inc.",
+    id: "SNOW",
+    name: "Snowflake Inc.",
+    symbol: "SNOW",
   },
 ];
 

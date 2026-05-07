@@ -9,6 +9,7 @@ import newsService from "@/src/services/News.service";
 import { BeginnerService, type BeginnerBoardRow, type TopByVolumeRow } from "@/src/services/Beginner.service";
 import heatmapService from "@/src/services/Heatmap.service";
 import { stripParentheticals } from "@/src/libs/displayString";
+import { HEATMAP_SECTOR_TECHNOLOGY, MARKET_MOVERS_LIST_LIMIT } from "@/src/libs/marketViewConstants";
 
 const C = {
   card: "bg-[#1e2329] border border-[#2b3139]",
@@ -200,27 +201,18 @@ function boardRowToVolumeMover(r: BeginnerBoardRow): TopByVolumeRow {
   };
 }
 
-/** Gainers / losers / heatmap cells from the same rows as Redis ``dashboard:daily``. */
-function deriveMarketExtrasFromDashboardRows(rows: BeginnerBoardRow[], heatmapLimit = 72) {
+/** Gainers / losers from the same rows as Redis ``dashboard:daily`` (heatmap uses API + sector filter). */
+function deriveMoversFromDashboardRows(rows: BeginnerBoardRow[], moversLimit = MARKET_MOVERS_LIST_LIMIT) {
   const finiteChg = rows.filter((r) => Number.isFinite(r.change_pct_snapshot));
   const gainers = [...finiteChg]
     .sort((a, b) => b.change_pct_snapshot - a.change_pct_snapshot)
-    .slice(0, 5)
+    .slice(0, moversLimit)
     .map(boardRowToVolumeMover);
   const losers = [...finiteChg]
     .sort((a, b) => a.change_pct_snapshot - b.change_pct_snapshot)
-    .slice(0, 5)
+    .slice(0, moversLimit)
     .map(boardRowToVolumeMover);
-  const heatmap = [...rows]
-    .filter((r) => Number.isFinite(r.liquidity) && (r.liquidity ?? 0) > 0)
-    .sort((a, b) => (Number(b.liquidity) || 0) - (Number(a.liquidity) || 0))
-    .slice(0, heatmapLimit)
-    .map((r) => ({
-      symbol: r.symbol,
-      liquidity: r.liquidity,
-      change_pct: r.change_pct_snapshot,
-    }));
-  return { gainers, losers, heatmap };
+  return { gainers, losers };
 }
 
 type BeginnerTestMarketExtrasProps = {
@@ -249,7 +241,6 @@ export default function BeginnerTestMarketExtras({
   useEffect(() => {
     if (!dashboardDailyMode) return;
     setVolumeLoading(false);
-    setHeatmapLoading(false);
   }, [dashboardDailyMode]);
 
   useEffect(() => {
@@ -275,7 +266,7 @@ export default function BeginnerTestMarketExtras({
     if (dashboardDailyMode) return;
     let cancelled = false;
     setVolumeLoading(true);
-    BeginnerService.getTopByVolume(5)
+    BeginnerService.getTopByVolume(MARKET_MOVERS_LIST_LIMIT)
       .then((payload) => {
         if (cancelled) return;
         setVolumeGainers(Array.isArray(payload?.gainers) ? payload.gainers : []);
@@ -298,11 +289,10 @@ export default function BeginnerTestMarketExtras({
   }, [dashboardDailyMode]);
 
   useEffect(() => {
-    if (dashboardDailyMode) return;
     let cancelled = false;
     setHeatmapLoading(true);
     heatmapService
-      .getHeatmapData({ limit: 72 })
+      .getHeatmapData({ limit: 80, sector: HEATMAP_SECTOR_TECHNOLOGY })
       .then((rows) => {
         if (!cancelled) setHeatmap(Array.isArray(rows) ? rows : []);
       })
@@ -315,25 +305,25 @@ export default function BeginnerTestMarketExtras({
     return () => {
       cancelled = true;
     };
-  }, [dashboardDailyMode]);
+  }, []);
 
   const fromDashboard = useMemo(() => {
     if (!dashboardDailyMode || !dashboardRows.length) {
-      return { gainers: [] as TopByVolumeRow[], losers: [] as TopByVolumeRow[], heatmap: [] as HeatmapListRow[] };
+      return { gainers: [] as TopByVolumeRow[], losers: [] as TopByVolumeRow[] };
     }
-    return deriveMarketExtrasFromDashboardRows(dashboardRows, 72);
+    return deriveMoversFromDashboardRows(dashboardRows, MARKET_MOVERS_LIST_LIMIT);
   }, [dashboardDailyMode, dashboardRows]);
 
   const displayGainers = dashboardDailyMode ? fromDashboard.gainers : volumeGainers;
   const displayLosers = dashboardDailyMode ? fromDashboard.losers : volumeLosers;
-  const displayHeatmap = dashboardDailyMode ? fromDashboard.heatmap : heatmap;
+  const displayHeatmap = heatmap;
   const displayVolumeLoading = dashboardDailyMode ? boardLoading : volumeLoading;
-  const displayHeatmapLoading = dashboardDailyMode ? boardLoading : heatmapLoading;
+  const displayHeatmapLoading = heatmapLoading;
 
   const displayVolumeNote = dashboardDailyMode
     ? dashboardUpdatedAt
-      ? `Same symbol pool as Redis dashboard:daily (updated ${updatedAtFormatter.format(new Date(dashboardUpdatedAt))} UTC). Top 5 by snapshot % change; heatmap = up to 72 rows by liquidity.`
-      : "Same symbol pool as Redis dashboard:daily. Top 5 gainers/losers by snapshot % change; heatmap sized by liquidity on this list."
+      ? `Same symbol pool as Redis dashboard:daily (updated ${updatedAtFormatter.format(new Date(dashboardUpdatedAt))} UTC). Top ${MARKET_MOVERS_LIST_LIMIT} by snapshot % change. Heatmap: Technology sector only.`
+      : `Same symbol pool as Redis dashboard:daily. Top ${MARKET_MOVERS_LIST_LIMIT} gainers/losers by snapshot % change. Heatmap: Technology sector only.`
     : volumeNote;
 
   return (
@@ -344,12 +334,14 @@ export default function BeginnerTestMarketExtras({
           <p className={`mt-0.5 text-[11px] ${C.muted}`}>
             {dashboardDailyMode ? (
               <>
-                Latest ingested headlines; movers and treemap use the same Redis{" "}
-                <code className="text-white/45">dashboard:daily</code> list as the board above (not the volume-movers API).
+                Latest ingested headlines; movers use the same Redis{" "}
+                <code className="text-white/45">dashboard:daily</code> pool as the board. Treemap is Technology sector
+                liquidity from the rankings API.
               </>
             ) : (
               <>
-                Latest ingested headlines, top gainers/losers by snapshot volume (refreshed ~3h), and liquidity-sized heatmap.
+                Latest ingested headlines, top gainers/losers by snapshot volume (refreshed ~3h), and a Technology-sector
+                liquidity heatmap.
               </>
             )}
           </p>
@@ -516,7 +508,7 @@ export default function BeginnerTestMarketExtras({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <LayoutGrid className="h-4 w-4 text-amber-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Liquidity heatmap</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Liquidity heatmap (Technology)</h3>
           </div>
           <Link href="/trading" className={`text-[10px] font-semibold text-[#7b9cff] hover:underline`}>
             Heatmap on trading

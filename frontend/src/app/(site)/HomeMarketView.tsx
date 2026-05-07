@@ -10,6 +10,6 @@ type Props = {
 };
 
 /** Site home (`/`) uses live beginner board; `/test` can pass `dashboard-daily`. */
-export default function HomeMarketView({ variant = "beginner-board" }: Props) {
+export default function HomeMarketView({ variant = "dashboard-daily" }: Props) {
   return <BeginnerTestHome dataSource={variant} />;
 }

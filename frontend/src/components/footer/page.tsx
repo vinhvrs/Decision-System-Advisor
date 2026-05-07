@@ -46,7 +46,7 @@ export default function Footer() {
               Decision Stocks Advisor
             </Link>
             <p className="mt-3 tablet:mt-4 text-white/50 text-xs phone:text-sm leading-relaxed max-w-sm">
-              Empowering traders with real-time analytics, institutional-grade indicators, 
+              Empowering investors with real-time analytics, institutional-grade indicators, 
               and AI-driven market insights. Stay ahead of the curve with DSA.
             </p>
             <div className="flex gap-4 mt-6">
@@ -77,7 +77,7 @@ export default function Footer() {
         <div className="border-y border-white/5 py-6 tablet:py-8 mb-6 tablet:mb-8 text-center tablet:text-left">
           <p className="text-[10px] phone:text-[11px] text-white/30 leading-relaxed uppercase tracking-tighter">
             <span className="text-orange-500/60 font-bold mr-1 italic">RISK DISCLOSURE:</span> 
-            Trading stocks involves significant risk. The information provided on DSA is for educational purposes only 
+            Investing in stocks involves significant risk. The information provided on DSA is for educational purposes only 
             and does not constitute financial advice. Decision Stocks Advisor (DSA) is an academic project.
           </p>
         </div>
