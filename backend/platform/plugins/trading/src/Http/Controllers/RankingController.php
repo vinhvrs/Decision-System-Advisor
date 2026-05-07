@@ -107,9 +107,14 @@ class RankingController extends Controller
     public function heatmapDaily(Request $request)
     {
         $limit = $this->limit($request, 100);
+        $sector = $request->query('sector');
+        $sector = is_string($sector) ? trim($sector) : null;
+        if ($sector === '') {
+            $sector = null;
+        }
 
         return response()->json([
-            'data' => $this->snapshotService->heatmapDaily($limit),
+            'data' => $this->snapshotService->heatmapDaily($limit, $sector),
         ]);
     }
 

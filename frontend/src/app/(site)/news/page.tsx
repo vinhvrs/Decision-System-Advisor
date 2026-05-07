@@ -3,12 +3,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Newspaper, X, Clock, Calendar } from "lucide-react";
 import newsService from "@/src/services/News.service";
 import { News } from "@/src/types/News";
 import { pickNewsThumbImage } from "@/src/libs/newsArticle";
 
 export default function NewsListPage() {
+  const searchParams = useSearchParams();
+  const selectedNewsId = searchParams.get("n") ?? "";
   const [items, setItems] = useState<News[]>([]);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
   const [page, setPage] = useState(1);
@@ -21,10 +24,11 @@ export default function NewsListPage() {
     if (!dateString) return "Just now";
     const now = new Date();
     const publishedDate = new Date(dateString);
+    if (Number.isNaN(publishedDate.getTime())) return "Just now";
     const diffInMs = now.getTime() - publishedDate.getTime();
+    if (diffInMs <= 0) return "Just now";
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
 
-    // Nếu trong vòng 24 giờ
     if (diffInHours < 24) {
       if (diffInHours < 1) {
         const diffInMins = Math.floor(diffInMs / (1000 * 60));
@@ -33,7 +37,6 @@ export default function NewsListPage() {
       return `${diffInHours}h ago`;
     }
 
-    // Nếu qua ngày khác
     return publishedDate.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "2-digit",
@@ -76,6 +79,12 @@ export default function NewsListPage() {
   };
 
   useEffect(() => { fetchPage(1, "replace"); }, []);
+
+  useEffect(() => {
+    if (!selectedNewsId || !items.length) return;
+    const matched = items.find((n) => String(n.id) === selectedNewsId);
+    if (matched) setSelectedNews(matched);
+  }, [selectedNewsId, items]);
 
   return (
     <main className="flex h-[calc(100vh-56px)] phone:h-[calc(100vh-64px)] w-full overflow-hidden bg-[#0B1220] text-white font-sans">
@@ -168,6 +177,20 @@ export default function NewsListPage() {
                       </div>
 
                       <h1 className="text-xl phone:text-2xl tablet:text-3xl laptop:text-4xl font-black leading-tight mb-6 tablet:mb-8 text-white">{selectedNews.title}</h1>
+
+                      {selectedNews.source && (
+                        <p className="mb-6 text-sm text-white/60">
+                          Source:{" "}
+                          <a
+                            href={selectedNews.source}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="break-all text-blue-300 hover:text-blue-200 hover:underline"
+                          >
+                            {selectedNews.source}
+                          </a>
+                        </p>
+                      )}
 
                       {imageUrl && (
                         <div className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 shadow-2xl">

@@ -5,39 +5,24 @@ use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentController;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentPeriodsController;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentDataController;
-use Platform\Plugins\Trading\Src\Http\Controllers\CollectData\GetInstrumentData;
 
 Route::prefix('/instruments')->group(function () {
-    // Route::get('/periods', [InstrumentPeriodsController::class, 'index']);
-    // Route::get('/periods/{id}', [InstrumentPeriodsController::class, 'show']);
-    // Route::post('/periods', [InstrumentPeriodsController::class, 'store']);
-    // Route::put('/periods/{id}', [InstrumentPeriodsController::class, 'update']);
-    // Route::delete('/periods/{id}', [InstrumentPeriodsController::class, 'destroy']);
-    // Route::post('/periods/generate', [InstrumentPeriodsController::class, 'generate']);
-
-    
     Route::get('/data', [InstrumentDataController::class, 'index']);
-    // Route::get('/data/period/classify/{symbol}', [InstrumentDataController::class, 'classifyPeriods']);
-    // Must be registered before /data/{symbol} so paths like data/period/{uuid} are not parsed as symbol "period"
+
+    // Keep specific data paths before `/data/{symbol}`.
     Route::post('/data/batch-daily-closes', [InstrumentDataController::class, 'batchDailyCloses']);
     Route::get('/data/period/{periodId}', [InstrumentDataController::class, 'showByPeriod']);
-    Route::get('/data-history/{symbol}', [InstrumentDataController::class, 'getHistory']);
-    Route::get('/history-data/{symbol}', [InstrumentDataController::class, 'getHistory']);
-    // Route::post('/data/fetch/{periodId}', [GetInstrumentData::class, 'fetch']);
-    // Route::post('/data/import-all', [GetInstrumentData::class, 'allInstruments']);
-    // Route::post('/data/import/{instrumentId}', [GetInstrumentData::class, 'importData']);
-    Route::get('/data/{symbol}', [InstrumentDataController::class, 'get']);
-    // Route::post('/data', [InstrumentDataController::class, 'store']);
-    // Route::put('/data/{id}', [InstrumentDataController::class, 'update']);
-    // Route::delete('/data/{id}', [InstrumentDataController::class, 'destroy']);
 
-    // Must be before /{symbol} so "periods" is not captured as a ticker
+    // Canonical history endpoint.
+    Route::get('/data-history/{symbol}', [InstrumentDataController::class, 'getHistory']);
+    // Backward-compatible alias for existing clients.
+    Route::get('/history-data/{symbol}', [InstrumentDataController::class, 'getHistory']);
+    Route::get('/data/{symbol}', [InstrumentDataController::class, 'get']);
+
+    // Must be before `/{symbol}` so "periods" is not captured as a ticker.
     Route::get('/periods/{id}', [InstrumentPeriodsController::class, 'show']);
 
     Route::get('/', [InstrumentController::class, 'index']);
     Route::get('/{symbol}', [InstrumentController::class, 'show']);
-    // Route::post('/', [InstrumentController::class, 'store']);
-    // Route::put('/{id}', [InstrumentController::class, 'update']);
     Route::delete('/{id}', [InstrumentController::class, 'destroy']);
-    // Route::get('/finnhub/stocks', [InstrumentController::class, 'fetchListStock']);
-});  
+});

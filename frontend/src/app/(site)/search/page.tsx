@@ -4,8 +4,63 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
+import newsService from "@/src/services/newsService";
+import { newsSourceLabel } from "@/src/libs/newsArticle";
 import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 import { stripParentheticals } from "@/src/libs/displayString";
+
+type SearchNewsItem = {
+  id?: string;
+  title?: string;
+  content?: string;
+  source?: string;
+  author?: string;
+  published_at?: string;
+};
+
+function normalizeText(v: string): string {
+  return v.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function words(v: string): string[] {
+  return normalizeText(v).split(" ").filter(Boolean);
+}
+
+function isSubsequence(needle: string, hay: string): boolean {
+  if (!needle) return true;
+  let i = 0;
+  for (const ch of hay) {
+    if (ch === needle[i]) i += 1;
+    if (i >= needle.length) return true;
+  }
+  return false;
+}
+
+function fuzzyNewsScore(query: string, title: string, content: string): number {
+  const q = normalizeText(query);
+  const t = normalizeText(title);
+  const c = normalizeText(content);
+  if (!q) return 0;
+
+  let score = 0;
+  if (t.includes(q)) score += 14;
+  if (c.includes(q)) score += 8;
+
+  const qWords = words(q);
+  for (const w of qWords) {
+    if (w.length < 2) continue;
+    if (t.includes(w)) score += 4;
+    else if (c.includes(w)) score += 2;
+    else if (isSubsequence(w, t) || isSubsequence(w, c)) score += 1;
+  }
+  return score;
+}
+
+function teaser(content: string, maxLen = 100): string {
+  const firstLine = (content || "").replace(/\s+/g, " ").trim();
+  if (!firstLine) return "Short market brief available.";
+  return firstLine.length > maxLen ? `${firstLine.slice(0, maxLen).trimEnd()}...` : firstLine;
+}
 
 function SearchResults() {
   const searchParams = useSearchParams();
@@ -16,6 +71,7 @@ function SearchResults() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [demoTop, setDemoTop] = useState<ElasticCompanyHit[]>([]);
+  const [newsResults, setNewsResults] = useState<SearchNewsItem[]>([]);
 
   useEffect(() => {
     ElasticService.getDemoTopSymbols(20)
@@ -29,25 +85,41 @@ function SearchResults() {
       setResults([]);
       setSuggestions([]);
       setTotal(0);
+      setNewsResults([]);
       setLoading(false);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
-    ElasticService.searchCompanies(query, 50)
-      .then(({ items, total: t, suggestions: sug }) => {
-        if (!cancelled) {
-          setResults(items);
-          setTotal(t);
-          setSuggestions(sug ?? []);
-        }
+    Promise.all([
+      ElasticService.searchCompanies(query, 50),
+      newsService.getAllNews({ page: 1, per_page: 120 }),
+    ])
+      .then(([companyRes, newsRes]) => {
+        if (cancelled) return;
+        setResults(companyRes.items);
+        setTotal(companyRes.total);
+        setSuggestions(companyRes.suggestions ?? []);
+
+        const newsRows = Array.isArray(newsRes?.data) ? newsRes.data : [];
+        const rankedNews = newsRows
+          .map((n: SearchNewsItem) => ({
+            row: n,
+            score: fuzzyNewsScore(query, String(n?.title ?? ""), String(n?.content ?? "")),
+          }))
+          .filter((x) => x.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 8)
+          .map((x) => x.row);
+        setNewsResults(rankedNews);
       })
       .catch(() => {
         if (!cancelled) {
           setResults([]);
           setTotal(0);
           setSuggestions([]);
+          setNewsResults([]);
         }
       })
       .finally(() => {
@@ -170,6 +242,37 @@ function SearchResults() {
             })}
           </ul>
         )}
+
+        <section className="mt-8">
+          <h2 className="text-base font-semibold text-white">Related news (fuzzy keyword)</h2>
+          <p className="mt-1 text-xs text-white/45">
+            Lightweight snippets only; open item for full details.
+          </p>
+          {newsResults.length === 0 ? (
+            <p className="py-4 text-sm text-white/50">No related news found for this keyword.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {newsResults.map((n, idx) => {
+                const href = n.id ? `/news?n=${encodeURIComponent(String(n.id))}` : "/news";
+                const title = String(n.title || "Untitled");
+                const meta = newsSourceLabel({ source: n.source, author: n.author });
+                const ts = n.published_at ? new Date(n.published_at).toISOString().slice(0, 10) : "—";
+                const desc = teaser(String(n.content ?? ""));
+                const baseClass =
+                  "block rounded-xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-white/10 hover:bg-white/10";
+                return (
+                  <li key={`${n.id ?? title}-${idx}`}>
+                    <Link href={href} className={baseClass}>
+                      <p className="text-sm font-medium text-white">{title}</p>
+                      <p className="mt-1 text-xs text-white/45">{meta} · {ts}</p>
+                      <p className="mt-2 text-sm text-white/70">{desc}</p>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
       {demoColumn}
     </div>

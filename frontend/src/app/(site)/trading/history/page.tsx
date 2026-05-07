@@ -31,7 +31,7 @@ type AdviceRow = {
   momentum: number;
   stability: number;
   sentiment: number;
-  advice: "BUY" | "HOLD" | "WATCH";
+  advice: "ACCUMULATE" | "KEEP" | "REVIEW";
   note: string;
 };
 
@@ -55,17 +55,17 @@ const HORIZON_DAYS: Record<HorizonPreset, number> = {
   "10Y": 365 * 10,
 };
 
-const DEMO_HISTORY_ADVICE: AdviceRow[] = [
-  { symbol: "AAPL", asOf: "2026-05-01", value: 4.2, quality: 4.8, growth: 4.3, momentum: 3.6, stability: 4.7, sentiment: 4.0, advice: "BUY", note: "Strong quality and balance sheet with durable growth." },
-  { symbol: "MSFT", asOf: "2026-05-01", value: 4.0, quality: 4.9, growth: 4.5, momentum: 3.8, stability: 4.8, sentiment: 4.2, advice: "BUY", note: "High quality compounder with resilient cash generation." },
-  { symbol: "GOOGL", asOf: "2026-05-01", value: 4.3, quality: 4.6, growth: 4.2, momentum: 3.7, stability: 4.5, sentiment: 3.8, advice: "BUY", note: "Attractive value/quality mix and strong moat." },
-  { symbol: "AMZN", asOf: "2026-05-01", value: 3.7, quality: 4.4, growth: 4.6, momentum: 3.9, stability: 4.1, sentiment: 4.1, advice: "BUY", note: "Growth remains strong; valuation still acceptable." },
-  { symbol: "NVDA", asOf: "2026-05-01", value: 2.9, quality: 4.7, growth: 4.9, momentum: 4.5, stability: 3.5, sentiment: 4.4, advice: "HOLD", note: "Excellent growth but valuation and cyclicality need caution." },
-  { symbol: "TSLA", asOf: "2026-05-01", value: 3.0, quality: 3.8, growth: 4.2, momentum: 3.3, stability: 2.9, sentiment: 3.6, advice: "WATCH", note: "Execution upside exists, but volatility and uncertainty remain high." },
-  { symbol: "META", asOf: "2026-05-01", value: 3.8, quality: 4.5, growth: 4.1, momentum: 3.7, stability: 4.2, sentiment: 3.9, advice: "HOLD", note: "Solid fundamentals; monitor spend discipline and margins." },
-  { symbol: "JPM", asOf: "2026-05-01", value: 4.1, quality: 4.3, growth: 3.6, momentum: 3.1, stability: 4.4, sentiment: 3.7, advice: "HOLD", note: "Defensive quality with fair value in current cycle." },
-  { symbol: "V", asOf: "2026-05-01", value: 3.9, quality: 4.7, growth: 4.0, momentum: 3.5, stability: 4.6, sentiment: 3.8, advice: "BUY", note: "Consistent high returns and strong long-term payment tailwinds." },
-  { symbol: "JNJ", asOf: "2026-05-01", value: 4.0, quality: 4.4, growth: 3.2, momentum: 2.8, stability: 4.8, sentiment: 3.5, advice: "HOLD", note: "Lower growth but strong stability for long-horizon allocation." },
+const DEMO_HISTORY_ADVICE_BASE: Omit<AdviceRow, "asOf">[] = [
+  { symbol: "AAPL", value: 4.2, quality: 4.8, growth: 4.3, momentum: 3.6, stability: 4.7, sentiment: 4.0, advice: "ACCUMULATE", note: "Strong quality and balance sheet with durable growth." },
+  { symbol: "MSFT", value: 4.0, quality: 4.9, growth: 4.5, momentum: 3.8, stability: 4.8, sentiment: 4.2, advice: "ACCUMULATE", note: "High quality compounder with resilient cash generation." },
+  { symbol: "GOOGL", value: 4.3, quality: 4.6, growth: 4.2, momentum: 3.7, stability: 4.5, sentiment: 3.8, advice: "ACCUMULATE", note: "Attractive value/quality mix and strong moat." },
+  { symbol: "AMZN", value: 3.7, quality: 4.4, growth: 4.6, momentum: 3.9, stability: 4.1, sentiment: 4.1, advice: "ACCUMULATE", note: "Growth remains strong; valuation still acceptable." },
+  { symbol: "NVDA", value: 2.9, quality: 4.7, growth: 4.9, momentum: 4.5, stability: 3.5, sentiment: 4.4, advice: "KEEP", note: "Excellent growth but valuation and cyclicality need caution." },
+  { symbol: "TSLA", value: 3.0, quality: 3.8, growth: 4.2, momentum: 3.3, stability: 2.9, sentiment: 3.6, advice: "REVIEW", note: "Execution upside exists, but volatility and uncertainty remain high." },
+  { symbol: "META", value: 3.8, quality: 4.5, growth: 4.1, momentum: 3.7, stability: 4.2, sentiment: 3.9, advice: "KEEP", note: "Solid fundamentals; monitor spend discipline and margins." },
+  { symbol: "JPM", value: 4.1, quality: 4.3, growth: 3.6, momentum: 3.1, stability: 4.4, sentiment: 3.7, advice: "KEEP", note: "Defensive quality with fair value in current cycle." },
+  { symbol: "V", value: 3.9, quality: 4.7, growth: 4.0, momentum: 3.5, stability: 4.6, sentiment: 3.8, advice: "ACCUMULATE", note: "Consistent high returns and strong long-term payment tailwinds." },
+  { symbol: "JNJ", value: 4.0, quality: 4.4, growth: 3.2, momentum: 2.8, stability: 4.8, sentiment: 3.5, advice: "KEEP", note: "Lower growth but strong stability for long-horizon allocation." },
 ];
 
 function toDayMs(days: number): number {
@@ -98,6 +98,21 @@ function fmtMoney(v: number, currency: CurrencyCode): string {
   }
 }
 
+function investingSideLabel(side: OrderSide): string {
+  return side === "buy" ? "Accumulate" : "Reduce";
+}
+
+function clampScore(v: number): number {
+  return Math.max(1, Math.min(5, Number(v.toFixed(1))));
+}
+
+function decideAdvice(row: Omit<AdviceRow, "asOf" | "advice" | "note">): AdviceRow["advice"] {
+  const avg = (row.value + row.quality + row.growth + row.momentum + row.stability + row.sentiment) / 6;
+  if (avg >= 4.05 && row.quality >= 4.0 && row.stability >= 3.6) return "ACCUMULATE";
+  if (avg >= 3.35) return "KEEP";
+  return "REVIEW";
+}
+
 export default function TradingHistoryPage() {
   const getTodayIso = () => new Date().toISOString().slice(0, 10);
   const today = getTodayIso();
@@ -123,6 +138,40 @@ export default function TradingHistoryPage() {
   const [targetDate, setTargetDate] = useState("");
   const [autoRunning, setAutoRunning] = useState(false);
   const timerRef = useRef<number | null>(null);
+  const demoHistoryAdviceRows = useMemo(() => {
+    const offsetByPreset: Record<HorizonPreset, number> = { "1Y": 14, "3Y": 45, "5Y": 75, "10Y": 120 };
+    const horizonTiltByPreset: Record<HorizonPreset, number> = { "1Y": 0.1, "3Y": 0.0, "5Y": -0.1, "10Y": -0.2 };
+    const asOf = shiftDays(toDate || today, -offsetByPreset[horizonPreset]);
+
+    return DEMO_HISTORY_ADVICE_BASE.map((row, i) => {
+      const phase = ((i % 5) - 2) * 0.05;
+      const tilt = horizonTiltByPreset[horizonPreset] + phase;
+      const scored = {
+        symbol: row.symbol,
+        value: clampScore(row.value + tilt * 0.5),
+        quality: clampScore(row.quality + tilt * 0.2),
+        growth: clampScore(row.growth + tilt * 0.6),
+        momentum: clampScore(row.momentum + tilt * 0.7),
+        stability: clampScore(row.stability + tilt * 0.3),
+        sentiment: clampScore(row.sentiment + tilt * 0.4),
+      };
+      const advice = decideAdvice(scored);
+      const noteSuffix =
+        horizonPreset === "1Y"
+          ? " Short horizon is more sensitive to momentum."
+          : horizonPreset === "3Y"
+            ? " Mid horizon balances growth and quality."
+            : horizonPreset === "5Y"
+              ? " Long horizon weights durability over short moves."
+              : " Very long horizon emphasizes stability and resilience.";
+      return {
+        ...scored,
+        asOf,
+        advice,
+        note: `${row.note}${noteSuffix}`,
+      };
+    });
+  }, [horizonPreset, toDate, today]);
 
   const bars = useMemo(() => rawBars, [rawBars]);
   const currentBar = bars[cursor] ?? null;
@@ -397,10 +446,10 @@ export default function TradingHistoryPage() {
               Open: {fmtMoney(Number(currentBar?.open ?? 0), currency)} &nbsp; High: {fmtMoney(Number(currentBar?.high ?? 0), currency)} &nbsp; Low: {fmtMoney(Number(currentBar?.low ?? 0), currency)} &nbsp; Close: {fmtMoney(currentPrice, currency)}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-white/70">By side:</span>
+              <span className="text-[10px] text-white/70">Decision:</span>
               <select value={orderSide} onChange={(e) => setOrderSide(e.target.value as OrderSide)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs">
-                <option value="buy">BUY</option>
-                <option value="sell">SELL</option>
+                <option value="buy">ACCUMULATE</option>
+                <option value="sell">REDUCE</option>
               </select>
               <span className="text-[10px] text-white/70">By volume:</span>
               <input type="number" min={0.01} step={0.01} value={orderVolume} onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))} className="w-20 rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
@@ -439,7 +488,7 @@ export default function TradingHistoryPage() {
             <div className="space-y-2">
               {logs.map((t, i) => (
                 <div key={`${t.at}-${i}`} className="rounded-lg border border-white/10 px-3 py-2 text-sm">
-                  <span className={t.side === "buy" ? "text-emerald-400" : "text-red-400"}>{t.side.toUpperCase()}</span>{" "}
+                  <span className={t.side === "buy" ? "text-emerald-400" : "text-red-400"}>{investingSideLabel(t.side)}</span>{" "}
                   {t.qty.toLocaleString("en-US")} (x{t.leverage}) @ {fmtMoney(t.price, currency)} on {fmtDate(t.at)} | cash after {fmtMoney(t.cashAfter, currency)}
                 </div>
               ))}
@@ -469,7 +518,7 @@ export default function TradingHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {DEMO_HISTORY_ADVICE.map((row) => (
+                {demoHistoryAdviceRows.map((row) => (
                   <tr key={`${row.symbol}-${row.asOf}`} className="border-t border-white/10">
                     <td className="px-3 py-2 font-mono text-white/75">{row.asOf}</td>
                     <td className="px-3 py-2 font-semibold">{row.symbol}</td>
@@ -482,9 +531,9 @@ export default function TradingHistoryPage() {
                     <td className="px-3 py-2">
                       <span
                         className={`rounded px-2 py-0.5 font-semibold ${
-                          row.advice === "BUY"
+                          row.advice === "ACCUMULATE"
                             ? "bg-emerald-500/20 text-emerald-300"
-                            : row.advice === "HOLD"
+                            : row.advice === "KEEP"
                               ? "bg-amber-500/20 text-amber-300"
                               : "bg-cyan-500/20 text-cyan-300"
                         }`}

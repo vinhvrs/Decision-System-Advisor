@@ -5,6 +5,7 @@ import { ChevronDown, Settings, LogOut, Loader2, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AuthService } from '../services/Auth.service';
+import { stripParentheticals } from "@/src/libs/displayString";
 
 interface User {
     id: string;
@@ -56,24 +57,26 @@ function UserProfileDropdown({ user }: UserProfileDropdownProps) {
         return name.trim().charAt(0).toUpperCase();
     };
 
+    const displayName = stripParentheticals(user.name || "").trim() || user.name || "User";
+
     return (
         <div className="relative" ref={dropdownRef}>
             {/* Nút chính hiển thị Tên và Icon */}
             <button
-                className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-100 transition duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex items-center gap-2 rounded-full px-2 py-1.5 text-white hover:bg-white/10 transition duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
                 onClick={() => setIsOpen(!isOpen)}
                 disabled={isLoggingOut} // Vô hiệu hóa khi đang xử lý đăng xuất
             >
                 {/* Tên Người Dùng */}
-                <span className="font-semibold text-gray-800 hidden sm:block">
-                    {user.name}
+                <span className="hidden sm:block font-semibold text-white/90">
+                    {displayName}
                 </span>
                 {/* Avatar Initial */}
-                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
-                    {getInitial(user.name)}
+                <div className="w-8 h-8 rounded-full bg-white/15 text-indigo-200 flex items-center justify-center font-bold text-sm">
+                    {getInitial(displayName)}
                 </div>
                 {/* Icon Dropdown */}
-                <ChevronDown size={18} className="text-gray-600" />
+                <ChevronDown size={18} className="text-white/70" />
             </button>
 
             {/* Menu Dropdown */}

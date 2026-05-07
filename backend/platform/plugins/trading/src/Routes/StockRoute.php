@@ -3,8 +3,6 @@ namespace Platform\Plugins\Trading\Src\Routes;
 
 use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\StockController;
-use Platform\Plugins\Trading\Src\Http\Controllers\AnalysistController;
- 
 
 Route::prefix('/stocks')->group(function () {
     Route::post('/advices/{symbol}', [StockController::class, 'expertAdvices']);

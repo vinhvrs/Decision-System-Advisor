@@ -457,7 +457,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const changeLabel =
     selectedPeriod === "daily"
-      ? "24h (vs previous daily close)"
+      ? "24h vs previous daily close"
       : `Change vs previous ${selectedPeriod} bar`;
 
   const toggleWatchlist = () => {
@@ -569,7 +569,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             href="/trading"
             className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
           >
-            Trading site
+            Investing site
           </Link>
         </nav>
 
@@ -628,7 +628,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   >
                     {changePct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                     {changePct >= 0 ? "+" : ""}
-                    {changePct.toFixed(2)}% <span className={`font-normal ${CMC.muted}`}>({changeLabel})</span>
+                    {changePct.toFixed(2)}%{" "}
+                    <span className={`font-normal ${CMC.muted}`}>· {changeLabel}</span>
                   </span>
                 ) : (
                   <p className={`mt-2 text-sm ${CMC.muted}`}>—</p>

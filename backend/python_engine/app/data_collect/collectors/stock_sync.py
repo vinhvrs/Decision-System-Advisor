@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import yfinance as yf
 import pymysql
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import os
 import sys
@@ -119,13 +119,25 @@ def sync_corporate_actions(
 
 
 class DSATurbo:
-    def __init__(self, snapshot_limit: Optional[int] = None):
+    def __init__(
+        self,
+        snapshot_limit: Optional[int] = None,
+        *,
+        backfill_days: Optional[int] = None,
+        history_period: str = "7d",
+    ):
         """
         ``snapshot_limit``: max rows from ``instrument_snapshot`` ordered by volume.
         ``None`` → ``settings.TOP_N`` (full scheduled sync). Set to ``20`` for thesis demo scope.
+
+        ``backfill_days``: if set, fetch daily bars from (now − N days) through today (overrides ``history_period``).
+
+        ``history_period``: yfinance ``period`` when ``backfill_days`` is ``None`` (scheduled sync uses default ``7d``).
         """
         try:
             self.snapshot_limit = snapshot_limit
+            self.backfill_days = backfill_days
+            self.history_period = history_period
             self.db_config = settings.DB_CONFIG.copy()
             self.db_config['cursorclass'] = pymysql.cursors.DictCursor
             self.conn = pymysql.connect(**self.db_config)
@@ -179,8 +191,11 @@ class DSATurbo:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
-            # Last 7 daily bars for speed
-            df = ticker.history(period="7d", interval="1d", auto_adjust=True)
+            if self.backfill_days is not None:
+                start = (datetime.now() - timedelta(days=max(1, int(self.backfill_days)))).strftime("%Y-%m-%d")
+                df = ticker.history(start=start, interval="1d", auto_adjust=True)
+            else:
+                df = ticker.history(period=self.history_period, interval="1d", auto_adjust=True)
             if df.empty: return
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -251,7 +266,12 @@ class DSATurbo:
         start_turbo = time.time()
         instruments = self.fetch_symbols()
         total = len(instruments)
-        print(f"Starting Turbo Sync v3.5 (7d backfill) for {total} symbols...")
+        window = (
+            f"{self.backfill_days}d calendar backfill"
+            if self.backfill_days is not None
+            else f"period={self.history_period}"
+        )
+        print(f"Starting Turbo Sync v3.5 ({window}) for {total} symbols...")
         
         for idx, inst in enumerate(instruments):
             start_time = time.time()
@@ -264,5 +284,24 @@ class DSATurbo:
         print(f"Done. Total time: {(time.time() - start_turbo)/60:.2f} minutes.")
 
 if __name__ == "__main__":
-    DSA_TURBO = DSATurbo()
+    import argparse
+
+    p = argparse.ArgumentParser(description="Turbo sync: Yahoo daily → instrument_data for snapshot symbols.")
+    p.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Calendar days of history (e.g. 30). If omitted, uses --period (default 7d).",
+    )
+    p.add_argument(
+        "--period",
+        default="7d",
+        help="yfinance period when --days is not set (default: 7d)",
+    )
+    args = p.parse_args()
+    DSA_TURBO = DSATurbo(
+        backfill_days=args.days,
+        history_period=args.period,
+    )
     DSA_TURBO.run()
