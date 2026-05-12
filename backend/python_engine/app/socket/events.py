@@ -3,6 +3,7 @@ import json
 import time
 import asyncio
 import threading
+import logging
 from typing import Dict, Set, List, Any
 
 import pymysql
@@ -30,6 +31,7 @@ except ImportError:
     }
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # TEMP stocks-only: crypto / extra FX pairs disabled (see get_all_needed_symbols).
 DASHBOARD_YAHOO_MAP: Dict[str, tuple] = {
@@ -83,6 +85,7 @@ def _parse_change_pct(val: Any) -> float | None:
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[WebSocket, Set[str]] = {}
+        self._dashboard_subscribers: Set[WebSocket] = set()
         self.yahoo_ticker = None
         self.stop_event = threading.Event()
         self.loop = None
@@ -108,6 +111,41 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         with self._lock:
             self.active_connections.pop(websocket, None)
+            self._dashboard_subscribers.discard(websocket)
+
+    def subscribe_dashboard(self, websocket: WebSocket) -> None:
+        with self._lock:
+            self._dashboard_subscribers.add(websocket)
+        if self.loop and self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(self._push_initial_dashboard_daily(websocket), self.loop)
+
+    def unsubscribe_dashboard(self, websocket: WebSocket) -> None:
+        with self._lock:
+            self._dashboard_subscribers.discard(websocket)
+
+    async def _push_initial_dashboard_daily(self, websocket: WebSocket) -> None:
+        try:
+            from config.settings import settings
+
+            r = settings.redis_client()
+            raw = r.get("dashboard:daily")
+            if not raw:
+                return
+            payload = json.loads(raw) if isinstance(raw, str) else raw
+            if not isinstance(payload, dict):
+                return
+            text = json.dumps({"type": "dashboard_daily", "payload": payload}, default=str, ensure_ascii=False)
+            await self._send_safe(websocket, text)
+        except Exception as e:
+            logger.warning("[Socket] initial dashboard:daily push failed: %s", e, exc_info=True)
+
+    async def broadcast_dashboard_daily(self, payload: Dict[str, Any]) -> None:
+        text = json.dumps({"type": "dashboard_daily", "payload": payload}, default=str, ensure_ascii=False)
+        with self._lock:
+            targets = list(self._dashboard_subscribers)
+        if not targets:
+            return
+        await asyncio.gather(*(self._send_safe(ws, text) for ws in targets))
     def update_subscription(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
         new_symbols = {s.upper() for s in symbols if s}
         with self._lock:
@@ -359,7 +397,11 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             raw_data = await websocket.receive_text()
             data = json.loads(raw_data)
-            if data.get("type") == "subscribe":
+            if data.get("type") == "subscribe_dashboard":
+                manager.subscribe_dashboard(websocket)
+            elif data.get("type") == "unsubscribe_dashboard":
+                manager.unsubscribe_dashboard(websocket)
+            elif data.get("type") == "subscribe":
                 manager.update_subscription(
                     websocket,
                     data.get("symbols", []),

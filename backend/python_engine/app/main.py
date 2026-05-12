@@ -3,7 +3,7 @@ import os
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -15,6 +15,14 @@ from app.socket.chatbot_options import router as chatbot_ws_router
 from app.socket.events import router as websocket_router
 
 logger = logging.getLogger(__name__)
+
+
+def _trigger_client_is_loopback(request: Request) -> bool:
+    client = request.client
+    if client is None:
+        return False
+    host = (client.host or "").lower().strip("[]")
+    return host in ("127.0.0.1", "::1", "localhost")
 
 
 app = FastAPI(
@@ -53,6 +61,50 @@ async def root():
         "version": "2.1.0",
         "service": "Financial AI Analyst",
     }
+
+
+def _run_dashboard_warm_up_sync() -> None:
+    """Runs in a thread after the trigger HTTP response returns."""
+    try:
+        from app.jobs.dashboard_job import run_dashboard_warm_up
+
+        run_dashboard_warm_up()
+    except Exception as e:
+        logger.exception("internal dashboard warm-up failed: %s", e)
+
+
+@app.post("/internal/tasks/dashboard-warm-up")
+async def internal_dashboard_warm_up(
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Laravel calls this **after** sending the API response to the browser (fire-and-forget).
+    Guard with ``ENGINE_INTERNAL_TRIGGER_SECRET`` (header ``X-Engine-Trigger-Token``), or for **local
+    dev only** set ``ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL=1`` and call from loopback without a secret.
+    """
+    secret = (os.environ.get("ENGINE_INTERNAL_TRIGGER_SECRET") or "").strip()
+    insecure = (os.environ.get("ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if secret:
+        token = (request.headers.get("X-Engine-Trigger-Token") or "").strip()
+        if token != secret:
+            raise HTTPException(status_code=403, detail="Invalid trigger token")
+    elif insecure and _trigger_client_is_loopback(request):
+        logger.warning(
+            "internal dashboard warm-up: no ENGINE_INTERNAL_TRIGGER_SECRET; allowing loopback only (insecure local)"
+        )
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail="Set ENGINE_INTERNAL_TRIGGER_SECRET or ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL=1 (loopback only)",
+        )
+
+    background_tasks.add_task(_run_dashboard_warm_up_sync)
+    return {"ok": True, "accepted": True, "task": "dashboard_warm_up"}
 
 
 @app.get("/health/scheduler")

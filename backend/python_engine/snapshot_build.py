@@ -156,14 +156,19 @@ def build_snapshots(symbol_scope: Optional[str] = None, top_n: Optional[int] = N
                     if not period_id:
                         continue
                     candles = _fetch_candles(cur, period_id, max_candles)
-                    _upsert_snapshot(
-                        cur,
-                        table_name=table,
-                        instrument_id=instrument_id,
-                        symbol=symbol,
-                        candles=candles,
-                    )
-                    upserts += 1
+                    try:
+                        _upsert_snapshot(
+                            cur,
+                            table_name=table,
+                            instrument_id=instrument_id,
+                            symbol=symbol,
+                            candles=candles,
+                        )
+                        upserts += 1
+                    except pymysql.err.ProgrammingError as e:
+                        # Skip periods whose snapshot table is not migrated yet.
+                        if "doesn't exist" not in str(e).lower():
+                            raise
         conn.commit()
         return {
             "ok": True,

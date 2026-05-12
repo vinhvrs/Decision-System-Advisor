@@ -2,8 +2,10 @@ import logging
 from threading import Lock
 
 from app.bootstrap.scheduler_config import SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N
+from app.data_collect.collectors.demo_data_sync import DSADemoSync
 from app.data_collect.collectors.stock_sync import DSATurbo
 from app.data_collect.symbol_ingest import snapshot_limit_for_stock_sync
+from config.settings import settings
 from app.storage.snapshot_update import run_snapshot_update
 
 logger = logging.getLogger(__name__)
@@ -29,10 +31,14 @@ def run_stock_sync() -> None:
         logger.warning("Stock sync skipped because previous run is still active.")
         return
     try:
-        turbo = DSATurbo(
-            snapshot_limit=snapshot_limit_for_stock_sync(SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N)
-        )
-        turbo.run()
+        lim = snapshot_limit_for_stock_sync(SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N)
+        if settings.DASHBOARD_USE_DEMO:
+            DSADemoSync(
+                snapshot_limit=lim,
+                history_period=settings.DEMO_SYNC_YF_PERIOD,
+            ).run()
+        else:
+            DSATurbo(snapshot_limit=lim).run()
         run_snapshot_tables_update()
         logger.info("[Schedule] Stock sync completed.")
     except Exception as e:

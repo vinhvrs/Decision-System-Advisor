@@ -1,15 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import {
   BeginnerService,
+  invalidateDashboardDailyCache,
+  type BeginnerBoardPayload,
   type BeginnerBoardRow,
   type BeginnerRadarPoint,
 } from "@/src/services/Beginner.service";
+import { SimpleSocket } from "@/src/libs/socket";
 import type { HomeMarketViewVariant } from "@/src/app/(site)/HomeMarketView";
 import BeginnerRadarChart from "./BeginnerRadarChart";
 import BeginnerTestMarketExtras from "./BeginnerTestMarketExtras";
@@ -28,11 +38,10 @@ import {
   Trophy,
   Home,
   Search,
+  ArrowUpDown,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
 
 type Period = "daily" | "yearly";
@@ -152,10 +161,18 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
   }
 }
 
-/** Always show all ``DEV_SYMBOL_SEED`` tickers; fetch per-symbol when missing from volume-ranked board. */
+function devBoardRowIsThin(r: BeginnerBoardRow): boolean {
+  const p = Number(r.price);
+  return !Number.isFinite(p) || p <= 0;
+}
+
+/** Always show all ``DEV_SYMBOL_SEED`` tickers; fill gaps when Redis row missing or has no usable price. */
 async function ensureDevBoardRowsComplete(partial: BeginnerBoardRow[]): Promise<BeginnerBoardRow[]> {
   const bySym = new Map(partial.map((r) => [r.symbol.toUpperCase(), r] as const));
-  const missing = DEV_SYMBOL_SEED.filter((s) => !bySym.has(s.symbol.toUpperCase()));
+  const missing = DEV_SYMBOL_SEED.filter((s) => {
+    const row = bySym.get(s.symbol.toUpperCase());
+    return !row || devBoardRowIsThin(row);
+  });
   if (missing.length > 0) {
     const filled = await Promise.all(missing.map((seed) => hydrateDevBoardRowFromApi(seed)));
     missing.forEach((seed, i) => {
@@ -172,6 +189,23 @@ async function ensureDevBoardRowsComplete(partial: BeginnerBoardRow[]): Promise<
       rank: 0,
     };
   }).map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+/** Normalize Redis / socket ``dashboard:daily`` JSON into the board rows shown on this page. */
+async function buildRedisDailyBoardState(payload: BeginnerBoardPayload | null) {
+  if (!payload) return null;
+  let rows =
+    Array.isArray(payload.rows) && payload.rows.length > 0
+      ? payload.rows
+      : (payload as BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] }).ranking_board ?? [];
+  rows = filterBoardRowsForDevMode(rows);
+  rows = await ensureDevBoardRowsComplete(rows);
+  rows = rows.slice(0, BOARD_LIMIT_PROD);
+  return {
+    rows,
+    legend: payload.legend ?? null,
+    updatedAt: typeof payload.updated_at === "string" ? payload.updated_at : null,
+  };
 }
 
 /** Anchor the radar popover near the cursor while staying in the viewport. */
@@ -198,6 +232,9 @@ const BOARD_REFRESH_MS = 150_000;
 /** Re-pull daily closes for sparklines / Fear & Greed bar moves. */
 const SPARKLINE_REFRESH_MS = 240_000;
 const VISIBILITY_REFRESH_MIN_GAP_MS = 20_000;
+
+/** Stable fallback so `?? []` does not allocate a new array every render (breaks memoized sparklines). */
+const EMPTY_SPARKLINE_VALUES: number[] = [];
 
 function formatUsd(n: number): string {
   if (!Number.isFinite(n) || n === 0) return "—";
@@ -250,22 +287,219 @@ function averageClosesSeries(
   return out;
 }
 
-function dayBiasFromRow(r: BeginnerBoardRow): "buy" | "sell" | "flat" {
-  if (r.day_bias === "buy" || r.day_bias === "sell" || r.day_bias === "flat") return r.day_bias;
-  const ch = r.change_pct_snapshot;
-  if (!Number.isFinite(ch)) return "flat";
-  if (ch > 0) return "buy";
-  if (ch < 0) return "sell";
-  return "flat";
+/** Yahoo / python_engine ``quote`` messages: numeric price and changePercent. */
+function parseSocketQuoteNumber(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const s = String(v).trim().replace("%", "");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
 }
 
-function investingBiasLabel(bias: "buy" | "sell" | "flat"): string {
-  if (bias === "buy") return "Buy";
-  if (bias === "sell") return "Sell";
-  return "Hold";
+type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell";
+
+function radarScoresAverage(r: BeginnerBoardRow): number {
+  const s = r.scores;
+  const parts = [s.reputation, s.price_period, s.candle_change, s.volume, s.liquidity, s.people_care]
+    .map((x) => Number(x))
+    .filter((x) => Number.isFinite(x));
+  if (!parts.length) return 3;
+  return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
 
-function MiniSparkline({
+/** Five-tier stance from Python-engine indicators only (Str + radar averages). */
+function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
+  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
+  const avg = radarScoresAverage(r);
+  const indicatorTilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
+  if (indicatorTilt >= 2.2) return "strong_buy";
+  if (indicatorTilt >= 0.8) return "buy";
+  if (indicatorTilt <= -2.2) return "strong_sell";
+  if (indicatorTilt <= -0.8) return "sell";
+  return "hold";
+}
+
+function convictionSortOrder(c: Conviction5): number {
+  switch (c) {
+    case "strong_buy":
+      return 4;
+    case "buy":
+      return 3;
+    case "hold":
+      return 2;
+    case "sell":
+      return 1;
+    case "strong_sell":
+      return 0;
+    default:
+      return 2;
+  }
+}
+
+function convictionLabel(c: Conviction5): string {
+  switch (c) {
+    case "strong_buy":
+      return "Strong Buy";
+    case "buy":
+      return "Buy";
+    case "hold":
+      return "Hold";
+    case "sell":
+      return "Sell";
+    case "strong_sell":
+      return "Strong Sell";
+    default:
+      return "Hold";
+  }
+}
+
+function convictionInvestingTitle(c: Conviction5): string {
+  switch (c) {
+    case "strong_buy":
+      return "Strong Buy — overweight / accumulate (indicator signal: Str + radar). Not investment advice.";
+    case "buy":
+      return "Buy — modest overweight / add on dips (indicator signal). Not investment advice.";
+    case "hold":
+      return "Hold — neutral / marketweight while indicators are mixed. Not investment advice.";
+    case "sell":
+      return "Sell — trim / underweight as indicators weaken. Not investment advice.";
+    case "strong_sell":
+      return "Strong Sell — reduce materially / defensive underweight (indicator signal). Not investment advice.";
+    default:
+      return "";
+  }
+}
+
+function convictionBorderClass(c: Conviction5): string {
+  switch (c) {
+    case "strong_buy":
+      return "border-l-[3px] border-l-[#16c784]";
+    case "buy":
+      return "border-l-[3px] border-l-[#2ebd85]";
+    case "hold":
+      return "border-l-[3px] border-l-[#5e6673]";
+    case "sell":
+      return "border-l-[3px] border-l-[#ea3943]";
+    case "strong_sell":
+      return "border-l-[3px] border-l-[#c82a35]";
+    default:
+      return "border-l-[3px] border-l-transparent";
+  }
+}
+
+function convictionBadgeClass(c: Conviction5): string {
+  switch (c) {
+    case "strong_buy":
+      return "bg-[#16c784]/22 text-[#16c784]";
+    case "buy":
+      return "bg-[#16c784]/12 text-[#2ebd85]";
+    case "hold":
+      return `${C.muted} bg-white/[0.06]`;
+    case "sell":
+      return "bg-[#ea3943]/12 text-[#ea3943]";
+    case "strong_sell":
+      return "bg-[#ea3943]/22 text-[#ff7a82]";
+    default:
+      return `${C.muted} bg-white/[0.06]`;
+  }
+}
+
+function _clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+/**
+ * Implied 12m consensus-style uplift (%) when real analyst target is absent — from radar + Str only.
+ */
+function impliedConsensusUpliftPctWhenNoTarget(r: BeginnerBoardRow): number {
+  const avg = radarScoresAverage(r);
+  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
+  const raw = 5 + (avg - 2.5) * 4 + (st / 5) * 14;
+  return _clamp(raw, 3, 32);
+}
+
+/**
+ * Advisory upside: ((Target − Current) / Current) × 100. Uses API target when present; else synthetic target from radar.
+ */
+function upsideAdvisoryPct(r: BeginnerBoardRow): number {
+  const price = Number(r.price);
+  if (!Number.isFinite(price) || price <= 0) return Number.NaN;
+  const tgt = r.analyst_consensus_target_price;
+  if (typeof tgt === "number" && Number.isFinite(tgt) && tgt > 0) {
+    return ((tgt - price) / price) * 100;
+  }
+  const uplift = impliedConsensusUpliftPctWhenNoTarget(r);
+  const syntheticTarget = price * (1 + uplift / 100);
+  return ((syntheticTarget - price) / price) * 100;
+}
+
+/**
+ * Technical / trend upside: ((recent range high − price) / price) × 100. Range high ≈ loaded daily highs proxy (not true 52W).
+ */
+function upsideTechnicalPct(r: BeginnerBoardRow, closes: number[]): number {
+  const price = Number(r.price);
+  if (!Number.isFinite(price) || price <= 0 || closes.length < 2) return Number.NaN;
+  const high = Math.max(...closes);
+  return ((high - price) / price) * 100;
+}
+
+/**
+ * Downside risk %: distance to support (swing low vs long-window mean as MA proxy), ((price − support) / price) × 100.
+ */
+function downsideRiskPct(r: BeginnerBoardRow, closes: number[]): number {
+  const price = Number(r.price);
+  if (!Number.isFinite(price) || price <= 0 || closes.length < 2) return Number.NaN;
+  const lo = Math.min(...closes);
+  const ma =
+    closes.length >= 15 ? closes.reduce((a, b) => a + b, 0) / closes.length : lo;
+  const support = Math.min(lo, ma);
+  const raw = ((price - support) / price) * 100;
+  return _clamp(raw, 0.15, 85);
+}
+
+/** Risk-adjusted: technical upside ÷ downside (advisory-style rule-of-thumb in tooltip). */
+function upsideRiskRatio(r: BeginnerBoardRow, closes: number[]): number {
+  const up = upsideTechnicalPct(r, closes);
+  const down = downsideRiskPct(r, closes);
+  if (!Number.isFinite(up) || !Number.isFinite(down) || down <= 0) return Number.NaN;
+  return Math.max(up, 0) / down;
+}
+
+function upsideTooltipLines(r: BeginnerBoardRow, closes: number[]): string {
+  const adv = upsideAdvisoryPct(r);
+  const tech = upsideTechnicalPct(r, closes);
+  const down = downsideRiskPct(r, closes);
+  const ratio = upsideRiskRatio(r, closes);
+  const hasRealTarget =
+    typeof r.analyst_consensus_target_price === "number" &&
+    Number.isFinite(r.analyst_consensus_target_price) &&
+    r.analyst_consensus_target_price > 0;
+  const advNote = hasRealTarget
+    ? "Advisory UP: Wall-Street-style vs consensus target."
+    : "Advisory UP: synthetic target from radar (no consensus loaded).";
+  const lines = [
+    advNote,
+    Number.isFinite(adv) ? `Advisory UP: ${adv.toFixed(2)}%` : "Advisory UP: —",
+    Number.isFinite(tech)
+      ? `Technical UP: ${tech.toFixed(2)}% (vs max of loaded closes ≈ resistance)`
+      : "Technical UP: —",
+    Number.isFinite(down) ? `Downside risk: ${down.toFixed(2)}% (to support / MA proxy)` : "Downside: —",
+    Number.isFinite(ratio)
+      ? `Ratio (tech ÷ downside): ${ratio.toFixed(2)} — >3.0 high conviction tilt, <1.0 poor reward/risk (heuristic; not advice).`
+      : "Ratio: —",
+  ];
+  return lines.join(" \n");
+}
+
+function upsidePotentialToneClass(pct: number): string {
+  if (pct >= 14) return "text-[#16c784]";
+  if (pct >= 8) return "text-[#2ebd85]";
+  if (pct >= 3) return "text-[#f0b90b]";
+  if (pct > 0) return "text-[#eaecef]/90";
+  return C.muted;
+}
+
+const MiniSparkline = memo(function MiniSparkline({
   values,
   className,
   netChangePct,
@@ -278,31 +512,36 @@ function MiniSparkline({
   const w = 120;
   const h = 36;
   const pad = 2;
-  if (values.length < 2) {
+  const poly = useMemo(() => {
+    if (values.length < 2) return null;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const pts = values
+      .map((v, i) => {
+        const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+        const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    let stroke: string;
+    if (netChangePct != null && Number.isFinite(netChangePct)) {
+      if (netChangePct > 0) stroke = "#16c784";
+      else if (netChangePct < 0) stroke = "#ea3943";
+      else stroke = "#848e9c";
+    } else {
+      stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
+    }
+    return { pts, stroke };
+  }, [values, netChangePct]);
+
+  if (values.length < 2 || !poly) {
     return (
       <div
         className={`h-9 w-full max-w-[120px] rounded bg-white/[0.04] ${className ?? ""}`}
         aria-hidden
       />
     );
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const pts = values
-    .map((v, i) => {
-      const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
-      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  let stroke: string;
-  if (netChangePct != null && Number.isFinite(netChangePct)) {
-    if (netChangePct > 0) stroke = "#16c784";
-    else if (netChangePct < 0) stroke = "#ea3943";
-    else stroke = "#848e9c";
-  } else {
-    stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
   }
   return (
     <svg
@@ -313,12 +552,12 @@ function MiniSparkline({
       className={className}
       aria-hidden
     >
-      <polyline fill="none" stroke={stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+      <polyline fill="none" stroke={poly.stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" points={poly.pts} />
     </svg>
   );
-}
+});
 
-function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | null }) {
+const RowAvatar = memo(function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | null }) {
   const [broken, setBroken] = useState(false);
   if (logoUrl && !broken) {
     return (
@@ -336,40 +575,39 @@ function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | nul
       {symbol.slice(0, 1)}
     </span>
   );
-}
+});
 
-/** Compact line sparkline in each table cell (not candlesticks). */
-function TableSparkline({
-  values,
-  snapshotChangePct,
-}: {
-  values: number[];
-  /** Same field as the 24h % column; keeps line color in sync with the badge. */
-  snapshotChangePct?: number | null;
-}) {
+/**
+ * Compact line sparkline in each table cell (not candlesticks).
+ * Color follows the loaded close series (last vs first) so rows can stay memo-stable while live 24h % ticks.
+ */
+const TableSparkline = memo(function TableSparkline({ values }: { values: number[] }) {
   const w = 88;
   const h = 28;
   const pad = 1;
-  if (values.length < 2) {
-    return <div className="mx-auto h-7 w-[88px] rounded bg-white/[0.05]" aria-hidden />;
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const pts = values
-    .map((v, i) => {
-      const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
-      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  let stroke: string;
-  if (snapshotChangePct != null && Number.isFinite(snapshotChangePct)) {
-    if (snapshotChangePct > 0) stroke = "#16c784";
-    else if (snapshotChangePct < 0) stroke = "#ea3943";
+  const poly = useMemo(() => {
+    if (values.length < 2) return null;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const pts = values
+      .map((v, i) => {
+        const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+        const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    const last = values[values.length - 1];
+    const first = values[0];
+    let stroke: string;
+    if (last > first) stroke = "#16c784";
+    else if (last < first) stroke = "#ea3943";
     else stroke = "#848e9c";
-  } else {
-    stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
+    return { pts, stroke };
+  }, [values]);
+
+  if (values.length < 2 || !poly) {
+    return <div className="mx-auto h-7 w-[88px] rounded bg-white/[0.05]" aria-hidden />;
   }
   return (
     <svg
@@ -379,25 +617,26 @@ function TableSparkline({
       className="mx-auto block"
       aria-hidden
     >
-      <polyline fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+      <polyline fill="none" stroke={poly.stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={poly.pts} />
     </svg>
   );
-}
+});
 
 /**
- * Prefer last two daily closes from the row sparkline (fresh OHLC) when available;
- * otherwise snapshot % from the API. Used for avg-move / header % badges — not for Fear & Greed
- * (F&G uses snapshot % only via {@link fearGreedFromChangePct}).
+ * Mean effective % for header tiles: prefer live snapshot when present so WS quotes move the badge
+ * without mutating stored daily-close sparklines. Falls back to last step of the close series.
+ * (Row Fear & Greed in the radar popover uses snapshot only via {@link fearGreedFromChangePct}.)
  */
 function effectiveChangeForFearGreed(row: BeginnerBoardRow, closes: number[] | undefined): number | null {
+  const snap = row.change_pct_snapshot;
+  if (Number.isFinite(snap)) return snap;
   if (closes && closes.length >= 2) {
     const from = closes[closes.length - 2];
     const to = closes[closes.length - 1];
     const d = pctChange(from, to);
     if (d != null) return d;
   }
-  const c = row.change_pct_snapshot;
-  return Number.isFinite(c) ? c : null;
+  return null;
 }
 
 function FearGreedGauge({ value }: { value: number }) {
@@ -437,7 +676,7 @@ function FearGreedGauge({ value }: { value: number }) {
   );
 }
 
-function PctBadge({ pct }: { pct: number }) {
+const PctBadge = memo(function PctBadge({ pct }: { pct: number }) {
   const up = pct > 0;
   const down = pct < 0;
   const Icon = up ? ArrowUpRight : down ? ArrowDownRight : Minus;
@@ -449,11 +688,221 @@ function PctBadge({ pct }: { pct: number }) {
       {pct.toFixed(2)}%
     </span>
   );
-}
+});
+
+const UpsidePotentialCell = memo(function UpsidePotentialCell({
+  r,
+  closes,
+  sparklinesLoading,
+}: {
+  r: BeginnerBoardRow;
+  closes: number[];
+  sparklinesLoading: boolean;
+}) {
+  const meta = useMemo(() => {
+    if (sparklinesLoading || closes.length < 2) return null;
+    const tech = upsideTechnicalPct(r, closes);
+    const ratio = upsideRiskRatio(r, closes);
+    return {
+      tech,
+      ratio,
+      title: upsideTooltipLines(r, closes),
+    };
+  }, [r, closes, sparklinesLoading]);
+
+  if (sparklinesLoading || !meta || !Number.isFinite(meta.tech)) {
+    return <span className={`font-mono text-sm tabular-nums ${C.muted}`}>—</span>;
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-0 leading-tight" title={meta.title}>
+      <span className={`font-mono text-sm font-semibold tabular-nums ${upsidePotentialToneClass(meta.tech)}`}>
+        {meta.tech.toFixed(1)}%
+      </span>
+      {Number.isFinite(meta.ratio) ? (
+        <span className={`text-[9px] font-mono tabular-nums ${C.muted}`}>R·{meta.ratio.toFixed(1)}</span>
+      ) : null}
+    </div>
+  );
+});
 
 function profilePathForSymbol(symbol: string): string {
   return `/companies/profile/${encodeURIComponent(symbol.trim().toLowerCase())}`;
 }
+
+type BoardRankingTableRowProps = {
+  r: BeginnerBoardRow;
+  displayRank: number;
+  stripe: boolean;
+  sparklineValues: number[];
+  sparklinesLoading: boolean;
+  onRowEnter: (symbol: string, e: MouseEvent<HTMLTableRowElement>) => void;
+  onRowMove: (e: MouseEvent<HTMLTableRowElement>) => void;
+  onRowLeave: () => void;
+};
+
+const BoardRankingTableRow = memo(function BoardRankingTableRow({
+  r,
+  displayRank,
+  stripe,
+  sparklineValues,
+  sparklinesLoading,
+  onRowEnter,
+  onRowMove,
+  onRowLeave,
+}: BoardRankingTableRowProps) {
+  const conviction = convictionFromRow(r);
+  const symUp = String(r.symbol).toUpperCase();
+  return (
+    <tr
+      onMouseEnter={(e) => onRowEnter(symUp, e)}
+      onMouseMove={onRowMove}
+      onMouseLeave={onRowLeave}
+      className={`cursor-default border-b border-[#2b3139]/80 transition hover:bg-white/[0.04] ${
+        stripe ? "bg-white/[0.015]" : ""
+      } ${convictionBorderClass(conviction)}`}
+    >
+      <td className={`px-3 py-2.5 font-mono tabular-nums ${C.muted}`}>{displayRank}</td>
+      <td className="px-3 py-2.5">
+        <Link
+          href={profilePathForSymbol(r.symbol)}
+          className="flex items-center gap-2.5 rounded-lg p-1 -m-1 no-underline outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50"
+          aria-label={`Open ${r.symbol} company profile`}
+        >
+          <RowAvatar symbol={r.symbol} logoUrl={r.logo_url} />
+          <div className="min-w-0">
+            <p className="truncate font-medium text-white">{stripParentheticals(r.company_name)}</p>
+            <p className={`font-mono text-xs ${C.muted}`}>{r.symbol}</p>
+          </div>
+        </Link>
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">{formatUsd(r.price)}</td>
+      <td className="px-3 py-2.5 text-right">
+        {Number.isFinite(r.change_pct_snapshot) ? (
+          <PctBadge pct={r.change_pct_snapshot} />
+        ) : (
+          <span className={C.muted}>—</span>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-center">
+        <span
+          className={`inline-block max-w-[7.5rem] rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight sm:max-w-none sm:px-2 sm:text-[11px] ${convictionBadgeClass(conviction)}`}
+          title={convictionInvestingTitle(conviction)}
+        >
+          {convictionLabel(conviction)}
+        </span>
+      </td>
+      <td className="px-3 py-2.5 text-center font-mono tabular-nums">
+        <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+        <span className={C.muted}>/5</span>
+      </td>
+      <td className="px-2 py-2.5 text-center lg:px-3">
+        <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
+      </td>
+      <td className={`hidden px-2 py-2.5 text-right font-mono text-xs tabular-nums sm:table-cell lg:px-3`}>
+        {formatUsd(r.liquidity)}
+      </td>
+      <td className="px-2 py-2.5 text-right font-mono tabular-nums lg:px-3">{r.people_watching}</td>
+      <td className="border-l border-[#2b3139]/60 px-1 py-1.5 align-middle">
+        {sparklinesLoading ? (
+          <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
+        ) : (
+          <TableSparkline values={sparklineValues} />
+        )}
+      </td>
+    </tr>
+  );
+});
+
+type BoardRankingMobileCardProps = {
+  r: BeginnerBoardRow;
+  displayRank: number;
+  stripe: boolean;
+  sparklineValues: number[];
+  sparklinesLoading: boolean;
+};
+
+const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
+  r,
+  displayRank,
+  stripe,
+  sparklineValues,
+  sparklinesLoading,
+}: BoardRankingMobileCardProps) {
+  const conviction = convictionFromRow(r);
+  return (
+    <div
+      className={`rounded-xl border border-[#2b3139]/80 p-3 transition ${
+        stripe ? "bg-white/[0.02]" : ""
+      } ${convictionBorderClass(conviction)}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          href={profilePathForSymbol(r.symbol)}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 -m-1 no-underline outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50"
+          aria-label={`Open ${r.symbol} company profile`}
+        >
+          <span className={`shrink-0 font-mono text-xs tabular-nums ${C.muted}`}>{displayRank}</span>
+          <RowAvatar symbol={r.symbol} logoUrl={r.logo_url} />
+          <div className="min-w-0">
+            <p className="truncate font-medium text-white">{stripParentheticals(r.company_name)}</p>
+            <p className={`font-mono text-xs ${C.muted}`}>{r.symbol}</p>
+          </div>
+        </Link>
+        <div className="w-[88px] shrink-0">
+          {sparklinesLoading ? (
+            <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
+          ) : (
+            <TableSparkline values={sparklineValues} />
+          )}
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs phone:grid-cols-3">
+        <div>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Price</p>
+          <p className="mt-0.5 font-mono font-medium tabular-nums">{formatUsd(r.price)}</p>
+        </div>
+        <div>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>24h %</p>
+          <div className="mt-0.5">
+            {Number.isFinite(r.change_pct_snapshot) ? (
+              <PctBadge pct={r.change_pct_snapshot} />
+            ) : (
+              <span className={C.muted}>—</span>
+            )}
+          </div>
+        </div>
+        <div className="col-span-2 phone:col-span-1">
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Stance / Str</p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-block max-w-[6.5rem] rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${convictionBadgeClass(conviction)}`}
+              title={convictionInvestingTitle(conviction)}
+            >
+              {convictionLabel(conviction)}
+            </span>
+            <span className="font-mono tabular-nums">
+              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+              <span className={C.muted}>/5</span>
+            </span>
+          </div>
+        </div>
+        <div className="col-span-2 phone:col-span-1">
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Upside</p>
+          <div className="mt-0.5">
+            <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
+          </div>
+        </div>
+        <div className="col-span-2">
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`} title="Price × share volume (snapshot), not market cap">
+            Vol $
+          </p>
+          <p className="mt-0.5 font-mono text-xs tabular-nums">{formatUsd(r.liquidity)}</p>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /** Prefer embedded Redis ``chart`` closes; else API batch map. */
 function sparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<string, number[]>): number[] {
@@ -488,6 +937,11 @@ function ensureSparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<str
   return [price * 0.995, price];
 }
 
+function upsideTechnicalForSort(row: BeginnerBoardRow, sparkMap: Record<string, number[]>): number {
+  const closes = ensureSparklineValuesForRow(row, sparkMap);
+  return upsideTechnicalPct(row, closes);
+}
+
 /** For table sort: last − first close in the same series as the sparkline (NaN if not enough points). */
 function trendDeltaForSort(row: BeginnerBoardRow, sparkMap: Record<string, number[]>): number {
   const v = sparklineValuesForRow(row, sparkMap);
@@ -505,13 +959,20 @@ function cmpFinite(a: number, b: number): number {
 }
 
 function biasSortOrder(row: BeginnerBoardRow): number {
-  const v = dayBiasFromRow(row);
-  if (v === "buy") return 2;
-  if (v === "sell") return 0;
-  return 1;
+  return convictionSortOrder(convictionFromRow(row));
 }
 
-type BoardSortKey = "rank" | "name" | "price" | "change" | "bias" | "strong" | "liquidity" | "care" | "trend";
+type BoardSortKey =
+  | "rank"
+  | "name"
+  | "price"
+  | "change"
+  | "bias"
+  | "strong"
+  | "upside"
+  | "liquidity"
+  | "care"
+  | "trend";
 
 type BoardSortHeaderProps = {
   label: string;
@@ -535,8 +996,8 @@ function BoardSortHeader({
 }: BoardSortHeaderProps) {
   const flex =
     align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
-  const activeUp = sort.key === columnKey && sort.dir === "asc";
-  const activeDown = sort.key === columnKey && sort.dir === "desc";
+  const active = sort.key === columnKey;
+  const nextDir: "asc" | "desc" = active && sort.dir === "asc" ? "desc" : "asc";
   const btn =
     "rounded p-0.5 outline-none transition hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50";
   const iconOn = "text-[#7b9cff]";
@@ -544,26 +1005,17 @@ function BoardSortHeader({
 
   return (
     <th scope="col" className={className}>
-      <div className={`flex items-center gap-1 ${flex}`}>
+      <div className={`flex items-center gap-1.5 ${flex}`}>
         <span title={title}>{label}</span>
-        <span className="inline-flex shrink-0 flex-col leading-none" role="group" aria-label={`Sort by ${label}`}>
-          <button
-            type="button"
-            className={btn}
-            aria-label={`${label}, ascending`}
-            onClick={() => onSort(columnKey, "asc")}
-          >
-            <ChevronUp className={`h-3.5 w-3.5 ${activeUp ? iconOn : iconOff}`} strokeWidth={2.5} aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={btn}
-            aria-label={`${label}, descending`}
-            onClick={() => onSort(columnKey, "desc")}
-          >
-            <ChevronDown className={`h-3.5 w-3.5 ${activeDown ? iconOn : iconOff}`} strokeWidth={2.5} aria-hidden />
-          </button>
-        </span>
+        <button
+          type="button"
+          className={btn}
+          aria-label={`${label}, toggle sort`}
+          title={active ? `Sorted ${sort.dir}` : "Not sorted"}
+          onClick={() => onSort(columnKey, nextDir)}
+        >
+          <ArrowUpDown className={`h-3.5 w-3.5 ${active ? iconOn : iconOff}`} strokeWidth={2.3} aria-hidden />
+        </button>
       </div>
     </th>
   );
@@ -574,9 +1026,6 @@ type BeginnerTestHomeProps = {
 };
 
 export default function BeginnerTestHome({ dataSource = "beginner-board" }: BeginnerTestHomeProps) {
-  const pathname = usePathname();
-  const isTestRoute = pathname === "/test";
-
   const isRedisDaily = dataSource === "dashboard-daily";
 
   const [period, setPeriod] = useState<Period>("daily");
@@ -599,6 +1048,24 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   const radarPopoverRafRef = useRef<number | null>(null);
   const [rowSparklines, setRowSparklines] = useState<Record<string, number[]>>({});
   const [sparklinesLoading, setSparklinesLoading] = useState(false);
+  const boardRowsRef = useRef<BeginnerBoardRow[]>([]);
+  const dashboardWsRef = useRef<SimpleSocket | null>(null);
+
+  useEffect(() => {
+    boardRowsRef.current = boardRows;
+  }, [boardRows]);
+
+  const dashboardBoardSymKey = useMemo(
+    () =>
+      isRedisDaily
+        ? boardRows
+            .map((r) => String(r.symbol || "").toUpperCase())
+            .filter(Boolean)
+            .sort()
+            .join(",")
+        : "",
+    [isRedisDaily, boardRows],
+  );
 
   const listLimit = useMemo(() => {
     if (isRedisDaily) return boardRows.length > 0 ? boardRows.length : BOARD_LIMIT_PROD;
@@ -647,6 +1114,26 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     }, 240);
   }, [cancelRadarHide]);
 
+  const onBoardTableRowEnter = useCallback(
+    (symbol: string, e: MouseEvent<HTMLTableRowElement>) => {
+      cancelRadarHide();
+      const up = symbol.toUpperCase();
+      const row = boardRowsRef.current.find((x) => String(x.symbol).toUpperCase() === up);
+      if (row) setHoverRadarRow(row);
+      scheduleRadarPopoverPosition(e.clientX, e.clientY);
+    },
+    [cancelRadarHide, scheduleRadarPopoverPosition],
+  );
+  const onBoardTableRowMove = useCallback(
+    (e: MouseEvent<HTMLTableRowElement>) => {
+      scheduleRadarPopoverPosition(e.clientX, e.clientY);
+    },
+    [scheduleRadarPopoverPosition],
+  );
+  const onBoardTableRowLeave = useCallback(() => {
+    scheduleRadarHide();
+  }, [scheduleRadarHide]);
+
   useEffect(() => {
     let cancelled = false;
     let first = true;
@@ -661,14 +1148,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       const chain = isRedisDaily
         ? BeginnerService.getDashboardDaily().then(async (payload) => {
             if (cancelled) return;
-            let rows = payload?.rows ?? [];
-            // Keep Redis daily board aligned with the fixed demo symbol set/order.
-            rows = filterBoardRowsForDevMode(rows);
-            rows = await ensureDevBoardRowsComplete(rows);
-            rows = rows.slice(0, BOARD_LIMIT_PROD);
-            setBoardRows(rows);
-            setBoardLegend(payload?.legend ?? null);
-            setDashboardUpdatedAt(typeof payload?.updated_at === "string" ? payload.updated_at : null);
+            const built = await buildRedisDailyBoardState(payload);
+            if (cancelled || !built) return;
+            setBoardRows(built.rows);
+            setBoardLegend(built.legend);
+            setDashboardUpdatedAt(built.updatedAt);
           })
         : BeginnerService.getRankingBoard(fetchLimit).then(async (payload) => {
             if (cancelled) return;
@@ -718,6 +1202,98 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [isRedisDaily]);
+
+  /** Redis ``dashboard:daily`` snapshot on WS (5m server cadence) + live price / % from Yahoo quotes. */
+  useEffect(() => {
+    if (!isRedisDaily) return;
+    let cancelled = false;
+
+    const sendBoardQuoteSubscriptions = () => {
+      const syms = [
+        ...new Set(boardRowsRef.current.map((r) => String(r.symbol || "").toUpperCase()).filter(Boolean)),
+      ];
+      if (!syms.length) return;
+      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: "daily" });
+    };
+
+    const socket = new SimpleSocket(
+      async (data) => {
+        if (cancelled) return;
+        const msg = data as {
+          type?: string;
+          symbol?: string;
+          price?: unknown;
+          change?: unknown;
+          payload?: BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] };
+        };
+
+        if (msg.type === "quote" && msg.symbol) {
+          const sym = String(msg.symbol).toUpperCase();
+          const price = parseSocketQuoteNumber(msg.price);
+          const chg = parseSocketQuoteNumber(msg.change);
+          setBoardRows((prev) => {
+            let touched = false;
+            const next = prev.map((r) => {
+              if (String(r.symbol).toUpperCase() !== sym) return r;
+              touched = true;
+              const row = { ...r };
+              if (price != null && price > 0) row.price = price;
+              if (chg != null) {
+                row.change_pct_snapshot = Math.round(chg * 100) / 100;
+                row.candle_move_abs_pct = Math.abs(chg);
+                row.day_bias = chg > 0 ? "buy" : chg < 0 ? "sell" : "flat";
+              }
+              return row;
+            });
+            return touched ? next : prev;
+          });
+          return;
+        }
+
+        if (msg.type === "dashboard_daily" && msg.payload) {
+          invalidateDashboardDailyCache();
+          const built = await buildRedisDailyBoardState(msg.payload as BeginnerBoardPayload);
+          if (cancelled || !built) return;
+          setBoardRows(built.rows);
+          setBoardLegend(built.legend);
+          setDashboardUpdatedAt(built.updatedAt);
+          setBoardLoading(false);
+        }
+      },
+      () => {
+        if (cancelled) return;
+        socket.send({ type: "subscribe_dashboard" });
+        window.setTimeout(() => sendBoardQuoteSubscriptions(), 200);
+      },
+    );
+
+    dashboardWsRef.current = socket;
+    socket.connect();
+
+    return () => {
+      cancelled = true;
+      dashboardWsRef.current = null;
+      try {
+        socket.send({ type: "unsubscribe_dashboard" });
+      } catch {
+        /* ignore */
+      }
+      socket.disconnect();
+    };
+  }, [isRedisDaily]);
+
+  /** Re-subscribe Yahoo stream when board symbols change (e.g. after first HTTP load). */
+  useEffect(() => {
+    if (!isRedisDaily || !dashboardBoardSymKey) return;
+    const syms = [
+      ...new Set(boardRowsRef.current.map((r) => String(r.symbol || "").toUpperCase()).filter(Boolean)),
+    ];
+    if (!syms.length) return;
+    const t = window.setTimeout(() => {
+      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: "daily" });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [isRedisDaily, dashboardBoardSymKey]);
 
   useEffect(() => {
     if (!boardRows.length) {
@@ -832,7 +1408,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   );
 
   const sortedBoardRows = useMemo(() => {
-    if (!isTestRoute || boardRows.length === 0) return boardRows;
+    if (boardRows.length === 0) return boardRows;
     const dirM = tableSort.dir === "asc" ? 1 : -1;
     const next = [...boardRows];
     next.sort((a, b) => {
@@ -859,6 +1435,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         case "strong":
           c = cmpFinite(a.strong_count, b.strong_count);
           break;
+        case "upside":
+          c = cmpFinite(upsideTechnicalForSort(a, rowSparklines), upsideTechnicalForSort(b, rowSparklines));
+          break;
         case "liquidity":
           c = cmpFinite(a.liquidity, b.liquidity);
           break;
@@ -875,7 +1454,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       return a.symbol.localeCompare(b.symbol);
     });
     return next;
-  }, [isTestRoute, boardRows, tableSort, rowSparklines]);
+  }, [boardRows, tableSort, rowSparklines]);
 
   const fearGreed = useMemo(() => fearGreedFromBoardRows(boardRows), [boardRows]);
 
@@ -1062,289 +1641,119 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           ) : (
             <div className="p-2 phone:p-3 tablet:p-4">
               <div className="space-y-2 tablet:hidden">
-                {sortedBoardRows.map((r, idx) => {
-                  const bias = dayBiasFromRow(r);
-                  const displayRank = isTestRoute ? idx + 1 : r.rank;
-                  return (
-                    <div
-                      key={r.symbol}
-                      className={`rounded-xl border border-[#2b3139]/80 p-3 transition ${
-                        idx % 2 === 1 ? "bg-white/[0.02]" : ""
-                      } ${
-                        bias === "buy"
-                          ? "border-l-[3px] border-l-[#16c784]"
-                          : bias === "sell"
-                            ? "border-l-[3px] border-l-[#ea3943]"
-                            : ""
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <Link
-                          href={profilePathForSymbol(r.symbol)}
-                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 -m-1 no-underline outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50"
-                          aria-label={`Open ${r.symbol} company profile`}
-                        >
-                          <span className={`shrink-0 font-mono text-xs tabular-nums ${C.muted}`}>{displayRank}</span>
-                          <RowAvatar symbol={r.symbol} logoUrl={r.logo_url} />
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-white">{stripParentheticals(r.company_name)}</p>
-                            <p className={`font-mono text-xs ${C.muted}`}>{r.symbol}</p>
-                          </div>
-                        </Link>
-                        <div className="w-[88px] shrink-0">
-                          {sparklinesLoading ? (
-                            <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
-                          ) : (
-                            <TableSparkline
-                              values={rowSparklines[r.symbol] ?? []}
-                              snapshotChangePct={r.change_pct_snapshot}
-                            />
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs phone:grid-cols-3">
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Price</p>
-                          <p className="mt-0.5 font-mono font-medium tabular-nums">{formatUsd(r.price)}</p>
-                        </div>
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>24h %</p>
-                          <div className="mt-0.5">
-                            {Number.isFinite(r.change_pct_snapshot) ? (
-                              <PctBadge pct={r.change_pct_snapshot} />
-                            ) : (
-                              <span className={C.muted}>—</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="col-span-2 phone:col-span-1">
-                          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Bias / Str</p>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                            <span
-                              className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                                bias === "buy"
-                                  ? "bg-[#16c784]/15 text-[#16c784]"
-                                  : bias === "sell"
-                                    ? "bg-[#ea3943]/15 text-[#ea3943]"
-                                    : `${C.muted} bg-white/[0.06]`
-                              }`}
-                            >
-                              {investingBiasLabel(bias)}
-                            </span>
-                            <span className="font-mono tabular-nums">
-                              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-                              <span className={C.muted}>/5</span>
-                            </span>
-                          </div>
-                        </div>
-                        <div className="col-span-2">
-                          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`} title="Price × share volume (snapshot), not market cap">
-                            Vol $
-                          </p>
-                          <p className="mt-0.5 font-mono text-xs tabular-nums">{formatUsd(r.liquidity)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {sortedBoardRows.map((r, idx) => (
+                  <BoardRankingMobileCard
+                    key={r.symbol}
+                    r={r}
+                    displayRank={idx + 1}
+                    stripe={idx % 2 === 1}
+                    sparklineValues={
+                      rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()] ?? EMPTY_SPARKLINE_VALUES
+                    }
+                    sparklinesLoading={sparklinesLoading}
+                  />
+                ))}
               </div>
 
               <div className="hidden overflow-x-auto rounded-lg border border-[#2b3139]/80 tablet:block [-webkit-overflow-scrolling:touch]">
-                <table className="w-full min-w-[640px] text-left text-sm laptop:min-w-[720px]">
+                <table className="w-full min-w-[700px] text-left text-sm laptop:min-w-[800px]">
                   <thead>
                     <tr className={`sticky top-0 z-10 ${C.surface} text-[11px] font-semibold uppercase tracking-wide ${C.muted}`}>
-                      {isTestRoute ? (
-                        <>
-                          <BoardSortHeader
-                            label="#"
-                            columnKey="rank"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Name"
-                            columnKey="name"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Price"
-                            columnKey="price"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="right"
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="24h %"
-                            title="Daily snapshot percent change from the data feed (same sign as Buy/Sell bias)."
-                            columnKey="change"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="right"
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Bias"
-                            columnKey="bias"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="center"
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Str"
-                            columnKey="strong"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="center"
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Vol $"
-                            title="Dollar trading activity: last snapshot price × share volume (not market capitalization)."
-                            columnKey="liquidity"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="right"
-                            className={`hidden border-b ${C.line} px-2 py-2.5 sm:table-cell lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Care"
-                            columnKey="care"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="right"
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                          <BoardSortHeader
-                            label="Trend"
-                            title="Recent daily closes; line color matches the 24h % column (same snapshot sign)."
-                            columnKey="trend"
-                            sort={tableSort}
-                            onSort={(key, dir) => setTableSort({ key, dir })}
-                            align="center"
-                            className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>#</th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>Name</th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>Price</th>
-                          <th
-                            className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}
-                            title="Daily snapshot % from the data feed."
-                          >
-                            24h %
-                          </th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Bias</th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}>Str</th>
-                          <th
-                            className={`hidden border-b ${C.line} px-2 py-2.5 text-right sm:table-cell lg:px-3`}
-                            title="Dollar trading activity (price × volume, snapshot) — not market cap."
-                          >
-                            Vol $
-                          </th>
-                          <th className={`border-b ${C.line} px-2 py-2.5 text-right lg:px-3`}>Care</th>
-                          <th
-                            className={`border-b ${C.line} px-2 py-2.5 text-center lg:px-3`}
-                            title="Recent daily closes; color matches 24h % snapshot sign."
-                          >
-                            Trend
-                          </th>
-                        </>
-                      )}
+                        <th className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}>#</th>
+                        <BoardSortHeader
+                          label="Name"
+                          columnKey="name"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Price"
+                          columnKey="price"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="right"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="24h %"
+                          title="Daily snapshot percent change from the data feed."
+                          columnKey="change"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="right"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Stance"
+                          title="Indicator signal from Python-engine analysis (Str + radar scores). 24h % is shown separately and does not drive this stance."
+                          columnKey="bias"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="center"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Str"
+                          columnKey="strong"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="center"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Upside"
+                          title="Technical upside vs max of loaded closes (resistance proxy). Hover row for advisory target %, downside %, and reward/risk ratio (heuristic)."
+                          columnKey="upside"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="center"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Vol $"
+                          title="Dollar trading activity: last snapshot price × share volume (not market capitalization)."
+                          columnKey="liquidity"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="right"
+                          className={`hidden border-b ${C.line} px-2 py-2.5 sm:table-cell lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Care"
+                          columnKey="care"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="right"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
+                        <BoardSortHeader
+                          label="Trend"
+                          title="Recent daily closes from the chart feed; color follows the series (last vs first close). Updates on the sparkline refresh interval, not every quote."
+                          columnKey="trend"
+                          sort={tableSort}
+                          onSort={(key, dir) => setTableSort({ key, dir })}
+                          align="center"
+                          className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
+                        />
                     </tr>
                   </thead>
                     <tbody>
-                      {sortedBoardRows.map((r, idx) => {
-                        const displayRank = isTestRoute ? idx + 1 : r.rank;
-                        const bias = dayBiasFromRow(r);
-                        const handleRowEnter = (e: MouseEvent<HTMLTableRowElement>) => {
-                          cancelRadarHide();
-                          setHoverRadarRow(r);
-                          scheduleRadarPopoverPosition(e.clientX, e.clientY);
-                        };
-                        const handleRowMouseMove = (e: MouseEvent<HTMLTableRowElement>) => {
-                          scheduleRadarPopoverPosition(e.clientX, e.clientY);
-                        };
-                        return (
-                          <tr
-                            key={r.symbol}
-                            onMouseEnter={handleRowEnter}
-                            onMouseMove={handleRowMouseMove}
-                            onMouseLeave={scheduleRadarHide}
-                            className={`cursor-default border-b border-[#2b3139]/80 transition hover:bg-white/[0.04] ${
-                              idx % 2 === 1 ? "bg-white/[0.015]" : ""
-                            } ${
-                              bias === "buy"
-                                ? "border-l-[3px] border-l-[#16c784]"
-                                : bias === "sell"
-                                  ? "border-l-[3px] border-l-[#ea3943]"
-                                  : "border-l-[3px] border-l-transparent"
-                            }`}
-                          >
-                            <td className={`px-3 py-2.5 font-mono tabular-nums ${C.muted}`}>{displayRank}</td>
-                            <td className="px-3 py-2.5">
-                              <Link
-                                href={profilePathForSymbol(r.symbol)}
-                                className="flex items-center gap-2.5 rounded-lg p-1 -m-1 no-underline outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50"
-                                aria-label={`Open ${r.symbol} company profile`}
-                              >
-                                <RowAvatar symbol={r.symbol} logoUrl={r.logo_url} />
-                                <div className="min-w-0">
-                                  <p className="truncate font-medium text-white">{stripParentheticals(r.company_name)}</p>
-                                  <p className={`font-mono text-xs ${C.muted}`}>{r.symbol}</p>
-                                </div>
-                              </Link>
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">
-                              {formatUsd(r.price)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              {Number.isFinite(r.change_pct_snapshot) ? (
-                                <PctBadge pct={r.change_pct_snapshot} />
-                              ) : (
-                                <span className={C.muted}>—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2.5 text-center">
-                              <span
-                                className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                                  bias === "buy"
-                                    ? "bg-[#16c784]/15 text-[#16c784]"
-                                    : bias === "sell"
-                                      ? "bg-[#ea3943]/15 text-[#ea3943]"
-                                      : `${C.muted} bg-white/[0.06]`
-                                }`}
-                              >
-                                {investingBiasLabel(bias)}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-center font-mono tabular-nums">
-                              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-                              <span className={C.muted}>/5</span>
-                            </td>
-                            <td className={`hidden px-2 py-2.5 text-right font-mono text-xs tabular-nums sm:table-cell lg:px-3`}>
-                              {formatUsd(r.liquidity)}
-                            </td>
-                            <td className="px-2 py-2.5 text-right font-mono tabular-nums lg:px-3">{r.people_watching}</td>
-                            <td className="border-l border-[#2b3139]/60 px-1 py-1.5 align-middle">
-                              {sparklinesLoading ? (
-                                <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
-                              ) : (
-                                <TableSparkline
-                                  values={rowSparklines[r.symbol] ?? []}
-                                  snapshotChangePct={r.change_pct_snapshot}
-                                />
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {sortedBoardRows.map((r, idx) => (
+                        <BoardRankingTableRow
+                          key={r.symbol}
+                          r={r}
+                          displayRank={idx + 1}
+                          stripe={idx % 2 === 1}
+                          sparklineValues={
+                            rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()] ?? EMPTY_SPARKLINE_VALUES
+                          }
+                          sparklinesLoading={sparklinesLoading}
+                          onRowEnter={onBoardTableRowEnter}
+                          onRowMove={onBoardTableRowMove}
+                          onRowLeave={onBoardTableRowLeave}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1354,7 +1763,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                   </span>
                   <span className="hidden tablet:inline">
                     Hover a row — the radar card follows your cursor (clamped to the viewport). Click the popover or a company
-                    name for profile. Trend shows recent daily closes; its color matches the 24h % column.
+                    name for profile. Trend shows recent daily closes (static between OHLC refreshes); 24h % stays live.
                   </span>
                 </p>
 
@@ -1372,7 +1781,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                     </li>
                     <li>
                       <strong className="text-white/80">Row trend line:</strong> Last ~28 daily closes from instrument data;
-                      polyline colored green if last ≥ first, else red.
+                      polyline colored green / red / gray from last vs first close in that series. The line is not redrawn on
+                      every Yahoo quote (only when OHLC is re-fetched) so the dashboard stays smooth.
                     </li>
                     <li>
                       <strong className="text-white/80">Radar scores:</strong> From the API beginner board — chart shows five
@@ -1380,8 +1790,20 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                       <code className="text-white/60">strong_count</code> from the API (five spokes, score ≥ 4).
                     </li>
                     <li>
-                      <strong className="text-white/80">Buy / Hold / Sell badge:</strong> Sign of the same daily snapshot %
-                      change as the heatmap snapshot (not trading advice).
+                      <strong className="text-white/80">Upside Potential:</strong>{" "}
+                      <em>Advisory</em> uses{" "}
+                      <code className="text-white/60">((Target − Price) / Price) × 100</code> — with a real consensus target
+                      from the API when <code className="text-white/60">analyst_consensus_target_price</code> exists; otherwise
+                      a synthetic target from radar + Str. <em>Technical</em> uses{" "}
+                      <code className="text-white/60">((max(closes) − Price) / Price) × 100</code> on the loaded close series
+                      (52W-style proxy, not true calendar 52-week). <strong className="text-white/80">R</strong> = technical
+                      upside ÷ downside % to support (swing low vs series mean as MA proxy); ratio &gt; 3 vs &lt; 1 are informal
+                      conviction hints only — not investment advice.
+                    </li>
+                    <li>
+                      <strong className="text-white/80">Stance (five levels):</strong> Strong Buy → Strong Sell from Str, radar
+                      averages from Python-engine indicator analysis. The 24h % column remains live market movement and is shown
+                      separately; it does not directly drive Stance tiers. Not investment advice.
                     </li>
                   </ul>
                 </details>

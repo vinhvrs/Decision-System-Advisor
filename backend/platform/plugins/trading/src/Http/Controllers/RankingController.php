@@ -2,6 +2,7 @@
 
 namespace Platform\Plugins\Trading\Src\Http\Controllers;
 
+use App\Services\PythonEngineTriggerService;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentDataRepository;
@@ -189,11 +190,18 @@ class RankingController extends Controller
      */
     public function dashboardDaily(Request $request)
     {
-        $data = $this->snapshotService->dashboardDailyFromPythonRedis();
+        $limit = $this->limit($request, 100);
+        $chartBars = (int) $request->get('chart_bars', 90);
+        $chartBars = max(2, min(500, $chartBars));
 
-        if ($data === null) {
+        $data = $this->snapshotService->dashboardDailyFromPythonRedis();
+        if ($this->snapshotService->isDashboardDailyPayloadEmpty($data)) {
+            $data = $this->snapshotService->dashboardDailyFallbackFromDatabase($limit, $chartBars);
+        }
+
+        if ($this->snapshotService->isDashboardDailyPayloadEmpty($data)) {
             return response()->json([
-                'message' => 'Dashboard daily cache is empty. Run: python -m app.warm_up.warm_up',
+                'message' => 'No ranking data yet. Populate instrument_snapshot and instrument_data (e.g. ranking sync / python ingest), or warm Redis: python -m app.warm_up.warm_up',
             ], 404);
         }
 
@@ -210,6 +218,8 @@ class RankingController extends Controller
                 'Vary' => 'Accept, Authorization',
             ]);
         }
+
+        PythonEngineTriggerService::requestDashboardWarmUpAfterResponse();
 
         return response()
             ->json(['data' => $data])

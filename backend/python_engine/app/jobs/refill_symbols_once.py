@@ -1,7 +1,7 @@
 import pymysql
 
 from app.analyze.ranking.stock_compare import MarketSyncService
-from app.data_collect.collectors.stock_sync import DSATurbo
+from app.data_collect.collectors.demo_data_sync import DSADemoSync
 from app.warm_up.warm_up import run_dashboard_daily_warmup
 from config.settings import settings
 
@@ -51,17 +51,17 @@ def main():
     print_status("[before]")
 
     ids = load_ids()
-    turbo = DSATurbo(backfill_days=3650)
+    demo = DSADemoSync(backfill_days=3650)
     try:
         for sym in TARGET_SYMBOLS:
             inst_id = ids.get(sym)
             if not inst_id:
                 print(f"[skip] missing instrument {sym}")
                 continue
-            turbo.update_stock(inst_id, sym)
+            demo.update_stock(inst_id, sym)
             print(f"[ok] backfilled {sym}")
     finally:
-        turbo.conn.close()
+        demo.conn.close()
 
     MarketSyncService().sync()
     print("[ok] instrument_snapshot synced")

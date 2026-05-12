@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
 
@@ -27,8 +28,30 @@ from app.analyze.dashboard.dashboard import (  # noqa: E402
     push_redis_payload,
     validate_dashboard_daily_payload,
 )
+from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+
+def maybe_run_demo_data_sync(*, snapshot_limit: int) -> None:
+    """
+    Optional Yahoo → demo tables before building the dashboard payload.
+
+    Gated by ``DASHBOARD_WARMUP_RUN_DEMO_SYNC`` (default off): running ``DSADemoSync`` on every
+    warm-up can take tens of minutes and holds the dashboard job lock, so hourly Redis refreshes
+    were skipped and ``dashboard:daily`` TTL never reset.
+    """
+    if not settings.DASHBOARD_USE_DEMO:
+        return
+    if not getattr(settings, "DASHBOARD_WARMUP_RUN_DEMO_SYNC", False):
+        return
+    from app.data_collect.collectors.demo_data_sync import DSADemoSync
+
+    lim = max(1, min(500, int(snapshot_limit)))
+    DSADemoSync(
+        snapshot_limit=lim,
+        history_period=settings.DEMO_SYNC_YF_PERIOD,
+    ).run()
 
 
 def run_dashboard_daily_warmup(
@@ -36,6 +59,7 @@ def run_dashboard_daily_warmup(
     limit: int = 100,
     chart_bars: int = 90,
     skip_validation: bool = False,
+    skip_demo_sync: bool = False,
 ) -> Tuple[bool, bool, int]:
     """
     Push ``dashboard:daily`` to Redis (for APScheduler / FastAPI lifespan).
@@ -45,22 +69,41 @@ def run_dashboard_daily_warmup(
     """
     lim = max(1, min(500, int(limit)))
     cb = max(2, min(500, int(chart_bars)))
+    if not skip_demo_sync:
+        maybe_run_demo_data_sync(snapshot_limit=lim)
     payload = compute_dashboard_daily(limit=lim, chart_bars=cb)
     rows = payload.get("ranking_board") or payload.get("rows") or []
     row_count = len(rows)
     ok_val, issues = validate_dashboard_daily_payload(payload, chart_bars_max=cb)
+    meta = payload.setdefault("meta", {})
+    meta["validation_ok"] = ok_val
+    meta["validation_issue_count"] = len(issues)
+    meta["validation_issues"] = issues[:80]
     if issues:
         for msg in issues:
             (logger.error if not ok_val else logger.warning)("dashboard validate: %s", msg)
-    if not ok_val and not skip_validation:
+
+    strict = getattr(settings, "DASHBOARD_REDIS_STRICT_VALIDATION", False)
+    skip_push = (not ok_val) and strict and (not skip_validation)
+    if skip_push:
+        pool = "snapshot_demo" if settings.DASHBOARD_USE_DEMO else "instrument_snapshot"
         logger.error(
-            "dashboard warm-up skipped: validation failed (rows=%s). "
-            "If rows=0, run ranking sync first so instrument_snapshot is populated.",
+            "dashboard warm-up skipped Redis SET (DASHBOARD_REDIS_STRICT_VALIDATION=1): rows=%s issues=%s. "
+            "If rows=0, ensure `%s` has rows (and demo OHLC when DASHBOARD_USE_DEMO=1).",
             row_count,
+            len(issues),
+            pool,
         )
         return False, False, row_count
+
+    if not ok_val and not skip_validation:
+        logger.warning(
+            "dashboard validation failed but pushing Redis anyway (strict off): %s issue(s)",
+            len(issues),
+        )
+
+    meta["redis_set_at"] = datetime.now(timezone.utc).isoformat()
     redis_ok = bool(push_redis_payload(REDIS_KEY_DAILY, payload))
-    meta = payload.get("meta") or {}
     logger.info(
         "dashboard warm-up key=%s rows=%s redis_ok=%s chart_len min=%s max=%s validate_ok=%s",
         REDIS_KEY_DAILY,
@@ -101,8 +144,13 @@ def main() -> None:
         chart_bars=chart_bars,
         skip_validation=bool(args.skip_validation),
     )
-    if not val_ok and not args.skip_validation:
+    if not redis_ok:
         raise SystemExit(1)
+    if not val_ok and not args.skip_validation:
+        print(
+            f"WARNING validation issues but Redis updated (see meta.validation_issues). "
+            f"rows={n} validate_ok={val_ok}"
+        )
     print(f"Redis key={REDIS_KEY_DAILY} rows={n} validate_ok={val_ok} redis_set_ok={redis_ok}")
 
 

@@ -44,15 +44,45 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _ranking_snapshot_table() -> str:
+    return "snapshot_demo" if settings.DASHBOARD_USE_DEMO else "instrument_snapshot"
+
+
+def _ohlc_data_table() -> str:
+    return "instrument_data_demo" if settings.DASHBOARD_USE_DEMO else "instrument_data"
+
+
+def _ohlc_period_table() -> str:
+    return "instrument_period_demo" if settings.DASHBOARD_USE_DEMO else "instrument_periods"
+
+
 BEGINNER_STRONG_TRAIT_MIN_SCORE = 4
 CHART_BARS = 40
 CHART_BARS_DAILY = 90  # warm-up / dashboard:daily line chart
-# Stale JSON is better than a missing key for Laravel/Next. Scheduler refreshes every few hours; extend TTL so
-# the key survives missed runs (was 3h — key often expired before the next warm-up).
+# TTL on each SET (default 3h). Override with ``DASHBOARD_DAILY_REDIS_TTL_SEC``.
+# Refresh cadence: ``DASHBOARD_WARM_UP_INTERVAL_MINUTES`` in scheduler_config (default 5m).
 DASHBOARD_TTL_SECONDS = int(
-    os.environ.get("DASHBOARD_DAILY_REDIS_TTL_SEC", str(60 * 60 * 72))
-)  # default 72h
+    os.environ.get("DASHBOARD_DAILY_REDIS_TTL_SEC", str(60 * 60 * 3))
+)  # default 3h
 REDIS_KEY_DAILY = "dashboard:daily"
+
+
+def redis_dashboard_daily_ttl_seconds() -> Optional[int]:
+    """
+    Redis TTL for ``dashboard:daily``.
+    Returns ``None`` if the key is absent or error; ``-1`` means no expiry (caller may treat as OK).
+    """
+    try:
+        r = settings.redis_client()
+        t = r.ttl(REDIS_KEY_DAILY)
+        if t is None:
+            return None
+        return int(t)
+    except Exception:
+        logger.warning("Redis TTL check failed for %s", REDIS_KEY_DAILY, exc_info=True)
+        return None
+
 
 RADAR_AXES = ["Signal", "Price", "Change", "Volume", "Liquidity", "Watchers"]
 
@@ -166,6 +196,8 @@ def beginner_vs_prev_close_abs_pct(
     if not instrument_ids:
         return {}
     ph = ",".join(["%s"] * len(instrument_ids))
+    d_tbl = _ohlc_data_table()
+    p_tbl = _ohlc_period_table()
     sql = f"""
         SELECT instrument_id,
             MAX(CASE WHEN rn = 1 THEN c_last END) AS last_close,
@@ -174,8 +206,8 @@ def beginner_vs_prev_close_abs_pct(
             SELECT p.instrument_id,
                 CAST(d.close AS DECIMAL(20,10)) AS c_last,
                 ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
-            FROM instrument_data AS d
-            INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+            FROM {d_tbl} AS d
+            INNER JOIN {p_tbl} AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
             WHERE p.instrument_id IN ({ph})
               AND d.close IS NOT NULL
         ) AS z
@@ -206,14 +238,16 @@ def fetch_daily_closes_for_charts(
     if not instrument_ids:
         return {}
     ph = ",".join(["%s"] * len(instrument_ids))
+    d_tbl = _ohlc_data_table()
+    p_tbl = _ohlc_period_table()
     sql = f"""
         SELECT instrument_id, c_last, rn
         FROM (
             SELECT p.instrument_id AS instrument_id,
                 CAST(d.close AS DECIMAL(20,10)) AS c_last,
                 ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
-            FROM instrument_data AS d
-            INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+            FROM {d_tbl} AS d
+            INNER JOIN {p_tbl} AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
             WHERE p.instrument_id IN ({ph})
               AND d.close IS NOT NULL
         ) AS z
@@ -251,6 +285,8 @@ def fetch_daily_last_prev_close(
     if not instrument_ids:
         return {}
     ph = ",".join(["%s"] * len(instrument_ids))
+    d_tbl = _ohlc_data_table()
+    p_tbl = _ohlc_period_table()
     sql = f"""
         SELECT instrument_id,
             MAX(CASE WHEN rn = 1 THEN c_last END) AS last_close,
@@ -259,8 +295,8 @@ def fetch_daily_last_prev_close(
             SELECT p.instrument_id,
                 CAST(d.close AS DECIMAL(20,10)) AS c_last,
                 ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
-            FROM instrument_data AS d
-            INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+            FROM {d_tbl} AS d
+            INNER JOIN {p_tbl} AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
             WHERE p.instrument_id IN ({ph})
               AND d.close IS NOT NULL
         ) AS z
@@ -293,7 +329,8 @@ def fetch_daily_last_prev_close(
 
 def query_top_snapshot_rows(conn: pymysql.connections.Connection, limit: int) -> List[Dict[str, Any]]:
     limit = max(1, min(500, int(limit)))
-    sql_with_cp = """
+    snap_tbl = _ranking_snapshot_table()
+    sql_with_cp = f"""
         SELECT
             s.instrument_id,
             UPPER(TRIM(s.symbol)) AS symbol,
@@ -303,12 +340,12 @@ def query_top_snapshot_rows(conn: pymysql.connections.Connection, limit: int) ->
             s.change_pct,
             COALESCE(cp.company_name, s.symbol) AS company_name,
             cp.image AS company_logo
-        FROM instrument_snapshot s
+        FROM {snap_tbl} s
         LEFT JOIN company_profile cp ON UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))
         ORDER BY s.volume DESC
         LIMIT %s
     """
-    sql_snapshot_only = """
+    sql_snapshot_only = f"""
         SELECT
             s.instrument_id,
             UPPER(TRIM(s.symbol)) AS symbol,
@@ -318,7 +355,7 @@ def query_top_snapshot_rows(conn: pymysql.connections.Connection, limit: int) ->
             s.change_pct,
             s.symbol AS company_name,
             NULL AS company_logo
-        FROM instrument_snapshot s
+        FROM {snap_tbl} s
         ORDER BY s.volume DESC
         LIMIT %s
     """
@@ -532,6 +569,18 @@ def compute_dashboard(limit: int = 20) -> Dict[str, Any]:
         conn.close()
 
 
+def _payload_float_match(a: Any, b: Any, *, abs_tol: float = 1e-4) -> bool:
+    """Loose equality for JSON numeric fields (float rounding / Decimal vs float)."""
+    try:
+        fa = float(a)
+        fb = float(b)
+        if not math.isfinite(fa) or not math.isfinite(fb):
+            return False
+        return math.isclose(fa, fb, rel_tol=1e-9, abs_tol=abs_tol)
+    except (TypeError, ValueError):
+        return a == b
+
+
 def validate_dashboard_daily_payload(
     payload: Dict[str, Any],
     *,
@@ -564,7 +613,7 @@ def validate_dashboard_daily_payload(
                 issues.append(f"{sym}: str ({sc}) != recomputed from scores ({recomputed})")
         chg = row.get("change")
         chg2 = row.get("change_pct_snapshot")
-        if chg != chg2:
+        if not _payload_float_match(chg, chg2, abs_tol=1e-4):
             issues.append(f"{sym}: change ({chg}) != change_pct_snapshot ({chg2})")
         if row.get("bias") != row.get("day_bias"):
             issues.append(f"{sym}: bias != day_bias")
@@ -644,9 +693,25 @@ def push_redis_payload(redis_key: str, payload: Dict[str, Any], ttl_seconds: int
     try:
         ok = r.set(redis_key, raw, ex=ttl_seconds)
         logger.info("Redis SET %s ex=%s bytes=%s ok=%s", redis_key, ttl_seconds, len(raw), ok)
+        if ok and redis_key == REDIS_KEY_DAILY:
+            try:
+                from app.socket.events import notify_dashboard_daily_subscribers
+
+                notify_dashboard_daily_subscribers(payload)
+            except Exception:
+                logger.warning("dashboard:daily WebSocket fan-out failed", exc_info=True)
         return bool(ok)
     except Exception as e:
-        logger.error("Redis SET %s failed: %s", redis_key, e, exc_info=True)
+        logger.error(
+            "Redis SET %s failed (host=%s port=%s db=%s ssl=%s): %s",
+            redis_key,
+            settings.REDIS_HOST,
+            settings.REDIS_PORT,
+            settings.REDIS_DB,
+            getattr(settings, "REDIS_USE_SSL", False),
+            e,
+            exc_info=True,
+        )
         return False
 
 

@@ -81,13 +81,15 @@ export class SimpleSocket {
   private ws: WebSocket | null = null;
   private url: string;
   private onMessageCallback: (data: unknown) => void;
+  private onOpenCallback?: () => void;
   private disconnectRequested = false;
 
-  constructor(onMessage: (data: unknown) => void) {
+  constructor(onMessage: (data: unknown) => void, onOpen?: () => void) {
     const base = resolveWsBase();
     const path = process.env.NEXT_PUBLIC_SOCKET_PATH || "/ws/quotes";
     this.url = joinWsUrl(base, path);
     this.onMessageCallback = onMessage;
+    this.onOpenCallback = onOpen;
   }
 
   connect() {
@@ -99,6 +101,11 @@ export class SimpleSocket {
     this.ws.onopen = () => {
       if (process.env.NODE_ENV === "development") {
         console.log("[WS] Connected");
+      }
+      try {
+        this.onOpenCallback?.();
+      } catch (e) {
+        console.error("[WS] onOpen error:", e);
       }
     };
 

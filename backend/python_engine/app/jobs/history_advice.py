@@ -24,7 +24,16 @@ def clamp_score(value: float) -> float:
 
 
 def calc_advice(value: float, quality: float, growth: float, momentum: float, stability: float, sentiment: float) -> str:
-    total = (value + quality + growth + momentum + stability + sentiment) / 6.0
+    """
+    BUY / HOLD / WATCH. Middle-average composites (balanced factors, no strong skew) → HOLD
+    so signals are not only bullish/bearish extremes.
+    """
+    scores = [value, quality, growth, momentum, stability, sentiment]
+    total = sum(scores) / 6.0
+    spread = max(scores) - min(scores)
+    # Middle band: average near neutral and factors agree → HOLD
+    if 2.85 <= total <= 3.72 and spread <= 1.35:
+        return "HOLD"
     if total >= 4.1 and stability >= 3.6 and quality >= 4.0:
         return "BUY"
     if total >= 3.4:
@@ -145,3 +154,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Snapshot-driven backfill (dense dates from snapshot_daily JSON):
+#   python -m app.jobs.history_advice_backfill
