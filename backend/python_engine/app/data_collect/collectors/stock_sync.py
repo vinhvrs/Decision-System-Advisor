@@ -16,6 +16,27 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+# Symbol universe for DSATurbo sync: demo mirror only (not instrument_snapshot).
+SNAPSHOT_SYMBOL_TABLE = "snapshot_demo"
+
+
+def ensure_snapshot_demo_table(conn: pymysql.connections.Connection) -> None:
+    """Require ``snapshot_demo`` so sync targets match the demo board / mirror snapshot."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = DATABASE() AND table_name = %s
+            LIMIT 1
+            """,
+            (SNAPSHOT_SYMBOL_TABLE,),
+        )
+        if not cur.fetchone():
+            raise RuntimeError(
+                f"Table `{SNAPSHOT_SYMBOL_TABLE}` not found in this database. "
+                "Create and populate it before running stock sync."
+            )
+
 
 def _doc_id_corporate(symbol: str, title: str, published_at, url: str) -> str:
     raw = f"{(symbol or '').strip().upper()}|{title}|{published_at}|{url}"
@@ -127,8 +148,8 @@ class DSATurbo:
         history_period: str = "7d",
     ):
         """
-        ``snapshot_limit``: max rows from ``instrument_snapshot`` ordered by volume.
-        ``None`` → ``settings.TOP_N`` (full scheduled sync). Set to ``20`` for thesis demo scope.
+        ``snapshot_limit``: max rows from ``snapshot_demo`` ordered by volume.
+        ``None`` → ``settings.TOP_N`` (capped by how many rows exist in ``snapshot_demo``).
 
         ``backfill_days``: if set, fetch daily bars from (now − N days) through today (overrides ``history_period``).
 
@@ -154,9 +175,10 @@ class DSATurbo:
 
     def fetch_symbols(self):
         with self.conn.cursor() as cur:
-            sql = """
-                SELECT i.id, i.symbol 
-                FROM instrument_snapshot s
+            ensure_snapshot_demo_table(self.conn)
+            sql = f"""
+                SELECT i.id, i.symbol
+                FROM {SNAPSHOT_SYMBOL_TABLE} s
                 JOIN instruments i ON s.instrument_id = i.id
                 ORDER BY s.volume DESC
                 LIMIT %s
@@ -286,7 +308,9 @@ class DSATurbo:
 if __name__ == "__main__":
     import argparse
 
-    p = argparse.ArgumentParser(description="Turbo sync: Yahoo daily → instrument_data for snapshot symbols.")
+    p = argparse.ArgumentParser(
+        description="Turbo sync: Yahoo daily → instrument_data for symbols listed in snapshot_demo."
+    )
     p.add_argument(
         "--days",
         type=int,

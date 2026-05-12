@@ -49,6 +49,17 @@ return [
     ],
 
     /*
+    | python_engine (FastAPI): optional POST-after-response to refresh Redis ``dashboard:daily``.
+    | Set PYTHON_ENGINE_URL + ENGINE_INTERNAL_TRIGGER_SECRET (same value in python_engine .env).
+    | Local-only without a shared secret: PYTHON_ENGINE_TRIGGER_INSECURE_LOCAL=1 on Laravel and
+    | ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL=1 on python_engine (loopback requests only).
+    */
+    'python_engine' => [
+        'url' => rtrim(env('PYTHON_ENGINE_URL', 'http://127.0.0.1:8000'), '/'),
+        'trigger_secret' => env('ENGINE_INTERNAL_TRIGGER_SECRET', ''),
+    ],
+
+    /*
     | Optional Gmail OAuth (API / future XOAUTH2). Core Laravel SMTP still uses MAIL_USERNAME + MAIL_PASSWORD
     | (Gmail app password). These are stored for reference or custom integrations only.
     */

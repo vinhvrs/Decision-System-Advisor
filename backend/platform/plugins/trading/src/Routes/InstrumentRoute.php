@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentController;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentPeriodsController;
 use Platform\Plugins\Trading\Src\Http\Controllers\InstrumentDataController;
+use Platform\Plugins\Trading\Src\Http\Controllers\HistoryAdviceController;
 
 Route::prefix('/instruments')->group(function () {
     Route::get('/data', [InstrumentDataController::class, 'index']);
@@ -21,6 +22,8 @@ Route::prefix('/instruments')->group(function () {
 
     // Must be before `/{symbol}` so "periods" is not captured as a ticker.
     Route::get('/periods/{id}', [InstrumentPeriodsController::class, 'show']);
+
+    Route::get('/history-advice', [HistoryAdviceController::class, 'index']);
 
     Route::get('/', [InstrumentController::class, 'index']);
     Route::get('/{symbol}', [InstrumentController::class, 'show']);

@@ -44,6 +44,8 @@ export type BeginnerBoardRow = {
   day_bias?: "buy" | "sell" | "flat";
   /** Pre-serialized daily closes (e.g. Redis ``dashboard:daily``), oldest → newest. */
   chart?: number[];
+  /** When set, advisory upside uses ((target − price) / price)×100 (12m consensus style). */
+  analyst_consensus_target_price?: number | null;
 };
 
 export type BeginnerBoardPayload = {
@@ -86,7 +88,16 @@ export type TopByVolumePayload = {
 
 type CachedEnvelope<T> = { ts: number; data: T };
 
-const BOARD_CACHE_KEY = "beginner:dashboard-daily:v1";
+export const BOARD_CACHE_KEY = "beginner:dashboard-daily:v2";
+
+/** Call when ``dashboard:daily`` is pushed over WebSocket so the next HTTP fetch is not stale. */
+export function invalidateDashboardDailyCache(): void {
+  try {
+    localStorage.removeItem(BOARD_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 const RANKING_CACHE_PREFIX = "beginner:ranking-board:v1:";
 const TOP_VOLUME_CACHE_PREFIX = "beginner:top-by-volume:v1:";
 const DEFAULT_CACHE_MAX_AGE_MS = 90_000;

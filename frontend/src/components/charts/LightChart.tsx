@@ -19,6 +19,65 @@ import { useTradeApiQueue } from "@/src/hooks/useTradeApiQueue";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
+/** Picked candle for history simulator (click / double-click). Times are UNIX seconds. */
+export type HistoryCandlePick = {
+  timeSec: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+};
+
+export type HistoryRectPick = {
+  timeFrom: number;
+  timeTo: number;
+  priceLow: number;
+  priceHigh: number;
+};
+
+/** Snapshot from `history_advice` for hover (keyed by candle UTC day YYYY-MM-DD). */
+export type HistoryAdviceHover = {
+  asOfDate: string;
+  advice: "BUY" | "HOLD" | "WATCH";
+  note: string | null;
+  valueScore: number;
+  qualityScore: number;
+  growthScore: number;
+  momentumScore: number;
+  stabilityScore: number;
+  sentimentScore: number;
+};
+
+export type HistoryChartInteraction = {
+  enabled: boolean;
+  /** When true, drag on the chart draws a price–time rectangle (blocks panning while drawing). */
+  drawMode: boolean;
+  /** Float OHLCV near crosshair (e.g. history simulator). */
+  showHoverDetail?: boolean;
+  onCandleClick?: (pick: HistoryCandlePick) => void;
+  /** History sim: double-click a candle that has an order arrow to close that lot (handled in parent). */
+  onCandleDoubleClick?: (pick: HistoryCandlePick) => void;
+  onDrawRect?: (rect: HistoryRectPick) => void;
+  /** Right-click candle (pan mode): open investing popup at screen coords. */
+  onCandleContextMenu?: (
+    pick: HistoryCandlePick,
+    screenPoint: { clientX: number; clientY: number }
+  ) => void;
+  /** Right-click inside a drawn zone: remove that rectangle. */
+  onRemoveDrawnRect?: (rect: HistoryRectPick) => void;
+};
+
+/** Open paper orders shown as arrows on the history chart. */
+export type HistoryOrderMarker = {
+  id: string;
+  timeSec: number;
+  side: "buy" | "sell";
+  qty: number;
+  leverage: number;
+  price: number;
+};
+
 interface Props {
   symbol: string;
   data: any[];
@@ -32,6 +91,14 @@ interface Props {
   market?: "stock";
   /** Open positions for current symbol from API - syncs paper trading & chart */
   positionsForSymbol?: Array<{ id: string; type: string; volume: number; price: number; leverage?: number }>;
+  /** Investing history page: click / double-click candles, draw-mode rectangles. */
+  historyInteraction?: HistoryChartInteraction;
+  /** Finished rectangles to draw on the chart (history simulator). */
+  historyDrawnRects?: HistoryRectPick[];
+  /** Per-candle UTC day (YYYY-MM-DD) → latest advice on or before that day. */
+  historyAdviceByCandleDay?: Record<string, HistoryAdviceHover>;
+  /** Paper orders at candle times (arrows); double-click bar with arrow closes in parent. */
+  historyOrderMarkers?: HistoryOrderMarker[];
 }
 
 type TradeSide = "buy" | "sell";
@@ -231,6 +298,97 @@ function calcStochastic(data: any[], period = 14, smoothK = 3, smoothD = 3) {
   return { k, d };
 }
 
+function timeParamToSec(t: Time | undefined): number | null {
+  if (t === undefined || t === null) return null;
+  if (typeof t === "number") {
+    return t < 10_000_000_000 ? t : Math.floor(t / 1000);
+  }
+  return null;
+}
+
+/** Pixel offset inside the chart container (matches lightweight-charts coordinate space). */
+function pointerOffsetInChartContainer(
+  e: { clientX: number; clientY: number },
+  container: HTMLDivElement | null
+): { x: number; y: number } | null {
+  if (!container) return null;
+  const r = container.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const y = e.clientY - r.top;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+const NO_HISTORY_DRAWN_RECTS: HistoryRectPick[] = [];
+
+function HistorySimulatorHoverTip(props: {
+  tip: { x: number; y: number; pick: HistoryCandlePick };
+  symbol: string;
+  historyAdviceByCandleDay?: Record<string, HistoryAdviceHover>;
+}) {
+  const { tip, symbol, historyAdviceByCandleDay } = props;
+  const candleDay = new Date(tip.pick.timeSec * 1000).toISOString().slice(0, 10);
+  const adv = historyAdviceByCandleDay?.[candleDay];
+  const adviceCls =
+    adv?.advice === "BUY"
+      ? "bg-emerald-500/25 text-emerald-200"
+      : adv?.advice === "HOLD"
+        ? "bg-amber-500/20 text-amber-100"
+        : adv?.advice === "WATCH"
+          ? "bg-slate-500/25 text-slate-200"
+          : "";
+
+  return (
+    <div
+      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-md border border-white/20 bg-[#0b1220]/95 px-2.5 py-2 text-[10px] leading-snug text-[#e5e7eb] shadow-xl backdrop-blur-sm"
+      style={{
+        left: tip.x + 12,
+        top: tip.y + 12,
+      }}
+    >
+      <div className="mb-1 border-b border-white/10 pb-1 font-mono text-[9px] text-white/55">
+        {symbol} · {candleDay}
+      </div>
+      <div className="grid grid-cols-[1.25rem_1fr] gap-x-1 gap-y-0.5 font-mono tabular-nums">
+        <span className="text-white/45">O</span>
+        <span>{tip.pick.open.toFixed(4)}</span>
+        <span className="text-white/45">H</span>
+        <span>{tip.pick.high.toFixed(4)}</span>
+        <span className="text-white/45">L</span>
+        <span>{tip.pick.low.toFixed(4)}</span>
+        <span className="text-white/45">C</span>
+        <span>{tip.pick.close.toFixed(4)}</span>
+        <span className="text-white/45">V</span>
+        <span>
+          {tip.pick.volume != null ? tip.pick.volume.toLocaleString("en-US") : "—"}
+        </span>
+      </div>
+      {adv ? (
+        <div className="mt-2 border-t border-white/10 pt-1.5">
+          <div className="mb-1 flex flex-wrap items-center gap-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-white/45">Advice</span>
+            <span className="text-[9px] text-white/35">· as of {adv.asOfDate}</span>
+          </div>
+          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${adviceCls}`}>
+            {adv.advice}
+          </span>
+          {adv.note ? (
+            <p className="mt-1 text-[9px] leading-relaxed text-white/65">{adv.note}</p>
+          ) : null}
+          <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono text-[9px] tabular-nums text-white/55">
+            <span>Val {adv.valueScore.toFixed(2)}</span>
+            <span>Qual {adv.qualityScore.toFixed(2)}</span>
+            <span>Grow {adv.growthScore.toFixed(2)}</span>
+            <span>Mom {adv.momentumScore.toFixed(2)}</span>
+            <span>Stab {adv.stabilityScore.toFixed(2)}</span>
+            <span>Sent {adv.sentimentScore.toFixed(2)}</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function LightChart({
   symbol,
   data,
@@ -240,8 +398,13 @@ export default function LightChart({
   showTrading = true,
   market = "stock",
   positionsForSymbol = [],
+  historyInteraction,
+  historyDrawnRects,
+  historyAdviceByCandleDay,
+  historyOrderMarkers,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartWrapperRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const indicatorSeriesRef = useRef<ISeriesApi<any>[]>([]);
@@ -255,6 +418,29 @@ export default function LightChart({
   const ticketIdsRef = useRef<Array<{ id: string; volume: number }>>([]);
   /** Run timeScale.fitContent once per symbol after first non-empty data (not on every realtime tick). */
   const shouldFitTimeScaleRef = useRef(true);
+
+  const historyInteractionRef = useRef(historyInteraction);
+  historyInteractionRef.current = historyInteraction;
+
+  const historyDrawnRectsPropRef = useRef(historyDrawnRects);
+  historyDrawnRectsPropRef.current = historyDrawnRects;
+
+  const clickLastRef = useRef<{ timeSec: number; at: number } | null>(null);
+  const clickSingleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [rectDrag, setRectDrag] = useState<{
+    active: boolean;
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
+
+  const [historyHoverTip, setHistoryHoverTip] = useState<{
+    x: number;
+    y: number;
+    pick: HistoryCandlePick;
+  } | null>(null);
 
   const [vol, setVol] = useState<number>(1);
   const [leverage, setLeverage] = useState<number>(1);
@@ -274,6 +460,75 @@ export default function LightChart({
   useEffect(() => {
     shouldFitTimeScaleRef.current = true;
   }, [symbol]);
+
+  useEffect(() => {
+    if (historyInteraction?.drawMode || !historyInteraction?.showHoverDetail) {
+      setHistoryHoverTip(null);
+    }
+  }, [historyInteraction?.drawMode, historyInteraction?.showHoverDetail]);
+
+  useEffect(() => {
+    if (!historyInteraction?.drawMode) setRectDrag(null);
+  }, [historyInteraction?.drawMode]);
+
+  const [historyCommittedRectStyles, setHistoryCommittedRectStyles] = useState<
+    Array<{ key: string; left: number; top: number; width: number; height: number }>
+  >([]);
+
+  useEffect(() => {
+    const rects = historyDrawnRects ?? NO_HISTORY_DRAWN_RECTS;
+    if (!rects.length) {
+      setHistoryCommittedRectStyles([]);
+      return;
+    }
+
+    let raf = 0;
+    const update = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const chart = chartRef.current;
+        const ser = seriesRef.current;
+        if (!chart || !ser) return;
+        const ts = chart.timeScale();
+        const next: Array<{
+          key: string;
+          left: number;
+          top: number;
+          width: number;
+          height: number;
+        }> = [];
+        rects.forEach((r, i) => {
+          const x0 = ts.timeToCoordinate(r.timeFrom as Time);
+          const x1 = ts.timeToCoordinate(r.timeTo as Time);
+          const yHi = ser.priceToCoordinate(r.priceHigh);
+          const yLo = ser.priceToCoordinate(r.priceLow);
+          if (x0 === null || x1 === null || yHi === null || yLo === null) return;
+          const left = Math.min(x0, x1);
+          const width = Math.max(1, Math.abs(x1 - x0));
+          const top = Math.min(yHi, yLo);
+          const height = Math.max(1, Math.abs(yLo - yHi));
+          next.push({ key: `${r.timeFrom}-${r.timeTo}-${i}`, left, top, width, height });
+        });
+        setHistoryCommittedRectStyles(next);
+      });
+    };
+
+    update();
+    const afterChart = window.setTimeout(update, 0);
+    const chart = chartRef.current;
+    chart?.timeScale().subscribeVisibleLogicalRangeChange(update);
+    const el = containerRef.current;
+    const ro =
+      el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    el && ro?.observe(el);
+
+    return () => {
+      window.clearTimeout(afterChart);
+      cancelAnimationFrame(raf);
+      chart?.timeScale().unsubscribeVisibleLogicalRangeChange(update);
+      ro?.disconnect();
+    };
+  }, [historyDrawnRects, symbol, data]);
 
   const { enqueueCreate, enqueueClose } = useTradeApiQueue({
     onTicketCreated: (ticketId, volume) => {
@@ -382,7 +637,51 @@ export default function LightChart({
     seriesRef.current = candleSeries;
     seriesMarkersRef.current = createSeriesMarkers(candleSeries, []);
 
+    const pickFromClickParam = (param: any): HistoryCandlePick | null => {
+      const t = param?.time as Time | undefined;
+      const sec = timeParamToSec(t);
+      if (sec == null) return null;
+      const seriesData = param.seriesData?.get?.(candleSeries);
+      if (!seriesData) return null;
+      const o = typeof seriesData.open === "number" ? seriesData.open : null;
+      const h = typeof seriesData.high === "number" ? seriesData.high : null;
+      const l = typeof seriesData.low === "number" ? seriesData.low : null;
+      const c =
+        (typeof seriesData.close === "number" && seriesData.close) ||
+        (typeof seriesData.value === "number" && seriesData.value) ||
+        null;
+      if (o == null || h == null || l == null || c == null) return null;
+      const fromMap = displayMapRef.current.get(sec);
+      const v =
+        fromMap && typeof fromMap.volume === "number" ? (fromMap.volume as number) : null;
+      return { timeSec: sec, open: o, high: h, low: l, close: c, volume: v };
+    };
+
     const crosshairMove = (param: any) => {
+      const hi = historyInteractionRef.current;
+      if (hi?.enabled && hi.showHoverDetail && !hi.drawMode) {
+        if (!param?.point || param.time === undefined || param.time === null) {
+          setHistoryHoverTip(null);
+        } else {
+          const pick = pickFromClickParam(param);
+          const px = param.point.x;
+          const py = param.point.y;
+          if (
+            pick &&
+            typeof px === "number" &&
+            typeof py === "number" &&
+            Number.isFinite(px) &&
+            Number.isFinite(py)
+          ) {
+            setHistoryHoverTip({ x: px, y: py, pick });
+          } else {
+            setHistoryHoverTip(null);
+          }
+        }
+      } else {
+        setHistoryHoverTip(null);
+      }
+
       if (!param) return;
       const time = param.time ?? null;
       if (!time) return;
@@ -405,6 +704,35 @@ export default function LightChart({
 
     chart.subscribeCrosshairMove(crosshairMove);
 
+    const handleChartClick = (param: any) => {
+      const hi = historyInteractionRef.current;
+      if (!hi?.enabled || hi.drawMode) return;
+      const pick = pickFromClickParam(param);
+      if (!pick) return;
+      const now = Date.now();
+      const prev = clickLastRef.current;
+      if (prev && prev.timeSec === pick.timeSec && now - prev.at < 420) {
+        if (clickSingleTimerRef.current) {
+          clearTimeout(clickSingleTimerRef.current);
+          clickSingleTimerRef.current = null;
+        }
+        clickLastRef.current = null;
+        hi.onCandleDoubleClick?.(pick);
+        return;
+      }
+      clickLastRef.current = { timeSec: pick.timeSec, at: now };
+      if (clickSingleTimerRef.current) {
+        clearTimeout(clickSingleTimerRef.current);
+      }
+      clickSingleTimerRef.current = setTimeout(() => {
+        clickSingleTimerRef.current = null;
+        clickLastRef.current = null;
+        if (hi.onCandleClick) hi.onCandleClick(pick);
+      }, 300);
+    };
+
+    chart.subscribeClick(handleChartClick);
+
     syncChartSize();
 
     const resizeObserver =
@@ -421,6 +749,11 @@ export default function LightChart({
 
     return () => {
       chart.unsubscribeCrosshairMove(crosshairMove);
+      chart.unsubscribeClick(handleChartClick);
+      if (clickSingleTimerRef.current) {
+        clearTimeout(clickSingleTimerRef.current);
+        clickSingleTimerRef.current = null;
+      }
       resizeObserver?.disconnect();
       window.removeEventListener("resize", handleWindowResize);
       indicatorSeriesRef.current = [];
@@ -507,22 +840,89 @@ export default function LightChart({
     const seriesMarkers = seriesMarkersRef.current;
     if (!seriesMarkers?.setMarkers) return;
 
-    const markers: Marker[] = [
-      ...tradesRef.current.map((t) => ({
-        time: t.time,
-        position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
-        color: t.side === "buy" ? "#26A69A" : "#EF5350",
-        shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
-        text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${t.price}`,
-      })),
-      ...markersRef.current,
-    ];
+    const tradeMarkers: Marker[] = tradesRef.current.map((t) => ({
+      time: t.time,
+      position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
+      color: t.side === "buy" ? "#26A69A" : "#EF5350",
+      shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
+      text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${t.price}`,
+    }));
+
+    const historyMarkers: Marker[] =
+      !showTrading && historyOrderMarkers?.length
+        ? historyOrderMarkers.map((m) => ({
+            time: m.timeSec as Time,
+            position: (m.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
+            color: m.side === "buy" ? "#26A69A" : "#EF5350",
+            shape: (m.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
+            text: `${m.side === "buy" ? "ACC" : "RED"} ${m.qty}×${m.leverage}`,
+          }))
+        : [];
+
+    const pnlMarkers: Marker[] = showTrading ? markersRef.current : [];
+
+    const markers: Marker[] = [...tradeMarkers, ...historyMarkers, ...pnlMarkers];
 
     try {
       seriesMarkers.setMarkers(markers);
     } catch (e) {
       console.warn("setMarkers failed:", e);
     }
+  }, [showTrading, historyOrderMarkers]);
+
+  useEffect(() => {
+    markTradesOnChart();
+  }, [markTradesOnChart]);
+
+  const processHistoryContextMenu = useCallback((e: React.MouseEvent) => {
+    const hi = historyInteractionRef.current;
+    if (!hi?.enabled) return;
+    const chart = chartRef.current;
+    const ser = seriesRef.current;
+    const container = containerRef.current;
+    if (!chart || !ser || !container) return;
+
+    const o = pointerOffsetInChartContainer(e.nativeEvent, container);
+    if (!o) return;
+    const tRaw = chart.timeScale().coordinateToTime(o.x);
+    const sec = timeParamToSec(tRaw as Time);
+    const price = ser.coordinateToPrice(o.y);
+    if (sec == null || price == null) return;
+    const nPrice = Number(price);
+    if (!Number.isFinite(nPrice)) return;
+
+    for (const r of historyDrawnRectsPropRef.current ?? []) {
+      const tMin = Math.min(r.timeFrom, r.timeTo);
+      const tMax = Math.max(r.timeFrom, r.timeTo);
+      const pMin = Math.min(r.priceLow, r.priceHigh);
+      const pMax = Math.max(r.priceLow, r.priceHigh);
+      if (sec >= tMin && sec <= tMax && nPrice >= pMin && nPrice <= pMax) {
+        e.preventDefault();
+        e.stopPropagation();
+        hi.onRemoveDrawnRect?.(r);
+        return;
+      }
+    }
+
+    if (hi.drawMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    const row = displayMapRef.current.get(sec);
+    if (!row) return;
+    const pick: HistoryCandlePick = {
+      timeSec: sec,
+      open: row.open,
+      high: row.high,
+      low: row.low,
+      close: row.close,
+      volume: row.volume ?? null,
+    };
+    e.preventDefault();
+    e.stopPropagation();
+    hi.onCandleContextMenu?.(pick, { clientX: e.clientX, clientY: e.clientY });
   }, []);
 
   const addTrade = useCallback(
@@ -1019,8 +1419,122 @@ export default function LightChart({
 
   return (
     <div className="flex h-full min-h-[260px] w-full min-w-0 flex-col gap-3">
-      <div className={`relative w-full min-w-0 ${showTrading ? "h-[460px] min-h-[360px]" : "h-full min-h-[220px]"}`}>
+      <div
+        ref={chartWrapperRef}
+        className={`relative w-full min-w-0 overflow-hidden ${showTrading ? "h-[460px] min-h-[360px]" : "min-h-0 flex-1"}`}
+        onContextMenu={(e) => {
+          if (!historyInteraction?.enabled) return;
+          if (historyInteraction.drawMode) return;
+          processHistoryContextMenu(e);
+        }}
+      >
         <div ref={containerRef} className="h-full w-full min-h-[220px]" />
+        {historyCommittedRectStyles.map((s) => (
+          <div
+            key={s.key}
+            className="pointer-events-none absolute z-[22] border border-amber-400/50 bg-amber-400/10"
+            style={{
+              left: s.left,
+              top: s.top,
+              width: s.width,
+              height: s.height,
+            }}
+          />
+        ))}
+        {historyInteraction?.enabled && historyInteraction.drawMode ? (
+          <div
+            className="absolute inset-0 z-[28] cursor-crosshair touch-none"
+            onContextMenu={(e) => {
+              if (rectDrag?.active) {
+                e.preventDefault();
+                return;
+              }
+              processHistoryContextMenu(e);
+            }}
+            onPointerDown={(e) => {
+              const o = pointerOffsetInChartContainer(e, containerRef.current);
+              if (!o) return;
+              (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+              setRectDrag({
+                active: true,
+                x0: o.x,
+                y0: o.y,
+                x1: o.x,
+                y1: o.y,
+              });
+            }}
+            onPointerMove={(e) => {
+              const o = pointerOffsetInChartContainer(e, containerRef.current);
+              if (!o) return;
+              setRectDrag((d) => (d?.active ? { ...d, x1: o.x, y1: o.y } : d));
+            }}
+            onPointerUp={(e) => {
+              let rectToEmit: HistoryRectPick | null = null;
+              setRectDrag((d) => {
+                if (!d?.active) return null;
+                try {
+                  (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+                } catch {
+                  /* ignore */
+                }
+                const c = chartRef.current;
+                const s = seriesRef.current;
+                const hi = historyInteractionRef.current;
+                if (c && s && hi?.onDrawRect) {
+                  const x0 = Math.min(d.x0, d.x1);
+                  const x1 = Math.max(d.x0, d.x1);
+                  const y0 = Math.min(d.y0, d.y1);
+                  const y1 = Math.max(d.y0, d.y1);
+                  if (x1 - x0 >= 4 && y1 - y0 >= 4) {
+                    const tRaw0 = c.timeScale().coordinateToTime(x0);
+                    const tRaw1 = c.timeScale().coordinateToTime(x1);
+                    const sec0 = timeParamToSec(tRaw0 as Time);
+                    const sec1 = timeParamToSec(tRaw1 as Time);
+                    const p0 = s.coordinateToPrice(y0);
+                    const p1 = s.coordinateToPrice(y1);
+                    if (sec0 != null && sec1 != null && p0 != null && p1 != null) {
+                      const n0 = Number(p0);
+                      const n1 = Number(p1);
+                      rectToEmit = {
+                        timeFrom: Math.min(sec0, sec1),
+                        timeTo: Math.max(sec0, sec1),
+                        priceLow: Math.min(n0, n1),
+                        priceHigh: Math.max(n0, n1),
+                      };
+                    }
+                  }
+                }
+                return null;
+              });
+              if (rectToEmit) {
+                const payload = rectToEmit;
+                queueMicrotask(() => {
+                  historyInteractionRef.current?.onDrawRect?.(payload);
+                });
+              }
+            }}
+            onPointerCancel={() => setRectDrag(null)}
+            aria-hidden
+          />
+        ) : null}
+        {rectDrag ? (
+          <div
+            className="pointer-events-none absolute z-[32] border border-amber-400/80 bg-amber-400/15"
+            style={{
+              left: Math.min(rectDrag.x0, rectDrag.x1),
+              top: Math.min(rectDrag.y0, rectDrag.y1),
+              width: Math.max(1, Math.abs(rectDrag.x1 - rectDrag.x0)),
+              height: Math.max(1, Math.abs(rectDrag.y1 - rectDrag.y0)),
+            }}
+          />
+        ) : null}
+        {historyHoverTip && historyInteraction?.showHoverDetail && !historyInteraction.drawMode ? (
+          <HistorySimulatorHoverTip
+            tip={historyHoverTip}
+            symbol={symbol}
+            historyAdviceByCandleDay={historyAdviceByCandleDay}
+          />
+        ) : null}
       </div>
 
       {showTrading && (

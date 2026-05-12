@@ -24,7 +24,7 @@ from app.analyze.dashboard.dashboard import (  # noqa: E402
     compute_dashboard,
     push_dashboard_to_redis,
 )
-from app.warm_up.warm_up import run_dashboard_daily_warmup  # noqa: E402
+from app.warm_up.warm_up import maybe_run_demo_data_sync, run_dashboard_daily_warmup  # noqa: E402
 from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ def refresh_redis_and_rebuild(*, limit: int, chart_bars: int, skip_validation: b
         settings.REDIS_DB,
     )
 
+    maybe_run_demo_data_sync(snapshot_limit=limit)
     dashboard_payload = compute_dashboard(limit=limit)
     dashboard_ok = bool(push_dashboard_to_redis(dashboard_payload))
     logger.info(
@@ -62,6 +63,7 @@ def refresh_redis_and_rebuild(*, limit: int, chart_bars: int, skip_validation: b
         limit=limit,
         chart_bars=chart_bars,
         skip_validation=skip_validation,
+        skip_demo_sync=True,
     )
     logger.info(
         "Rebuilt key=%s rows=%s redis_ok=%s validate_ok=%s",
@@ -70,7 +72,7 @@ def refresh_redis_and_rebuild(*, limit: int, chart_bars: int, skip_validation: b
         daily_ok,
         daily_val_ok,
     )
-    return flush_ok, dashboard_ok, bool(daily_ok and (daily_val_ok or skip_validation))
+    return flush_ok, dashboard_ok, bool(daily_ok)
 
 
 def main() -> None:

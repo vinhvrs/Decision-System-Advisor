@@ -11,6 +11,15 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 from config.settings import settings
 
+try:
+    from app.data_collect.collectors.stock_sync import SNAPSHOT_SYMBOL_TABLE, ensure_snapshot_demo_table
+except ImportError:
+    from stock_sync import SNAPSHOT_SYMBOL_TABLE, ensure_snapshot_demo_table
+
+# Max symbols when multiple rows exist in snapshot_demo (script name kept for compatibility).
+SNAPSHOT_DEMO_SYNC_LIMIT = 20
+
+
 class DSADemoSync:
     def __init__(self):
         try:
@@ -29,16 +38,17 @@ class DSADemoSync:
         return f"{symbol.lower()}-{period.lower()}-{time_part}"
 
     def fetch_symbols(self):
-        """Top 20 symbols by snapshot volume."""
+        """Symbols from ``snapshot_demo`` (demo mirror), ordered by volume, capped for quick runs."""
+        ensure_snapshot_demo_table(self.conn)
         with self.conn.cursor() as cur:
-            sql = """
-                SELECT i.id, i.symbol 
-                FROM instrument_snapshot s
+            sql = f"""
+                SELECT i.id, i.symbol
+                FROM {SNAPSHOT_SYMBOL_TABLE} s
                 JOIN instruments i ON s.instrument_id = i.id
                 ORDER BY s.volume DESC
-                LIMIT 20
+                LIMIT %s
             """
-            cur.execute(sql)
+            cur.execute(sql, (SNAPSHOT_DEMO_SYNC_LIMIT,))
             return cur.fetchall()
 
     def ensure_periods(self, inst_id, symbol):
@@ -135,7 +145,7 @@ class DSADemoSync:
         instruments = self.fetch_symbols()
         total = len(instruments)
         
-        print("Starting demo sync (top 20 symbols, 3d backfill)...")
+        print(f"Starting demo sync ({SNAPSHOT_SYMBOL_TABLE}, up to {SNAPSHOT_DEMO_SYNC_LIMIT} rows by volume, 3d backfill)...")
         
         for idx, inst in enumerate(instruments):
             start_time = time.time()

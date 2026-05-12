@@ -7,7 +7,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from app.data_collect.collectors.stock_sync import DSATurbo
+from app.data_collect.collectors.demo_data_sync import DSADemoSync
 from config.settings import settings
 
 
@@ -41,8 +41,8 @@ def get_daily_rows(conn, symbol: str) -> int:
         sql = """
           SELECT COUNT(*) AS daily_rows
           FROM instruments i
-          JOIN instrument_periods ip ON ip.instrument_id = i.id
-          JOIN instrument_data d ON d.instrument_period_id = ip.id
+          JOIN instrument_period_demo ip ON ip.instrument_id = i.id
+          JOIN instrument_data_demo d ON d.instrument_period_id = ip.id
           WHERE ip.period = 'daily' AND i.symbol = %s
         """
         cur.execute(sql, (symbol,))
@@ -66,7 +66,7 @@ def main() -> None:
 
         print(f"Refilling missing/insufficient symbols (min_daily_rows={MIN_DAILY_ROWS}): {missing}")
 
-        turbo = DSATurbo(backfill_days=BACKFILL_DAYS)
+        demo = DSADemoSync(backfill_days=BACKFILL_DAYS)
         try:
             for sym in missing:
                 inst_id = get_instrument_id(conn, sym)
@@ -83,12 +83,12 @@ def main() -> None:
                     print(f"  [yfinance] {sym}: smoke-test error: {e}")
 
                 print(f"  [refill] {sym} (instrument_id={inst_id}) ...")
-                turbo.update_stock(inst_id, sym)
+                demo.update_stock(inst_id, sym)
                 daily_rows_by_symbol[sym] = get_daily_rows(conn, sym)
                 print(f"  [done] {sym}: daily_rows={daily_rows_by_symbol[sym]}")
         finally:
             try:
-                turbo.conn.close()
+                demo.conn.close()
             except Exception:
                 pass
     finally:

@@ -12,8 +12,14 @@ class SnapshotService
 {
     /** Count a “strong” radar trait when its 1–5 score is >= this value (not 5). */
     private const BEGINNER_STRONG_TRAIT_MIN_SCORE = 4;
-    /** Dashboard daily response should always show top 10 rows. */
-    private const DASHBOARD_DAILY_LIMIT = 10;
+    /**
+     * Cap rows returned from Redis ``dashboard:daily`` (bandwidth). Python warm-up often builds 50–100+ rows;
+     * slicing to 10 previously dropped symbols that rank below #10 (e.g. GOOGL, AMZN) while they still exist in Redis.
+     */
+    private const DASHBOARD_DAILY_REDIS_MAX_ROWS = 500;
+
+    /** Minimum slice target when meta.pool_limit is stale/small — keeps megacaps in the payload. */
+    private const DASHBOARD_DAILY_REDIS_MIN_SLICE = 100;
 
     protected string $heatmapKey = 'heatmap:daily';
     protected string $marketCapRankingKey = 'marketcap:ranking:daily';
@@ -815,40 +821,274 @@ class SnapshotService
         if (! isset($data['rows']) && isset($data['ranking_board'])) {
             $data['rows'] = $data['ranking_board'];
         }
-        if (isset($data['rows']) && is_array($data['rows'])) {
-            $data['rows'] = array_values(array_slice($data['rows'], 0, self::DASHBOARD_DAILY_LIMIT));
+        if (! isset($data['ranking_board']) && isset($data['rows'])) {
+            $data['ranking_board'] = $data['rows'];
         }
-        if (isset($data['ranking_board']) && is_array($data['ranking_board'])) {
-            $data['ranking_board'] = array_values(array_slice($data['ranking_board'], 0, self::DASHBOARD_DAILY_LIMIT));
+
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        $rankingBoard = isset($data['ranking_board']) && is_array($data['ranking_board']) ? $data['ranking_board'] : [];
+        $available = max(count($rows), count($rankingBoard));
+
+        $pyPool = 0;
+        if (isset($data['meta']['pool_limit']) && is_numeric($data['meta']['pool_limit'])) {
+            $pyPool = (int) $data['meta']['pool_limit'];
         }
+        $target = max(self::DASHBOARD_DAILY_REDIS_MIN_SLICE, $pyPool);
+        $take = min($available, $target, self::DASHBOARD_DAILY_REDIS_MAX_ROWS);
+
+        if ($rows !== []) {
+            $data['rows'] = array_values(array_slice($rows, 0, $take));
+        }
+        if ($rankingBoard !== []) {
+            $data['ranking_board'] = array_values(array_slice($rankingBoard, 0, $take));
+        }
+
         if (isset($data['meta']) && is_array($data['meta'])) {
             $data['meta']['row_count'] = isset($data['rows']) && is_array($data['rows']) ? count($data['rows']) : 0;
-            $data['meta']['pool_limit'] = self::DASHBOARD_DAILY_LIMIT;
+            $data['meta']['api_rows_returned'] = $data['meta']['row_count'];
         }
 
         return $data;
     }
 
     /**
-     * Top snapshot rows for beginner radar quintiles (same source as beginner board).
+     * True when Redis / payload has no ranking rows (missing key, invalid JSON, or empty board).
+     *
+     * @param  array<string, mixed>|null  $data
      */
-    protected function queryTopSnapshotRowsForBeginnerRadar(int $limit): Collection
+    public function isDashboardDailyPayloadEmpty(?array $data): bool
+    {
+        if ($data === null) {
+            return true;
+        }
+        $rows = $data['rows'] ?? null;
+        if (is_array($rows) && count($rows) > 0) {
+            return false;
+        }
+        $rb = $data['ranking_board'] ?? null;
+
+        return ! (is_array($rb) && count($rb) > 0);
+    }
+
+    /**
+     * Build the same JSON shape as python_engine ``dashboard:daily`` from MySQL when Redis is empty.
+     * Pool = ``instrument_snapshot`` ordered by volume (same as beginner board).
+     *
+     * @return array<string, mixed>
+     */
+    public function dashboardDailyFallbackFromDatabase(int $poolLimit, int $chartBars = 90): array
+    {
+        $poolLimit = $this->sanitizeLimit($poolLimit);
+        $chartBars = max(2, min(500, $chartBars));
+
+        $snapRows = $this->queryTopSnapshotRowsForBeginnerRadar($poolLimit);
+        if ($snapRows->isEmpty()) {
+            return [
+                'axes' => $this->beginnerRadarAxisLabels(),
+                'rows' => [],
+                'ranking_board' => [],
+                'legend' => [
+                    'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).',
+                    'tie_break' => 'Pool = top symbols by snapshot volume in the database. Redis dashboard:daily was empty.',
+                    'buy_sell' => 'Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.',
+                ],
+                'updated_at' => now()->utc()->toIso8601String(),
+                'source' => 'laravel:database_fallback',
+                'redis_key' => 'dashboard:daily',
+                'meta' => [
+                    'pool_limit' => $poolLimit,
+                    'chart_bars_requested' => $chartBars,
+                    'row_count' => 0,
+                    'api_rows_returned' => 0,
+                    'empty_reason' => 'instrument_snapshot is empty — run ranking sync or data ingest.',
+                ],
+            ];
+        }
+
+        $iidBySymbol = $snapRows->mapWithKeys(
+            fn ($r) => [strtoupper(trim((string) $r->symbol)) => (string) $r->instrument_id]
+        )->all();
+
+        $ranked = $this->buildBeginnerRankingRowsFromSnapshotRows($snapRows);
+
+        usort($ranked, function (array $a, array $b): int {
+            if ($a['strong_count'] !== $b['strong_count']) {
+                return $b['strong_count'] <=> $a['strong_count'];
+            }
+            if ($a['liquidity'] != $b['liquidity']) {
+                return $b['liquidity'] <=> $a['liquidity'];
+            }
+            if ($a['volume'] != $b['volume']) {
+                return $b['volume'] <=> $a['volume'];
+            }
+            if ($a['people_watching'] !== $b['people_watching']) {
+                return $b['people_watching'] <=> $a['people_watching'];
+            }
+
+            return strcmp($a['symbol'], $b['symbol']);
+        });
+
+        $instrumentIds = array_values(array_unique(array_filter($iidBySymbol)));
+        $closesByIid = $this->fetchDailyClosesForDashboardInstruments($instrumentIds, $chartBars);
+
+        foreach ($ranked as $i => &$row) {
+            $row['rank'] = $i + 1;
+            $sym = $row['symbol'];
+            $iid = $iidBySymbol[$sym] ?? '';
+            $row['instrument_id'] = $iid;
+            $chart = $closesByIid[$iid] ?? [];
+            $price = (float) $row['price'];
+            if ($price > 0 && (count($chart) === 0 || abs(end($chart) - round($price, 4)) > 1e-9)) {
+                $chart[] = round($price, 4);
+            }
+            if (count($chart) > $chartBars) {
+                $chart = array_slice($chart, -$chartBars);
+            }
+            $row['chart'] = $chart;
+            $bias = (string) $row['day_bias'];
+            $row['name'] = $row['company_name'];
+            $row['change'] = $row['change_pct_snapshot'];
+            $row['bias'] = $bias;
+            $row['str'] = $row['strong_count'];
+            $row['care'] = $row['people_watching'];
+            $row['suggestion'] = $this->beginnerDashboardBiasSuggestion($bias);
+        }
+        unset($row);
+
+        $chartLens = array_map(
+            fn ($r) => isset($r['chart']) && is_array($r['chart']) ? count($r['chart']) : 0,
+            $ranked
+        );
+
+        return [
+            'axes' => $this->beginnerRadarAxisLabels(),
+            'rows' => $ranked,
+            'ranking_board' => $ranked,
+            'legend' => [
+                'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).',
+                'tie_break' => 'Pool = top symbols by snapshot volume from the database (Redis dashboard:daily was empty). Tie-break: liquidity → volume → watchlist saves → symbol.',
+                'buy_sell' => 'Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.',
+            ],
+            'updated_at' => now()->utc()->toIso8601String(),
+            'source' => 'laravel:database_fallback',
+            'redis_key' => 'dashboard:daily',
+            'meta' => [
+                'pool_limit' => $poolLimit,
+                'chart_bars_requested' => $chartBars,
+                'row_count' => count($ranked),
+                'api_rows_returned' => count($ranked),
+                'chart_length_min' => $chartLens !== [] ? min($chartLens) : 0,
+                'chart_length_max' => $chartLens !== [] ? max($chartLens) : 0,
+                'validation_ok' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Daily closes per instrument (oldest → newest), capped at ``$maxBars`` points.
+     *
+     * @param  list<string>  $instrumentIds
+     * @return array<string, list<float>>
+     */
+    protected function fetchDailyClosesForDashboardInstruments(array $instrumentIds, int $maxBars): array
+    {
+        $instrumentIds = array_values(array_filter(array_unique($instrumentIds)));
+        $maxBars = max(2, min(500, $maxBars));
+        if ($instrumentIds === []) {
+            return [];
+        }
+
+        try {
+            $placeholders = implode(',', array_fill(0, count($instrumentIds), '?'));
+            $driver = DB::connection()->getDriverName();
+            $cast = $driver === 'sqlite' ? 'CAST(d.close AS REAL)' : 'CAST(d.close AS DECIMAL(20,10))';
+            $sql = "
+                SELECT instrument_id, c_last, rn FROM (
+                    SELECT p.instrument_id,
+                        {$cast} AS c_last,
+                        ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
+                    FROM instrument_data AS d
+                    INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+                    WHERE p.instrument_id IN ({$placeholders})
+                ) AS z
+                WHERE rn <= ?
+                ORDER BY instrument_id, rn DESC
+            ";
+            $params = array_merge($instrumentIds, [$maxBars]);
+            $got = DB::select($sql, $params);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $buckets = [];
+        foreach ($got as $row) {
+            $iid = (string) $row->instrument_id;
+            $v = isset($row->c_last) ? (float) $row->c_last : null;
+            if ($v === null || ! is_finite($v)) {
+                continue;
+            }
+            if (! isset($buckets[$iid])) {
+                $buckets[$iid] = [];
+            }
+            $buckets[$iid][] = round($v, 4);
+        }
+        foreach ($buckets as $iid => $closesDesc) {
+            $buckets[$iid] = array_reverse($closesDesc);
+        }
+
+        return $buckets;
+    }
+
+    protected function beginnerDashboardBiasSuggestion(string $bias): string
+    {
+        return match ($bias) {
+            'buy' => 'Snapshot up day — informational only, not advice.',
+            'sell' => 'Snapshot down day — informational only, not advice.',
+            default => 'Flat snapshot — no directional bias from open/close.',
+        };
+    }
+
+    /**
+     * Demo mirror snapshot (``snapshot_demo``) when ``instrument_snapshot`` is empty.
+     */
+    protected function queryTopSnapshotRowsFromSnapshotDemo(int $limit): Collection
     {
         $limit = max(1, $limit);
+        if (! Schema::hasTable('snapshot_demo')) {
+            return collect();
+        }
 
-        if (Schema::hasTable('company_profile')) {
-            $cpSub = DB::table('company_profile')
-                ->select([
-                    DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
-                    DB::raw('MAX(company_name) as company_name'),
-                    DB::raw('MAX(image) as company_logo'),
-                ])
-                ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
+        try {
+            if (Schema::hasTable('company_profile')) {
+                $cpSub = DB::table('company_profile')
+                    ->select([
+                        DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
+                        DB::raw('MAX(company_name) as company_name'),
+                        DB::raw('MAX(image) as company_logo'),
+                    ])
+                    ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
 
-            return DB::table('instrument_snapshot as s')
-                ->leftJoinSub($cpSub, 'cp', function ($join) {
-                    $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
-                })
+                return DB::table('snapshot_demo as s')
+                    ->join('instruments as i', 'i.id', '=', 's.instrument_id')
+                    ->leftJoinSub($cpSub, 'cp', function ($join) {
+                        $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
+                    })
+                    ->orderByDesc('s.volume')
+                    ->limit($limit)
+                    ->get([
+                        's.instrument_id',
+                        's.symbol',
+                        's.price',
+                        's.volume',
+                        's.liquidity',
+                        's.change_pct',
+                        DB::raw('COALESCE(cp.company_name, s.symbol) as company_name'),
+                        'cp.company_logo',
+                    ]);
+            }
+
+            return DB::table('snapshot_demo as s')
+                ->join('instruments as i', 'i.id', '=', 's.instrument_id')
                 ->orderByDesc('s.volume')
                 ->limit($limit)
                 ->get([
@@ -858,24 +1098,76 @@ class SnapshotService
                     's.volume',
                     's.liquidity',
                     's.change_pct',
-                    DB::raw('COALESCE(cp.company_name, s.symbol) as company_name'),
-                    'cp.company_logo',
+                    DB::raw('s.symbol as company_name'),
+                    DB::raw('NULL as company_logo'),
                 ]);
+        } catch (\Throwable) {
+            return collect();
+        }
+    }
+
+    /**
+     * Top snapshot rows for beginner radar quintiles (same source as beginner board).
+     */
+    protected function queryTopSnapshotRowsForBeginnerRadar(int $limit): Collection
+    {
+        $limit = max(1, $limit);
+
+        $rows = collect();
+        try {
+            if (! Schema::hasTable('instrument_snapshot')) {
+                return $this->queryTopSnapshotRowsFromSnapshotDemo($limit);
+            }
+
+            if (Schema::hasTable('company_profile')) {
+                $cpSub = DB::table('company_profile')
+                    ->select([
+                        DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
+                        DB::raw('MAX(company_name) as company_name'),
+                        DB::raw('MAX(image) as company_logo'),
+                    ])
+                    ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
+
+                $rows = DB::table('instrument_snapshot as s')
+                    ->leftJoinSub($cpSub, 'cp', function ($join) {
+                        $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
+                    })
+                    ->orderByDesc('s.volume')
+                    ->limit($limit)
+                    ->get([
+                        's.instrument_id',
+                        's.symbol',
+                        's.price',
+                        's.volume',
+                        's.liquidity',
+                        's.change_pct',
+                        DB::raw('COALESCE(cp.company_name, s.symbol) as company_name'),
+                        'cp.company_logo',
+                    ]);
+            } else {
+                $rows = DB::table('instrument_snapshot as s')
+                    ->orderByDesc('s.volume')
+                    ->limit($limit)
+                    ->get([
+                        's.instrument_id',
+                        's.symbol',
+                        's.price',
+                        's.volume',
+                        's.liquidity',
+                        's.change_pct',
+                        DB::raw('s.symbol as company_name'),
+                        DB::raw('NULL as company_logo'),
+                    ]);
+            }
+        } catch (\Throwable) {
+            $rows = collect();
         }
 
-        return DB::table('instrument_snapshot as s')
-            ->orderByDesc('s.volume')
-            ->limit($limit)
-            ->get([
-                's.instrument_id',
-                's.symbol',
-                's.price',
-                's.volume',
-                's.liquidity',
-                's.change_pct',
-                DB::raw('s.symbol as company_name'),
-                DB::raw('NULL as company_logo'),
-            ]);
+        if ($rows->isNotEmpty()) {
+            return $rows;
+        }
+
+        return $this->queryTopSnapshotRowsFromSnapshotDemo($limit);
     }
 
     /**

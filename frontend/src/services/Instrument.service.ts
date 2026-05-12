@@ -185,6 +185,25 @@ export const InstrumentService = {
         }
     },
 
+    /** Rows from MySQL `history_advice` (see python_engine job). Oldest first. */
+    getHistoryAdvice: async (symbol: string, from: string, to: string): Promise<any[]> => {
+        try {
+            const response = await api.get(`/instruments/history-advice`, {
+                params: {
+                    symbol: symbol.trim().toUpperCase(),
+                    from,
+                    to,
+                },
+                timeout: 60_000,
+            });
+            const rows = response.data?.data;
+            return Array.isArray(rows) ? rows : [];
+        } catch (error) {
+            console.error("Error fetching history advice:", error);
+            throw error;
+        }
+    },
+
     /** One POST: daily closes per symbol (oldest first), max 100 symbols. */
     batchDailyCloses: async (symbols: string[], limit: number = 40): Promise<Record<string, number[]>> => {
         const clean = [...new Set(symbols.map((s) => String(s || "").trim().toUpperCase()).filter(Boolean))].slice(0, 100);
