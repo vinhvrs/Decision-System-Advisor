@@ -3,6 +3,7 @@
 import { useWatchlist } from "@/src/hooks/useWatchlist";
 import TradingChart from "@/src/components/charts/page";
 import Card from "@/src/sections/Card";
+import WatchlistDashboardTable from "@/src/components/home/WatchlistDashboardTable";
 
 const DEFAULT_MAIN = "NVDA";
 const DEFAULT_SIDE = ["AAPL", "MSFT", "AMD"];
@@ -47,6 +48,10 @@ export default function DashboardCharts() {
             </div>
           </Card>
         ))}
+      </div>
+
+      <div className="mt-6 w-full min-w-0">
+        <WatchlistDashboardTable className="w-full" />
       </div>
     </>
   );

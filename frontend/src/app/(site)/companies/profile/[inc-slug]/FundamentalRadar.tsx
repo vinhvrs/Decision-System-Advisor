@@ -217,8 +217,7 @@ const FundamentalRadar = memo(
         <div className="w-full">
           {!compact ? (
             <p className="mb-2 text-[10px] leading-snug text-gray-500">
-              Profile-only snapshot (no symbol / API radar). Open a company profile with a ticker for the homepage
-              radar.
+              Snapshot view without live symbol data. Open any company profile for the full radar.
             </p>
           ) : null}
           <div className={compact ? "h-[200px] w-full" : "h-[280px] w-full"}>

@@ -19,8 +19,12 @@ from app.data_collect.symbol_ingest import fetch_companies_for_ingest, resolve_i
 
 logger = logging.getLogger(__name__)
 
-# Master switch: GDELT + run_daily_update / run_deep_news_backfill (off until explicitly enabled).
-NEWS_HANDLE_ENABLED = False
+# Master switch: GDELT + run_daily_update / run_deep_news_backfill. Enable with env NEWS_HANDLE_ENABLED=1.
+def _news_handle_enabled() -> bool:
+    return (os.environ.get("NEWS_HANDLE_ENABLED", "") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+NEWS_HANDLE_ENABLED = _news_handle_enabled()
 
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 

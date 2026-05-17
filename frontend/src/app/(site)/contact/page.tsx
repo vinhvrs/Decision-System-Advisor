@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Mail, Phone, MapPin, Send, MessageSquare } from 'lucide-react';
+import api from '@/src/libs/api';
+
+const DEFAULT_PUBLIC_EMAIL = 'ITITIU21345@hcmiu.edu.vn';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -12,38 +15,75 @@ export default function ContactPage() {
     message: ''
   });
   const [isSending, setIsSending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [supportPublicEmail, setSupportPublicEmail] = useState<string | null>(null);
 
-  // Flat data thông tin liên hệ
-  const contactInfo = [
-    {
-      icon: <Mail className="text-indigo-500" size={24} />,
-      label: 'Email Address',
-      value: 'ITITIU21345@hcmiu.edu.vn',
-      href: 'mailto:ITITIU21345@hcmiu.edu.vn'
-    },
-    {
-      icon: <Phone className="text-indigo-500" size={24} />,
-      label: 'Phone Number',
-      value: '+84 (0) 123 456 789',
-      href: 'tel:+84123456789'
-    },
-    {
-      icon: <MapPin className="text-indigo-500" size={24} />,
-      label: 'Office Location',
-      value: 'Quarter 6, Linh Trung Ward, Thu Duc City, HCMC',
-      href: 'https://maps.google.com'
-    }
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/contact/mail-display');
+        const body = res.data as { data?: { support_public_email?: string | null } };
+        const em = body.data?.support_public_email?.trim();
+        if (!cancelled && em) setSupportPublicEmail(em);
+      } catch {
+        /* keep default */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const displayEmail = (supportPublicEmail && supportPublicEmail.length > 0 ? supportPublicEmail : DEFAULT_PUBLIC_EMAIL).trim();
+
+  const contactInfo = useMemo(
+    () => [
+      {
+        icon: <Mail className="text-indigo-500" size={24} />,
+        label: 'Email Address',
+        value: displayEmail,
+        href: `mailto:${encodeURIComponent(displayEmail)}`,
+      },
+      {
+        icon: <Phone className="text-indigo-500" size={24} />,
+        label: 'Phone Number',
+        value: '+84 (0) 123 456 789',
+        href: 'tel:+84123456789',
+      },
+      {
+        icon: <MapPin className="text-indigo-500" size={24} />,
+        label: 'Office Location',
+        value: 'Quarter 6, Linh Trung Ward, Thu Duc City, HCMC',
+        href: 'https://maps.google.com',
+      },
+    ],
+    [displayEmail],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setIsSending(true);
-    // Giả lập gửi mail
-    setTimeout(() => {
-      alert('Thank you! Your message has been sent.');
+    try {
+      await api.post('/contact', {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+      });
       setFormData({ name: '', email: '', subject: '', message: '' });
+      alert('Thank you! We received your message and will get back to you soon.');
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
+      const msg =
+        ax.response?.data?.message ||
+        (ax.response?.data?.errors && Object.values(ax.response.data.errors).flat().join(' ')) ||
+        (err instanceof Error ? err.message : 'Could not send your message. Please try again later.');
+      setFormError(msg);
+    } finally {
       setIsSending(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -90,6 +130,11 @@ export default function ContactPage() {
           {/* Contact Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="bg-[#161a21] p-8 md:p-10 rounded-3xl border border-gray-800/50 shadow-2xl">
+              {formError ? (
+                <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {formError}
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">Full Name</label>

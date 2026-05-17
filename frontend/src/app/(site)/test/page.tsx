@@ -3,12 +3,11 @@ import HomeHeroBanner from "../HomeHeroBanner";
 import HomeMarketView from "../HomeMarketView";
 
 export const metadata: Metadata = {
-  title: "Test · Redis daily board | DSA",
-  description:
-    "Same layout as the homepage, fed by precomputed Redis dashboard:daily (python warm_up) — Str-ranked board with extended close series.",
+  title: "Market overview | DSA",
+  description: "Live ranking dashboard with charts, movers, and watch tools — same experience as the home page.",
 };
 
-/** Clone of `/` but market view reads `/api/.../rankings/dashboard-daily` instead of beginner-board. */
+/** Internal route that mirrors the homepage market layout (used for QA). */
 export default function TestHomeClonePage() {
   return (
     <>

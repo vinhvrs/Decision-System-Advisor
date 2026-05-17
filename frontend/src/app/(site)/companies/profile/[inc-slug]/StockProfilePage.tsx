@@ -26,6 +26,7 @@ import {
 
 import LightChart from "@/src/components/charts/LightChart";
 import FundamentalRadar from "./FundamentalRadar";
+import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service";
 import { SimpleSocket } from "@/src/libs/socket";
@@ -38,7 +39,7 @@ import {
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
-type ProfileMainTab = "chart" | "markets" | "news" | "holders" | "about";
+type ProfileMainTab = "chart" | "markets" | "news" | "holders" | "fundamentals" | "about";
 
 const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -140,6 +141,18 @@ function formatDate(dateStr?: string | null) {
   });
 }
 
+function newsPublishedMs(item: any): number {
+  const raw = item?.published_at || item?.created_at;
+  if (!raw) return 0;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** Newest first for profile feeds. */
+function sortNewsByDateDesc(items: any[] | null | undefined): any[] {
+  return [...(items || [])].sort((a, b) => newsPublishedMs(b) - newsPublishedMs(a));
+}
+
 function truncateText(text: string, max = 220) {
   if (!text) return "";
   return text.length > max ? `${text.slice(0, max)}...` : text;
@@ -154,7 +167,7 @@ function formatUsdStat(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-/** CoinMarketCap-inspired surface tokens */
+/** Dark theme surface tokens for company profile */
 const CMC = {
   bg: "bg-[#0b0e11]",
   card: "bg-[#1e2329] border border-[#2b3139]",
@@ -224,6 +237,7 @@ const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "markets", label: "Markets" },
   { id: "news", label: "News" },
   { id: "holders", label: "Holders" },
+  { id: "fundamentals", label: "Fundamentals" },
   { id: "about", label: "About" },
 ];
 
@@ -293,7 +307,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
 
   useEffect(() => {
-    setMainTab("chart");
+    if (typeof window === "undefined") return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "fundamentals") setMainTab("fundamentals");
+    else setMainTab("chart");
   }, [symbol]);
 
   useEffect(() => {
@@ -351,14 +368,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
         }
 
         const bundle = await CompanyService.getCompanyProfileBundle(symbol, {
-          newsLimit: 25,
+          newsLimit: 40,
           similarLimit: 6,
         });
 
         if (cancelled) return;
 
         setDetails(bundle.profile || null);
-        setNews(bundle.news.slice(0, 5));
+        setNews(sortNewsByDateDesc(bundle.news));
         setSimilar(Array.isArray(bundle.similar) ? bundle.similar.slice(0, 6) : []);
       } catch (error) {
         console.error("Stock profile initialization failed:", error);
@@ -371,6 +388,29 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
     return () => {
       cancelled = true;
+    };
+  }, [symbol]);
+
+  /** Keep the sidebar + News tab aligned with the newest symbol-linked articles. */
+  useEffect(() => {
+    if (!symbol) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const list = await CompanyService.getCompanyNews(symbol, 40);
+        if (cancelled) return;
+        setNews(sortNewsByDateDesc(list));
+      } catch {
+        /* ignore transient failures */
+      }
+    };
+    const intervalMs = 120_000;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, intervalMs);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
     };
   }, [symbol]);
 
@@ -637,7 +677,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
                 <div className="mt-4 border-t border-[#2b3139] pt-3">
                   <p className={`mb-1 text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>
-                    Beginner radar
+                    Signal radar
                   </p>
                   <FundamentalRadar symbol={symbol} compact />
                 </div>
@@ -761,7 +801,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </button>
                 <span
                   className={`hidden rounded-lg border px-3 py-2 text-[11px] font-semibold sm:inline ${CMC.line} ${CMC.muted}`}
-                  title="Placeholder — connect alerts in settings"
+                  title="Advanced layout and alerts (coming soon)"
                 >
                   Pro view
                 </span>
@@ -774,23 +814,20 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <details className={`rounded-xl ${CMC.card} p-4`}>
                   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#7b9cff]">
                     <Info className="h-4 w-4" />
-                    How these numbers are calculated
+                    How chart stats are read
                   </summary>
                   <ul className={`mt-3 list-inside list-disc space-y-2 text-xs leading-relaxed ${CMC.muted}`}>
                     <li>
-                      <strong className="text-white/90">% change:</strong>{" "}
-                      <code className="rounded bg-black/30 px-1 font-mono text-[11px]">
-                        (lastClose − previousClose) / previousClose × 100
-                      </code>{" "}
-                      on the last two candles for the selected timeframe.
+                      <strong className="text-white/90">% change</strong> compares the last closed bar on this timeframe
+                      to the previous one.
                     </li>
                     <li>
-                      <strong className="text-white/90">Estimated dollar volume:</strong> last bar share volume × its
-                      close.
+                      <strong className="text-white/90">Estimated dollar volume</strong> is last bar share volume times
+                      its closing price.
                     </li>
                     <li>
-                      <strong className="text-white/90">Vol / Market cap:</strong> that estimate ÷ profile market cap when
-                      both exist.
+                      <strong className="text-white/90">Volume vs market cap</strong> divides that estimate by the
+                      profile market cap when both are available.
                     </li>
                   </ul>
                 </details>
@@ -925,6 +962,17 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </section>
             )}
 
+            {mainTab === "fundamentals" && (
+              <section className={`rounded-xl ${CMC.card} p-5`}>
+                <h2 className="mb-1 text-lg font-bold text-white">Fundamentals (SEC)</h2>
+                <p className={`mb-4 text-xs ${CMC.muted}`}>
+                  Long-term financial quality and growth derived from SEC XBRL. Technical columns (price, stance, trend,
+                  etc.) stay on the Chart tab.
+                </p>
+                <FundamentalSection symbol={symbol} />
+              </section>
+            )}
+
             {mainTab === "about" && (
               <div className="space-y-4">
                 <section className={`rounded-xl ${CMC.card} p-5`}>
@@ -971,11 +1019,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <section className={`rounded-xl ${CMC.card} p-5`}>
                   <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-white">
                     <Activity className="h-4 w-4 text-[#3861fb]" />
-                    Beginner radar
+                    Signal radar
                   </h3>
                   <p className={`mb-3 text-[11px] leading-snug ${CMC.muted}`}>
-                    Same chart as the beginner / Test homepage: five spokes — Signal, Change, Volume, Liquidity, and Watchers
-                    (scores 1–5 vs a volume-ranked symbol pool), plus the Fear &amp; Greed strip from daily snapshot %.
+                    Five drivers — momentum, price action, volume, liquidity, and community interest — plus a daily mood
+                    strip. Scores are relative to large-cap peers for context.
                   </p>
                   <FundamentalRadar symbol={symbol} />
                 </section>
@@ -1023,12 +1071,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <p className="text-sm font-bold text-white line-clamp-1">
                     {stripParentheticals(details?.company_name) || symbol}
                   </p>
-                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} local votes · demo sentiment</p>
+                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} votes on this device</p>
                 </div>
                 <button
                   type="button"
                   className="shrink-0 rounded-lg bg-[#3861fb] px-3 py-1.5 text-[11px] font-bold text-white"
-                  title="Placeholder"
+                  title="Coming soon"
                 >
                   + Follow
                 </button>
@@ -1063,12 +1111,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
             </div>
 
             <div className={`rounded-xl ${CMC.card} flex min-h-[200px] flex-1 flex-col overflow-hidden`}>
-              <div className={`flex border-b ${CMC.line} px-3`}>
-                <span className="border-b-2 border-[#3861fb] px-2 py-2 text-xs font-bold text-white">Top</span>
-                <span className={`px-2 py-2 text-xs font-semibold ${CMC.muted}`}>Latest</span>
+              <div className={`flex items-center justify-between border-b ${CMC.line} px-3 py-2`}>
+                <span className="text-xs font-bold text-white">Latest</span>
+                <span className={`text-[10px] ${CMC.muted}`}>Newest first</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-3">
-                {news.slice(0, 5).map((item, idx) => (
+                {news.map((item, idx) => (
                   <div key={item.id || idx} className={`rounded-lg border ${CMC.line} bg-black/20 p-3`}>
                     <div className="flex gap-2">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#3861fb]/20 text-[10px] font-bold text-[#7b9cff]">
@@ -1095,7 +1143,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </div>
                 ))}
                 {news.length === 0 ? (
-                  <p className={`py-6 text-center text-xs ${CMC.muted}`}>No posts yet — check the News tab.</p>
+                  <p className={`py-6 text-center text-xs ${CMC.muted}`}>No headlines yet — try the News tab in the toolbar.</p>
                 ) : null}
               </div>
               <div className={`border-t ${CMC.line} p-3`}>
@@ -1106,7 +1154,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <input
                     type="text"
                     readOnly
-                    placeholder={`$${symbol} — Community posts coming soon`}
+                    placeholder={`Share your take on ${symbol}…`}
                     className={`min-w-0 flex-1 rounded-lg border ${CMC.line} bg-[#0b0e11] px-3 py-2 text-xs text-white placeholder:text-[#5e6673]`}
                   />
                   <button
@@ -1123,16 +1171,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
         </div>
 
         <p className={`mt-8 text-center text-[10px] ${CMC.muted}`}>
-          Three-column layout inspired by{" "}
-          <a
-            href="https://coinmarketcap.com/currencies/coinmarketcap-20-index/"
-            className="text-[#3861fb] hover:underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            CoinMarketCap
-          </a>
-          . DSA uses equities data from your stack, not on-chain token markets.
+          Information is for reference only and is not investment advice.
         </p>
       </div>
     </div>

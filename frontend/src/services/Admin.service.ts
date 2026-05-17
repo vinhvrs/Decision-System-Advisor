@@ -59,5 +59,60 @@ export const AdminService = {
       body_text: string;
       client_user_id?: string;
     }) => api.post(`${ADMIN_PREFIX}/email/inbound`, payload).then((r) => r.data),
+    contactUnreadCount: () =>
+      api.get(`${ADMIN_PREFIX}/email/contact-unread-count`).then((r) => {
+        const body = r.data as { data?: { count?: number } };
+        return Number(body?.data?.count ?? 0);
+      }),
+    contactSubmissions: (params?: { page?: number; per_page?: number }) =>
+      api.get(`${ADMIN_PREFIX}/email/contact-submissions`, { params }).then((r) => r.data),
+    markContactRead: (id: string) =>
+      api.post(`${ADMIN_PREFIX}/email/contact-submissions/${encodeURIComponent(id)}/read`).then((r) => r.data),
+    markAllContactsRead: () =>
+      api.post(`${ADMIN_PREFIX}/email/contact-submissions/read-all`).then((r) => r.data),
+  },
+  siteMailSettings: {
+    get: () => api.get(`${ADMIN_PREFIX}/site-mail-settings`).then((r) => (r.data as { data?: unknown }).data ?? r.data),
+    update: (payload: {
+      contact_notification_email?: string | null;
+      support_public_email?: string | null;
+      internal_notes?: string | null;
+    }) => api.put(`${ADMIN_PREFIX}/site-mail-settings`, payload).then((r) => r.data),
+  },
+  indicators: {
+    catalog: () =>
+      api.get(`${ADMIN_PREFIX}/indicators/catalog`).then((r) => (r.data as { data?: unknown }).data ?? r.data),
+    parameters: (indicatorId: string) =>
+      api
+        .get(`${ADMIN_PREFIX}/indicators/${encodeURIComponent(indicatorId)}/parameters`)
+        .then((r) => (r.data as { data?: unknown }).data ?? r.data),
+    createParameter: (
+      indicatorId: string,
+      payload: {
+        param_key: string;
+        param_value?: string | null;
+        value_type: string;
+        label?: string | null;
+        description?: string | null;
+        sort_order?: number;
+        is_active?: boolean;
+      },
+    ) =>
+      api
+        .post(`${ADMIN_PREFIX}/indicators/${encodeURIComponent(indicatorId)}/parameters`, payload)
+        .then((r) => (r.data as { data?: unknown }).data ?? r.data),
+    updateParameter: (indicatorId: string, parameterId: string, payload: Record<string, unknown>) =>
+      api
+        .put(
+          `${ADMIN_PREFIX}/indicators/${encodeURIComponent(indicatorId)}/parameters/${encodeURIComponent(parameterId)}`,
+          payload,
+        )
+        .then((r) => (r.data as { data?: unknown }).data ?? r.data),
+    deleteParameter: (indicatorId: string, parameterId: string) =>
+      api
+        .delete(
+          `${ADMIN_PREFIX}/indicators/${encodeURIComponent(indicatorId)}/parameters/${encodeURIComponent(parameterId)}`,
+        )
+        .then((r) => r.data),
   },
 };

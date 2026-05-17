@@ -94,3 +94,25 @@ try:
 except ValueError:
     NEWS_EMBED_BATCH_LIMIT = 50
 
+# SEC EDGAR + optional MacroTrends gap-fill for the 10-symbol tech universe.
+FUNDAMENTAL_INTERVAL_HOURS = _env_float("FUNDAMENTAL_INTERVAL_HOURS", 24.0, minimum=1.0)
+_fund_flag = os.environ.get("FUNDAMENTAL_INGEST_ENABLED", "1").strip().lower()
+FUNDAMENTAL_INGEST_ENABLED = _fund_flag not in ("0", "false", "no", "off")
+_mt_flag = os.environ.get("MACROTRENDS_ENABLED", "1").strip().lower()
+MACROTRENDS_ENABLED = _mt_flag not in ("0", "false", "no", "off")
+_fb = os.environ.get("FUNDAMENTAL_BOOTSTRAP_ON_START", "1").strip().lower()
+FUNDAMENTAL_BOOTSTRAP_ON_START = _fb not in ("0", "false", "no", "off")
+try:
+    FUNDAMENTAL_BOOTSTRAP_DELAY_SEC = max(30, int(os.environ.get("FUNDAMENTAL_BOOTSTRAP_DELAY_SEC", "120")))
+except ValueError:
+    FUNDAMENTAL_BOOTSTRAP_DELAY_SEC = 120
+
+# snapshot_demo + snapshot_daily + company_facts_raw (10 US tech symbols).
+TECH_UNIVERSE_DAILY_INTERVAL_HOURS = _env_float("TECH_UNIVERSE_DAILY_INTERVAL_HOURS", 24.0, minimum=1.0)
+_tu_flag = os.environ.get("TECH_UNIVERSE_DAILY_ENABLED", "1").strip().lower()
+TECH_UNIVERSE_DAILY_ENABLED = _tu_flag not in ("0", "false", "no", "off")
+try:
+    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC = max(60, int(os.environ.get("TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC", "180")))
+except ValueError:
+    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC = 180
+

@@ -5,11 +5,11 @@ import BeginnerTestHome from "./test/BeginnerTestHome";
 export type HomeMarketViewVariant = "beginner-board" | "dashboard-daily";
 
 type Props = {
-  /** `dashboard-daily` reads Redis via `/rankings/dashboard-daily` (run python warm_up). */
+  /** Ranking data source: full board vs daily dashboard snapshot. */
   variant?: HomeMarketViewVariant;
 };
 
-/** Site home (`/`) uses live beginner board; `/test` can pass `dashboard-daily`. */
+/** Renders the main market dashboard (home uses the default variant). */
 export default function HomeMarketView({ variant = "dashboard-daily" }: Props) {
   return <BeginnerTestHome dataSource={variant} />;
 }

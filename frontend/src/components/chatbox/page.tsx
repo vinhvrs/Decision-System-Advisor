@@ -347,10 +347,10 @@ export default function ChatBox() {
         const httpsPage = typeof window !== "undefined" && window.location.protocol === "https:";
         const mixed =
           httpsPage && url.startsWith("ws://")
-            ? " This page is HTTPS but the socket URL uses ws:// — use wss:// for the engine or open the site over HTTP in dev."
+            ? " Secure pages require a matching secure (wss) assistant endpoint."
             : "";
         setConnectError(
-          `Cannot reach the assistant at ${url}.${mixed} Start the Python engine on port 8000 (e.g. docker compose up data-engine, or uvicorn from backend/python_engine). Retrying…`
+          `We cannot reach the assistant right now.${mixed} Please check your connection or try again in a moment.`
         );
         setWsReady(false);
       };

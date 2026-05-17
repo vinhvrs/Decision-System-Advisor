@@ -23,12 +23,21 @@ from app.bootstrap.scheduler_config import (
     NEWS_EMBED_INTERVAL_HOURS,
     NEWS_INTERVAL_HOURS,
     NEWS_INTERVAL_RAW,
+    FUNDAMENTAL_BOOTSTRAP_DELAY_SEC,
+    FUNDAMENTAL_BOOTSTRAP_ON_START,
+    FUNDAMENTAL_INGEST_ENABLED,
+    FUNDAMENTAL_INTERVAL_HOURS,
+    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC,
+    TECH_UNIVERSE_DAILY_ENABLED,
+    TECH_UNIVERSE_DAILY_INTERVAL_HOURS,
     NEWS_SCHEDULE_LOOKBACK_DAYS,
     RANKING_SYNC_INTERVAL_HOURS,
     SCHEDULE_INTERVAL_HOURS,
     SCHEDULER_MISFIRE_GRACE_SEC,
 )
 from app.jobs.analysis_job import run_auto_analyze_refresh, warmup_top_stocks
+from app.jobs.fundamental_job import run_fundamental_ingest_job
+from app.jobs.tech_universe_daily_job import run_tech_universe_daily_job
 from app.jobs.dashboard_job import get_last_dashboard_warmup, run_dashboard_warm_up
 from app.jobs.news_job import run_news_daily_update, run_news_embed_pipeline
 from app.jobs.ranking_job import run_ranking_sync
@@ -191,6 +200,33 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
+    if TECH_UNIVERSE_DAILY_ENABLED:
+        tu_first = datetime.now() + timedelta(seconds=int(TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC))
+        scheduler.add_job(
+            run_tech_universe_daily_job,
+            trigger="interval",
+            hours=TECH_UNIVERSE_DAILY_INTERVAL_HOURS,
+            id="tech_universe_daily",
+            next_run_time=tu_first,
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+    elif FUNDAMENTAL_INGEST_ENABLED:
+        fundamental_first = datetime.now() + timedelta(
+            seconds=int(FUNDAMENTAL_BOOTSTRAP_DELAY_SEC) if FUNDAMENTAL_BOOTSTRAP_ON_START else 0
+        )
+        scheduler.add_job(
+            run_fundamental_ingest_job,
+            trigger="interval",
+            hours=FUNDAMENTAL_INTERVAL_HOURS,
+            id="fundamental_ingest",
+            next_run_time=fundamental_first,
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+
     scheduler.start()
     app.state.scheduler = scheduler
 
@@ -264,6 +300,10 @@ def build_scheduler_health_payload(scheduler) -> dict:
         "news_embed_enabled": NEWS_EMBED_ENABLED,
         "news_embed_interval_hours": NEWS_EMBED_INTERVAL_HOURS,
         "news_embed_batch_limit": NEWS_EMBED_BATCH_LIMIT,
+        "fundamental_ingest_enabled": FUNDAMENTAL_INGEST_ENABLED,
+        "fundamental_interval_hours": FUNDAMENTAL_INTERVAL_HOURS,
+        "tech_universe_daily_enabled": TECH_UNIVERSE_DAILY_ENABLED,
+        "tech_universe_daily_interval_hours": TECH_UNIVERSE_DAILY_INTERVAL_HOURS,
         "dashboard_warm_up_last": get_last_dashboard_warmup() or None,
         "dashboard_keepalive": {
             "blocking_startup_warmup": DASHBOARD_BLOCKING_STARTUP_WARMUP,

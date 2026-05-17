@@ -76,11 +76,22 @@ services:
       #   (same as Laravel) or AUTH fails silently and dashboard:daily never appears.
       # - DASHBOARD_WARM_UP_BOOTSTRAP_SEC: seconds after startup for first warm-up (default 120).
       - SCHEDULE_INTERVAL_HOURS=3
+      # GDELT: add NEWS_HANDLE_ENABLED=1 to backend/.env for scheduled + CLI backfill (rate limits / outbound HTTPS).
+      # One-shot history: docker compose run --rm -e NEWS_HANDLE_ENABLED=1 data-engine python3 news_ingest.py backfill --limit-year 2018
+      # Rolling window: docker compose run --rm -e NEWS_HANDLE_ENABLED=1 data-engine python3 news_ingest.py daily --lookback-days 14
       - NEWS_INTERVAL_HOURS=1
       - NEWS_EMBED_ENABLED=0
       - NEWS_EMBED_INTERVAL_HOURS=1
       - NEWS_EMBED_BATCH_LIMIT=50
       - NEWS_SCHEDULE_LOOKBACK_DAYS=14
+      # SEC EDGAR fundamentals (10 US tech symbols) + optional MacroTrends gap-fill
+      - TECH_UNIVERSE_DAILY_ENABLED=1
+      - TECH_UNIVERSE_DAILY_INTERVAL_HOURS=24
+      - TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC=180
+      - TECH_UNIVERSE_YF_PERIOD=30d
+      - FUNDAMENTAL_INGEST_ENABLED=1
+      - MACROTRENDS_ENABLED=1
+      - DASHBOARD_USE_DEMO=1
       # Thesis demo default in app/main.py is top_snapshot + 20; for full universe set SYMBOL_INGEST_MODE=all
       - SYMBOL_INGEST_MODE=top_snapshot
       - SYMBOL_INGEST_TOP_N=20

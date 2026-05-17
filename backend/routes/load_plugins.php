@@ -17,3 +17,5 @@ require base_path('/platform/plugins/users/src/Routes/WatchlistRoute.php');
 require base_path('/routes/admin.php');
 
 require base_path('/routes/elastic.php');
+require base_path('/routes/contact.php');
+require base_path('/routes/fundamentals.php');
