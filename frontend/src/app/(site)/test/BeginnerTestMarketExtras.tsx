@@ -322,8 +322,8 @@ export default function BeginnerTestMarketExtras({
 
   const displayVolumeNote = dashboardDailyMode
     ? dashboardUpdatedAt
-      ? `Same symbol pool as Redis dashboard:daily (updated ${updatedAtFormatter.format(new Date(dashboardUpdatedAt))} UTC). Top ${MARKET_MOVERS_LIST_LIMIT} by snapshot % change. Heatmap: Technology sector only.`
-      : `Same symbol pool as Redis dashboard:daily. Top ${MARKET_MOVERS_LIST_LIMIT} gainers/losers by snapshot % change. Heatmap: Technology sector only.`
+      ? `Same symbols as the board above · snapshot ${updatedAtFormatter.format(new Date(dashboardUpdatedAt))} UTC · Technology sector heatmap`
+      : `Same symbols as the board above · Technology sector heatmap`
     : volumeNote;
 
   return (
@@ -334,14 +334,12 @@ export default function BeginnerTestMarketExtras({
           <p className={`mt-0.5 text-[11px] ${C.muted}`}>
             {dashboardDailyMode ? (
               <>
-                Latest ingested headlines; movers use the same Redis{" "}
-                <code className="text-white/45">dashboard:daily</code> pool as the board. Treemap is Technology sector
-                liquidity from the rankings API.
+                Headlines from our feed. Movers follow the same symbol list as the ranking board. The treemap highlights
+                Technology-sector liquidity.
               </>
             ) : (
               <>
-                Latest ingested headlines, top gainers/losers by snapshot volume (refreshed ~3h), and a Technology-sector
-                liquidity heatmap.
+                Headlines, top movers by recent volume, and a Technology-sector liquidity map.
               </>
             )}
           </p>
@@ -361,8 +359,7 @@ export default function BeginnerTestMarketExtras({
             <p className={`animate-pulse text-sm ${C.muted}`}>Loading…</p>
           ) : news.length === 0 ? (
             <p className={`text-sm ${C.muted}`}>
-              Nothing in <code className="rounded bg-black/30 px-1 text-[11px]">knowledge_docs</code> yet. The Python
-              engine ingests via GDELT when the scheduler runs and filters pass — see pipeline notes in the codebase.
+              No market headlines are available yet. Check back soon or open the News section.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -397,7 +394,7 @@ export default function BeginnerTestMarketExtras({
             ) : displayGainers.length === 0 && displayLosers.length === 0 ? (
               <p className={`text-xs ${C.muted}`}>
                 {dashboardDailyMode
-                  ? "No rows in dashboard:daily yet. Run python warm_up or check Redis."
+                  ? "Movers will appear once the market board has fresh data."
                   : "No snapshot volume data yet."}
               </p>
             ) : (

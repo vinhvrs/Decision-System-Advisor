@@ -3,6 +3,8 @@ export const SITE_NAV_LINKS = [
   { label: "Search", href: "/search" },
   { label: "News", href: "/news" },
   { label: "Company", href: "/companies" },
+  { label: "Screener", href: "/instrument" },
+  { label: "Investing", href: "/investing" },
   { label: "Indicators", href: "/indicators" },
   { label: "Strategy", href: "/strategy" },
   { label: "Documents", href: "/documents" },

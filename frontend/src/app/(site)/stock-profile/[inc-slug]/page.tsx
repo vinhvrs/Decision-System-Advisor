@@ -208,7 +208,7 @@ const StockProfile = ({ params }: Props) => {
               ${candles.length > 0 ? (realtimeCandle?.close || candles[candles.length - 1].close).toFixed(2) : "0.00"}
             </div>
             <div className="text-green-400 text-[10px] font-black flex items-center justify-end gap-1 mt-0.5 uppercase tracking-tighter">
-              FastAPI Stream <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping ml-1"></span>
+              Live feed <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping ml-1"></span>
             </div>
           </div>
         </div>

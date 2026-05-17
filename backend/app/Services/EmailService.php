@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\SiteMailSetting;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -16,27 +17,26 @@ class EmailService
 {
     /**
      * Non-secret values for admin UI / health checks.
-     *
-     * @return array{
-     *   mailer: string,
-     *   from_address: string,
-     *   from_name: string,
-     *   smtp_host: string|null,
-     *   smtp_port: int|null,
-     *   smtp_scheme: string|null,
-     *   smtp_auto_tls: bool,
-     *   smtp_username_set: bool,
-     *   google_oauth_client_configured: bool
-     * }
      */
     public function publicConfig(): array
     {
         $smtp = config('mail.mailers.smtp', []);
         $google = config('services.mail_google', []);
 
+        $mailer = (string) config('mail.default', 'log');
+        $from = trim((string) config('mail.from.address', ''));
+        $smtpReady = $mailer === 'smtp'
+            && ! empty($smtp['host'] ?? null)
+            && ! empty($smtp['username'] ?? null)
+            && ! empty($smtp['password'] ?? null)
+            && $from !== '';
+
+        $site = SiteMailSetting::singleton();
+        $effectiveNotify = SiteMailSetting::effectiveContactNotificationEmail();
+
         return [
-            'mailer' => (string) config('mail.default', 'log'),
-            'from_address' => (string) config('mail.from.address', ''),
+            'mailer' => $mailer,
+            'from_address' => $from,
             'from_name' => (string) config('mail.from.name', ''),
             'smtp_host' => isset($smtp['host']) ? (string) $smtp['host'] : null,
             'smtp_port' => isset($smtp['port']) ? (int) $smtp['port'] : null,
@@ -45,6 +45,14 @@ class EmailService
                 : null,
             'smtp_auto_tls' => (bool) ($smtp['auto_tls'] ?? true),
             'smtp_username_set' => ! empty($smtp['username'] ?? null),
+            'smtp_ready' => $smtpReady,
+            'support_notify_configured' => $effectiveNotify !== '',
+            'site_mail' => [
+                'contact_notification_email' => $site->contact_notification_email,
+                'support_public_email' => $site->support_public_email,
+                'internal_notes' => $site->internal_notes,
+                'effective_contact_notification_email' => $effectiveNotify,
+            ],
             'google_oauth_client_configured' => ! empty($google['client_id'] ?? null),
         ];
     }
@@ -54,8 +62,17 @@ class EmailService
      */
     public function sendPlain(string $to, string $subject, string $body, ?string $replyTo = null): void
     {
-        Mail::raw($body, function ($message) use ($to, $subject, $replyTo): void {
+        $from = trim((string) config('mail.from.address', ''));
+        if ($from === '') {
+            throw new \InvalidArgumentException(
+                'MAIL_FROM_ADDRESS is empty. Set a valid sender in .env (required for SMTP and most mailers).'
+            );
+        }
+        $fromName = (string) config('mail.from.name', '');
+
+        Mail::raw($body, function ($message) use ($to, $subject, $replyTo, $from, $fromName): void {
             $message->to($to)->subject($subject);
+            $message->from($from, $fromName);
             if ($replyTo !== null && $replyTo !== '') {
                 $message->replyTo($replyTo);
             }

@@ -14,7 +14,21 @@ type MailConfig = {
   smtp_scheme: string | null;
   smtp_auto_tls: boolean;
   smtp_username_set: boolean;
+  smtp_ready?: boolean;
+  support_notify_configured?: boolean;
   google_oauth_client_configured: boolean;
+  site_mail?: {
+    contact_notification_email: string | null;
+    support_public_email: string | null;
+    internal_notes: string | null;
+    effective_contact_notification_email?: string;
+  };
+};
+
+type SiteMailForm = {
+  contact_notification_email: string;
+  support_public_email: string;
+  internal_notes: string;
 };
 
 type EmailMsg = {
@@ -33,6 +47,16 @@ type EmailMsg = {
 
 type UserOpt = { id: string; email?: string; name?: string };
 
+type ContactRow = {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  read_at: string | null;
+  created_at: string;
+};
+
 export default function AdminEmailPage() {
   const [cfg, setCfg] = useState<MailConfig | null>(null);
   const [loadingCfg, setLoadingCfg] = useState(true);
@@ -45,6 +69,41 @@ export default function AdminEmailPage() {
   const [selected, setSelected] = useState<EmailMsg | null>(null);
 
   const [users, setUsers] = useState<UserOpt[]>([]);
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+
+  const [siteMail, setSiteMail] = useState<SiteMailForm>({
+    contact_notification_email: "",
+    support_public_email: "",
+    internal_notes: "",
+  });
+
+  const loadSiteMail = useCallback(async () => {
+    try {
+      const res = (await AdminService.siteMailSettings.get()) as {
+        contact_notification_email?: string | null;
+        support_public_email?: string | null;
+        internal_notes?: string | null;
+      };
+      setSiteMail({
+        contact_notification_email: res.contact_notification_email ?? "",
+        support_public_email: res.support_public_email ?? "",
+        internal_notes: res.internal_notes ?? "",
+      });
+    } catch {
+      /* keep previous */
+    }
+  }, []);
+
+  const loadContacts = useCallback(async () => {
+    try {
+      const res = (await AdminService.email.contactSubmissions({ page: 1, per_page: 50 })) as {
+        data?: ContactRow[];
+      };
+      setContacts(res.data ?? []);
+    } catch {
+      setContacts([]);
+    }
+  }, []);
 
   const [testTo, setTestTo] = useState("");
   const [sendTo, setSendTo] = useState("");
@@ -118,7 +177,7 @@ export default function AdminEmailPage() {
     (async () => {
       setLoadingCfg(true);
       try {
-        const [cfgRes, usersRes, msgRes] = await Promise.all([
+        const [cfgRes, usersRes, msgRes, contactsRes, siteMailRes] = await Promise.all([
           AdminService.email.config().catch(() => null),
           AdminService.users.list({ per_page: 100, page: 1 }).catch(() => ({ data: [] as UserOpt[] })),
           AdminService.email.messages({ page: 1, per_page: 30, direction: undefined }).catch(() => ({
@@ -126,6 +185,8 @@ export default function AdminEmailPage() {
             current_page: 1,
             last_page: 1,
           })),
+          AdminService.email.contactSubmissions({ page: 1, per_page: 50 }).catch(() => ({ data: [] as ContactRow[] })),
+          AdminService.siteMailSettings.get().catch(() => null),
         ]);
         if (cancelled) return;
         setCfg(cfgRes as MailConfig | null);
@@ -134,6 +195,19 @@ export default function AdminEmailPage() {
         setMessages(m.data ?? []);
         setMsgPage(m.current_page ?? 1);
         setMsgLastPage(m.last_page ?? 1);
+        setContacts((contactsRes as { data?: ContactRow[] }).data ?? []);
+        if (siteMailRes && typeof siteMailRes === "object") {
+          const sm = siteMailRes as {
+            contact_notification_email?: string | null;
+            support_public_email?: string | null;
+            internal_notes?: string | null;
+          };
+          setSiteMail({
+            contact_notification_email: sm.contact_notification_email ?? "",
+            support_public_email: sm.support_public_email ?? "",
+            internal_notes: sm.internal_notes ?? "",
+          });
+        }
         setNotice({ variant: "success", message: "Email desk loaded." });
       } catch {
         if (!cancelled) {
@@ -259,6 +333,57 @@ export default function AdminEmailPage() {
     }
   };
 
+  const onMarkContactRead = async (row: ContactRow) => {
+    if (row.read_at) return;
+    setBusy(true);
+    try {
+      await AdminService.email.markContactRead(row.id);
+      setContacts((prev) =>
+        prev.map((c) => (c.id === row.id ? { ...c, read_at: new Date().toISOString() } : c)),
+      );
+      window.dispatchEvent(new CustomEvent("dsa-contact-inbox-updated"));
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string } } };
+      setNotice({ variant: "error", message: ax.response?.data?.message || "Could not mark read." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSaveSiteMail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await AdminService.siteMailSettings.update({
+        contact_notification_email: siteMail.contact_notification_email.trim() || null,
+        support_public_email: siteMail.support_public_email.trim() || null,
+        internal_notes: siteMail.internal_notes.trim() || null,
+      });
+      await loadSiteMail();
+      await loadConfig({ manageLoading: false });
+      setNotice({ variant: "success", message: "Contact & support mail settings saved." });
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string } } };
+      setNotice({ variant: "error", message: ax.response?.data?.message || "Save failed." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onMarkAllContactsRead = async () => {
+    setBusy(true);
+    try {
+      await AdminService.email.markAllContactsRead();
+      setContacts((prev) => prev.map((c) => ({ ...c, read_at: c.read_at ?? new Date().toISOString() })));
+      window.dispatchEvent(new CustomEvent("dsa-contact-inbox-updated"));
+      setNotice({ variant: "success", message: "All contact messages marked read." });
+    } catch {
+      setNotice({ variant: "error", message: "Could not mark all read." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -268,9 +393,9 @@ export default function AdminEmailPage() {
             Email desk
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-white/55">
-            Send mail to clients (SMTP from <code className="rounded bg-black/40 px-1 text-xs">.env</code>), keep a
-            thread in the database, and <strong className="text-white/80">log client messages to support</strong> when
-            they reach you by email or other channels (paste below) until IMAP or a provider webhook is connected.
+            Send mail to clients, keep copies in the thread list, and review messages from the public contact page.
+            Automatic inbound mail (IMAP/webhooks) is not wired yet — use <strong className="text-white/80">Log client message</strong>{" "}
+            to paste forwarded emails when needed.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -291,6 +416,8 @@ export default function AdminEmailPage() {
                   loadConfig({ manageLoading: false }),
                   loadUsers(),
                   loadMessages(msgPage),
+                  loadContacts(),
+                  loadSiteMail(),
                 ]);
                 setNotice({ variant: "success", message: "Refreshed." });
               } catch {
@@ -307,6 +434,133 @@ export default function AdminEmailPage() {
           </button>
         </div>
       </div>
+
+      {!loadingCfg && cfg ? (
+        <div className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm space-y-2">
+          {cfg.mailer === "log" ? (
+            <p className="text-amber-200/95">
+              Outbound mailer is <strong>log</strong> — messages are written to the API log only, not delivered. Set{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_MAILER=smtp</code> plus host, port, username,
+              password, and <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_FROM_ADDRESS</code> in the Laravel{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">.env</code>.
+            </p>
+          ) : null}
+          {cfg.mailer === "smtp" && cfg.smtp_ready === false ? (
+            <p className="text-red-200/95">
+              SMTP looks incomplete: set <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_HOST</code>,{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_USERNAME</code>,{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_PASSWORD</code>, and a valid{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_FROM_ADDRESS</code>. For port 587 use{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_ENCRYPTION=tls</code> when your host requires it.
+            </p>
+          ) : null}
+          {cfg.mailer === "smtp" && cfg.smtp_ready ? (
+            <p className="text-emerald-200/95">SMTP appears ready for sending from {cfg.from_address || "—"}.</p>
+          ) : null}
+          {cfg.support_notify_configured ? null : (
+            <p className="text-white/55">
+              Optional: set <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_SUPPORT_ADDRESS</code> in{" "}
+              <code className="rounded bg-black/30 px-1 text-[11px]">.env</code>, or use the database fields below, to receive a
+              copy when someone submits the site contact form.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+        <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-white/80">Contact &amp; support (database)</h2>
+        <p className="mb-4 text-xs text-white/45">
+          Staff notification address overrides <code className="text-[11px] text-white/55">MAIL_SUPPORT_ADDRESS</code> when
+          set. Public support email is shown on the marketing contact page when configured.
+        </p>
+        <form onSubmit={onSaveSiteMail} className="grid gap-4 tablet:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-white/50">Contact form notify (staff inbox)</label>
+            <input
+              type="email"
+              value={siteMail.contact_notification_email}
+              onChange={(e) => setSiteMail((s) => ({ ...s, contact_notification_email: e.target.value }))}
+              placeholder="ops@yourcompany.com"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-white/50">Public support email (contact page)</label>
+            <input
+              type="email"
+              value={siteMail.support_public_email}
+              onChange={(e) => setSiteMail((s) => ({ ...s, support_public_email: e.target.value }))}
+              placeholder="support@yourcompany.com"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div className="tablet:col-span-2">
+            <label className="mb-1 block text-xs font-medium text-white/50">Internal notes (admin only)</label>
+            <textarea
+              value={siteMail.internal_notes}
+              onChange={(e) => setSiteMail((s) => ({ ...s, internal_notes: e.target.value }))}
+              rows={2}
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div className="tablet:col-span-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+            >
+              Save mail routing
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {contacts.length > 0 ? (
+        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-white/80">Website contacts</h2>
+            <button
+              type="button"
+              disabled={busy || !contacts.some((c) => !c.read_at)}
+              onClick={() => void onMarkAllContactsRead()}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/10 disabled:opacity-40"
+            >
+              Mark all read
+            </button>
+          </div>
+          <ul className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
+            {contacts.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onMarkContactRead(c)}
+                  className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                    c.read_at
+                      ? "border-white/10 bg-black/20 hover:border-white/20"
+                      : "border-amber-500/40 bg-amber-500/5 hover:border-amber-400/60"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-white">{c.subject}</span>
+                    <span className="shrink-0 text-[10px] text-white/45">
+                      {new Date(c.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-white/60">
+                    {c.name} &lt;{c.email}&gt;
+                    {!c.read_at ? <span className="ml-2 text-amber-300/90">· New</span> : null}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-xs text-white/75">{c.message}</p>
+                  {!c.read_at ? (
+                    <p className="mt-1 text-[10px] text-white/40">Click to mark as read</p>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {message ? (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
@@ -340,11 +594,14 @@ export default function AdminEmailPage() {
                   {cfg.smtp_host ?? "—"}:{cfg.smtp_port ?? "—"}
                 </dd>
               </div>
+              <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+                <dt className="text-white/50">SMTP ready</dt>
+                <dd className="text-right text-white">{cfg.smtp_ready ? "Yes" : "No"}</dd>
+              </div>
               <div className="flex justify-between gap-4 py-2">
                 <dt className="text-white/50">Notes</dt>
                 <dd className="text-right text-xs text-white/55">
-                  <code className="text-[11px]">MAIL_MAILER=log</code> archives sends in laravel.log only. Use{" "}
-                  <code className="text-[11px]">smtp</code> for real delivery.
+                  <code className="text-[11px]">MAIL_MAILER=log</code> writes to laravel.log only. Use real SMTP for delivery.
                 </dd>
               </div>
             </dl>

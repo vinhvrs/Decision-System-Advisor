@@ -475,20 +475,18 @@ function upsideTooltipLines(r: BeginnerBoardRow, closes: number[]): string {
     Number.isFinite(r.analyst_consensus_target_price) &&
     r.analyst_consensus_target_price > 0;
   const advNote = hasRealTarget
-    ? "Advisory UP: Wall-Street-style vs consensus target."
-    : "Advisory UP: synthetic target from radar (no consensus loaded).";
+    ? "Uplift vs analyst consensus target."
+    : "Uplift vs model-based target (no consensus on file).";
   const lines = [
     advNote,
-    Number.isFinite(adv) ? `Advisory UP: ${adv.toFixed(2)}%` : "Advisory UP: —",
-    Number.isFinite(tech)
-      ? `Technical UP: ${tech.toFixed(2)}% (vs max of loaded closes ≈ resistance)`
-      : "Technical UP: —",
-    Number.isFinite(down) ? `Downside risk: ${down.toFixed(2)}% (to support / MA proxy)` : "Downside: —",
+    Number.isFinite(adv) ? `Advisory uplift: ${adv.toFixed(2)}%` : "Advisory uplift: —",
+    Number.isFinite(tech) ? `Technical room to highs: ${tech.toFixed(2)}%` : "Technical room: —",
+    Number.isFinite(down) ? `Downside to support (approx.): ${down.toFixed(2)}%` : "Downside: —",
     Number.isFinite(ratio)
-      ? `Ratio (tech ÷ downside): ${ratio.toFixed(2)} — >3.0 high conviction tilt, <1.0 poor reward/risk (heuristic; not advice).`
-      : "Ratio: —",
+      ? `Reward vs risk (approx.): ${ratio.toFixed(2)}`
+      : "Reward vs risk: —",
   ];
-  return lines.join(" \n");
+  return lines.join("\n");
 }
 
 function upsidePotentialToneClass(pct: number): string {
@@ -1067,6 +1065,17 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     [isRedisDaily, boardRows],
   );
 
+  /** Stable across live quote row clones so sparkline fetch + loading state do not re-run every tick. */
+  const boardSparklineSymKey = useMemo(
+    () =>
+      boardRows
+        .map((r) => String(r.symbol || "").toUpperCase())
+        .filter(Boolean)
+        .sort()
+        .join(","),
+    [boardRows],
+  );
+
   const listLimit = useMemo(() => {
     if (isRedisDaily) return boardRows.length > 0 ? boardRows.length : BOARD_LIMIT_PROD;
     if (isDemoDevMode()) return DEV_SYMBOL_SEED.length;
@@ -1296,7 +1305,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [isRedisDaily, dashboardBoardSymKey]);
 
   useEffect(() => {
-    if (!boardRows.length) {
+    if (!boardSparklineSymKey) {
       setRowSparklines({});
       setSparklinesLoading(false);
       return;
@@ -1304,14 +1313,18 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     let cancelled = false;
 
     const loadSparklines = (showSpinner: boolean) => {
+      const rows = boardRowsRef.current;
+      if (!rows.length) return;
+
       if (showSpinner) setSparklinesLoading(true);
-      const syms = boardRows.map((r) => r.symbol);
-      const allEmbedded = boardRows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
+      const syms = rows.map((r) => r.symbol);
+      const allEmbedded = rows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
 
       const applyMap = (map: Record<string, number[]>) => {
         if (cancelled) return;
+        const latest = boardRowsRef.current;
         const next: Record<string, number[]> = {};
-        for (const r of boardRows) {
+        for (const r of latest) {
           next[r.symbol] = ensureSparklineValuesForRow(r, map);
         }
         setRowSparklines(next);
@@ -1344,7 +1357,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [boardRows]);
+  }, [boardSparklineSymKey]);
 
   const boardAggregates = useMemo(() => {
     if (!boardRows.length) return null;
@@ -1589,10 +1602,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             Sell
           </span>
           <span className={`rounded-full border ${C.line} px-3 py-1 text-[11px] ${C.muted}`}>
-            = snapshot day up / down (not advice)
+            Green / red = snapshot day up or down
           </span>
           <span className={`rounded-full border border-[#3861fb]/30 bg-[#3861fb]/10 px-3 py-1 text-[11px] font-medium text-[#7b9cff]`}>
-            Radar: hover row (per-symbol)
+            Hover a row for radar
           </span>
           <Link
             href="/search"
@@ -1603,7 +1616,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           </Link>
           {sparklinesLoading && (
             <span className={`w-full text-right text-[11px] tablet:ml-auto tablet:w-auto ${C.muted}`}>
-              Loading row sparklines…
+              Updating trend lines…
             </span>
           )}
         </div>
@@ -1622,8 +1635,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               </div>
             </div>
             <p className={`min-w-0 text-[11px] ${C.muted} sm:shrink-0`}>
-              {boardRows.length ? `${boardRows.length} symbols` : "—"} · mini lines = daily closes · board-wide metrics in
-              header
+              {boardRows.length ? `${boardRows.length} symbols` : "—"} · trends use recent closes · summary above
             </p>
           </div>
 
@@ -1677,7 +1689,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                         />
                         <BoardSortHeader
                           label="24h %"
-                          title="Daily snapshot percent change from the data feed."
+                          title="Change vs the previous daily close from the data feed."
                           columnKey="change"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1686,7 +1698,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                         />
                         <BoardSortHeader
                           label="Stance"
-                          title="Indicator signal from Python-engine analysis (Str + radar scores). 24h % is shown separately and does not drive this stance."
+                          title="Blend of model signals (strength + multi-factor scores). Shown separately from the 24h % column."
                           columnKey="bias"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1703,7 +1715,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                         />
                         <BoardSortHeader
                           label="Upside"
-                          title="Technical upside vs max of loaded closes (resistance proxy). Hover row for advisory target %, downside %, and reward/risk ratio (heuristic)."
+                          title="Room to recent highs vs last price. Hover the cell for target and risk context."
                           columnKey="upside"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1729,7 +1741,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                         />
                         <BoardSortHeader
                           label="Trend"
-                          title="Recent daily closes from the chart feed; color follows the series (last vs first close). Updates on the sparkline refresh interval, not every quote."
+                          title="Recent closes; line color follows the move from the first to the last point in the window."
                           columnKey="trend"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1758,52 +1770,38 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                   </table>
                 </div>
                 <p className={`mt-2 text-[10px] ${C.muted}`}>
-                  <span className="tablet:hidden">
-                    Tap a company name for profile. Header shows list averages; hover a row (desktop) for radar.
-                  </span>
+                  <span className="tablet:hidden">Tap a name for the company profile. Averages are shown in the header.</span>
                   <span className="hidden tablet:inline">
-                    Hover a row — the radar card follows your cursor (clamped to the viewport). Click the popover or a company
-                    name for profile. Trend shows recent daily closes (static between OHLC refreshes); 24h % stays live.
+                    Hover a row to preview radar; click the card or the company name to open the full profile. Trend lines
+                    refresh with price history; the 24h % column updates with live quotes.
                   </span>
                 </p>
 
                 <details className={`mt-3 rounded-lg border ${C.line} bg-black/20 px-3 py-2`}>
                   <summary className={`cursor-pointer text-[11px] font-semibold text-[#7b9cff]`}>
-                    How these metrics are calculated
+                    Metric guide
                   </summary>
                   <ul className={`mt-2 list-inside list-disc space-y-1.5 text-[10px] leading-relaxed ${C.muted}`}>
                     <li>
-                      <strong className="text-white/80">Fear &amp; Greed (everywhere):</strong> One mapping:{" "}
-                      <code className="text-white/60">F = round(clamp(50 + 3.25·r, 0, 100))</code> with{" "}
-                      <code className="text-white/60">r</code> = daily snapshot % (<code className="text-white/60">change_pct_snapshot</code>
-                      ). Toolbar applies it to the <em>mean</em> snapshot % across listed symbols; row hover and company profile
-                      apply it to that symbol&apos;s snapshot % — same formula as the Laravel beginner-radar API field.
+                      <strong className="text-white/80">Fear &amp; Greed</strong> maps the list&apos;s average daily move
+                      into a 0–100 gauge (extreme fear to greed).
                     </li>
                     <li>
-                      <strong className="text-white/80">Row trend line:</strong> Last ~28 daily closes from instrument data;
-                      polyline colored green / red / gray from last vs first close in that series. The line is not redrawn on
-                      every Yahoo quote (only when OHLC is re-fetched) so the dashboard stays smooth.
+                      <strong className="text-white/80">Trend</strong> uses recent closing prices; color shows whether that
+                      window is up or down overall.
                     </li>
                     <li>
-                      <strong className="text-white/80">Radar scores:</strong> From the API beginner board — chart shows five
-                      spokes (Price omitted in the UI). <strong className="text-white/80">Str</strong> is{" "}
-                      <code className="text-white/60">strong_count</code> from the API (five spokes, score ≥ 4).
+                      <strong className="text-white/80">Radar</strong> blends five quality and momentum scores.{" "}
+                      <strong className="text-white/80">Str</strong> counts how many of those scores are in the top tier.
                     </li>
                     <li>
-                      <strong className="text-white/80">Upside Potential:</strong>{" "}
-                      <em>Advisory</em> uses{" "}
-                      <code className="text-white/60">((Target − Price) / Price) × 100</code> — with a real consensus target
-                      from the API when <code className="text-white/60">analyst_consensus_target_price</code> exists; otherwise
-                      a synthetic target from radar + Str. <em>Technical</em> uses{" "}
-                      <code className="text-white/60">((max(closes) − Price) / Price) × 100</code> on the loaded close series
-                      (52W-style proxy, not true calendar 52-week). <strong className="text-white/80">R</strong> = technical
-                      upside ÷ downside % to support (swing low vs series mean as MA proxy); ratio &gt; 3 vs &lt; 1 are informal
-                      conviction hints only — not investment advice.
+                      <strong className="text-white/80">Upside</strong> compares the last price to the highs in the same
+                      window and includes analyst targets when available. For education only — not a recommendation to
+                      trade.
                     </li>
                     <li>
-                      <strong className="text-white/80">Stance (five levels):</strong> Strong Buy → Strong Sell from Str, radar
-                      averages from Python-engine indicator analysis. The 24h % column remains live market movement and is shown
-                      separately; it does not directly drive Stance tiers. Not investment advice.
+                      <strong className="text-white/80">Stance</strong> summarizes the model outlook; it does not replace
+                      the live 24h % move column.
                     </li>
                   </ul>
                 </details>
@@ -1819,7 +1817,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               <h3 className="text-sm font-semibold">Watchlist saves (list)</h3>
             </div>
             <p className={`mt-2 text-xs leading-relaxed ${C.muted}`}>
-              Sum of watchlist counts across the top {listLimit} symbols — not your personal list.
+              Total watchers across the top {listLimit} names shown — not your personal watchlist.
             </p>
             {headerStatsReady && boardAggregates != null && (
               <p className="mt-3 font-mono text-2xl font-semibold tabular-nums">{boardAggregates.sumWatchers}</p>
@@ -1832,7 +1830,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               <h3 className="text-sm font-semibold">Avg move (list)</h3>
             </div>
             <p className={`mt-2 text-xs ${C.muted}`}>
-              Mean effective % change (sparkline last step or snapshot) — same basis as the header badge.
+              Average daily move across the list — same basis as the Fear &amp; Greed chip above.
             </p>
             {headerStatsReady && boardAggregates?.avgChangePct != null ? (
               <p
@@ -1852,8 +1850,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               <h3 className="text-sm font-semibold">Avg close trajectory</h3>
             </div>
             <p className={`mt-2 text-xs ${C.muted}`}>
-              Average of daily closes across symbols (aligned from the most recent bar). Toggle Daily / Yearly shortens the
-              window.
+              Blended path of recent closes across the list. Use Daily / Yearly to change the window.
             </p>
             {avgMarketCandleInsights ? (
               <div className="mt-3 space-y-2 text-xs">
@@ -1901,7 +1898,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               <div>
                 <h3 className="text-sm font-semibold">Disclaimer</h3>
                 <p className={`mt-1 text-xs leading-relaxed ${C.muted}`}>
-                  Learning layout only — not financial advice. Explore the rest of the site for deeper tools.
+                  Market data and scores are for education and research. They are not investment advice or an offer to buy
+                  or sell securities.
                 </p>
               </div>
             </div>
@@ -1917,7 +1915,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
         <p className={`mt-6 flex items-center justify-center gap-2 pb-8 text-[11px] ${C.muted}`}>
           <Clock className="h-3.5 w-3.5" />
-          Server snapshot timing — not live exchange clocks.
+          Timestamps reflect when data was processed, not exchange auction clocks.
         </p>
       </div>
 
@@ -1942,11 +1940,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               </span>
             </div>
             <p className={`mb-2 text-[10px] leading-snug ${C.muted}`}>
-              Per-symbol radar and Fear &amp; Greed strip — same{" "}
-              <code className="text-white/45">50 + 3.25×r</code> as the company profile, with{" "}
-              <code className="text-white/45">r</code> = this row&apos;s snapshot %. The header gauge uses the mean snapshot %
-              across the list with the same mapping.{" "}
-              <span className="text-[#7b9cff]">Click anywhere to open the company profile.</span>
+              Quick read on signals for {hoverRadarRow.symbol}. Open the profile for charts, filings, and news.{" "}
+              <span className="text-[#7b9cff]">Click this card to continue.</span>
             </p>
             {/* Recharts captures clicks; let them pass through so the wrapping Link navigates. */}
             <div className="pointer-events-none">

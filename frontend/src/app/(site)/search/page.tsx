@@ -135,13 +135,13 @@ function SearchResults() {
 
   const demoColumn = (
     <aside className="rounded-xl border border-white/10 bg-white/[0.03] p-4 lg:sticky lg:top-20 lg:self-start">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Demo · top 20 symbols</h2>
-      <p className="mt-1 text-[11px] leading-snug text-white/35">
-        From Elasticsearch (<code className="text-white/50">match_all</code>, symbol A→Z). Use when exploring the index.
+      <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Popular symbols</h2>
+      <p className="mt-1 text-[11px] leading-snug text-white/45">
+        Frequently viewed tickers. Select one to open its company profile.
       </p>
       <ul className="mt-3 max-h-[min(70vh,520px)] space-y-1 overflow-y-auto text-sm">
         {demoTop.length === 0 ? (
-          <li className="text-white/30">Unavailable (check API / elastic).</li>
+          <li className="text-white/40">This list is temporarily unavailable.</li>
         ) : (
           demoTop.map((hit, idx) => {
             const symbol = hit.source?.symbol ?? "—";
@@ -166,12 +166,11 @@ function SearchResults() {
     return (
       <div className="mx-auto grid max-w-5xl gap-8 px-4 py-12 lg:grid-cols-[1fr_260px]">
         <div className="text-center lg:text-left">
-          <h1 className="text-xl font-semibold text-white">Company search</h1>
-          <p className="mt-2 text-sm text-white/50">
-            Enter at least <strong className="text-white/70">2 characters</strong> in the URL query{" "}
-            <code className="rounded bg-white/10 px-1 text-xs">?q=</code>. Search uses Elasticsearch with{" "}
-            <strong className="text-white/70">fuzzy matching</strong> on names and{" "}
-            <strong className="text-white/70">suggestions</strong> for typos when your query is 3+ characters.
+          <h1 className="text-xl font-semibold text-white">Search companies</h1>
+          <p className="mt-2 text-sm text-white/55">
+            Enter at least <strong className="text-white/80">two characters</strong> in the search box (or add{" "}
+            <code className="rounded bg-white/10 px-1 text-xs">?q=</code> to the address bar). We match company names and
+            descriptions and show spelling suggestions for longer queries.
           </p>
         </div>
         {demoColumn}
@@ -195,8 +194,7 @@ function SearchResults() {
           Results for &quot;{q}&quot;
         </h1>
         <p className="mt-1 text-sm text-white/50">
-          {total} {total === 1 ? "match" : "matches"} · includes fuzzy / typo-tolerant scoring on company name &amp;
-          description
+          {total} {total === 1 ? "company" : "companies"} found
         </p>
 
         {suggestions.length > 0 && (
@@ -223,7 +221,6 @@ function SearchResults() {
             {results.map((hit, idx) => {
               const symbol = hit.source?.symbol ?? "—";
               const name = stripParentheticals(hit.source?.company_name) || "—";
-              const score = hit.score != null ? hit.score.toFixed(2) : null;
               return (
                 <li key={hit.id ?? `${symbol}-${idx}`}>
                   <Link
@@ -233,9 +230,6 @@ function SearchResults() {
                     <span className="w-8 text-sm text-slate-400">#{idx + 1}</span>
                     <span className="w-20 shrink-0 font-semibold uppercase text-white">{symbol}</span>
                     <span className="flex-1 truncate text-white/80">{name}</span>
-                    {score != null && (
-                      <span className="shrink-0 text-xs text-indigo-400/80">score: {score}</span>
-                    )}
                   </Link>
                 </li>
               );
@@ -244,10 +238,8 @@ function SearchResults() {
         )}
 
         <section className="mt-8">
-          <h2 className="text-base font-semibold text-white">Related news (fuzzy keyword)</h2>
-          <p className="mt-1 text-xs text-white/45">
-            Lightweight snippets only; open item for full details.
-          </p>
+          <h2 className="text-base font-semibold text-white">Related news</h2>
+          <p className="mt-1 text-xs text-white/45">Headlines that mention your search terms. Open an item for the full story.</p>
           {newsResults.length === 0 ? (
             <p className="py-4 text-sm text-white/50">No related news found for this keyword.</p>
           ) : (

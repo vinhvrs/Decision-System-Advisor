@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthService } from "@/src/services/Auth.service";
+import { AdminService } from "@/src/services/Admin.service";
 import {
   Users,
   Building2,
@@ -15,6 +16,7 @@ import {
   X,
   Terminal,
   Mail,
+  SlidersHorizontal,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -25,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/admin/statistics", label: "Most Watched", icon: BarChart3 },
   { href: "/admin/logs", label: "Logs & activity", icon: Terminal },
   { href: "/admin/email", label: "Email desk", icon: Mail },
+  { href: "/admin/indicators", label: "Indicator params", icon: SlidersHorizontal },
 ];
 
 export default function AdminLayout({
@@ -36,6 +39,7 @@ export default function AdminLayout({
   const router = useRouter();
   const [user, setUser] = useState<{ name?: string; role?: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [contactUnread, setContactUnread] = useState(0);
 
   useEffect(() => {
     if (pathname === "/admin/auth") return;
@@ -64,6 +68,28 @@ export default function AdminLayout({
       router.replace("/admin/auth");
     }
   }, [router, pathname]);
+
+  useEffect(() => {
+    if (pathname === "/admin/auth" || !user) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const n = await AdminService.email.contactUnreadCount();
+        if (!cancelled) setContactUnread(Number.isFinite(n) ? n : 0);
+      } catch {
+        if (!cancelled) setContactUnread(0);
+      }
+    };
+    void load();
+    const id = window.setInterval(load, 45_000);
+    const onUpdate = () => void load();
+    window.addEventListener("dsa-contact-inbox-updated", onUpdate);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener("dsa-contact-inbox-updated", onUpdate);
+    };
+  }, [pathname, user]);
 
   const handleLogout = () => {
     AuthService.logout();
@@ -115,7 +141,12 @@ export default function AdminLayout({
                 onClick={() => setSidebarOpen(false)}
               >
                 <Icon size={18} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/admin/email" && contactUnread > 0 ? (
+                  <span className="shrink-0 text-xs font-semibold text-amber-300" aria-label={`${contactUnread} unread contacts`}>
+                    ({contactUnread > 99 ? "99+" : contactUnread})
+                  </span>
+                ) : null}
               </Link>
             );
           })}

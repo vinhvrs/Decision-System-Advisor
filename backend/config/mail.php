@@ -57,6 +57,7 @@ return [
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
+            'encryption' => env('MAIL_ENCRYPTION'),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             /* Passed through to Symfony Dsn options (port 587 + smtp uses STARTTLS when auto_tls is true). */
@@ -132,5 +133,10 @@ return [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
+
+    /*
+    | Optional inbox for contact-form notifications (same SMTP as outbound).
+    */
+    'support_address' => env('MAIL_SUPPORT_ADDRESS', ''),
 
 ];
