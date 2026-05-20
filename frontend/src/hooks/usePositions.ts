@@ -5,6 +5,7 @@ import {
   TradingServices,
 } from "@/src/services/Trading.service";
 import type { TicketsWithPnl } from "@/src/types/Tickets";
+import { readIsLoggedIn } from "@/src/hooks/useAuth";
 
 export function usePositions(perPage = 100) {
   const [positions, setPositions] = useState<TicketsWithPnl[]>([]);
@@ -12,6 +13,12 @@ export function usePositions(perPage = 100) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchPositions = useCallback(async () => {
+    if (!readIsLoggedIn()) {
+      setPositions([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -38,8 +45,13 @@ export function usePositions(perPage = 100) {
 
   useEffect(() => {
     const onTicketChanged = () => fetchPositions();
+    const onAuthChanged = () => fetchPositions();
     window.addEventListener("ticket-changed", onTicketChanged);
-    return () => window.removeEventListener("ticket-changed", onTicketChanged);
+    window.addEventListener("auth-changed", onAuthChanged);
+    return () => {
+      window.removeEventListener("ticket-changed", onTicketChanged);
+      window.removeEventListener("auth-changed", onAuthChanged);
+    };
   }, [fetchPositions]);
 
   const closePosition = useCallback(

@@ -31,35 +31,38 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+html,
+body,
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-*::-webkit-scrollbar-track {
-  background: transparent;
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-*::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  transition: background-color 0.2s ease;
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.45);
-}
+@layer components {
+  select.dsa-select {
+    @apply rounded-lg border border-white/10 bg-[#262a3b] px-3 py-2.5 text-sm font-medium text-white outline-none transition;
+  }
 
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
+  select.dsa-select:hover {
+    @apply border-white/20;
+  }
 
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  select.dsa-select:focus {
+    @apply border-[#3861fb]/50;
+  }
 }

@@ -4,7 +4,7 @@ export const SITE_NAV_LINKS = [
   { label: "News", href: "/news" },
   { label: "Company", href: "/companies" },
   { label: "Screener", href: "/instrument" },
-  { label: "Investing", href: "/investing" },
+  { label: "Investing", href: "/trading" },
   { label: "Indicators", href: "/indicators" },
   { label: "Strategy", href: "/strategy" },
   { label: "Documents", href: "/documents" },

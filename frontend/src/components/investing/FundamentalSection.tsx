@@ -226,7 +226,7 @@ export function FundamentalSection({ symbol }: { symbol: string }) {
           id="fundamental-chart-kind"
           value={chartKind}
           onChange={(e) => setChartKind(e.target.value as FundamentalChartKind)}
-          className="rounded-lg border border-[#2b3139] bg-[#0b0e11] px-3 py-1.5 text-sm text-white outline-none ring-[#3861fb] focus:ring-2"
+          className="dsa-select"
         >
           <option value="line">Line chart</option>
           <option value="bar">Bar chart</option>

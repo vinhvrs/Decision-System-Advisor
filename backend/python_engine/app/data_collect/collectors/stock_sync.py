@@ -21,7 +21,6 @@ SNAPSHOT_SYMBOL_TABLE = "snapshot_demo"
 
 
 def ensure_snapshot_demo_table(conn: pymysql.connections.Connection) -> None:
-    """Require ``snapshot_demo`` so sync targets match the demo board / mirror snapshot."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -86,6 +85,44 @@ def _save_corporate_knowledge_doc(
         )
 
 
+def _corporate_actions_frame(tk: yf.Ticker) -> pd.DataFrame:
+    """Yahoo dividends/splits; ``tk.actions`` can raise on delisted/invalid symbols (yfinance bug)."""
+    try:
+        actions = tk.actions
+        if actions is not None and not actions.empty:
+            return actions
+    except AttributeError:
+        pass
+    except Exception as e:
+        logger.debug("tk.actions failed for %s: %s", getattr(tk, "ticker", "?"), e)
+
+    frames: list[pd.DataFrame] = []
+    try:
+        divs = tk.dividends
+        if divs is not None and not divs.empty:
+            d = divs.to_frame(name="Dividends")
+            d["Stock Splits"] = 0.0
+            frames.append(d)
+    except Exception:
+        pass
+    try:
+        splits = tk.splits
+        if splits is not None and not splits.empty:
+            s = splits.to_frame(name="Stock Splits")
+            s["Dividends"] = 0.0
+            frames.append(s)
+    except Exception:
+        pass
+    if not frames:
+        return pd.DataFrame()
+    out = pd.concat(frames).sort_index()
+    if "Dividends" not in out.columns:
+        out["Dividends"] = 0.0
+    if "Stock Splits" not in out.columns:
+        out["Stock Splits"] = 0.0
+    return out
+
+
 def sync_corporate_actions(
     symbol: str,
     company_name: str,
@@ -99,7 +136,7 @@ def sync_corporate_actions(
     logger.info("Corporate actions (DB only): %s", symbol)
     try:
         tk = yf.Ticker(symbol)
-        actions = tk.actions
+        actions = _corporate_actions_frame(tk)
         if actions.empty:
             return
 
@@ -136,7 +173,11 @@ def sync_corporate_actions(
         finally:
             conn.close()
     except Exception as e:
-        logger.exception("Corporate action error for %s: %s", symbol, e)
+        msg = str(e).lower()
+        if isinstance(e, AttributeError) and "_dividends" in msg:
+            logger.warning("Corporate actions skipped for %s (invalid/delisted symbol): %s", symbol, e)
+        else:
+            logger.warning("Corporate action error for %s: %s", symbol, e)
 
 
 class DSATurbo:

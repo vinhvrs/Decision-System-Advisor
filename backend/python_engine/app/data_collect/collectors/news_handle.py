@@ -1,9 +1,5 @@
-"""
-GDELT ingest, title filtering / dedup, article body resolution, and scheduled pipelines.
-
-RSS Yahoo crawl stays in ``news_crawler``. Set ``NEWS_HANDLE_ENABLED`` to turn this on.
-"""
 import hashlib
+import os
 import json
 import logging
 import re

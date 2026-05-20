@@ -7,17 +7,17 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: dsa
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
     ports:
       - "3307:3306"
     volumes:
       - mysqldata:/var/lib/mysql
     command: --innodb_buffer_pool_size=512M --performance_schema=OFF
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 10s
+      timeout: 5s
       retries: 5
+      start_period: 30s
 
   # Search Engine
   elasticsearch:
@@ -96,9 +96,9 @@ services:
       - SYMBOL_INGEST_MODE=top_snapshot
       - SYMBOL_INGEST_TOP_N=20
       - SCHEDULER_MISFIRE_GRACE_SEC=14400
-      - LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
-      - OPENBLAS_CORETYPE=ARMV8
-      # - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+      # ARM-only (Pi / Apple Silicon). Omit on amd64 Docker Desktop to avoid missing libgomp preload.
+      # - LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+      # - OPENBLAS_CORETYPE=ARMV8
     env_file:
       - ./backend/.env            # Pump environment variables directly into container
     #depends_on:                   # Wait for DB and Elastic to run before running Python

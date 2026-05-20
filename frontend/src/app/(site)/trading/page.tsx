@@ -15,7 +15,7 @@ import {
 export default function TradingHomePage() {
   return (
     <div className="text-white bg-[#0b1220]">
-      <section className="relative min-h-[90vh] phone:min-h-[95vh] tablet:min-h-[100vh] laptop:min-h-[105vh] flex items-end overflow-hidden">
+      <section className="relative flex min-h-[200px] max-h-[320px] items-end overflow-hidden phone:min-h-[220px] tablet:min-h-[240px] laptop:min-h-[260px]">
         <Image
           src={bgImg}
           alt="Background"
@@ -25,16 +25,16 @@ export default function TradingHomePage() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/10" />
 
-        <div className="relative z-10 w-full px-4 pb-16 phone:px-5 tablet:px-6 tablet:pb-20 laptop:pb-24">
+        <div className="relative z-10 w-full px-4 pb-8 phone:px-5 tablet:px-6 tablet:pb-10">
           <div className="max-w-5xl mx-0 phone:mx-4 tablet:mx-6">
-            <h1 className="text-3xl phone:text-4xl tablet:text-5xl laptop:text-6xl font-bold leading-tight">
+            <h1 className="text-2xl font-bold leading-tight phone:text-3xl tablet:text-4xl">
               Decision Stocks Advisor
             </h1>
-            <p className="mt-3 phone:mt-4 text-base phone:text-lg tablet:text-xl laptop:text-2xl text-white/80">
+            <p className="mt-2 text-sm text-white/80 phone:mt-3 phone:text-base tablet:text-lg">
               All information you need for investing — chart, indicators, news, heatmap, and market movers in one place.
             </p>
 
-            <div className="mt-6 phone:mt-8 flex flex-col phone:flex-row gap-2 phone:gap-3">
+            <div className="mt-4 flex flex-col gap-2 phone:mt-5 phone:flex-row phone:gap-3">
               <a
                 href="#dashboard"
                 className="px-5 py-2 rounded bg-white text-black font-semibold"

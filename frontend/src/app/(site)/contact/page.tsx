@@ -76,10 +76,16 @@ export default function ContactPage() {
       alert('Thank you! We received your message and will get back to you soon.');
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
-      const msg =
+      const raw =
         ax.response?.data?.message ||
         (ax.response?.data?.errors && Object.values(ax.response.data.errors).flat().join(' ')) ||
-        (err instanceof Error ? err.message : 'Could not send your message. Please try again later.');
+        (err instanceof Error ? err.message : '');
+      const looksLikeServerLeak =
+        typeof raw === 'string' &&
+        (raw.includes('SQLSTATE') || raw.includes("doesn't exist") || raw.includes('Connection:'));
+      const msg = looksLikeServerLeak
+        ? 'We could not save your message right now. Please try again in a few minutes or email us directly.'
+        : raw || 'Could not send your message. Please try again later.';
       setFormError(msg);
     } finally {
       setIsSending(false);
