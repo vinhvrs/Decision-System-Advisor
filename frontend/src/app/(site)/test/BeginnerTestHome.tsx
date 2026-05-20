@@ -23,6 +23,7 @@ import { SimpleSocket } from "@/src/libs/socket";
 import type { HomeMarketViewVariant } from "@/src/app/(site)/HomeMarketView";
 import BeginnerRadarChart from "./BeginnerRadarChart";
 import BeginnerTestMarketExtras from "./BeginnerTestMarketExtras";
+import SelectDropdown from "@/src/sections/Dropdown";
 import { stripParentheticals } from "@/src/libs/displayString";
 import { isDemoDevMode } from "@/src/libs/devMode";
 import { fearGreedFromBoardRows, fearGreedFromChangePct } from "@/src/libs/fearGreed";
@@ -1486,20 +1487,18 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             </div>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 phone:w-auto">
-            <div className={`inline-flex w-full rounded-lg ${C.card} p-0.5 phone:w-auto`}>
-              {(["daily", "yearly"] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPeriod(p)}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition phone:flex-none ${
-                    period === p ? "bg-[#3861fb] text-white" : `${C.muted} hover:text-white`
-                  }`}
-                >
-                  {p === "daily" ? "Daily" : "Yearly"}
-                </button>
-              ))}
-            </div>
+            <SelectDropdown
+              className="w-full phone:w-[120px]"
+              options={[
+                { id: "daily", label: "Daily" },
+                { id: "yearly", label: "Yearly" },
+              ]}
+              selected={{
+                id: period,
+                label: period === "daily" ? "Daily" : "Yearly",
+              }}
+              onSelect={(opt) => setPeriod(opt.id as Period)}
+            />
             <Link
               href="/trading"
               className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white phone:flex-none`}

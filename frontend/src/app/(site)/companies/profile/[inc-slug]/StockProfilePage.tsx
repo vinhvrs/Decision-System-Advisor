@@ -24,7 +24,11 @@ import {
   Heart,
 } from "lucide-react";
 
-import LightChart from "@/src/components/charts/LightChart";
+import TradingChart from "@/src/components/charts/page";
+import SelectDropdown from "@/src/sections/Dropdown";
+import ProfilePaperTradingPanel from "@/src/components/paperTrading/ProfilePaperTradingPanel";
+import ProfileChartPositionsLog from "@/src/components/paperTrading/ProfileChartPositionsLog";
+import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
 import FundamentalRadar from "./FundamentalRadar";
 import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
 import { InstrumentService } from "@/src/services/Instrument.service";
@@ -258,8 +262,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [watchlisted, setWatchlisted] = useState(false);
   const [sentimentBull, setSentimentBull] = useState(42);
   const [sentimentBear, setSentimentBear] = useState(8);
+  const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    setPaperTrading(null);
+  }, [symbol]);
 
   const livePrice = useMemo(() => {
     if (realtimeCandle?.close !== undefined && realtimeCandle?.close !== null) {
@@ -537,43 +546,27 @@ export function StockProfilePage({ slug }: { slug: string }) {
           <span className="rounded-md bg-white/[0.08] px-2 py-1 text-[11px] font-semibold text-white">Price</span>
           <span className={`rounded-md px-2 py-1 text-[11px] font-medium ${CMC.muted}`}>Market cap</span>
         </div>
-        <div className="inline-flex flex-wrap gap-1 rounded-lg bg-black/30 p-1">
-          {PERIOD_OPTIONS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setSelectedPeriod(p.id)}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-                selectedPeriod === p.id ? "bg-[#3861fb] text-white" : `${CMC.muted} hover:text-white`
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <SelectDropdown
+          className="w-[140px]"
+          options={PERIOD_OPTIONS}
+          selected={PERIOD_OPTIONS.find((p) => p.id === selectedPeriod) ?? null}
+          onSelect={(opt) => setSelectedPeriod(opt.id as TF)}
+        />
       </div>
       <div className="flex h-[min(520px,68vh)] min-h-[300px] w-full flex-col p-2 pb-3">
-        {chartLoading ? (
-          <div className={`flex min-h-[240px] flex-1 items-center justify-center gap-2 ${CMC.muted}`}>
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading chart…
-          </div>
-        ) : candles.length > 0 ? (
-          <div className="min-h-0 flex-1">
-            <LightChart
-              symbol={symbol}
-              data={candles}
-              realtimeCandle={realtimeCandle}
-              period={selectedPeriod}
-              indicators={[]}
-            />
-          </div>
-        ) : (
-          <div className={`flex min-h-[240px] flex-1 items-center justify-center text-sm ${CMC.muted}`}>
-            No price data for this range.
-          </div>
-        )}
+        <div className="min-h-0 flex-1">
+          <TradingChart
+            defaultSymbol={symbol}
+            lockSymbol={symbol}
+            controlledPeriod={selectedPeriod}
+            hideToolbar
+            hidePositionsPanel
+            embed
+            onPaperTradingChange={setPaperTrading}
+          />
+        </div>
       </div>
+      <ProfileChartPositionsLog symbol={symbol} paperState={paperTrading} />
       <div className={`grid gap-3 border-t ${CMC.line} p-4 sm:grid-cols-2`}>
         <div>
           <p className={`text-[11px] font-medium ${CMC.muted}`}>History high (loaded range)</p>
@@ -742,6 +735,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 How complete this company record is (name, sector, financials, description, etc.).
               </p>
             </div>
+
+            <ProfilePaperTradingPanel symbol={symbol} state={paperTrading} />
 
             <div className="flex flex-col gap-2">
               {details?.website ? (

@@ -2,14 +2,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Newspaper, X, Clock, Calendar } from "lucide-react";
 import newsService from "@/src/services/News.service";
 import { News } from "@/src/types/News";
 import { pickNewsThumbImage } from "@/src/libs/newsArticle";
 
-export default function NewsListPage() {
+function NewsListPageContent() {
   const searchParams = useSearchParams();
   const selectedNewsId = searchParams.get("n") ?? "";
   const [items, setItems] = useState<News[]>([]);
@@ -237,5 +237,19 @@ export default function NewsListPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
       `}</style>
     </main>
+  );
+}
+
+export default function NewsListPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex h-[calc(100vh-4rem)] items-center justify-center bg-[#0B1220] text-white/40">
+          Loading news…
+        </main>
+      }
+    >
+      <NewsListPageContent />
+    </Suspense>
   );
 }

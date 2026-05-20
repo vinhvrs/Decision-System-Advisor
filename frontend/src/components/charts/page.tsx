@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import SelectDropdown from "@/src/sections/Dropdown";
 import LightChart from "./LightChart";
@@ -16,12 +16,26 @@ import { isDemoDevMode } from "@/src/libs/devMode";
 import { SimpleSocket } from "@/src/libs/socket";
 import { CompanyService } from "@/src/services/Company.service";
 import { stripParentheticals } from "@/src/libs/displayString";
+import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
+import { useAuth } from "@/src/hooks/useAuth";
+import TradingSignInPrompt from "@/src/components/trading/TradingSignInPrompt";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
 interface TradingChartProps {
   defaultSymbol?: string;
   isFixed?: boolean;
+  /** Lock to one symbol (company profile). Hides instrument picker. */
+  lockSymbol?: string;
+  /** Sync period from parent when locked (e.g. profile tabs). */
+  controlledPeriod?: TF;
+  /** Hide top toolbar (instrument / period / indicators). */
+  hideToolbar?: boolean;
+  /** Hide open-positions sidebar. */
+  hidePositionsPanel?: boolean;
+  /** Fill parent card instead of full dashboard shell. */
+  embed?: boolean;
+  onPaperTradingChange?: (snapshot: PaperTradingSnapshot) => void;
 }
 
 type InstrumentLike = Instrument & {
@@ -226,6 +240,12 @@ function buildRealtimeBucketCandle({
 export default function TradingChart({
   defaultSymbol = "AAPL",
   isFixed = false,
+  lockSymbol,
+  controlledPeriod,
+  hideToolbar = false,
+  hidePositionsPanel = false,
+  embed = false,
+  onPaperTradingChange,
 }: TradingChartProps) {
   const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
   const [candles, setCandles] = useState<any[]>([]);
@@ -241,7 +261,41 @@ export default function TradingChart({
   const [loadingChart, setLoadingChart] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
 
+  const { isLoggedIn } = useAuth();
   const { positions, loading: positionsLoading, error: positionsError, refetch: refetchPositions, closePosition } = usePositions();
+
+  const canTrade = isLoggedIn;
+
+  const activeSymbol = (
+    lockSymbol ||
+    selectedInstrument?.symbol ||
+    defaultSymbol
+  ).toUpperCase();
+
+  const symbolPositions = useMemo(
+    () =>
+      positions
+        .filter((p) => (p.symbol || "").toUpperCase() === activeSymbol)
+        .map((p) => ({
+          id: p.id,
+          type: p.type,
+          volume: p.volume,
+          price: p.price,
+          leverage: p.leverage,
+          created_at: p.created_at,
+          open: p.open,
+        })),
+    [positions, activeSymbol],
+  );
+
+  useEffect(() => {
+    if (!lockSymbol) return;
+    setSelectedInstrument(normalizeInstrument({ symbol: lockSymbol.toUpperCase() }));
+  }, [lockSymbol]);
+
+  useEffect(() => {
+    if (controlledPeriod) setSelectedPeriod(controlledPeriod);
+  }, [controlledPeriod]);
 
   const loadingMoreCandlesRef = useRef(false);
   const candlePageRef = useRef(1);
@@ -296,6 +350,7 @@ export default function TradingChart({
   );
 
   useEffect(() => {
+    if (lockSymbol) return;
     const loadInstruments = async () => {
       try {
         const instrumentsCacheKey = isDemoDevMode()
@@ -341,7 +396,7 @@ export default function TradingChart({
     };
 
     loadInstruments();
-  }, [defaultSymbol]);
+  }, [defaultSymbol, lockSymbol]);
 
   useEffect(() => {
     if (!selectedInstrument?.symbol) return;
@@ -469,11 +524,17 @@ export default function TradingChart({
     );
   };
 
+  const shellClass = embed
+    ? "flex h-full min-h-0 w-full flex-col overflow-hidden"
+    : "flex flex-col h-full w-full overflow-hidden bg-[#0B1220]";
+
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden bg-[#0B1220]">
-      {!isFixed && (
+    <div className={shellClass}>
+      {!isFixed && !hideToolbar && !lockSymbol && (
         <div className="p-2 flex flex-wrap gap-2 tablet:gap-4 border-b border-white/5 flex-none items-center">
           <SelectDropdown
+            searchable
+            maxRender={200}
             options={instruments.map((i) => ({
               id: i.id,
               label: `${i.symbol} - ${getInstrumentDisplayName(i)}`,
@@ -560,14 +621,15 @@ export default function TradingChart({
         ) : candles.length ? (
           <div className="h-full min-h-[220px] min-w-0">
             <LightChart
-              symbol={selectedInstrument?.symbol || defaultSymbol}
+              symbol={activeSymbol}
               data={candles}
               realtimeCandle={realtimeCandle}
               onLoadMore={loadMoreCandles}
               period={selectedPeriod}
               indicators={selectedIndicators}
-              showTrading={!isFixed}
-              positionsForSymbol={positions.filter((p) => (p.symbol || "").toUpperCase() === (selectedInstrument?.symbol || defaultSymbol).toUpperCase())}
+              showTrading={!isFixed && canTrade}
+              positionsForSymbol={canTrade ? symbolPositions : []}
+              onPaperTradingChange={canTrade ? onPaperTradingChange : undefined}
             />
           </div>
         ) : (
@@ -577,7 +639,11 @@ export default function TradingChart({
         )}
         </div>
 
-        {!isFixed && (
+        {embed && !canTrade ? <TradingSignInPrompt className="mx-2 mb-2 shrink-0" compact /> : null}
+
+        {!isFixed && !canTrade ? <TradingSignInPrompt className="mt-2 shrink-0" compact /> : null}
+
+        {!isFixed && !hidePositionsPanel && canTrade && (
           <div className="hidden laptop:flex w-72 pc:w-96 shrink-0 flex-col">
             <PositionsPanel
               positions={positions}
@@ -586,8 +652,8 @@ export default function TradingChart({
               refetch={refetchPositions}
               closePosition={closePosition}
               currentPriceBySymbol={
-                selectedInstrument?.symbol && realtimeCandle?.close != null
-                  ? { [selectedInstrument.symbol]: Number(realtimeCandle.close) }
+                activeSymbol && realtimeCandle?.close != null
+                  ? { [activeSymbol]: Number(realtimeCandle.close) }
                   : undefined
               }
             />

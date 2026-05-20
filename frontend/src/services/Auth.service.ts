@@ -7,6 +7,9 @@ function persistSession(token: string, user: ReturnType<typeof userMapper>) {
     localStorage.setItem("user", JSON.stringify(user));
     const maxAge = 7 * 24 * 60 * 60;
     document.cookie = `dsa_remember=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth-changed"));
+    }
 }
 
 export const AuthService = {
@@ -93,6 +96,9 @@ export const AuthService = {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         document.cookie = "dsa_remember=; path=/; max-age=0";
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("auth-changed"));
+        }
         // Fire logout API in background (fire-and-forget)
         if (token) {
             api.post(`/auth/logout`, {}, {

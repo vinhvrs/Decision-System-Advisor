@@ -11,23 +11,17 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from yliveticker import YLiveTicker
 
 try:
-    import config.settings
+    from config.settings import settings
+
+    DB_CONFIG = {**settings.DB_CONFIG, "cursorclass": pymysql.cursors.DictCursor}
+except ImportError:
     DB_CONFIG = {
-        "host": os.getenv("DB_HOST", "mysql"),
+        "host": os.getenv("DB_HOST", "db"),
         "port": int(os.getenv("DB_PORT", 3306)),
         "user": os.getenv("DB_USERNAME", "root"),
         "password": os.getenv("DB_PASSWORD", "root"),
         "database": os.getenv("DB_DATABASE", "dsa"),
-        "cursorclass": pymysql.cursors.DictCursor
-    }
-except ImportError:
-    DB_CONFIG = {
-        "host": "mysql",
-        "port": 3306,
-        "user": "root",
-        "password": "root",
-        "database": "dsa",
-        "cursorclass": pymysql.cursors.DictCursor
+        "cursorclass": pymysql.cursors.DictCursor,
     }
 
 router = APIRouter()
@@ -146,6 +140,7 @@ class ConnectionManager:
         if not targets:
             return
         await asyncio.gather(*(self._send_safe(ws, text) for ws in targets))
+
     def update_subscription(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
         new_symbols = {s.upper() for s in symbols if s}
         with self._lock:
@@ -374,8 +369,27 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def notify_dashboard_daily_subscribers(payload: Dict[str, Any]) -> None:
+    """
+    Sync hook from ``push_redis_payload`` after ``dashboard:daily`` is written.
+    Schedules a WebSocket broadcast on the uvicorn event loop.
+    """
+    loop = manager.loop
+    if loop is None or not loop.is_running():
+        logger.debug("[Socket] dashboard fan-out skipped (event loop not ready)")
+        return
+    try:
+        asyncio.run_coroutine_threadsafe(manager.broadcast_dashboard_daily(payload), loop)
+    except Exception as e:
+        logger.warning("[Socket] dashboard fan-out schedule failed: %s", e)
+
+
 @router.on_event("startup")
 async def startup_event():
+    try:
+        manager.loop = asyncio.get_running_loop()
+    except RuntimeError:
+        pass
     try:
         conn = pymysql.connect(**DB_CONFIG)
         with conn.cursor() as cur:

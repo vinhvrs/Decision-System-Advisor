@@ -16,6 +16,7 @@ import {
 } from "lightweight-charts";
 import { TradingServices } from "@/src/services/Trading.service";
 import { useTradeApiQueue } from "@/src/hooks/useTradeApiQueue";
+import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -89,8 +90,16 @@ interface Props {
   showTrading?: boolean;
   /** Market type for ticket API. Default "stock". */
   market?: "stock";
-  /** Open positions for current symbol from API - syncs paper trading & chart */
-  positionsForSymbol?: Array<{ id: string; type: string; volume: number; price: number; leverage?: number }>;
+  /** Open positions for current symbol from API - syncs paper trading & chart markers */
+  positionsForSymbol?: Array<{
+    id: string;
+    type: string;
+    volume: number;
+    price: number;
+    leverage?: number;
+    created_at?: string;
+    open?: string | null;
+  }>;
   /** Investing history page: click / double-click candles, draw-mode rectangles. */
   historyInteraction?: HistoryChartInteraction;
   /** Finished rectangles to draw on the chart (history simulator). */
@@ -99,6 +108,8 @@ interface Props {
   historyAdviceByCandleDay?: Record<string, HistoryAdviceHover>;
   /** Paper orders at candle times (arrows); double-click bar with arrow closes in parent. */
   historyOrderMarkers?: HistoryOrderMarker[];
+  /** Profile sidebar: current position + trade history. */
+  onPaperTradingChange?: (snapshot: PaperTradingSnapshot) => void;
 }
 
 type TradeSide = "buy" | "sell";
@@ -138,10 +149,31 @@ const INDICATOR_COLORS: Record<string, string> = {
 };
 
 function normalizeToSec(t: any): number | null {
+  if (t == null || t === "") return null;
+  if (typeof t === "string" && /[a-zA-Z]/.test(t)) {
+    const parsed = new Date(t).getTime();
+    if (Number.isFinite(parsed)) return Math.floor(parsed / 1000);
+  }
   const ms = Number(t);
   if (!ms || Number.isNaN(ms)) return null;
   if (ms < 10_000_000_000) return ms;
   return Math.floor(ms / 1000);
+}
+
+function snapTimeToBars(sec: number | null, barTimes: number[], fallback: Time | null): Time | null {
+  if (sec == null) return fallback;
+  if (!barTimes.length) return fallback;
+  if (barTimes.includes(sec)) return sec as Time;
+  let best = barTimes[0];
+  let bestDist = Math.abs(barTimes[0] - sec);
+  for (const t of barTimes) {
+    const d = Math.abs(t - sec);
+    if (d < bestDist) {
+      bestDist = d;
+      best = t;
+    }
+  }
+  return best as Time;
 }
 
 function toNumber(v: any): number {
@@ -402,6 +434,7 @@ export default function LightChart({
   historyDrawnRects,
   historyAdviceByCandleDay,
   historyOrderMarkers,
+  onPaperTradingChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -459,6 +492,13 @@ export default function LightChart({
 
   useEffect(() => {
     shouldFitTimeScaleRef.current = true;
+    tradesRef.current = [];
+    markersRef.current = [];
+    ticketIdsRef.current = [];
+    const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
+    positionRef.current = flat;
+    setPosition(flat);
+    positionSyncedFromApiRef.current = false;
   }, [symbol]);
 
   useEffect(() => {
@@ -805,6 +845,46 @@ export default function LightChart({
     return { time, price };
   }, [lastCandle, realtimeCandle]);
 
+  const emitPaperSnapshot = useCallback(() => {
+    if (!onPaperTradingChange) return;
+    const p = positionRef.current;
+    const snapshot: PaperTradingSnapshot = {
+      position: { ...p },
+      trades: tradesRef.current.map((t) => {
+        let timeSec = 0;
+        if (typeof t.time === "number") {
+          timeSec = t.time < 10_000_000_000 ? t.time : Math.floor(t.time / 1000);
+        } else {
+          const ms = new Date(String(t.time)).getTime();
+          timeSec = Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
+        }
+        return {
+          id: t.id,
+          timeSec,
+          price: t.price,
+          side: t.side,
+          volume: t.volume,
+          leverage: t.leverage,
+        };
+      }),
+      marketPrice: marketContext.price ?? null,
+      unrealizedPnl:
+        p.side === "flat" || marketContext.price == null || !p.avgPrice
+          ? 0
+          : (() => {
+              const dir = p.side === "long" ? 1 : -1;
+              const lev = p.leverage ?? 1;
+              const factor = (p.qty * lev) / p.avgPrice;
+              return dir * ((marketContext.price as number) - p.avgPrice) * factor;
+            })(),
+    };
+    onPaperTradingChange(snapshot);
+  }, [onPaperTradingChange, marketContext.price]);
+
+  useEffect(() => {
+    emitPaperSnapshot();
+  }, [emitPaperSnapshot, position]);
+
   const ohlcvContext = useMemo(() => {
     // Prefer hover candle values (display), fall back to latest candle / realtime candle
     const time = hover.time ?? marketContext.time ?? null;
@@ -840,6 +920,13 @@ export default function LightChart({
     const seriesMarkers = seriesMarkersRef.current;
     if (!seriesMarkers?.setMarkers) return;
 
+    const tradeIdsFromSession = new Set(tradesRef.current.map((t) => t.id));
+    const barTimes = mergedCandleData.map((c) => Number(c.time));
+    const fallbackTime =
+      (lastCandle?.time as Time | undefined) ??
+      (marketContext.time as Time | undefined) ??
+      null;
+
     const tradeMarkers: Marker[] = tradesRef.current.map((t) => ({
       time: t.time,
       position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
@@ -847,6 +934,27 @@ export default function LightChart({
       shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
       text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${t.price}`,
     }));
+
+    const positionMarkers = (positionsForSymbol || [])
+      .filter((p) => p.id && !tradeIdsFromSession.has(p.id))
+      .map((p) => {
+        const isBuy = (p.type || "").toLowerCase() === "buy";
+        const rawTime = p.open || p.created_at;
+        const sec = rawTime ? normalizeToSec(rawTime) : null;
+        const time = snapTimeToBars(sec, barTimes, fallbackTime);
+        if (time == null) return null;
+        const lev = p.leverage ?? 1;
+        const vol = Number(p.volume) || 0;
+        const px = Number(p.price) || 0;
+        return {
+          time,
+          position: (isBuy ? "belowBar" : "aboveBar") as Marker["position"],
+          color: isBuy ? "#26A69A" : "#EF5350",
+          shape: (isBuy ? "arrowUp" : "arrowDown") as Marker["shape"],
+          text: `${isBuy ? "BUY" : "SELL"} ${vol}×${lev} @ ${px}`,
+        };
+      })
+      .filter((m) => m != null) as Marker[];
 
     const historyMarkers: Marker[] =
       !showTrading && historyOrderMarkers?.length
@@ -861,14 +969,14 @@ export default function LightChart({
 
     const pnlMarkers: Marker[] = showTrading ? markersRef.current : [];
 
-    const markers: Marker[] = [...tradeMarkers, ...historyMarkers, ...pnlMarkers];
+    const markers: Marker[] = [...tradeMarkers, ...positionMarkers, ...historyMarkers, ...pnlMarkers];
 
     try {
       seriesMarkers.setMarkers(markers);
     } catch (e) {
       console.warn("setMarkers failed:", e);
     }
-  }, [showTrading, historyOrderMarkers]);
+  }, [showTrading, historyOrderMarkers, positionsForSymbol, lastCandle, marketContext.time, mergedCandleData]);
 
   useEffect(() => {
     markTradesOnChart();
@@ -1041,8 +1149,9 @@ export default function LightChart({
       }
 
       markTradesOnChart();
+      emitPaperSnapshot();
     },
-    [markTradesOnChart, marketContext, vol, leverage, market, symbol, enqueueCreate, enqueueClose]
+    [markTradesOnChart, marketContext, vol, leverage, market, symbol, enqueueCreate, enqueueClose, emitPaperSnapshot]
   );
 
   const closePosition = useCallback(() => {
@@ -1054,7 +1163,10 @@ export default function LightChart({
 
     // Optimistic: update UI immediately
     ticketIdsRef.current = [];
-    setPosition({ side: "flat", qty: 0, avgPrice: 0 });
+    const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
+    positionRef.current = flat;
+    setPosition(flat);
+    emitPaperSnapshot();
     window.dispatchEvent(new CustomEvent("ticket-changed"));
 
     // API in background
@@ -1062,7 +1174,7 @@ export default function LightChart({
     Promise.all(allIds.map((id) => TradingServices.closeTicket(id, price))).catch((e) =>
       console.error("Close position failed:", e)
     );
-  }, [position.side, positionsForSymbol, marketContext.price]);
+  }, [position.side, positionsForSymbol, marketContext.price, emitPaperSnapshot]);
 
   const currentPrice = marketContext.price ?? 0;
   const unrealizedPnl = useMemo(() => {

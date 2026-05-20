@@ -11,6 +11,11 @@ class SiteMailSettingController extends Controller
     public function show()
     {
         $row = SiteMailSetting::singleton();
+        if ($row === null) {
+            return response()->json([
+                'message' => 'Mail settings table is missing. Run database migrations.',
+            ], 503);
+        }
 
         return response()->json([
             'data' => [
@@ -47,6 +52,11 @@ class SiteMailSettingController extends Controller
         ]);
 
         $row = SiteMailSetting::singleton();
+        if ($row === null) {
+            return response()->json([
+                'message' => 'Mail settings table is missing. Run database migrations.',
+            ], 503);
+        }
         $row->fill([
             'contact_notification_email' => $validated['contact_notification_email'] ?? null,
             'support_public_email' => $validated['support_public_email'] ?? null,

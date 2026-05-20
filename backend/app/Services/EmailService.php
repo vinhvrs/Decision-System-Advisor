@@ -48,9 +48,9 @@ class EmailService
             'smtp_ready' => $smtpReady,
             'support_notify_configured' => $effectiveNotify !== '',
             'site_mail' => [
-                'contact_notification_email' => $site->contact_notification_email,
-                'support_public_email' => $site->support_public_email,
-                'internal_notes' => $site->internal_notes,
+                'contact_notification_email' => $site?->contact_notification_email,
+                'support_public_email' => $site?->support_public_email,
+                'internal_notes' => $site?->internal_notes,
                 'effective_contact_notification_email' => $effectiveNotify,
             ],
             'google_oauth_client_configured' => ! empty($google['client_id'] ?? null),

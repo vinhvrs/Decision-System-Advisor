@@ -101,43 +101,110 @@ type HeatmapDatum = {
 
 type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number };
 
+function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
+  const bySym = new Map<string, HeatmapListRow>();
+  for (const row of rows || []) {
+    const sym = String(row?.symbol ?? "")
+      .trim()
+      .toUpperCase();
+    if (!sym) continue;
+    const liq = Number(row?.liquidity);
+    const liquidity = Number.isFinite(liq) && liq > 0 ? liq : 1;
+    const ch = Number(row?.change_pct);
+    const change_pct = Number.isFinite(ch) ? ch : 0;
+    const prev = bySym.get(sym);
+    if (!prev) {
+      bySym.set(sym, { symbol: sym, liquidity, change_pct });
+    } else {
+      bySym.set(sym, {
+        symbol: sym,
+        liquidity: (prev.liquidity ?? 1) + liquidity,
+        change_pct: prev.change_pct ?? change_pct,
+      });
+    }
+  }
+  return [...bySym.values()].sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0));
+}
+
+function formatChangePct(change: number): string {
+  const n = Number(change);
+  if (!Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+const SVG_INSET = 6;
+const INNER_PAD = 3;
+const HEATMAP_FETCH_LIMIT = 80;
+const HEATMAP_DISPLAY_MAX = 42;
+const MIN_HEATMAP_TILES = 10;
+
+function dashboardRowsToHeatmap(rows: BeginnerBoardRow[]): HeatmapListRow[] {
+  return rows.map((r) => ({
+    symbol: r.symbol,
+    liquidity:
+      Number.isFinite(r.liquidity) && r.liquidity > 0
+        ? r.liquidity
+        : Number.isFinite(r.volume) && r.volume > 0
+          ? r.volume
+          : 1,
+    change_pct: Number.isFinite(r.change_pct_snapshot) ? r.change_pct_snapshot : 0,
+  }));
+}
+
 function CompactHeatmap({ data }: { data: HeatmapListRow[] }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
-  const [dims, setDims] = useState({ width: 600, height: 260 });
+  const [dims, setDims] = useState({ width: 600, height: 360 });
 
-  useEffect(() => {
+  const measure = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = () => {
-      const w = el.offsetWidth;
-      const h = el.offsetHeight || 260;
-      setDims({ width: Math.max(200, w), height: Math.max(180, h) });
-    };
-    ro();
-    const obs = typeof ResizeObserver !== "undefined" ? new ResizeObserver(ro) : null;
-    obs?.observe(el);
-    window.addEventListener("resize", ro);
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (w > 0 && h > 0) {
+      setDims({ width: w, height: h });
+    }
+  }, []);
+
+  useEffect(() => {
+    const tick = () => requestAnimationFrame(measure);
+    tick();
+    const el = ref.current;
+    const obs = typeof ResizeObserver !== "undefined" ? new ResizeObserver(tick) : null;
+    if (el) obs?.observe(el);
+    window.addEventListener("resize", tick);
     return () => {
+      if (el) obs?.unobserve(el);
       obs?.disconnect();
-      window.removeEventListener("resize", ro);
+      window.removeEventListener("resize", tick);
     };
-  }, [data.length]);
+  }, [measure]);
+
+  useEffect(() => {
+    requestAnimationFrame(measure);
+  }, [measure, data.length]);
 
   const root = useMemo(() => {
-    const rootData: HeatmapDatum = { children: data || [] };
-    return hierarchy<HeatmapDatum>(rootData)
-      .sum((d) => (d.children && d.children.length > 0 ? 0 : d.liquidity ?? 1))
+    return hierarchy<HeatmapDatum>({ children: data || [] } as HeatmapDatum)
+      .sum((d) =>
+        d && typeof d.liquidity === "number" ? Math.max(d.liquidity, 1) : 0
+      )
       .sort((a, b) => (b.value || 0) - (a.value || 0));
   }, [data]);
 
+  const innerW = Math.max(1, dims.width - SVG_INSET * 2);
+  const innerH = Math.max(1, dims.height - SVG_INSET * 2);
+
   const layout = useMemo(() => {
+    if (!data.length) return null;
     return treemap<HeatmapDatum>()
-      .size([dims.width, dims.height])
-      .paddingInner(1.5)
-      .paddingOuter(1)
-      .tile(treemapSquarify)(root);
-  }, [root, dims]);
+      .size([innerW, innerH])
+      .round(true)
+      .paddingInner(INNER_PAD)
+      .paddingOuter(2)
+      .tile(treemapSquarify.ratio(1))(root);
+  }, [root, innerW, innerH, data.length]);
 
   const go = useCallback(
     (sym: string) => {
@@ -156,35 +223,81 @@ function CompactHeatmap({ data }: { data: HeatmapListRow[] }) {
   }
 
   return (
-    <div ref={ref} className="h-[260px] w-full overflow-hidden rounded-lg border border-[#2b3139] bg-black/25">
-      <svg width={dims.width} height={dims.height} className="block max-w-full">
-        {layout.leaves().map((leaf: { x0: number; x1: number; y0: number; y1: number; data: { symbol?: string; change_pct?: number } }, i: number) => {
+    <div
+      ref={ref}
+      className="relative h-[min(42vh,400px)] min-h-[280px] w-full overflow-hidden rounded-lg border border-[#2b3139] bg-black/25"
+    >
+      {!layout ? (
+        <div className={`flex h-full items-center justify-center text-xs ${C.muted}`}>
+          Preparing map…
+        </div>
+      ) : (
+      <svg
+        width={dims.width}
+        height={dims.height}
+        className="block max-h-full max-w-full"
+        role="img"
+        aria-label="Technology sector liquidity heatmap"
+      >
+        <g transform={`translate(${SVG_INSET},${SVG_INSET})`}>
+        {layout.leaves().map((leaf: { x0: number; x1: number; y0: number; y1: number; data: { symbol?: string; change_pct?: number } }) => {
           const w = leaf.x1 - leaf.x0;
           const h = leaf.y1 - leaf.y0;
-          const sym = leaf.data.symbol || "";
+          const sym = String(leaf.data.symbol || "").toUpperCase();
           const ch = Number(leaf.data.change_pct) || 0;
-          const small = w < 36 || h < 28;
+          const minEdge = Math.min(w, h);
+          const area = w * h;
+          const showSymbol = minEdge >= 22 && area >= 280;
+          const showPct = minEdge >= 30 && area >= 900;
+          const symFs = Math.max(8, Math.min(15, minEdge * 0.42));
+          const pctFs = Math.max(7, Math.min(12, symFs * 0.72));
           return (
-            <g key={`${sym}-${i}`} transform={`translate(${leaf.x0},${leaf.y0})`} className="cursor-pointer" role="link" tabIndex={0} onClick={() => go(sym)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(sym); } }}>
-              <rect width={w} height={h} fill={treemapColor(ch)} stroke="#0b1220" strokeWidth={1} className="transition-[filter] hover:brightness-110" />
-              {!small && (
-                <foreignObject width={w} height={h} className="pointer-events-none">
-                  <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden p-0.5 text-center text-white">
-                    <span className="text-[10px] font-bold leading-none">{sym}</span>
-                    {h > 34 && (
-                      <span className="mt-0.5 text-[9px] font-medium opacity-90">
-                        {ch > 0 ? "+" : ""}
-                        {ch}%
-                      </span>
-                    )}
-                  </div>
-                </foreignObject>
+            <g
+              key={sym}
+              transform={`translate(${leaf.x0},${leaf.y0})`}
+              className="cursor-pointer"
+              role="link"
+              tabIndex={0}
+              onClick={() => go(sym)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  go(sym);
+                }
+              }}
+            >
+              <rect
+                width={w}
+                height={h}
+                fill={treemapColor(ch)}
+                stroke="#0b1220"
+                strokeWidth={1}
+                className="transition-[filter] hover:brightness-110"
+              />
+              {showSymbol && (
+                <text textAnchor="middle" fill="#ffffff" style={{ pointerEvents: "none", userSelect: "none" }}>
+                  <tspan
+                    x={w / 2}
+                    y={h / 2 + (showPct ? -symFs * 0.15 : symFs * 0.28)}
+                    fontSize={symFs}
+                    fontWeight="800"
+                  >
+                    {sym.length > 6 ? `${sym.slice(0, 5)}…` : sym}
+                  </tspan>
+                  {showPct && (
+                    <tspan x={w / 2} y={h / 2 + pctFs * 1.15} fontSize={pctFs} fontWeight="600" opacity={0.92}>
+                      {formatChangePct(ch)}
+                    </tspan>
+                  )}
+                </text>
               )}
-              <title>{`${sym}: ${ch}%`}</title>
+              <title>{`${sym}: ${formatChangePct(ch)}`}</title>
             </g>
           );
         })}
+        </g>
       </svg>
+      )}
     </div>
   );
 }
@@ -291,17 +404,37 @@ export default function BeginnerTestMarketExtras({
   useEffect(() => {
     let cancelled = false;
     setHeatmapLoading(true);
-    heatmapService
-      .getHeatmapData({ limit: 80, sector: HEATMAP_SECTOR_TECHNOLOGY })
-      .then((rows) => {
-        if (!cancelled) setHeatmap(Array.isArray(rows) ? rows : []);
-      })
-      .catch(() => {
+
+    (async () => {
+      try {
+        let sectorRows = await heatmapService.getHeatmapData({
+          limit: HEATMAP_FETCH_LIMIT,
+          sector: HEATMAP_SECTOR_TECHNOLOGY,
+        });
+        let merged = mergeHeatmapRows(Array.isArray(sectorRows) ? sectorRows : []);
+
+        if (merged.length < MIN_HEATMAP_TILES) {
+          const broadRows = await heatmapService.getHeatmapData({ limit: HEATMAP_FETCH_LIMIT });
+          const broadMerged = mergeHeatmapRows(Array.isArray(broadRows) ? broadRows : []);
+          const seen = new Set(merged.map((r) => r.symbol));
+          for (const row of broadMerged) {
+            if (merged.length >= HEATMAP_DISPLAY_MAX) break;
+            if (!seen.has(row.symbol)) {
+              merged.push(row);
+              seen.add(row.symbol);
+            }
+          }
+          merged = mergeHeatmapRows(merged);
+        }
+
+        if (!cancelled) setHeatmap(merged);
+      } catch {
         if (!cancelled) setHeatmap([]);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setHeatmapLoading(false);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -316,7 +449,16 @@ export default function BeginnerTestMarketExtras({
 
   const displayGainers = dashboardDailyMode ? fromDashboard.gainers : volumeGainers;
   const displayLosers = dashboardDailyMode ? fromDashboard.losers : volumeLosers;
-  const displayHeatmap = heatmap;
+  const displayHeatmap = useMemo(() => {
+    let rows = mergeHeatmapRows(heatmap).slice(0, HEATMAP_DISPLAY_MAX);
+    if (dashboardDailyMode && rows.length < MIN_HEATMAP_TILES && dashboardRows.length > 0) {
+      rows = mergeHeatmapRows([...rows, ...dashboardRowsToHeatmap(dashboardRows)]).slice(
+        0,
+        HEATMAP_DISPLAY_MAX
+      );
+    }
+    return rows;
+  }, [heatmap, dashboardDailyMode, dashboardRows]);
   const displayVolumeLoading = dashboardDailyMode ? boardLoading : volumeLoading;
   const displayHeatmapLoading = heatmapLoading;
 
@@ -512,7 +654,7 @@ export default function BeginnerTestMarketExtras({
           </Link>
         </div>
         {displayHeatmapLoading ? (
-          <div className={`flex h-[220px] items-center justify-center text-sm ${C.muted} animate-pulse`}>Loading map…</div>
+          <div className={`flex h-[min(42vh,400px)] min-h-[280px] items-center justify-center text-sm ${C.muted} animate-pulse`}>Loading map…</div>
         ) : (
           <CompactHeatmap data={displayHeatmap} />
         )}

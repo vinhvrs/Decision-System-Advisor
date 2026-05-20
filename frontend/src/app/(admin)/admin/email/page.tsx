@@ -25,12 +25,6 @@ type MailConfig = {
   };
 };
 
-type SiteMailForm = {
-  contact_notification_email: string;
-  support_public_email: string;
-  internal_notes: string;
-};
-
 type EmailMsg = {
   id: string;
   direction: string;
@@ -70,29 +64,6 @@ export default function AdminEmailPage() {
 
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
-
-  const [siteMail, setSiteMail] = useState<SiteMailForm>({
-    contact_notification_email: "",
-    support_public_email: "",
-    internal_notes: "",
-  });
-
-  const loadSiteMail = useCallback(async () => {
-    try {
-      const res = (await AdminService.siteMailSettings.get()) as {
-        contact_notification_email?: string | null;
-        support_public_email?: string | null;
-        internal_notes?: string | null;
-      };
-      setSiteMail({
-        contact_notification_email: res.contact_notification_email ?? "",
-        support_public_email: res.support_public_email ?? "",
-        internal_notes: res.internal_notes ?? "",
-      });
-    } catch {
-      /* keep previous */
-    }
-  }, []);
 
   const loadContacts = useCallback(async () => {
     try {
@@ -177,7 +148,7 @@ export default function AdminEmailPage() {
     (async () => {
       setLoadingCfg(true);
       try {
-        const [cfgRes, usersRes, msgRes, contactsRes, siteMailRes] = await Promise.all([
+        const [cfgRes, usersRes, msgRes, contactsRes] = await Promise.all([
           AdminService.email.config().catch(() => null),
           AdminService.users.list({ per_page: 100, page: 1 }).catch(() => ({ data: [] as UserOpt[] })),
           AdminService.email.messages({ page: 1, per_page: 30, direction: undefined }).catch(() => ({
@@ -186,7 +157,6 @@ export default function AdminEmailPage() {
             last_page: 1,
           })),
           AdminService.email.contactSubmissions({ page: 1, per_page: 50 }).catch(() => ({ data: [] as ContactRow[] })),
-          AdminService.siteMailSettings.get().catch(() => null),
         ]);
         if (cancelled) return;
         setCfg(cfgRes as MailConfig | null);
@@ -196,18 +166,6 @@ export default function AdminEmailPage() {
         setMsgPage(m.current_page ?? 1);
         setMsgLastPage(m.last_page ?? 1);
         setContacts((contactsRes as { data?: ContactRow[] }).data ?? []);
-        if (siteMailRes && typeof siteMailRes === "object") {
-          const sm = siteMailRes as {
-            contact_notification_email?: string | null;
-            support_public_email?: string | null;
-            internal_notes?: string | null;
-          };
-          setSiteMail({
-            contact_notification_email: sm.contact_notification_email ?? "",
-            support_public_email: sm.support_public_email ?? "",
-            internal_notes: sm.internal_notes ?? "",
-          });
-        }
         setNotice({ variant: "success", message: "Email desk loaded." });
       } catch {
         if (!cancelled) {
@@ -350,26 +308,6 @@ export default function AdminEmailPage() {
     }
   };
 
-  const onSaveSiteMail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await AdminService.siteMailSettings.update({
-        contact_notification_email: siteMail.contact_notification_email.trim() || null,
-        support_public_email: siteMail.support_public_email.trim() || null,
-        internal_notes: siteMail.internal_notes.trim() || null,
-      });
-      await loadSiteMail();
-      await loadConfig({ manageLoading: false });
-      setNotice({ variant: "success", message: "Contact & support mail settings saved." });
-    } catch (err: unknown) {
-      const ax = err as { response?: { data?: { message?: string } } };
-      setNotice({ variant: "error", message: ax.response?.data?.message || "Save failed." });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const onMarkAllContactsRead = async () => {
     setBusy(true);
     try {
@@ -417,7 +355,6 @@ export default function AdminEmailPage() {
                   loadUsers(),
                   loadMessages(msgPage),
                   loadContacts(),
-                  loadSiteMail(),
                 ]);
                 setNotice({ variant: "success", message: "Refreshed." });
               } catch {
@@ -460,60 +397,13 @@ export default function AdminEmailPage() {
           {cfg.support_notify_configured ? null : (
             <p className="text-white/55">
               Optional: set <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_SUPPORT_ADDRESS</code> in{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">.env</code>, or use the database fields below, to receive a
-              copy when someone submits the site contact form.
+              <code className="rounded bg-black/30 px-1 text-[11px]">.env</code> to receive a copy when someone submits the
+              site contact form.
             </p>
           )}
         </div>
       ) : null}
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-white/80">Contact &amp; support (database)</h2>
-        <p className="mb-4 text-xs text-white/45">
-          Staff notification address overrides <code className="text-[11px] text-white/55">MAIL_SUPPORT_ADDRESS</code> when
-          set. Public support email is shown on the marketing contact page when configured.
-        </p>
-        <form onSubmit={onSaveSiteMail} className="grid gap-4 tablet:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Contact form notify (staff inbox)</label>
-            <input
-              type="email"
-              value={siteMail.contact_notification_email}
-              onChange={(e) => setSiteMail((s) => ({ ...s, contact_notification_email: e.target.value }))}
-              placeholder="ops@yourcompany.com"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Public support email (contact page)</label>
-            <input
-              type="email"
-              value={siteMail.support_public_email}
-              onChange={(e) => setSiteMail((s) => ({ ...s, support_public_email: e.target.value }))}
-              placeholder="support@yourcompany.com"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div className="tablet:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/50">Internal notes (admin only)</label>
-            <textarea
-              value={siteMail.internal_notes}
-              onChange={(e) => setSiteMail((s) => ({ ...s, internal_notes: e.target.value }))}
-              rows={2}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div className="tablet:col-span-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
-            >
-              Save mail routing
-            </button>
-          </div>
-        </form>
-      </section>
 
       {contacts.length > 0 ? (
         <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">

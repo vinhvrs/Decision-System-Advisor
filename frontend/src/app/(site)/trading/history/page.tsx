@@ -11,6 +11,7 @@ import LightChart, {
   type HistoryRectPick,
 } from "@/src/components/charts/LightChart";
 import { DEV_SYMBOL_SEED } from "@/src/libs/symbolDevIdb";
+import SelectDropdown from "@/src/sections/Dropdown";
 
 const PAPER_SESSION_STORAGE_KEY = "dsa.tradingHistory.paper.v1";
 
@@ -756,26 +757,56 @@ export default function TradingHistoryPage() {
 
         <section className="rounded-2xl border border-[#2b3139] bg-[#111827]/70 p-3">
           <div className="grid grid-cols-1 gap-2 laptop:grid-cols-8">
-            <select value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400">
-              {HISTORY_SYMBOL_OPTIONS.map((opt) => (
-                <option key={opt.symbol} value={opt.symbol}>
-                  {opt.symbol} - {opt.label}
-                </option>
-              ))}
-            </select>
+            <SelectDropdown
+              searchable
+              maxRender={50}
+              className="min-w-0"
+              options={HISTORY_SYMBOL_OPTIONS.map((opt) => ({
+                id: opt.symbol,
+                label: `${opt.symbol} - ${opt.label}`,
+              }))}
+              selected={
+                HISTORY_SYMBOL_OPTIONS.some((o) => o.symbol === symbol)
+                  ? {
+                      id: symbol,
+                      label: `${symbol} - ${
+                        HISTORY_SYMBOL_OPTIONS.find((o) => o.symbol === symbol)?.label ?? symbol
+                      }`,
+                    }
+                  : { id: symbol, label: symbol }
+              }
+              onSelect={(opt) => setSymbol(opt.id.toUpperCase())}
+            />
             <input type="date" value={fromDate} max={toDate || today} onChange={(e) => setFromDate(e.target.value)} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" />
             <input type="date" value={toDate} min={fromDate || undefined} max={today} onChange={(e) => setToDate(e.target.value)} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" />
-            <select value={historyPeriod} onChange={(e) => setHistoryPeriod(e.target.value as HistoryPeriod)} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400">
-              <option value="daily">Period: Daily</option>
-              <option value="weekly">Period: Weekly</option>
-              <option value="monthly">Period: Monthly</option>
-              <option value="yearly">Period: Yearly</option>
-            </select>
-            <select value={currency} onChange={(e) => setCurrency(e.target.value as CurrencyCode)} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400">
-              <option value="USD">Currency: USD ($)</option>
-              <option value="EUR">Currency: EUR (€)</option>
-              <option value="VND">Currency: VND (₫)</option>
-            </select>
+            <SelectDropdown
+              options={[
+                { id: "daily", label: "Daily" },
+                { id: "weekly", label: "Weekly" },
+                { id: "monthly", label: "Monthly" },
+                { id: "yearly", label: "Yearly" },
+              ]}
+              selected={{
+                id: historyPeriod,
+                label:
+                  { daily: "Daily", weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" }[
+                    historyPeriod
+                  ],
+              }}
+              onSelect={(opt) => setHistoryPeriod(opt.id as HistoryPeriod)}
+            />
+            <SelectDropdown
+              options={[
+                { id: "USD", label: "USD ($)" },
+                { id: "EUR", label: "EUR (€)" },
+                { id: "VND", label: "VND (₫)" },
+              ]}
+              selected={{
+                id: currency,
+                label: { USD: "USD ($)", EUR: "EUR (€)", VND: "VND (₫)" }[currency],
+              }}
+              onSelect={(opt) => setCurrency(opt.id as CurrencyCode)}
+            />
             <input type="number" min={100} step={100} value={startingCash} onChange={(e) => setStartingCash(Math.max(100, Number(e.target.value) || 100))} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" placeholder="Starting cash" />
             <button onClick={loadHistory} disabled={loading || !symbol.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold disabled:opacity-60">{loading ? "Loading..." : "Load History"}</button>
             <button onClick={resetRun} disabled={!bars.length} className="rounded-lg border border-white/20 px-4 py-2 text-sm disabled:opacity-60">Reset Run</button>

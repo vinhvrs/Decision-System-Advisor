@@ -16,7 +16,8 @@ class PublicSiteMailController extends Controller
 
         return response()->json([
             'data' => [
-                'support_public_email' => $row->support_public_email,
+                'support_public_email' => $row?->support_public_email
+                    ?? SiteMailSetting::effectiveSupportPublicEmail(),
             ],
         ]);
     }
