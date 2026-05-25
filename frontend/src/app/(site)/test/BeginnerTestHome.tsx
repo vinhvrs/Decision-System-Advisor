@@ -1051,6 +1051,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   const dashboardWsRef = useRef<SimpleSocket | null>(null);
 
   useEffect(() => {
+    setRowSparklines({});
+  }, [period]);
+
+  useEffect(() => {
     boardRowsRef.current = boardRows;
   }, [boardRows]);
 
@@ -1223,7 +1227,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         ...new Set(boardRowsRef.current.map((r) => String(r.symbol || "").toUpperCase()).filter(Boolean)),
       ];
       if (!syms.length) return;
-      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: "daily" });
+      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period });
     };
 
     const socket = new SimpleSocket(
@@ -1290,9 +1294,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       }
       socket.disconnect();
     };
-  }, [isRedisDaily]);
+  }, [isRedisDaily, period]);
 
-  /** Re-subscribe Yahoo stream when board symbols change (e.g. after first HTTP load). */
+  /** Re-subscribe Yahoo stream when board symbols or period change (e.g. after first HTTP load). */
   useEffect(() => {
     if (!isRedisDaily || !dashboardBoardSymKey) return;
     const syms = [
@@ -1300,10 +1304,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     ];
     if (!syms.length) return;
     const t = window.setTimeout(() => {
-      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: "daily" });
+      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period });
     }, 80);
     return () => window.clearTimeout(t);
-  }, [isRedisDaily, dashboardBoardSymKey]);
+  }, [isRedisDaily, dashboardBoardSymKey, period]);
 
   useEffect(() => {
     if (!boardSparklineSymKey) {
@@ -1319,7 +1323,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
       if (showSpinner) setSparklinesLoading(true);
       const syms = rows.map((r) => r.symbol);
-      const allEmbedded = rows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
+      const allEmbedded =
+        period === "daily" &&
+        rows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
 
       const applyMap = (map: Record<string, number[]>) => {
         if (cancelled) return;
@@ -1337,7 +1343,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         return;
       }
 
-      InstrumentService.batchDailyCloses(syms, 40)
+      const sparkLimit = period === "daily" ? 40 : 24;
+      InstrumentService.batchDailyCloses(syms, sparkLimit, period)
         .then((map) => {
           applyMap(map);
         })
@@ -1358,7 +1365,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [boardSparklineSymKey]);
+  }, [boardSparklineSymKey, period]);
 
   const boardAggregates = useMemo(() => {
     if (!boardRows.length) return null;
@@ -1478,17 +1485,13 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     <div className={`min-h-screen ${C.page} ${C.text} font-sans antialiased`}>
       {/* Top strip — CMC-style compact header */}
       <header className={`sticky top-0 z-40 border-b ${C.line} ${C.surface}/95 backdrop-blur-md`}>
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-3 py-3 phone:flex-row phone:flex-wrap phone:items-center sm:px-4">
-          <div className="flex min-w-0 flex-1 flex-col gap-2 phone:flex-row phone:items-center phone:gap-4">
-            <div className="min-w-0">
-              <h1 className="text-sm font-semibold tracking-tight text-white sm:text-base">
-                Market view
-              </h1>
-            </div>
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 phone:w-auto">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
+          <h1 className="min-w-0 text-sm font-semibold tracking-tight text-white sm:text-base">
+            Market view
+          </h1>
+          <div className="flex shrink-0 flex-wrap items-center gap-4 sm:gap-5">
             <SelectDropdown
-              className="w-full phone:w-[120px]"
+              className="w-[7.5rem] shrink-0"
               options={[
                 { id: "daily", label: "Daily" },
                 { id: "yearly", label: "Yearly" },
@@ -1501,9 +1504,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             />
             <Link
               href="/trading"
-              className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white phone:flex-none`}
+              className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
             >
-              <Home className="h-3.5 w-3.5" />
+              <Home className="h-3.5 w-3.5 shrink-0" />
               Investing site
             </Link>
           </div>

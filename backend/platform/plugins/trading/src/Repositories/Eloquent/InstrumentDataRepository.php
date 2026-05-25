@@ -147,9 +147,10 @@ class InstrumentDataRepository implements InstrumentDataInterface {
      * @param  list<string>  $symbols
      * @return array<string, list<float>>
      */
-    public function batchDailyCloses(array $symbols, int $limit): array
+    public function batchDailyCloses(array $symbols, int $limit, string $period = 'daily'): array
     {
         $limit = max(1, min($limit, 500));
+        $period = in_array($period, ['daily', 'yearly'], true) ? $period : 'daily';
         $symbols = array_values(array_unique(array_filter(array_map(
             fn ($s) => strtoupper(trim((string) $s)),
             $symbols
@@ -161,7 +162,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
         $slugToSymbol = [];
         $slugs = [];
         foreach ($symbols as $sym) {
-            $slug = strtolower($sym).'-daily';
+            $slug = strtolower($sym).'-'.$period;
             $slugs[] = $slug;
             $slugToSymbol[$slug] = $sym;
         }

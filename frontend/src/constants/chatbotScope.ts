@@ -1,7 +1,7 @@
 /** Persisted focus for the site chatbot (sessionStorage). */
 export const CHATBOT_SCOPE_STORAGE_KEY = "dsa-chatbot-scope";
 
-export type ChatbotScopeId = "analyze" | "news" | "companies" | "indicator" | "strategy";
+export type ChatbotScopeId = "analyze" | "news" | "companies" | "analysis";
 
 export type ChatbotScopeOption = {
   id: ChatbotScopeId;
@@ -36,17 +36,10 @@ export const CHATBOT_SCOPE_OPTIONS: readonly ChatbotScopeOption[] = [
     apiFocusLabel: "company profiles and fundamentals",
   },
   {
-    id: "indicator",
-    title: "Indicators",
-    description: "Technical lab, indicator math, and chart context.",
-    href: "/indicators",
-    apiFocusLabel: "technical indicators",
-  },
-  {
-    id: "strategy",
-    title: "Strategy",
-    description: "Playbooks, risk tiers, and walkthrough logic.",
-    href: "/strategy",
-    apiFocusLabel: "trading strategies",
+    id: "analysis",
+    title: "Indicators & Strategy",
+    description: "Technical indicator lab and strategy playbooks with simulators.",
+    href: "/analysis",
+    apiFocusLabel: "technical indicators and trading strategies",
   },
 ] as const;

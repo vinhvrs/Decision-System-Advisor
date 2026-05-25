@@ -13,10 +13,10 @@ class AddTokenFromCookie
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->bearerToken() && $request->hasCookie('dsa_remember')) {
+        if (! $request->bearerToken() && $request->hasCookie('dsa_remember')) {
             $token = $request->cookie('dsa_remember');
             if ($token) {
-                $request->headers->set('Authorization', 'Bearer ' . $token);
+                $request->headers->set('Authorization', 'Bearer '.$token);
             }
         }
 

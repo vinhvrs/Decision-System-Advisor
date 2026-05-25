@@ -6,16 +6,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import UserProfileDropdown from "../../sections/UserProfileDropdown";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
-import { SITE_NAV_LINKS } from "@/src/components/header/nav-config";
+import { SITE_NAV_LINKS, SITE_NAV_ACTIVE_ALIASES } from "@/src/components/header/nav-config";
 import { stripParentheticals } from "@/src/libs/displayString";
-
-interface User {
-  id: string;
-  name: string;
-  username: string;
-  email: string;
-  phone?: string;
-}
+import { readIsLoggedIn, readStoredUser, syncAccessTokenFromCookie } from "@/src/libs/session";
+import type { User } from "@/src/types/User";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const MIN_SEARCH_LENGTH = 2;
@@ -81,31 +75,25 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    // auth from localStorage
     const checkAuth = () => {
-      try {
-        const userString = localStorage.getItem("user");
-        if (userString) setUser(JSON.parse(userString));
-        else setUser(null);
-      } catch {
-        setUser(null);
-      } finally {
-        setIsCheckingAuth(false);
-      }
+      syncAccessTokenFromCookie();
+      setUser(readIsLoggedIn() ? readStoredUser() : null);
+      setIsCheckingAuth(false);
     };
 
     checkAuth();
 
-    const handleStorageChange = () => checkAuth();
-    window.addEventListener("storage", handleStorageChange);
+    const handleAuthChange = () => checkAuth();
+    window.addEventListener("storage", handleAuthChange);
+    window.addEventListener("auth-changed", handleAuthChange);
 
-    // scroll effect
     const onScroll = () => setIsScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("storage", handleAuthChange);
+      window.removeEventListener("auth-changed", handleAuthChange);
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
@@ -121,6 +109,10 @@ export default function Header() {
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
+    const aliases = SITE_NAV_ACTIVE_ALIASES[href];
+    if (aliases) {
+      return aliases.some((p) => pathname === p || pathname.startsWith(p + "/"));
+    }
     return pathname === href || pathname.startsWith(href + "/");
   };
 
@@ -135,11 +127,12 @@ export default function Header() {
       </Link>
 
       <Link
-        href="/auth/login" // You can change to /auth/register if you split the pages
-        className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition shadow-lg shadow-indigo-500/20"
+        href="/auth/login"
+        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-700 phone:px-4"
       >
-        <UserPlus size={16} />
-        Sign Up
+        <UserPlus size={16} className="shrink-0" />
+        <span className="hidden phone:inline">Sign Up</span>
+        <span className="phone:hidden">Join</span>
       </Link>
     </>
   );
@@ -153,8 +146,8 @@ export default function Header() {
           : "bg-transparent border-transparent",
       ].join(" ")}
     >
-      <div className="max-w-full mx-auto flex justify-between items-center h-14 phone:h-16 px-3 phone:px-4 tablet:px-6 laptop:px-8">
-        <div className="flex items-center gap-4 tablet:gap-8">
+      <div className="mx-auto flex h-14 max-w-[100vw] items-center justify-between gap-2 overflow-hidden px-3 phone:h-16 phone:px-4 tablet:gap-3 tablet:px-6 laptop:px-8">
+        <div className="flex min-w-0 flex-1 items-center gap-2 tablet:gap-4 laptop:gap-6">
           <Link href="/" className="text-xl phone:text-2xl font-black tracking-tighter text-white">
             DSA<span className="text-indigo-500">.</span>
           </Link>
@@ -227,8 +220,8 @@ export default function Header() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <nav className="hidden laptop:flex items-center space-x-1 mr-4">
+        <div className="flex shrink-0 items-center gap-2 tablet:gap-3">
+          <nav className="hidden min-w-0 laptop:flex laptop:max-w-[min(52vw,42rem)] laptop:items-center laptop:space-x-0.5 laptop:overflow-x-auto laptop:mr-2 laptop:[scrollbar-width:none] laptop:[&::-webkit-scrollbar]:hidden">
             {SITE_NAV_LINKS.map((link) => {
               const active = isActive(link.href);
               return (
@@ -248,7 +241,7 @@ export default function Header() {
             })}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             {user ? (
               <UserProfileDropdown user={user} />
             ) : (

@@ -133,7 +133,8 @@ export default function ChatBox() {
   const readStoredScope = useCallback((): string | null => {
     try {
       const raw = sessionStorage.getItem(CHATBOT_SCOPE_STORAGE_KEY);
-      if (raw && ["analyze", "news", "companies", "indicator", "strategy"].includes(raw)) {
+      if (raw === "indicator" || raw === "strategy") return "analysis";
+      if (raw && ["analyze", "news", "companies", "analysis"].includes(raw)) {
         return raw;
       }
     } catch {
@@ -396,7 +397,7 @@ export default function ChatBox() {
   const sendMessage = async () => {
     const raw = input.trim();
     const isAuto = scope === null;
-    if (!isAuto && !raw && scope !== "news" && scope !== "companies" && scope !== "strategy")
+    if (!isAuto && !raw && scope !== "news" && scope !== "companies" && scope !== "analysis")
       return;
 
     const userLabel =
@@ -406,7 +407,7 @@ export default function ChatBox() {
           ? "Latest headlines"
           : !isAuto && !raw && scope === "companies"
             ? "Top company sample"
-            : !isAuto && !raw && scope === "strategy"
+            : !isAuto && !raw && scope === "analysis"
               ? "Volume movers"
               : raw;
     setInput("");
@@ -414,7 +415,7 @@ export default function ChatBox() {
     pendingTypingRef.current = true;
     setMessages((prev) => [...prev, { from: "bot", text: "Thinking…" }]);
 
-    // News / companies / strategy: site REST APIs only (headlines, search, movers) — not the analysis WS.
+    // News / companies / analysis: site REST APIs only (headlines, search, movers) — not the analysis WS.
     if (!isAuto && scope && SCOPE_CLIENT_ONLY_IDS.has(scope)) {
       pendingFallbackRef.current = null;
       try {
@@ -455,8 +456,7 @@ export default function ChatBox() {
         { id: "analyze", title: "Analyze" },
         { id: "news", title: "News" },
         { id: "companies", title: "Companies" },
-        { id: "indicator", title: "Indicators" },
-        { id: "strategy", title: "Strategy" },
+        { id: "analysis", title: "Indicators & Strategy" },
       ];
 
   const currentFocusLabel =
@@ -464,7 +464,7 @@ export default function ChatBox() {
 
   const isAutoFocus = scope === null;
   const emptyOkForScope =
-    scope === "news" || scope === "companies" || scope === "strategy";
+    scope === "news" || scope === "companies" || scope === "analysis";
   const clientOnlyFocus = scope != null && SCOPE_CLIENT_ONLY_IDS.has(scope);
   const canSend =
     (clientOnlyFocus || wsReady) &&

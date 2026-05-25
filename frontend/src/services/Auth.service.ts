@@ -1,15 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import api from "@/src/libs/api";
 import { userMapper } from "@/src/libs/mapper";
+import { clearClientSession, notifyAuthChanged } from "@/src/libs/session";
 
 function persistSession(token: string, user: ReturnType<typeof userMapper>) {
     localStorage.setItem("accessToken", token);
     localStorage.setItem("user", JSON.stringify(user));
     const maxAge = 7 * 24 * 60 * 60;
     document.cookie = `dsa_remember=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-    if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("auth-changed"));
-    }
+    notifyAuthChanged();
 }
 
 export const AuthService = {
@@ -91,14 +90,7 @@ export const AuthService = {
 
     logout: async () => {
         const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-        // Optimistic: clear session immediately for instant UI feedback
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        document.cookie = "dsa_remember=; path=/; max-age=0";
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("auth-changed"));
-        }
+        clearClientSession();
         // Fire logout API in background (fire-and-forget)
         if (token) {
             api.post(`/auth/logout`, {}, {

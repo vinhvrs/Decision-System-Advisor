@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <>
+    <div className="-mx-4 min-w-0 phone:-mx-5 tablet:-mx-6">
       <HomeHeroBanner />
       <HomeMarketView variant="dashboard-daily" />
-    </>
+    </div>
   );
 }

@@ -67,8 +67,12 @@ class InstrumentDataController extends Controller{
             return response()->json(['message' => 'symbols must be an array of ticker strings'], 422);
         }
         $limit = min(max((int) $request->input('limit', 40), 1), 500);
+        $period = strtolower((string) $request->input('period', 'daily'));
+        if (! in_array($period, ['daily', 'yearly'], true)) {
+            $period = 'daily';
+        }
         $symbols = array_slice(array_values($symbols), 0, 100);
-        $data = $this->instrumentDataRepository->batchDailyCloses($symbols, $limit);
+        $data = $this->instrumentDataRepository->batchDailyCloses($symbols, $limit, $period);
 
         return response()->json(['data' => $data]);
     }

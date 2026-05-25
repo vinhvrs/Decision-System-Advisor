@@ -1,23 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  notifyAuthChanged,
+  readHasTradingSession,
+  readIsLoggedIn,
+} from "@/src/libs/session";
 
-export function readIsLoggedIn(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-    return Boolean(token && user);
-  } catch {
-    return false;
-  }
-}
-
-export function notifyAuthChanged(): void {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("auth-changed"));
-  }
-}
+export { readIsLoggedIn, readHasTradingSession, notifyAuthChanged };
 
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);

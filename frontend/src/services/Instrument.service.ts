@@ -9,9 +9,9 @@ const BATCH_DAILY_CLOSES_CACHE_PREFIX = "instrument:batch-daily-closes:v1:";
 const BATCH_DAILY_CLOSES_MAX_AGE_MS = 3 * 60_000;
 const inflightBatchDailyCloses = new Map<string, Promise<Record<string, number[]>>>();
 
-function makeBatchDailyCloseKey(symbols: string[], limit: number): string {
+function makeBatchDailyCloseKey(symbols: string[], limit: number, period: string): string {
     const normalized = [...new Set(symbols.map((s) => String(s || "").trim().toUpperCase()).filter(Boolean))].sort();
-    return `${BATCH_DAILY_CLOSES_CACHE_PREFIX}${limit}:${normalized.join(",")}`;
+    return `${BATCH_DAILY_CLOSES_CACHE_PREFIX}${period}:${limit}:${normalized.join(",")}`;
 }
 
 function readCachedBatchDailyCloses(key: string): Record<string, number[]> | null {
@@ -204,11 +204,15 @@ export const InstrumentService = {
         }
     },
 
-    /** One POST: daily closes per symbol (oldest first), max 100 symbols. */
-    batchDailyCloses: async (symbols: string[], limit: number = 40): Promise<Record<string, number[]>> => {
+    /** One POST: closing prices per symbol (oldest first), max 100 symbols. */
+    batchDailyCloses: async (
+        symbols: string[],
+        limit: number = 40,
+        period: "daily" | "yearly" = "daily"
+    ): Promise<Record<string, number[]>> => {
         const clean = [...new Set(symbols.map((s) => String(s || "").trim().toUpperCase()).filter(Boolean))].slice(0, 100);
         if (!clean.length) return {};
-        const cacheKey = makeBatchDailyCloseKey(clean, limit);
+        const cacheKey = makeBatchDailyCloseKey(clean, limit, period);
         const cached = readCachedBatchDailyCloses(cacheKey);
         if (cached) return cached;
         const existing = inflightBatchDailyCloses.get(cacheKey);
@@ -217,7 +221,7 @@ export const InstrumentService = {
         try {
             const response = await api.post(
                 `/instruments/data/batch-daily-closes`,
-                { symbols: clean, limit },
+                { symbols: clean, limit, period },
                 { timeout: 120_000 }
             );
             const raw = response.data?.data;

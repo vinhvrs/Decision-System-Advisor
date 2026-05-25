@@ -17,7 +17,7 @@ import { SimpleSocket } from "@/src/libs/socket";
 import { CompanyService } from "@/src/services/Company.service";
 import { stripParentheticals } from "@/src/libs/displayString";
 import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
-import { useAuth } from "@/src/hooks/useAuth";
+import { useAuth, readHasTradingSession } from "@/src/hooks/useAuth";
 import TradingSignInPrompt from "@/src/components/trading/TradingSignInPrompt";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
@@ -261,10 +261,10 @@ export default function TradingChart({
   const [loadingChart, setLoadingChart] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
 
-  const { isLoggedIn } = useAuth();
+  const { isChecking } = useAuth();
   const { positions, loading: positionsLoading, error: positionsError, refetch: refetchPositions, closePosition } = usePositions();
 
-  const canTrade = isLoggedIn;
+  const canTrade = !isChecking && readHasTradingSession();
 
   const activeSymbol = (
     lockSymbol ||
@@ -599,8 +599,8 @@ export default function TradingChart({
         </div>
       )}
 
-      <div className="flex h-full min-h-0 w-full flex-1 gap-4">
-        <div className="relative min-h-0 min-w-0 flex-1">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-3 laptop:flex-row laptop:gap-4">
+        <div className="relative min-h-[240px] min-w-0 flex-1 phone:min-h-[280px]">
           {isFixed && (
             <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
               {selectedInstrument?.symbol || defaultSymbol}
@@ -611,53 +611,53 @@ export default function TradingChart({
           </div>
 
           {loadingChart ? (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            Loading chart...
-          </div>
-        ) : chartError ? (
-          <div className="flex items-center justify-center h-full text-red-400/80 text-sm">
-            {chartError}
-          </div>
-        ) : candles.length ? (
-          <div className="h-full min-h-[220px] min-w-0">
-            <LightChart
-              symbol={activeSymbol}
-              data={candles}
-              realtimeCandle={realtimeCandle}
-              onLoadMore={loadMoreCandles}
-              period={selectedPeriod}
-              indicators={selectedIndicators}
-              showTrading={!isFixed && canTrade}
-              positionsForSymbol={canTrade ? symbolPositions : []}
-              onPaperTradingChange={canTrade ? onPaperTradingChange : undefined}
-            />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full text-yellow-400 text-sm">
-            No candle data for {selectedInstrument?.symbol || defaultSymbol}
-          </div>
-        )}
+            <div className="flex h-full items-center justify-center text-gray-400">
+              Loading chart...
+            </div>
+          ) : chartError ? (
+            <div className="flex h-full items-center justify-center text-red-400/80 text-sm">
+              {chartError}
+            </div>
+          ) : candles.length ? (
+            <div className="h-full min-h-[220px] min-w-0">
+              <LightChart
+                symbol={activeSymbol}
+                data={candles}
+                realtimeCandle={realtimeCandle}
+                onLoadMore={loadMoreCandles}
+                period={selectedPeriod}
+                indicators={selectedIndicators}
+                showTrading={!isFixed && canTrade}
+                positionsForSymbol={canTrade ? symbolPositions : []}
+                onPaperTradingChange={canTrade ? onPaperTradingChange : undefined}
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-yellow-400 text-sm">
+              No candle data for {selectedInstrument?.symbol || defaultSymbol}
+            </div>
+          )}
         </div>
 
-        {embed && !canTrade ? <TradingSignInPrompt className="mx-2 mb-2 shrink-0" compact /> : null}
-
-        {!isFixed && !canTrade ? <TradingSignInPrompt className="mt-2 shrink-0" compact /> : null}
-
-        {!isFixed && !hidePositionsPanel && canTrade && (
-          <div className="hidden laptop:flex w-72 pc:w-96 shrink-0 flex-col">
-            <PositionsPanel
-              positions={positions}
-              loading={positionsLoading}
-              error={positionsError}
-              refetch={refetchPositions}
-              closePosition={closePosition}
-              currentPriceBySymbol={
-                activeSymbol && realtimeCandle?.close != null
-                  ? { [activeSymbol]: Number(realtimeCandle.close) }
-                  : undefined
-              }
-            />
-          </div>
+        {!isFixed && !hidePositionsPanel && (
+          <aside className="flex w-full shrink-0 flex-col self-stretch laptop:w-72 laptop:max-w-[min(100%,22rem)] pc:w-80">
+            {!canTrade ? (
+              <TradingSignInPrompt className="w-full" compact />
+            ) : (
+              <PositionsPanel
+                positions={positions}
+                loading={positionsLoading}
+                error={positionsError}
+                refetch={refetchPositions}
+                closePosition={closePosition}
+                currentPriceBySymbol={
+                  activeSymbol && realtimeCandle?.close != null
+                    ? { [activeSymbol]: Number(realtimeCandle.close) }
+                    : undefined
+                }
+              />
+            )}
+          </aside>
         )}
       </div>
     </div>

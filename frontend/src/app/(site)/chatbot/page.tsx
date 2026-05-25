@@ -21,8 +21,7 @@ const ICONS: Record<ChatbotScopeId, ReactNode> = {
   analyze: <Sparkles className="text-amber-400" size={26} aria-hidden />,
   news: <Newspaper className="text-sky-400" size={26} aria-hidden />,
   companies: <Building2 className="text-emerald-400" size={26} aria-hidden />,
-  indicator: <LineChart className="text-violet-400" size={26} aria-hidden />,
-  strategy: <BarChart3 className="text-indigo-400" size={26} aria-hidden />,
+  analysis: <LineChart className="text-violet-400" size={26} aria-hidden />,
 };
 
 export default function ChatbotSelectPage() {

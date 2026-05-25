@@ -5,7 +5,11 @@ import {
   TradingServices,
 } from "@/src/services/Trading.service";
 import type { TicketsWithPnl } from "@/src/types/Tickets";
-import { readIsLoggedIn } from "@/src/hooks/useAuth";
+import {
+  readIsLoggedIn,
+  readStoredUser,
+  syncAccessTokenFromCookie,
+} from "@/src/libs/session";
 
 export function usePositions(perPage = 100) {
   const [positions, setPositions] = useState<TicketsWithPnl[]>([]);
@@ -13,6 +17,7 @@ export function usePositions(perPage = 100) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchPositions = useCallback(async () => {
+    syncAccessTokenFromCookie();
     if (!readIsLoggedIn()) {
       setPositions([]);
       setError(null);
@@ -26,12 +31,18 @@ export function usePositions(perPage = 100) {
       const unique = [...new Map((data ?? []).map((p) => [p.id, p])).values()];
       setPositions(unique);
     } catch (e: unknown) {
-      const msg =
-        e && typeof e === "object" && "response" in e && (e as { response?: { status?: number } }).response?.status === 401
-          ? "401"
-          : e instanceof Error
-            ? e.message
-            : "Failed to fetch positions";
+      const is401 =
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { status?: number } }).response?.status === 401;
+      const msg = is401
+        ? readStoredUser()
+          ? "session-expired"
+          : "401"
+        : e instanceof Error
+          ? e.message
+          : "Failed to fetch positions";
       setError(msg);
       setPositions([]);
     } finally {
