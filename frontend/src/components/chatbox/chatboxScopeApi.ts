@@ -26,13 +26,12 @@ function absoluteSitePath(path: string): string {
 export const SCOPE_API_FALLBACK_IDS = new Set([
   "news",
   "companies",
-  "indicator",
-  "strategy",
+  "analysis",
   "analyze",
 ]);
 
 /** These focuses are served only from site APIs (no Python WS) — avoids NLP misparsing focus text as tickers. */
-export const SCOPE_CLIENT_ONLY_IDS = new Set(["news", "companies", "strategy"]);
+export const SCOPE_CLIENT_ONLY_IDS = new Set(["news", "companies", "analysis"]);
 
 export function shouldUseScopeApiFallback(scope: string | null): scope is string {
   return scope != null && SCOPE_API_FALLBACK_IDS.has(scope);
@@ -166,10 +165,11 @@ export async function runScopeApiFallback(
       return fallbackNews(query);
     case "companies":
       return fallbackCompanies(query);
-    case "indicator":
-      return fallbackIndicator(query);
-    case "strategy":
+    case "analysis":
       return fallbackStrategy(query);
+    case "indicator":
+    case "strategy":
+      return fallbackIndicator(query);
     case "analyze":
       return fallbackAnalyze(query);
     default:

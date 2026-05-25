@@ -59,17 +59,19 @@ export default function TradingHomePage() {
       </section>
 
       {/* ================= DASHBOARD ================= */}
-      <section id="dashboard" className="px-4 py-6 phone:px-5 tablet:px-6 tablet:py-8 laptop:py-10 bg-[#0b1220]">
-        <div className="max-w-screen-xl mx-auto space-y-6 tablet:space-y-8">
-          {/* Header */}
-          <div>
-            <h2 className="text-xl phone:text-2xl font-bold">Stock Dashboard</h2>
-            <p className="text-white/70 mt-1 text-sm phone:text-base">
+      <section
+        id="dashboard"
+        className="-mx-4 bg-[#0b1220] px-0 py-6 phone:-mx-5 tablet:-mx-6 tablet:py-8 laptop:py-10"
+      >
+        <div className="mx-auto max-w-screen-xl space-y-6 phone:space-y-8">
+          <div className="px-4 phone:px-5 tablet:px-6">
+            <h2 className="text-xl font-bold phone:text-2xl">Stock Dashboard</h2>
+            <p className="mt-1 text-sm text-white/70 phone:text-base">
               Real-time market chart and assistant.
             </p>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 px-2 phone:px-3 tablet:px-4">
             <HomeDashboardCharts />
           </div>
 

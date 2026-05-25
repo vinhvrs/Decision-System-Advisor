@@ -23,7 +23,7 @@ export default function DashboardCharts() {
     <>
       {/* Main chart: first symbol from watchlist or NVDA */}
       <Card
-        className="flex h-[350px] min-h-0 w-full flex-col overflow-hidden phone:h-[420px] tablet:h-[500px] laptop:h-[560px] pc:h-[620px]"
+        className="flex h-[min(520px,72vh)] min-h-[480px] w-full flex-col overflow-hidden phone:min-h-[500px] tablet:min-h-[560px] laptop:min-h-[620px] pc:min-h-[680px]"
         bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
       >
         <div className="min-h-0 flex-1">

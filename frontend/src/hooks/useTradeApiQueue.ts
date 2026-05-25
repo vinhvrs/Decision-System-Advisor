@@ -8,25 +8,27 @@ type QueuedCreate = { type: "create"; payload: TicketCreatePayload; volume: numb
 type QueuedClose = { type: "close"; ticketIds: string[]; price?: number };
 type QueuedAction = QueuedCreate | QueuedClose;
 
-const FLUSH_INTERVAL_MS = 700;
+const FLUSH_DEBOUNCE_MS = 120;
 
 /**
  * Queue trade API calls to avoid duplicates from React double-invoke.
- * Collects actions, flushes after ~0.7s, calls API once per action.
+ * Flushes shortly after enqueue and on unmount.
  */
 export function useTradeApiQueue(options: {
   onTicketCreated?: (ticketId: string, volume: number) => void;
   onTicketChanged?: () => void;
+  onCreateFailed?: () => void;
 }) {
   const queueRef = useRef<QueuedAction[]>([]);
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flush = useCallback(() => {
     const items = queueRef.current.splice(0, queueRef.current.length);
     if (items.length === 0) return;
 
-    const { onTicketCreated, onTicketChanged } = optionsRef.current;
+    const { onTicketCreated, onTicketChanged, onCreateFailed } = optionsRef.current;
     for (const item of items) {
       if (item.type === "create") {
         TradingServices.createTicket(item.payload)
@@ -34,7 +36,10 @@ export function useTradeApiQueue(options: {
             onTicketCreated?.(ticket.id, item.volume);
             onTicketChanged?.();
           })
-          .catch((e) => console.error("Create ticket failed:", e));
+          .catch((e) => {
+            console.error("Create ticket failed:", e);
+            onCreateFailed?.();
+          });
       } else {
         item.ticketIds.forEach((id) =>
           TradingServices.closeTicket(id, item.price)
@@ -45,20 +50,38 @@ export function useTradeApiQueue(options: {
     }
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(flush, FLUSH_INTERVAL_MS);
-    return () => clearInterval(id);
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flush();
+    }, FLUSH_DEBOUNCE_MS);
   }, [flush]);
 
-  const enqueueCreate = useCallback((payload: TicketCreatePayload, volume: number) => {
-    queueRef.current.push({ type: "create", payload, volume });
-  }, []);
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flush();
+    };
+  }, [flush]);
 
-  const enqueueClose = useCallback((ticketIds: string[], price?: number) => {
-    if (ticketIds.length > 0) {
-      queueRef.current.push({ type: "close", ticketIds, price });
-    }
-  }, []);
+  const enqueueCreate = useCallback(
+    (payload: TicketCreatePayload, volume: number) => {
+      queueRef.current.push({ type: "create", payload, volume });
+      scheduleFlush();
+    },
+    [scheduleFlush]
+  );
+
+  const enqueueClose = useCallback(
+    (ticketIds: string[], price?: number) => {
+      if (ticketIds.length > 0) {
+        queueRef.current.push({ type: "close", ticketIds, price });
+        scheduleFlush();
+      }
+    },
+    [scheduleFlush]
+  );
 
   return { enqueueCreate, enqueueClose };
 }

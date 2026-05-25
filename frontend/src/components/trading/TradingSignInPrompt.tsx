@@ -11,7 +11,7 @@ type Props = {
 export default function TradingSignInPrompt({ className = "", compact = false }: Props) {
   return (
     <div
-      className={`rounded-lg border border-[#2b3139] bg-[#1e2329]/90 px-3 py-2.5 text-xs text-[#848e9c] ${className}`}
+      className={`rounded-lg border border-[#2b3139] bg-[#1e2329]/90 px-3 py-2.5 text-xs leading-relaxed text-[#848e9c] ${className}`}
     >
       {compact ? (
         <p>

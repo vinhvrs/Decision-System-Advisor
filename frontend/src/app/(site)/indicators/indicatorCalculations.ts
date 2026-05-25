@@ -41,10 +41,114 @@ export function generateSampleBars(
   return bars;
 }
 
+/**
+ * Educational OHLCV: visible red/green candles, gentle net uptrend, no crash/sideways zones.
+ * MACD formula unchanged — drift is steady enough that momentum broadly follows price.
+ */
+export function generateEducationalSimulationBars(
+  count: number,
+  seed = 42,
+  opts?: { startPrice?: number; endPrice?: number; baseVolume?: number }
+): SampleBar[] {
+  const rand = mulberry32(seed);
+  const n = Math.max(2, Math.round(count));
+  const startP = opts?.startPrice ?? 100;
+  const endP = opts?.endPrice ?? 132;
+  const baseV = opts?.baseVolume ?? 1_200_000;
+  const logRatio = Math.log(endP / startP);
+
+  const bars: SampleBar[] = [];
+  let prevClose = startP;
+
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const idealClose = startP * Math.exp(logRatio * t);
+    const bullBias = 0.52 + t * 0.1;
+
+    let o =
+      i === 0
+        ? startP
+        : prevClose * (1 + (rand() - 0.5) * 0.005);
+
+    const isGreen = rand() < bullBias;
+    const bodyPct = 0.003 + rand() * 0.008;
+    let c = isGreen ? o * (1 + bodyPct) : o * (1 - bodyPct);
+
+    c = c * 0.5 + idealClose * 0.5;
+    c = Math.max(c, idealClose * 0.91);
+    c = Math.min(c, idealClose * 1.07);
+    c = Math.max(c, prevClose * 0.991);
+    c = Math.min(c, prevClose * 1.014);
+
+    if (isGreen && c < o) {
+      o = c - idealClose * 0.0035;
+    }
+    if (!isGreen && c >= o) {
+      o = c + idealClose * 0.0035;
+    }
+
+    const minBody = idealClose * 0.0032;
+    if (Math.abs(c - o) < minBody) {
+      c = isGreen ? o + minBody : o - minBody;
+    }
+
+    const top = Math.max(o, c);
+    const bot = Math.min(o, c);
+    const h = top + idealClose * (0.0018 + rand() * 0.0045);
+    const l = bot - idealClose * (0.0018 + rand() * 0.0035);
+
+    const volPhase = (i / n) * Math.PI * 2.4;
+    const v = baseV * (0.65 + 0.25 * Math.sin(volPhase) + rand() * 0.35);
+
+    bars.push({ day: i + 1, o, h, l, c, v: Math.max(1, v) });
+    prevClose = c;
+  }
+
+  return bars;
+}
+
 /** Fixed 200-bar OHLCV series for the indicators simulator (deterministic, seed 42). */
 export const SIMULATION_CANDLES = 200;
 export const SIMULATION_SEED = 42;
-export const FIXED_SIMULATION_BARS: SampleBar[] = generateSampleBars(SIMULATION_CANDLES, SIMULATION_SEED);
+export const FIXED_SIMULATION_BARS: SampleBar[] = generateEducationalSimulationBars(
+  SIMULATION_CANDLES,
+  SIMULATION_SEED
+);
+
+/** Map API OHLCV rows to simulator bars (oldest first, sequential `day` index). */
+export function mapInstrumentDataToSampleBars(
+  rows: {
+    timestamp?: string;
+    open?: number;
+    high?: number;
+    low?: number;
+    close?: number;
+    volume?: number;
+  }[]
+): SampleBar[] {
+  const sorted = [...(rows || [])]
+    .filter((r) => Number.isFinite(Number(r.close)) && Number(r.close) > 0)
+    .sort((a, b) => {
+      const ta = Date.parse(String(a.timestamp ?? '')) || 0;
+      const tb = Date.parse(String(b.timestamp ?? '')) || 0;
+      return ta - tb;
+    });
+
+  return sorted.map((r, i) => {
+    const c = Number(r.close);
+    const o = Number(r.open);
+    const h = Number(r.high);
+    const l = Number(r.low);
+    return {
+      day: i + 1,
+      o: Number.isFinite(o) ? o : c,
+      h: Number.isFinite(h) ? h : c,
+      l: Number.isFinite(l) ? l : c,
+      c,
+      v: Math.max(0, Number(r.volume) || 0),
+    };
+  });
+}
 
 export function scaleVolumes(bars: SampleBar[], multiplier: number): SampleBar[] {
   const m = Math.max(0.1, multiplier);

@@ -477,6 +477,7 @@ export default function LightChart({
 
   const [vol, setVol] = useState<number>(1);
   const [leverage, setLeverage] = useState<number>(1);
+  const [tradeError, setTradeError] = useState<string | null>(null);
   const [position, setPosition] = useState<{
     side: PositionSide;
     qty: number;
@@ -573,17 +574,17 @@ export default function LightChart({
   const { enqueueCreate, enqueueClose } = useTradeApiQueue({
     onTicketCreated: (ticketId, volume) => {
       ticketIdsRef.current = [...ticketIdsRef.current, { id: ticketId, volume }];
+      setTradeError(null);
     },
     onTicketChanged: () => window.dispatchEvent(new CustomEvent("ticket-changed")),
+    onCreateFailed: () => {
+      setTradeError("Order could not be saved. Sign in and try again.");
+    },
   });
 
   useEffect(() => {
-    if (!positionsForSymbol?.length) {
-      positionSyncedFromApiRef.current = false;
-      setPosition((p) => (p.side !== "flat" ? { side: "flat", qty: 0, avgPrice: 0 } : p));
-      ticketIdsRef.current = [];
-      return;
-    }
+    if (!positionsForSymbol?.length) return;
+
     const buyTickets = positionsForSymbol.filter((p) => (p.type || "").toLowerCase() === "buy");
     const sellTickets = positionsForSymbol.filter((p) => (p.type || "").toLowerCase() === "sell");
     const buyVol = buyTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
@@ -1136,7 +1137,7 @@ export default function LightChart({
           {
             type: side === "buy" ? "Buy" : "Sell",
             market,
-            symbol,
+            symbol: symbol.toUpperCase(),
             volume: createVol,
             price,
             leverage: lev,
@@ -1533,7 +1534,7 @@ export default function LightChart({
     <div className="flex h-full min-h-[260px] w-full min-w-0 flex-col gap-3">
       <div
         ref={chartWrapperRef}
-        className={`relative w-full min-w-0 overflow-hidden ${showTrading ? "h-[460px] min-h-[360px]" : "min-h-0 flex-1"}`}
+        className={`relative w-full min-w-0 min-h-0 flex-1 overflow-hidden`}
         onContextMenu={(e) => {
           if (!historyInteraction?.enabled) return;
           if (historyInteraction.drawMode) return;
@@ -1657,6 +1658,9 @@ export default function LightChart({
             market @ {marketContext.price != null ? marketContext.price.toFixed(4) : "--"}
           </div>
         </div>
+        {tradeError ? (
+          <p className="mt-1.5 text-[11px] font-medium text-rose-400">{tradeError}</p>
+        ) : null}
 
         <div className="mt-2 grid grid-cols-5 gap-2 text-[11px]">
           <div>

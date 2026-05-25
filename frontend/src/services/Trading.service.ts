@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
+import { attachAuthInterceptors } from "@/src/libs/authInterceptors";
 import type {
   Tickets,
   TicketsWithPnl,
@@ -15,22 +16,13 @@ const API_HOST = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:1111/api";
 const tradingApi = axios.create({
   baseURL: API_HOST,
   withCredentials: true,
+  headers: {
+    Accept: "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  },
 });
 
-tradingApi.interceptors.request.use((config) => {
-  let token = localStorage.getItem("accessToken");
-  if (!token && typeof document !== "undefined") {
-    const match = document.cookie.match(/dsa_remember=([^;]+)/);
-    if (match) {
-      token = decodeURIComponent(match[1]);
-      localStorage.setItem("accessToken", token);
-    }
-  }
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+attachAuthInterceptors(tradingApi);
 
 function unwrapPaginated(res: any): PaginatedTickets {
   const d = res?.data ?? res;
@@ -136,7 +128,12 @@ export const TradingServices = {
   /** POST /tickets - create ticket */
   createTicket: async (payload: TicketCreatePayload): Promise<Tickets> => {
     const res = await tradingApi.post("/tickets", payload);
-    return (res.data?.data ?? res.data) as Tickets;
+    const body = res.data?.data ?? res.data;
+    const ticket = body as Tickets;
+    if (!ticket?.id) {
+      throw new Error("Create ticket: missing id in response");
+    }
+    return ticket;
   },
 
   /** PUT /tickets/{id} - update ticket */

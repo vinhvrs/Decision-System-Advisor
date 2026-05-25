@@ -10,8 +10,7 @@ export default function Footer() {
       links: [
         { name: "Dashboard", href: "#dashboard" },
         { name: "Market Heatmap", href: "/analyze" },
-        { name: "Indicators", href: "/indicators" },
-        { name: "Strategies", href: "/strategy" },
+        { name: "Indicators & Strategy", href: "/analysis" },
       ],
     },
     {

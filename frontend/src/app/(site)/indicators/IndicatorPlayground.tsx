@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Loader2, X } from 'lucide-react';
 import { IndicatorLightChart } from './IndicatorLightChart';
 import { buildIndicatorLightModel } from './indicatorLightModel';
 import { cardIdToSimulator, type SimulatorIndicatorId } from './indicatorTypes';
+import { InstrumentService } from '@/src/services/Instrument.service';
 import {
   computeADX,
   computeBollingerSeries,
@@ -16,9 +17,8 @@ import {
   computeRollingVolatility,
   computeSMASeries,
   computeStochasticSeries,
-  FIXED_SIMULATION_BARS,
+  mapInstrumentDataToSampleBars,
   scaleVolumes,
-  SIMULATION_CANDLES,
   type SampleBar,
 } from './indicatorCalculations';
 
@@ -44,11 +44,25 @@ const INDICATOR_OPTIONS: { id: SimulatorIndicatorId; label: string }[] = [
   { id: 'stoch', label: 'Stochastic (%K / %D)' },
 ];
 
+const MARKET_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA', 'AMD', 'IBM', 'ORCL'] as const;
+
+const PERIOD_OPTIONS = [
+  { id: 'daily', label: 'Daily' },
+  { id: 'weekly', label: 'Weekly' },
+  { id: 'monthly', label: 'Monthly' },
+  { id: 'yearly', label: 'Yearly' },
+] as const;
+
+type MarketPeriod = (typeof PERIOD_OPTIONS)[number]['id'];
+
+const FETCH_LIMIT = 400;
+const DISPLAY_MAX_BARS = 200;
+
 const SUBTITLES: Record<SimulatorIndicatorId, string> = {
-  ls: 'Liquidity Score — sample playground',
-  vol: 'Volatility proxy — sample rolling volatility',
-  adx: 'Trend strength — sample ADX',
-  mfi: 'Money Flow Index — sample MFI',
+  ls: 'Liquidity Score — real OHLCV',
+  vol: 'Volatility proxy — rolling vol on real closes',
+  adx: 'Trend strength (ADX)',
+  mfi: 'Money Flow Index (MFI)',
   sma: 'Simple moving average on close',
   ema: 'Exponential moving average on close',
   rsi: 'Relative Strength Index (Wilder)',
@@ -58,7 +72,13 @@ const SUBTITLES: Record<SimulatorIndicatorId, string> = {
 };
 
 export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }: Props) {
-  const [volMult, setVolMult] = React.useState(1);
+  const [symbol, setSymbol] = useState<string>('AAPL');
+  const [period, setPeriod] = useState<MarketPeriod>('daily');
+  const [marketBars, setMarketBars] = useState<SampleBar[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const [volMult, setVolMult] = useState(1);
   const [lsSmooth, setLsSmooth] = React.useState(8);
   const [volWindow, setVolWindow] = React.useState(14);
   const [adxPeriod, setAdxPeriod] = React.useState(14);
@@ -67,18 +87,55 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
   const [smaPeriod, setSmaPeriod] = React.useState(20);
   const [emaPeriod, setEmaPeriod] = React.useState(20);
   const [rsiPeriod, setRsiPeriod] = React.useState(14);
-  const [macdFast, setMacdFast] = React.useState(12);
-  const [macdSlow, setMacdSlow] = React.useState(26);
-  const [macdSignal, setMacdSignal] = React.useState(9);
-  const [bbPeriod, setBbPeriod] = React.useState(20);
-  const [bbK, setBbK] = React.useState(2);
-  const [stochK, setStochK] = React.useState(14);
-  const [stochD, setStochD] = React.useState(3);
+  const [macdFast, setMacdFast] = useState(12);
+  const [macdSlow, setMacdSlow] = useState(26);
+  const [macdSignal, setMacdSignal] = useState(9);
+  const [bbPeriod, setBbPeriod] = useState(20);
+  const [bbK, setBbK] = useState(2);
+  const [stochK, setStochK] = useState(14);
+  const [stochD, setStochD] = useState(3);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) {
+      setMarketBars([]);
+      setFetchError('Enter a symbol.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setFetchError(null);
+
+    InstrumentService.getInstrumentData(sym, period, FETCH_LIMIT, 1)
+      .then((raw) => {
+        if (cancelled) return;
+        const mapped = mapInstrumentDataToSampleBars(raw || []).slice(-DISPLAY_MAX_BARS);
+        setMarketBars(mapped);
+        if (!mapped.length) {
+          setFetchError(`No ${period} candles for ${sym}. Sync instrument data or try another symbol.`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMarketBars([]);
+          setFetchError(`Could not load ${sym} (${period}). Check API / database.`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, period]);
 
   const bars: SampleBar[] = useMemo(() => {
-    if (indicatorId === 'ls') return scaleVolumes(FIXED_SIMULATION_BARS, volMult);
-    return FIXED_SIMULATION_BARS;
-  }, [indicatorId, volMult]);
+    if (indicatorId === 'ls') return scaleVolumes(marketBars, volMult);
+    return marketBars;
+  }, [marketBars, indicatorId, volMult]);
 
   const lsSeries = useMemo(
     () => (indicatorId === 'ls' ? computeLiquiditySeries(bars, lsSmooth) : []),
@@ -235,11 +292,39 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold text-white">Indicator simulation</h2>
           <p className="mt-1 max-w-2xl text-xs text-gray-500">
-            Fixed <strong className="text-gray-400">{SIMULATION_CANDLES}</strong> synthetic candles (same OHLCV every
-            session). Choose an indicator and adjust parameters — not live market data.
+            Real OHLCV from your database (last {DISPLAY_MAX_BARS} bars). MACD defaults 12 / 26 / 9; periods adjustable
+            1–300.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
+            <span className="whitespace-nowrap font-medium text-gray-500">Symbol</span>
+            <select
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              className="min-w-[100px] rounded-lg border border-gray-700 bg-[#0b0e14] px-3 py-2 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/40"
+            >
+              {MARKET_SYMBOLS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
+            <span className="whitespace-nowrap font-medium text-gray-500">Period</span>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as MarketPeriod)}
+              className="min-w-[100px] rounded-lg border border-gray-700 bg-[#0b0e14] px-3 py-2 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/40"
+            >
+              {PERIOD_OPTIONS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
             <span className="whitespace-nowrap font-medium text-gray-500">Indicator</span>
             <select
@@ -299,9 +384,39 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
           )}
           {indicatorId === 'macd' && (
             <>
-              <Slider label="Fast EMA" min={2} max={20} step={1} value={macdFast} onChange={setMacdFast} fmt={String} />
-              <Slider label="Slow EMA" min={5} max={40} step={1} value={macdSlow} onChange={setMacdSlow} fmt={String} />
-              <Slider label="Signal EMA" min={2} max={20} step={1} value={macdSignal} onChange={setMacdSignal} fmt={String} />
+              <Slider
+                label="Fast EMA"
+                min={1}
+                max={Math.min(299, macdSlow - 1)}
+                step={1}
+                value={macdFast}
+                onChange={(v) => {
+                  setMacdFast(v);
+                  if (v >= macdSlow) setMacdSlow(Math.min(300, v + 1));
+                }}
+                fmt={String}
+              />
+              <Slider
+                label="Slow EMA"
+                min={macdFast + 1}
+                max={300}
+                step={1}
+                value={macdSlow}
+                onChange={(v) => {
+                  setMacdSlow(v);
+                  if (v <= macdFast) setMacdFast(Math.max(1, v - 1));
+                }}
+                fmt={String}
+              />
+              <Slider
+                label="Signal EMA"
+                min={1}
+                max={300}
+                step={1}
+                value={macdSignal}
+                onChange={setMacdSignal}
+                fmt={String}
+              />
             </>
           )}
           {indicatorId === 'bb' && (
@@ -331,14 +446,30 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
         </div>
 
         <div className="min-w-0 rounded-xl border border-gray-800 bg-[#0b0e14] p-4">
-          <div className="mt-1 h-[360px] w-full">
-            <IndicatorLightChart
-              height={360}
-              bars={bars}
-              overlays={lightModel.overlays}
-              subPane={lightModel.subPane}
-            />
-          </div>
+          {loading ? (
+            <div className="flex h-[360px] items-center justify-center gap-2 text-sm text-gray-400">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading {symbol} ({period})…
+            </div>
+          ) : fetchError ? (
+            <div className="flex h-[360px] items-center justify-center px-4 text-center text-sm text-amber-200/90">
+              {fetchError}
+            </div>
+          ) : bars.length === 0 ? (
+            <div className="flex h-[360px] items-center justify-center text-sm text-gray-500">No bars to chart.</div>
+          ) : (
+            <div className="mt-1 h-[360px] w-full">
+              <p className="mb-2 text-[10px] text-gray-600">
+                {symbol} · {period} · {bars.length} bars
+              </p>
+              <IndicatorLightChart
+                height={340}
+                bars={bars}
+                overlays={lightModel.overlays}
+                subPane={lightModel.subPane}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

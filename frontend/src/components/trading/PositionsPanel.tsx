@@ -80,10 +80,15 @@ export default function PositionsPanel({
   }
 
   if (error) {
-    const is401 = typeof error === "string" && error.includes("401");
+    const message =
+      error === "session-expired"
+        ? "Session expired — sign in again to sync positions."
+        : error === "401"
+          ? "Sign in to sync positions."
+          : error;
     return (
       <div className="rounded-lg border border-slate-700/60 bg-slate-900/70 px-3 py-2 text-slate-400 text-xs">
-        {is401 ? "Sign in to sync positions" : error}
+        {message}
       </div>
     );
   }
