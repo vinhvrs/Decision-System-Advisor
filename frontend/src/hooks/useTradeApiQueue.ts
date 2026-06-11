@@ -10,9 +10,13 @@ type QueuedAction = QueuedCreate | QueuedClose;
 
 const FLUSH_DEBOUNCE_MS = 120;
 
+function createDedupeKey(payload: TicketCreatePayload): string {
+  return `${payload.market}|${payload.symbol}|${payload.type}`;
+}
+
 /**
- * Queue trade API calls to avoid duplicates from React double-invoke.
- * Flushes shortly after enqueue and on unmount.
+ * Queue trade API calls; coalesce duplicate creates and close ids per flush.
+ * Does not flush on unmount (avoids duplicate tickets when the chart remounts).
  */
 export function useTradeApiQueue(options: {
   onTicketCreated?: (ticketId: string, volume: number) => void;
@@ -24,13 +28,50 @@ export function useTradeApiQueue(options: {
   optionsRef.current = options;
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const inflightCreatesRef = useRef<Set<string>>(new Set());
+
+  const coalesceQueue = (items: QueuedAction[]): QueuedAction[] => {
+    const out: QueuedAction[] = [];
+    for (const item of items) {
+      if (item.type === "create") {
+        const key = createDedupeKey(item.payload);
+        const existing = out.find(
+          (x): x is QueuedCreate => x.type === "create" && createDedupeKey(x.payload) === key
+        );
+        if (existing) {
+          existing.volume += item.volume;
+          existing.payload = {
+            ...existing.payload,
+            volume: Number(existing.payload.volume) + Number(item.payload.volume),
+          };
+          continue;
+        }
+        out.push({ ...item, payload: { ...item.payload } });
+      } else {
+        const ids = [...new Set(item.ticketIds)];
+        if (ids.length === 0) continue;
+        const existing = out.find((x): x is QueuedClose => x.type === "close");
+        if (existing) {
+          existing.ticketIds = [...new Set([...existing.ticketIds, ...ids])];
+          if (item.price != null) existing.price = item.price;
+        } else {
+          out.push({ type: "close", ticketIds: ids, price: item.price });
+        }
+      }
+    }
+    return out;
+  };
+
   const flush = useCallback(() => {
-    const items = queueRef.current.splice(0, queueRef.current.length);
+    const items = coalesceQueue(queueRef.current.splice(0, queueRef.current.length));
     if (items.length === 0) return;
 
     const { onTicketCreated, onTicketChanged, onCreateFailed } = optionsRef.current;
     for (const item of items) {
       if (item.type === "create") {
+        const key = createDedupeKey(item.payload);
+        if (inflightCreatesRef.current.has(key)) continue;
+        inflightCreatesRef.current.add(key);
         TradingServices.createTicket(item.payload)
           .then((ticket) => {
             onTicketCreated?.(ticket.id, item.volume);
@@ -39,13 +80,17 @@ export function useTradeApiQueue(options: {
           .catch((e) => {
             console.error("Create ticket failed:", e);
             onCreateFailed?.();
+          })
+          .finally(() => {
+            inflightCreatesRef.current.delete(key);
           });
       } else {
-        item.ticketIds.forEach((id) =>
-          TradingServices.closeTicket(id, item.price)
-            .then(() => onTicketChanged?.())
-            .catch((e) => console.error("Close ticket failed:", e))
-        );
+        const ids = [...new Set(item.ticketIds)];
+        Promise.all(
+          ids.map((id) =>
+            TradingServices.closeTicket(id, item.price).then(() => onTicketChanged?.())
+          )
+        ).catch((e) => console.error("Close ticket failed:", e));
       }
     }
   }, []);
@@ -61,13 +106,18 @@ export function useTradeApiQueue(options: {
   useEffect(() => {
     return () => {
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-      flush();
     };
-  }, [flush]);
+  }, []);
 
   const enqueueCreate = useCallback(
     (payload: TicketCreatePayload, volume: number) => {
-      queueRef.current.push({ type: "create", payload, volume });
+      const key = createDedupeKey(payload);
+      if (inflightCreatesRef.current.has(key)) return;
+      const dup = queueRef.current.some(
+        (i) => i.type === "create" && createDedupeKey(i.payload) === key
+      );
+      if (dup) return;
+      queueRef.current.push({ type: "create", payload: { ...payload }, volume });
       scheduleFlush();
     },
     [scheduleFlush]

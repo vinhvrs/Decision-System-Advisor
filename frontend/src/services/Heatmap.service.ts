@@ -5,9 +5,8 @@ class HeatmapService {
         try {
             const response = await api.get("/rankings/heatmap-daily", { params, timeout: 25_000 });
             return response.data.data;
-        } catch (error) {
-            console.error('Error fetching heatmap data:', error);
-            throw error;
+        } catch {
+            return [];
         }
     }
 }

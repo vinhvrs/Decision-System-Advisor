@@ -8,12 +8,12 @@ import {
   ColorType,
   CandlestickSeries,
   LineSeries,
-  HistogramSeries,
   ISeriesApi,
   IChartApi,
   Time,
   LogicalRange,
 } from "lightweight-charts";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { TradingServices } from "@/src/services/Trading.service";
 import { useTradeApiQueue } from "@/src/hooks/useTradeApiQueue";
 import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
@@ -176,6 +176,17 @@ function snapTimeToBars(sec: number | null, barTimes: number[], fallback: Time |
   return best as Time;
 }
 
+/** Entry markers on the live chart should sit on the forming candle (rightmost bar). */
+function entryMarkerBarTime(
+  eventSec: number | null,
+  barTimes: number[],
+  latestBarTime: Time | null,
+  livePaperTrading: boolean
+): Time | null {
+  if (livePaperTrading && latestBarTime != null) return latestBarTime;
+  return snapTimeToBars(eventSec, barTimes, latestBarTime);
+}
+
 function toNumber(v: any): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -268,34 +279,6 @@ function calcRSI(data: any[], period = 14) {
   }
 
   return results;
-}
-
-function calcMACD(data: any[], fast = 12, slow = 26, signalPeriod = 9) {
-  const emaFast = calcEMA(data, fast);
-  const emaSlow = calcEMA(data, slow);
-
-  const macdLine = emaFast
-    .map((f, i) => {
-      const s = emaSlow[i];
-      if (!f || !s) return null;
-      return { time: f.time, value: f.value - s.value };
-    })
-    .filter(Boolean) as { time: any; value: number }[];
-
-  const signalLine = calcEMA(
-    macdLine.map((m) => ({ ...m, close: m.value })),
-    signalPeriod
-  );
-
-  const histogram = macdLine
-    .map((m, i) => {
-      const s = signalLine[i];
-      if (!s) return null;
-      return { time: m.time, value: m.value - s.value };
-    })
-    .filter(Boolean) as { time: any; value: number }[];
-
-  return { macdLine, signalLine, histogram };
 }
 
 function calcStochastic(data: any[], period = 14, smoothK = 3, smoothD = 3) {
@@ -449,14 +432,14 @@ export default function LightChart({
   const seriesMarkersRef = useRef<any>(null);
   /** Tickets created for current position: [{ id, volume }] */
   const ticketIdsRef = useRef<Array<{ id: string; volume: number }>>([]);
+  /** Tickets we are closing or have closed locally — ignore until absent from API. */
+  const closedTicketIdsRef = useRef<Set<string>>(new Set());
   /** Run timeScale.fitContent once per symbol after first non-empty data (not on every realtime tick). */
   const shouldFitTimeScaleRef = useRef(true);
 
   const historyInteractionRef = useRef(historyInteraction);
-  historyInteractionRef.current = historyInteraction;
 
   const historyDrawnRectsPropRef = useRef(historyDrawnRects);
-  historyDrawnRectsPropRef.current = historyDrawnRects;
 
   const clickLastRef = useRef<{ timeSec: number; at: number } | null>(null);
   const clickSingleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -474,6 +457,33 @@ export default function LightChart({
     y: number;
     pick: HistoryCandlePick;
   } | null>(null);
+  const [expandedChart, setExpandedChart] = useState(false);
+
+  const setHistoryHoverTipIfChanged = useCallback(
+    (next: { x: number; y: number; pick: HistoryCandlePick } | null) => {
+      setHistoryHoverTip((prev) => {
+        if (prev === null && next === null) return prev;
+        if (prev !== null && next !== null) {
+          const a = prev.pick;
+          const b = next.pick;
+          if (
+            prev.x === next.x &&
+            prev.y === next.y &&
+            a.timeSec === b.timeSec &&
+            a.open === b.open &&
+            a.high === b.high &&
+            a.low === b.low &&
+            a.close === b.close &&
+            a.volume === b.volume
+          ) {
+            return prev;
+          }
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   const [vol, setVol] = useState<number>(1);
   const [leverage, setLeverage] = useState<number>(1);
@@ -488,6 +498,38 @@ export default function LightChart({
   const positionSyncedFromApiRef = useRef(false);
 
   useEffect(() => {
+    historyInteractionRef.current = historyInteraction;
+  }, [historyInteraction]);
+
+  useEffect(() => {
+    if (!expandedChart) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpandedChart(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [expandedChart]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const el = containerRef.current;
+    if (!chart || !el) return;
+
+    const frame = requestAnimationFrame(() => {
+      chart.applyOptions({
+        width: Math.max(1, Math.floor(el.clientWidth)),
+        height: Math.max(200, Math.floor(el.clientHeight)),
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [expandedChart]);
+
+  useEffect(() => {
+    historyDrawnRectsPropRef.current = historyDrawnRects;
+  }, [historyDrawnRects]);
+
+  useEffect(() => {
     positionRef.current = position;
   }, [position]);
 
@@ -496,17 +538,31 @@ export default function LightChart({
     tradesRef.current = [];
     markersRef.current = [];
     ticketIdsRef.current = [];
+    closedTicketIdsRef.current = new Set();
     const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
     positionRef.current = flat;
     setPosition(flat);
     positionSyncedFromApiRef.current = false;
   }, [symbol]);
 
+  const markTicketsClosing = useCallback((ids: string[]) => {
+    for (const id of ids) {
+      if (id) closedTicketIdsRef.current.add(id);
+    }
+  }, []);
+
+  const pruneClosedTicketIds = useCallback((apiPositions: Array<{ id: string }>) => {
+    const apiIds = new Set(apiPositions.map((p) => p.id));
+    for (const id of [...closedTicketIdsRef.current]) {
+      if (!apiIds.has(id)) closedTicketIdsRef.current.delete(id);
+    }
+  }, []);
+
   useEffect(() => {
     if (historyInteraction?.drawMode || !historyInteraction?.showHoverDetail) {
-      setHistoryHoverTip(null);
+      setHistoryHoverTipIfChanged(null);
     }
-  }, [historyInteraction?.drawMode, historyInteraction?.showHoverDetail]);
+  }, [historyInteraction?.drawMode, historyInteraction?.showHoverDetail, setHistoryHoverTipIfChanged]);
 
   useEffect(() => {
     if (!historyInteraction?.drawMode) setRectDrag(null);
@@ -573,7 +629,10 @@ export default function LightChart({
 
   const { enqueueCreate, enqueueClose } = useTradeApiQueue({
     onTicketCreated: (ticketId, volume) => {
-      ticketIdsRef.current = [...ticketIdsRef.current, { id: ticketId, volume }];
+      if (!ticketIdsRef.current.some((t) => t.id === ticketId)) {
+        ticketIdsRef.current = [...ticketIdsRef.current, { id: ticketId, volume }];
+      }
+      tradesRef.current = [];
       setTradeError(null);
     },
     onTicketChanged: () => window.dispatchEvent(new CustomEvent("ticket-changed")),
@@ -583,17 +642,32 @@ export default function LightChart({
   });
 
   useEffect(() => {
-    if (!positionsForSymbol?.length) return;
+    const raw = positionsForSymbol ?? [];
+    pruneClosedTicketIds(raw);
+    const open = raw.filter((p) => p.id && !closedTicketIdsRef.current.has(p.id));
 
-    const buyTickets = positionsForSymbol.filter((p) => (p.type || "").toLowerCase() === "buy");
-    const sellTickets = positionsForSymbol.filter((p) => (p.type || "").toLowerCase() === "sell");
+    if (!open.length) {
+      ticketIdsRef.current = ticketIdsRef.current.filter((t) => !closedTicketIdsRef.current.has(t.id));
+      if (positionSyncedFromApiRef.current) {
+        const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
+        positionRef.current = flat;
+        setPosition(flat);
+        positionSyncedFromApiRef.current = false;
+      }
+      return;
+    }
+
+    const buyTickets = open.filter((p) => (p.type || "").toLowerCase() === "buy");
+    const sellTickets = open.filter((p) => (p.type || "").toLowerCase() === "sell");
     const buyVol = buyTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
     const sellVol = sellTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
     const net = buyVol - sellVol;
-    ticketIdsRef.current = positionsForSymbol.map((t) => ({
+    const nextTicketIds = open.map((t) => ({
       id: t.id,
       volume: Number(t.volume || 0),
     }));
+    ticketIdsRef.current = nextTicketIds;
+    if (open.length > 0) tradesRef.current = [];
     if (net > 0) {
       const totalVol = buyTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
       const avg = totalVol > 0
@@ -620,7 +694,7 @@ export default function LightChart({
       setPosition({ side: "flat", qty: 0, avgPrice: 0 });
       positionSyncedFromApiRef.current = false;
     }
-  }, [positionsForSymbol]);
+  }, [positionsForSymbol, pruneClosedTicketIds]);
 
   const [hover, setHover] = useState<{
     time: Time | null;
@@ -702,7 +776,7 @@ export default function LightChart({
       const hi = historyInteractionRef.current;
       if (hi?.enabled && hi.showHoverDetail && !hi.drawMode) {
         if (!param?.point || param.time === undefined || param.time === null) {
-          setHistoryHoverTip(null);
+          setHistoryHoverTipIfChanged(null);
         } else {
           const pick = pickFromClickParam(param);
           const px = param.point.x;
@@ -714,13 +788,13 @@ export default function LightChart({
             Number.isFinite(px) &&
             Number.isFinite(py)
           ) {
-            setHistoryHoverTip({ x: px, y: py, pick });
+            setHistoryHoverTipIfChanged({ x: px, y: py, pick });
           } else {
-            setHistoryHoverTip(null);
+            setHistoryHoverTipIfChanged(null);
           }
         }
       } else {
-        setHistoryHoverTip(null);
+        setHistoryHoverTipIfChanged(null);
       }
 
       if (!param) return;
@@ -740,7 +814,16 @@ export default function LightChart({
       const v =
         fromMap && typeof fromMap.volume === "number" ? (fromMap.volume as number) : null;
 
-      setHover({ time, o, h, l, c, v });
+      setHover((prev) =>
+        prev.time === time &&
+        prev.o === o &&
+        prev.h === h &&
+        prev.l === l &&
+        prev.c === c &&
+        prev.v === v
+          ? prev
+          : { time, o, h, l, c, v }
+      );
     };
 
     chart.subscribeCrosshairMove(crosshairMove);
@@ -805,7 +888,7 @@ export default function LightChart({
       seriesMarkersRef.current = null;
       chart.remove();
     };
-  }, []);
+  }, [setHistoryHoverTipIfChanged]);
 
   const mergedCandleData = useMemo(() => {
     const map = new Map<number, any>();
@@ -834,17 +917,34 @@ export default function LightChart({
     return mergedCandleData[mergedCandleData.length - 1];
   }, [mergedCandleData]);
 
+  /** Bar times on the chart series (historical + live realtime bucket). */
+  const chartBarTimes = useMemo(() => {
+    const times = new Set<number>();
+    mergedCandleData.forEach((c) => times.add(Number(c.time)));
+    const rt = normalizeToSec(realtimeCandle?.time);
+    if (rt != null) times.add(rt);
+    return Array.from(times).sort((a, b) => a - b);
+  }, [mergedCandleData, realtimeCandle]);
+
+  const latestBarTime = useMemo((): Time | null => {
+    if (!chartBarTimes.length) return null;
+    return chartBarTimes[chartBarTimes.length - 1] as Time;
+  }, [chartBarTimes]);
+
   // Always execute trades at the latest price (not crosshair price)
   const marketContext = useMemo(() => {
-    const t = normalizeToSec(realtimeCandle?.time) ?? (lastCandle?.time as number | undefined);
-    const time = (t ? (t as Time) : (lastCandle?.time as Time | undefined)) ?? null;
+    const t =
+      normalizeToSec(realtimeCandle?.time) ??
+      (latestBarTime as number | undefined) ??
+      (lastCandle?.time as number | undefined);
+    const time = (t ? (t as Time) : (latestBarTime ?? (lastCandle?.time as Time | undefined))) ?? null;
     const price =
       (realtimeCandle && typeof realtimeCandle.close === "number"
         ? (realtimeCandle.close as number)
         : null) ??
       (typeof lastCandle?.close === "number" ? (lastCandle.close as number) : null);
     return { time, price };
-  }, [lastCandle, realtimeCandle]);
+  }, [lastCandle, latestBarTime, realtimeCandle]);
 
   const emitPaperSnapshot = useCallback(() => {
     if (!onPaperTradingChange) return;
@@ -917,32 +1017,45 @@ export default function LightChart({
     return { time, o, h, l, c, v };
   }, [hover, lastCandle, marketContext.time, realtimeCandle]);
 
+  const formatMarkerPrice = (px: number) =>
+    Number.isFinite(px) ? px.toFixed(px >= 1 ? 2 : 4) : "--";
+
   const markTradesOnChart = useCallback(() => {
     const seriesMarkers = seriesMarkersRef.current;
     if (!seriesMarkers?.setMarkers) return;
 
-    const tradeIdsFromSession = new Set(tradesRef.current.map((t) => t.id));
-    const barTimes = mergedCandleData.map((c) => Number(c.time));
-    const fallbackTime =
-      (lastCandle?.time as Time | undefined) ??
-      (marketContext.time as Time | undefined) ??
-      null;
+    const openApiPositions = (positionsForSymbol ?? []).filter(
+      (p) => p.id && !closedTicketIdsRef.current.has(p.id)
+    );
+    const barTimes = chartBarTimes;
+    const fallbackTime = latestBarTime ?? (marketContext.time as Time | undefined) ?? null;
+    const livePaperTrading = showTrading;
 
-    const tradeMarkers: Marker[] = tradesRef.current.map((t) => ({
-      time: t.time,
-      position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
-      color: t.side === "buy" ? "#26A69A" : "#EF5350",
-      shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
-      text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${t.price}`,
-    }));
+    /** Session trades only while API tickets are not loaded yet (avoids double markers). */
+    const tradeMarkers: Marker[] =
+      openApiPositions.length > 0
+        ? []
+        : tradesRef.current
+            .map((t) => {
+              const sec = typeof t.time === "number" ? (t.time as number) : null;
+              const time = entryMarkerBarTime(sec, barTimes, fallbackTime, livePaperTrading);
+              if (time == null) return null;
+              return {
+                time,
+                position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
+                color: t.side === "buy" ? "#26A69A" : "#EF5350",
+                shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
+                text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${formatMarkerPrice(t.price)}`,
+              } as Marker;
+            })
+            .filter((m): m is Marker => m != null);
 
-    const positionMarkers = (positionsForSymbol || [])
-      .filter((p) => p.id && !tradeIdsFromSession.has(p.id))
+    const positionMarkers = openApiPositions
       .map((p) => {
         const isBuy = (p.type || "").toLowerCase() === "buy";
         const rawTime = p.open || p.created_at;
         const sec = rawTime ? normalizeToSec(rawTime) : null;
-        const time = snapTimeToBars(sec, barTimes, fallbackTime);
+        const time = entryMarkerBarTime(sec, barTimes, fallbackTime, livePaperTrading);
         if (time == null) return null;
         const lev = p.leverage ?? 1;
         const vol = Number(p.volume) || 0;
@@ -952,7 +1065,7 @@ export default function LightChart({
           position: (isBuy ? "belowBar" : "aboveBar") as Marker["position"],
           color: isBuy ? "#26A69A" : "#EF5350",
           shape: (isBuy ? "arrowUp" : "arrowDown") as Marker["shape"],
-          text: `${isBuy ? "BUY" : "SELL"} ${vol}×${lev} @ ${px}`,
+          text: `${isBuy ? "BUY" : "SELL"} ${vol}×${lev} @ ${formatMarkerPrice(px)}`,
         };
       })
       .filter((m) => m != null) as Marker[];
@@ -968,7 +1081,15 @@ export default function LightChart({
           }))
         : [];
 
-    const pnlMarkers: Marker[] = showTrading ? markersRef.current : [];
+    const pnlMarkers: Marker[] = showTrading
+      ? markersRef.current
+          .map((m) => {
+            const time = snapTimeToBars(Number(m.time), barTimes, latestBarTime);
+            if (time == null) return null;
+            return { ...m, time };
+          })
+          .filter((m): m is Marker => m != null)
+      : [];
 
     const markers: Marker[] = [...tradeMarkers, ...positionMarkers, ...historyMarkers, ...pnlMarkers];
 
@@ -977,7 +1098,15 @@ export default function LightChart({
     } catch (e) {
       console.warn("setMarkers failed:", e);
     }
-  }, [showTrading, historyOrderMarkers, positionsForSymbol, lastCandle, marketContext.time, mergedCandleData]);
+  }, [
+    showTrading,
+    historyOrderMarkers,
+    positionsForSymbol,
+    latestBarTime,
+    marketContext.time,
+    chartBarTimes,
+    realtimeCandle,
+  ]);
 
   useEffect(() => {
     markTradesOnChart();
@@ -1034,10 +1163,17 @@ export default function LightChart({
     hi.onCandleContextMenu?.(pick, { clientX: e.clientX, clientY: e.clientY });
   }, []);
 
+  const tradeActionLockRef = useRef(false);
+
   const addTrade = useCallback(
     (side: TradeSide, overrideVol?: number) => {
       const { time, price } = marketContext;
       if (!time || price == null) return;
+      if (tradeActionLockRef.current) return;
+      tradeActionLockRef.current = true;
+      window.setTimeout(() => {
+        tradeActionLockRef.current = false;
+      }, 400);
       const rawVol = overrideVol ?? vol;
       const v = Number.isFinite(rawVol) && rawVol > 0 ? rawVol : 1;
       const lev = Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
@@ -1093,7 +1229,7 @@ export default function LightChart({
         newState = { ...p, qty: newQty, avgPrice: newAvg };
       } else {
         const closeVol = Math.min(p.qty, v);
-        const toCloseItems = [...ticketIdsRef.current];
+        const toCloseItems = ticketIdsRef.current.filter((t) => !closedTicketIdsRef.current.has(t.id));
         let closed = 0;
         const remaining: Array<{ id: string; volume: number }> = [];
         for (const item of toCloseItems) {
@@ -1146,36 +1282,40 @@ export default function LightChart({
         );
       }
       if (toClose.length > 0) {
+        markTicketsClosing(toClose);
         enqueueClose(toClose, price);
       }
 
       markTradesOnChart();
       emitPaperSnapshot();
     },
-    [markTradesOnChart, marketContext, vol, leverage, market, symbol, enqueueCreate, enqueueClose, emitPaperSnapshot]
+    [markTradesOnChart, marketContext, vol, leverage, market, symbol, enqueueCreate, enqueueClose, markTicketsClosing, emitPaperSnapshot]
   );
 
   const closePosition = useCallback(() => {
     if (position.side === "flat") return;
-    const idsFromApi = (positionsForSymbol || []).map((p) => p.id).filter(Boolean);
-    const idsFromLocal = ticketIdsRef.current.map((t) => t.id);
+    const idsFromApi = (positionsForSymbol || [])
+      .map((p) => p.id)
+      .filter((id): id is string => Boolean(id) && !closedTicketIdsRef.current.has(id));
+    const idsFromLocal = ticketIdsRef.current.map((t) => t.id).filter((id) => !closedTicketIdsRef.current.has(id));
     const allIds = [...new Set([...idsFromApi, ...idsFromLocal])];
     if (allIds.length === 0) return;
+
+    markTicketsClosing(allIds);
 
     // Optimistic: update UI immediately
     ticketIdsRef.current = [];
     const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
     positionRef.current = flat;
     setPosition(flat);
+    positionSyncedFromApiRef.current = false;
     emitPaperSnapshot();
-    window.dispatchEvent(new CustomEvent("ticket-changed"));
 
-    // API in background
     const price = marketContext.price ?? undefined;
-    Promise.all(allIds.map((id) => TradingServices.closeTicket(id, price))).catch((e) =>
-      console.error("Close position failed:", e)
-    );
-  }, [position.side, positionsForSymbol, marketContext.price, emitPaperSnapshot]);
+    Promise.all(allIds.map((id) => TradingServices.closeTicket(id, price)))
+      .then(() => window.dispatchEvent(new CustomEvent("ticket-changed")))
+      .catch((e) => console.error("Close position failed:", e));
+  }, [position.side, positionsForSymbol, marketContext.price, emitPaperSnapshot, markTicketsClosing]);
 
   const currentPrice = marketContext.price ?? 0;
   const unrealizedPnl = useMemo(() => {
@@ -1423,40 +1563,29 @@ export default function LightChart({
       }
 
       if (id === "macd") {
-        const { macdLine, signalLine, histogram } = calcMACD(sortedData, 12, 26, 9);
+        const ema20 = calcEMA(sortedData, 20);
+        const ema100 = calcEMA(sortedData, 100);
 
-        const histSeries = chart.addSeries(HistogramSeries, {
-          title: "MACD Hist",
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-
-        histSeries.setData(
-          histogram.map((d) => ({
-            time: d.time,
-            value: d.value,
-            color: d.value >= 0 ? "#26A69A" : "#EF5350",
-          })) as any
-        );
-
-        const macdSeries = chart.addSeries(LineSeries, {
-          color: INDICATOR_COLORS.macd,
+        const ema20Series = chart.addSeries(LineSeries, {
+          color: INDICATOR_COLORS.ema20,
           lineWidth: 2,
-          title: "MACD",
+          title: "EMA20",
           priceLineVisible: false,
+          lastValueVisible: true,
         });
 
-        const signalSeries = chart.addSeries(LineSeries, {
-          color: INDICATOR_COLORS.macd_signal,
+        const ema100Series = chart.addSeries(LineSeries, {
+          color: INDICATOR_COLORS.ema100,
           lineWidth: 2,
-          title: "Signal",
+          title: "EMA100",
           priceLineVisible: false,
+          lastValueVisible: true,
         });
 
-        macdSeries.setData(macdLine as any);
-        signalSeries.setData(signalLine as any);
+        ema20Series.setData(ema20 as any);
+        ema100Series.setData(ema100 as any);
 
-        indicatorSeriesRef.current.push(histSeries, macdSeries, signalSeries);
+        indicatorSeriesRef.current.push(ema20Series, ema100Series);
         return;
       }
 
@@ -1530,17 +1659,40 @@ export default function LightChart({
     };
   }, [onLoadMore]);
 
+  const chartWrapperClass = expandedChart
+    ? "fixed inset-4 z-50 min-w-0 overflow-hidden rounded-xl border border-indigo-500/40 bg-[#0b0e14] shadow-2xl shadow-black/60"
+    : "relative w-full min-w-0 min-h-0 flex-1 overflow-hidden";
+
   return (
     <div className="flex h-full min-h-[260px] w-full min-w-0 flex-col gap-3">
+      {expandedChart ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 cursor-default bg-black/60"
+          onClick={() => setExpandedChart(false)}
+          aria-label="Exit full-window chart"
+        />
+      ) : null}
       <div
         ref={chartWrapperRef}
-        className={`relative w-full min-w-0 min-h-0 flex-1 overflow-hidden`}
+        className={chartWrapperClass}
         onContextMenu={(e) => {
           if (!historyInteraction?.enabled) return;
           if (historyInteraction.drawMode) return;
           processHistoryContextMenu(e);
         }}
       >
+        <button
+          type="button"
+          onClick={() => setExpandedChart((v) => !v)}
+          className={`absolute right-3 z-[36] inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-slate-950/70 text-slate-300 shadow hover:border-indigo-400/50 hover:text-indigo-200 ${
+            expandedChart ? "top-3" : "top-14"
+          }`}
+          aria-label={expandedChart ? "Exit full-window chart" : "Expand chart to full window"}
+          title={expandedChart ? "Exit full-window chart" : "Expand chart"}
+        >
+          {expandedChart ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
         <div ref={containerRef} className="h-full w-full min-h-[220px]" />
         {historyCommittedRectStyles.map((s) => (
           <div
@@ -1764,7 +1916,6 @@ export default function LightChart({
               {position.side === "flat" ? "--" : unrealizedPnl.toFixed(4)}
             </span>
           </div>
-          <div className="text-slate-400">Trades: {tradesRef.current.length}</div>
         </div>
       </div>
       )}

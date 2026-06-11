@@ -3,7 +3,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthService } from '@/src/services/Auth.service'; 
+import { AuthService } from '@/src/services/Auth.service';
+import { apiErrorMessage } from '@/src/libs/axiosError';
 import Link from 'next/link';
 
 type AuthMode = 'login' | 'register';
@@ -27,13 +28,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchMode, onSuccess }) => {
     setError(null);
 
     try {
-      const user = await AuthService.login({ email, password, remember });
-      console.log('Login successful:', user);
+      await AuthService.login({ email, password, remember });
       onSuccess();
-    } catch (err: any) {
-      console.error("Login error:", err);
-      const errorMessage = err.response?.data?.message || "Login failed. Please check your email and password.";
-      setError(errorMessage);
+    } catch (err: unknown) {
+      setError(apiErrorMessage(err, "Login failed. Please check your email and password."));
     } finally {
       setIsLoading(false);
     }

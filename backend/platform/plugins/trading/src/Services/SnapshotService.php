@@ -1249,9 +1249,6 @@ class SnapshotService
             }
         }
 
-        $instrumentIds = $rows->pluck('instrument_id')->unique()->values()->all();
-        $vsPrevAbsByInstrument = $this->beginnerVsPrevCloseAbsPct($instrumentIds);
-
         $confidenceBySymbol = $this->analysisConfidenceBySymbols($symbols->all());
 
         $bySymbol = [];
@@ -1259,9 +1256,9 @@ class SnapshotService
             $sym = strtoupper(trim((string) $r->symbol));
             $people = (int) ($watchCounts[$sym] ?? 0);
             $iid = (string) $r->instrument_id;
-            $vsPrevAbs = $vsPrevAbsByInstrument[$iid] ?? null;
             $chg = abs((float) $r->change_pct);
-            $candleMove = ($vsPrevAbs !== null && $vsPrevAbs > 0) ? $vsPrevAbs : $chg;
+            // Keep the Change spoke aligned with the displayed 24H % column.
+            $candleMove = $chg;
 
             $logo = isset($r->company_logo) && $r->company_logo !== null && trim((string) $r->company_logo) !== ''
                 ? trim((string) $r->company_logo)

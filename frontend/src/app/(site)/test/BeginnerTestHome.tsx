@@ -14,6 +14,7 @@ import Link from "next/link";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import {
   BeginnerService,
+  cacheDashboardRadarRows,
   invalidateDashboardDailyCache,
   type BeginnerBoardPayload,
   type BeginnerBoardRow,
@@ -45,7 +46,37 @@ import {
   Minus,
 } from "lucide-react";
 
-type Period = "daily" | "yearly";
+type Period = "daily" | "annual";
+
+/** Socket / instrument API use `yearly` slug for annual bars. */
+function periodToApiSlug(period: Period): "daily" | "yearly" {
+  return period === "annual" ? "yearly" : "daily";
+}
+
+function periodChangeLabel(period: Period): string {
+  return period === "daily" ? "24h %" : "Annual %";
+}
+
+function periodChangeTitle(period: Period): string {
+  return period === "daily"
+    ? "Change vs the previous daily close from the data feed."
+    : "Year-over-year change from the latest two annual closes (API).";
+}
+
+/** Display % for the selected period (daily snapshot vs annual YoY from closes). */
+function periodChangeForRow(row: BeginnerBoardRow, closes: number[], period: Period): number | null {
+  if (period === "annual") {
+    if (closes.length >= 2) {
+      return pctChange(closes[closes.length - 2]!, closes[closes.length - 1]!);
+    }
+    return null;
+  }
+  if (Number.isFinite(row.change_pct_snapshot)) return row.change_pct_snapshot;
+  if (closes.length >= 2) {
+    return pctChange(closes[closes.length - 2]!, closes[closes.length - 1]!);
+  }
+  return null;
+}
 
 /** CMC-like palette */
 const C = {
@@ -85,6 +116,50 @@ function radarFromScores(scores: BeginnerBoardRow["scores"]): BeginnerRadarPoint
     { subject: "Liquidity", value: scores.liquidity },
     { subject: "Watchers", value: scores.people_care },
   ];
+}
+
+function quintileScoreBySymbol(rows: BeginnerBoardRow[]): Map<string, number> {
+  const pairs = rows
+    .map((r) => ({
+      symbol: r.symbol.toUpperCase(),
+      value: Number(r.candle_move_abs_pct),
+    }))
+    .filter((r) => Number.isFinite(r.value))
+    .sort((a, b) => a.value - b.value);
+  const out = new Map<string, number>();
+  const n = pairs.length;
+  if (!n) return out;
+  pairs.forEach((r, i) => {
+    const pct = (i + 0.5) / n;
+    out.set(r.symbol, Math.max(1, Math.min(5, Math.ceil(pct * 5))));
+  });
+  return out;
+}
+
+function strongCountFromScores(scores: BeginnerBoardRow["scores"]): number {
+  const values = [
+    scores.reputation,
+    scores.candle_change,
+    scores.volume,
+    scores.liquidity,
+    scores.people_care,
+  ];
+  return values.filter((v) => Number(v) >= 4).length;
+}
+
+function alignLiveChangeScores(rows: BeginnerBoardRow[]): BeginnerBoardRow[] {
+  const changeScores = quintileScoreBySymbol(rows);
+  return rows.map((row) => {
+    const nextChangeScore = changeScores.get(row.symbol.toUpperCase());
+    if (!nextChangeScore || nextChangeScore === row.scores.candle_change) return row;
+    const scores = { ...row.scores, candle_change: nextChangeScore };
+    return {
+      ...row,
+      scores,
+      radar: radarFromScores(scores),
+      strong_count: strongCountFromScores(scores),
+    };
+  });
 }
 
 function syntheticDevBoardRow(seed: SymbolDevCompany): BeginnerBoardRow {
@@ -626,16 +701,13 @@ const TableSparkline = memo(function TableSparkline({ values }: { values: number
  * without mutating stored daily-close sparklines. Falls back to last step of the close series.
  * (Row Fear & Greed in the radar popover uses snapshot only via {@link fearGreedFromChangePct}.)
  */
-function effectiveChangeForFearGreed(row: BeginnerBoardRow, closes: number[] | undefined): number | null {
-  const snap = row.change_pct_snapshot;
-  if (Number.isFinite(snap)) return snap;
-  if (closes && closes.length >= 2) {
-    const from = closes[closes.length - 2];
-    const to = closes[closes.length - 1];
-    const d = pctChange(from, to);
-    if (d != null) return d;
-  }
-  return null;
+function effectiveChangeForFearGreed(
+  row: BeginnerBoardRow,
+  closes: number[] | undefined,
+  period: Period,
+): number | null {
+  const series = closes ?? [];
+  return periodChangeForRow(row, series, period);
 }
 
 function FearGreedGauge({ value }: { value: number }) {
@@ -735,6 +807,7 @@ type BoardRankingTableRowProps = {
   stripe: boolean;
   sparklineValues: number[];
   sparklinesLoading: boolean;
+  periodChangePct: number | null;
   onRowEnter: (symbol: string, e: MouseEvent<HTMLTableRowElement>) => void;
   onRowMove: (e: MouseEvent<HTMLTableRowElement>) => void;
   onRowLeave: () => void;
@@ -746,6 +819,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
   stripe,
   sparklineValues,
   sparklinesLoading,
+  periodChangePct,
   onRowEnter,
   onRowMove,
   onRowLeave,
@@ -777,8 +851,10 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
       </td>
       <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">{formatUsd(r.price)}</td>
       <td className="px-3 py-2.5 text-right">
-        {Number.isFinite(r.change_pct_snapshot) ? (
-          <PctBadge pct={r.change_pct_snapshot} />
+        {sparklinesLoading ? (
+          <span className={`text-xs ${C.muted}`}>…</span>
+        ) : Number.isFinite(periodChangePct) ? (
+          <PctBadge pct={periodChangePct!} />
         ) : (
           <span className={C.muted}>—</span>
         )}
@@ -819,6 +895,8 @@ type BoardRankingMobileCardProps = {
   stripe: boolean;
   sparklineValues: number[];
   sparklinesLoading: boolean;
+  periodChangePct: number | null;
+  periodLabel: string;
 };
 
 const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
@@ -827,6 +905,8 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
   stripe,
   sparklineValues,
   sparklinesLoading,
+  periodChangePct,
+  periodLabel,
 }: BoardRankingMobileCardProps) {
   const conviction = convictionFromRow(r);
   return (
@@ -862,10 +942,12 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
           <p className="mt-0.5 font-mono font-medium tabular-nums">{formatUsd(r.price)}</p>
         </div>
         <div>
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>24h %</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>{periodLabel}</p>
           <div className="mt-0.5">
-            {Number.isFinite(r.change_pct_snapshot) ? (
-              <PctBadge pct={r.change_pct_snapshot} />
+            {sparklinesLoading ? (
+              <span className={`text-xs ${C.muted}`}>…</span>
+            ) : Number.isFinite(periodChangePct) ? (
+              <PctBadge pct={periodChangePct!} />
             ) : (
               <span className={C.muted}>—</span>
             )}
@@ -903,15 +985,19 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
   );
 });
 
-/** Prefer embedded Redis ``chart`` closes; else API batch map. */
-function sparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<string, number[]>): number[] {
-  if (row.chart && row.chart.length >= 2) {
-    const cap = 48;
+/** Prefer embedded Redis ``chart`` closes (daily only); else API batch for the active period. */
+function sparklineValuesForRow(
+  row: BeginnerBoardRow,
+  batchMap: Record<string, number[]>,
+  period: Period,
+): number[] {
+  const cap = period === "daily" ? 48 : 24;
+  if (period === "daily" && row.chart && row.chart.length >= 2) {
     return row.chart.length <= cap ? row.chart : row.chart.slice(-cap);
   }
   const sym = row.symbol;
   const arr = batchMap[sym] ?? batchMap[sym.toUpperCase()] ?? [];
-  return arr.length <= 28 ? arr : arr.slice(-28);
+  return arr.length <= cap ? arr : arr.slice(-cap);
 }
 
 /**
@@ -919,9 +1005,14 @@ function sparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<string, n
  * This keeps row sparklines visible (e.g. BE) by deriving a 2-point line
  * from snapshot price and snapshot percent change.
  */
-function ensureSparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<string, number[]>): number[] {
-  const values = sparklineValuesForRow(row, batchMap);
+function ensureSparklineValuesForRow(
+  row: BeginnerBoardRow,
+  batchMap: Record<string, number[]>,
+  period: Period,
+): number[] {
+  const values = sparklineValuesForRow(row, batchMap, period);
   if (values.length >= 2) return values;
+  if (period === "annual") return values;
 
   const price = Number(row.price);
   if (!Number.isFinite(price) || price <= 0) return values;
@@ -932,18 +1023,25 @@ function ensureSparklineValuesForRow(row: BeginnerBoardRow, batchMap: Record<str
     if (Number.isFinite(prev) && prev > 0) return [prev, price];
   }
 
-  // Last-resort tiny slope so the row doesn't appear as missing data.
   return [price * 0.995, price];
 }
 
-function upsideTechnicalForSort(row: BeginnerBoardRow, sparkMap: Record<string, number[]>): number {
-  const closes = ensureSparklineValuesForRow(row, sparkMap);
+function upsideTechnicalForSort(
+  row: BeginnerBoardRow,
+  sparkMap: Record<string, number[]>,
+  period: Period,
+): number {
+  const closes = ensureSparklineValuesForRow(row, sparkMap, period);
   return upsideTechnicalPct(row, closes);
 }
 
 /** For table sort: last − first close in the same series as the sparkline (NaN if not enough points). */
-function trendDeltaForSort(row: BeginnerBoardRow, sparkMap: Record<string, number[]>): number {
-  const v = sparklineValuesForRow(row, sparkMap);
+function trendDeltaForSort(
+  row: BeginnerBoardRow,
+  sparkMap: Record<string, number[]>,
+  period: Period,
+): number {
+  const v = sparklineValuesForRow(row, sparkMap, period);
   if (v.length < 2) return Number.NaN;
   return v[v.length - 1]! - v[0]!;
 }
@@ -1057,6 +1155,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   useEffect(() => {
     boardRowsRef.current = boardRows;
   }, [boardRows]);
+
+  useEffect(() => {
+    if (!isRedisDaily || boardRows.length === 0) return;
+    cacheDashboardRadarRows(boardRows, dashboardUpdatedAt);
+  }, [isRedisDaily, boardRows, dashboardUpdatedAt]);
 
   const dashboardBoardSymKey = useMemo(
     () =>
@@ -1227,7 +1330,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         ...new Set(boardRowsRef.current.map((r) => String(r.symbol || "").toUpperCase()).filter(Boolean)),
       ];
       if (!syms.length) return;
-      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period });
+      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: periodToApiSlug(period) });
     };
 
     const socket = new SimpleSocket(
@@ -1252,14 +1355,14 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               touched = true;
               const row = { ...r };
               if (price != null && price > 0) row.price = price;
-              if (chg != null) {
+              if (chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
                 row.day_bias = chg > 0 ? "buy" : chg < 0 ? "sell" : "flat";
               }
               return row;
             });
-            return touched ? next : prev;
+            return touched ? alignLiveChangeScores(next) : prev;
           });
           return;
         }
@@ -1304,7 +1407,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     ];
     if (!syms.length) return;
     const t = window.setTimeout(() => {
-      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period });
+      dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: periodToApiSlug(period) });
     }, 80);
     return () => window.clearTimeout(t);
   }, [isRedisDaily, dashboardBoardSymKey, period]);
@@ -1332,7 +1435,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         const latest = boardRowsRef.current;
         const next: Record<string, number[]> = {};
         for (const r of latest) {
-          next[r.symbol] = ensureSparklineValuesForRow(r, map);
+          next[r.symbol] = ensureSparklineValuesForRow(r, map, period);
         }
         setRowSparklines(next);
       };
@@ -1344,7 +1447,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       }
 
       const sparkLimit = period === "daily" ? 40 : 24;
-      InstrumentService.batchDailyCloses(syms, sparkLimit, period)
+      InstrumentService.batchDailyCloses(syms, sparkLimit, periodToApiSlug(period))
         .then((map) => {
           applyMap(map);
         })
@@ -1391,7 +1494,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         sumV += r.volume;
         nv++;
       }
-      const ch = effectiveChangeForFearGreed(r, rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()]);
+      const ch = effectiveChangeForFearGreed(
+        r,
+        rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()],
+        period,
+      );
       if (ch != null && Number.isFinite(ch)) {
         sumC += ch;
         nc++;
@@ -1405,7 +1512,16 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       avgChangePct: nc ? sumC / nc : null,
       sumWatchers: sumW,
     };
-  }, [boardRows, rowSparklines]);
+  }, [boardRows, rowSparklines, period]);
+
+  const rowPeriodChanges = useMemo(() => {
+    const out: Record<string, number | null> = {};
+    for (const r of boardRows) {
+      const closes = rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()] ?? [];
+      out[r.symbol] = periodChangeForRow(r, closes, period);
+    }
+    return out;
+  }, [boardRows, rowSparklines, period]);
 
   const boardAvgSparkline = useMemo(
     () => averageClosesSeries(boardRows, rowSparklines, period === "daily" ? 48 : 24),
@@ -1448,7 +1564,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           c = cmpFinite(a.price, b.price);
           break;
         case "change":
-          c = cmpFinite(a.change_pct_snapshot, b.change_pct_snapshot);
+          c = cmpFinite(rowPeriodChanges[a.symbol] ?? Number.NaN, rowPeriodChanges[b.symbol] ?? Number.NaN);
           break;
         case "bias":
           c = biasSortOrder(a) - biasSortOrder(b);
@@ -1457,7 +1573,10 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           c = cmpFinite(a.strong_count, b.strong_count);
           break;
         case "upside":
-          c = cmpFinite(upsideTechnicalForSort(a, rowSparklines), upsideTechnicalForSort(b, rowSparklines));
+          c = cmpFinite(
+            upsideTechnicalForSort(a, rowSparklines, period),
+            upsideTechnicalForSort(b, rowSparklines, period),
+          );
           break;
         case "liquidity":
           c = cmpFinite(a.liquidity, b.liquidity);
@@ -1466,7 +1585,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           c = cmpFinite(a.people_watching, b.people_watching);
           break;
         case "trend":
-          c = cmpFinite(trendDeltaForSort(a, rowSparklines), trendDeltaForSort(b, rowSparklines));
+          c = cmpFinite(trendDeltaForSort(a, rowSparklines, period), trendDeltaForSort(b, rowSparklines, period));
           break;
         default:
           return 0;
@@ -1475,9 +1594,12 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       return a.symbol.localeCompare(b.symbol);
     });
     return next;
-  }, [boardRows, tableSort, rowSparklines]);
+  }, [boardRows, tableSort, rowSparklines, rowPeriodChanges, period]);
 
-  const fearGreed = useMemo(() => fearGreedFromBoardRows(boardRows), [boardRows]);
+  const fearGreed = useMemo(() => {
+    if (period === "daily") return fearGreedFromBoardRows(boardRows);
+    return fearGreedFromChangePct(boardAggregates?.avgChangePct);
+  }, [boardRows, period, boardAggregates?.avgChangePct]);
 
   const headerStatsReady = !boardLoading && boardRows.length > 0 && boardAggregates != null;
 
@@ -1494,11 +1616,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               className="w-[7.5rem] shrink-0"
               options={[
                 { id: "daily", label: "Daily" },
-                { id: "yearly", label: "Yearly" },
+                { id: "annual", label: "Annual" },
               ]}
               selected={{
                 id: period,
-                label: period === "daily" ? "Daily" : "Yearly",
+                label: period === "daily" ? "Daily" : "Annual",
               }}
               onSelect={(opt) => setPeriod(opt.id as Period)}
             />
@@ -1665,6 +1787,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                       rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()] ?? EMPTY_SPARKLINE_VALUES
                     }
                     sparklinesLoading={sparklinesLoading}
+                    periodChangePct={rowPeriodChanges[r.symbol] ?? null}
+                    periodLabel={periodChangeLabel(period)}
                   />
                 ))}
               </div>
@@ -1690,8 +1814,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="24h %"
-                          title="Change vs the previous daily close from the data feed."
+                          label={periodChangeLabel(period)}
+                          title={periodChangeTitle(period)}
                           columnKey="change"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1700,7 +1824,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                         />
                         <BoardSortHeader
                           label="Stance"
-                          title="Blend of model signals (strength + multi-factor scores). Shown separately from the 24h % column."
+                          title={`Blend of model signals (strength + multi-factor scores). Shown separately from the ${periodChangeLabel(period)} column.`}
                           columnKey="bias"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1763,6 +1887,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                             rowSparklines[r.symbol] ?? rowSparklines[r.symbol.toUpperCase()] ?? EMPTY_SPARKLINE_VALUES
                           }
                           sparklinesLoading={sparklinesLoading}
+                          periodChangePct={rowPeriodChanges[r.symbol] ?? null}
                           onRowEnter={onBoardTableRowEnter}
                           onRowMove={onBoardTableRowMove}
                           onRowLeave={onBoardTableRowLeave}
@@ -1775,7 +1900,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                   <span className="tablet:hidden">Tap a name for the company profile. Averages are shown in the header.</span>
                   <span className="hidden tablet:inline">
                     Hover a row to preview radar; click the card or the company name to open the full profile. Trend lines
-                    refresh with price history; the 24h % column updates with live quotes.
+                    follow Daily or Annual; the change column uses live quotes in Daily mode only.
                   </span>
                 </p>
 
@@ -1785,8 +1910,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                   </summary>
                   <ul className={`mt-2 list-inside list-disc space-y-1.5 text-[10px] leading-relaxed ${C.muted}`}>
                     <li>
-                      <strong className="text-white/80">Fear &amp; Greed</strong> maps the list&apos;s average daily move
-                      into a 0–100 gauge (extreme fear to greed).
+                      <strong className="text-white/80">Fear &amp; Greed</strong> maps the list&apos;s average move for
+                      the selected period into a 0–100 gauge (extreme fear to greed).
                     </li>
                     <li>
                       <strong className="text-white/80">Trend</strong> uses recent closing prices; color shows whether that
@@ -1803,7 +1928,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                     </li>
                     <li>
                       <strong className="text-white/80">Stance</strong> summarizes the model outlook; it does not replace
-                      the live 24h % move column.
+                      the {periodChangeLabel(period)} column.
                     </li>
                   </ul>
                 </details>
@@ -1832,7 +1957,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               <h3 className="text-sm font-semibold">Avg move (list)</h3>
             </div>
             <p className={`mt-2 text-xs ${C.muted}`}>
-              Average daily move across the list — same basis as the Fear &amp; Greed chip above.
+              Average {period === "daily" ? "daily" : "annual"} move across the list — same basis as the Fear &amp; Greed
+              chip above.
             </p>
             {headerStatsReady && boardAggregates?.avgChangePct != null ? (
               <p
@@ -1852,7 +1978,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               <h3 className="text-sm font-semibold">Avg close trajectory</h3>
             </div>
             <p className={`mt-2 text-xs ${C.muted}`}>
-              Blended path of recent closes across the list. Use Daily / Yearly to change the window.
+              Blended path of recent closes across the list. Use Daily / Annual to change the window.
             </p>
             {avgMarketCandleInsights ? (
               <div className="mt-3 space-y-2 text-xs">
@@ -1949,7 +2075,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             <div className="pointer-events-none">
               <BeginnerRadarChart
                 data={hoverRadarRow.radar}
-                fearGreed={fearGreedFromChangePct(hoverRadarRow.change_pct_snapshot)}
+                fearGreed={fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol] ?? undefined)}
               />
             </div>
           </Link>,

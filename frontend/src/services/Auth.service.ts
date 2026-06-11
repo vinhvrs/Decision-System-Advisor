@@ -52,16 +52,11 @@ export const AuthService = {
     },
 
     login: async (data: { email: string; password: string; remember?: boolean }) => {
-        try {
-            const response = await api.post(`/auth/login`, data);
-            const token = response.data.token;
-            const mappedData = userMapper(response.data.user);
-            persistSession(token, mappedData);
-            return mappedData;
-        } catch (error) {
-            console.error("Error during login:", error);
-            throw error;
-        }
+        const response = await api.post(`/auth/login`, data);
+        const token = response.data.token;
+        const mappedData = userMapper(response.data.user);
+        persistSession(token, mappedData);
+        return mappedData;
     },
 
     loginAdmin: async (data: { email: string; password: string; remember?: boolean }) => {
@@ -83,7 +78,6 @@ export const AuthService = {
             return mappedData;
         } catch (error: any) {
             if (error?.message === "FORBIDDEN") throw error;
-            console.error("Admin login error:", error);
             throw error;
         }
     },

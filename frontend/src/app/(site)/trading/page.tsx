@@ -65,7 +65,7 @@ export default function TradingHomePage() {
       >
         <div className="mx-auto max-w-screen-xl space-y-6 phone:space-y-8">
           <div className="px-4 phone:px-5 tablet:px-6">
-            <h2 className="text-xl font-bold phone:text-2xl">Stock Dashboard</h2>
+            <h2 className="text-xl font-bold phone:text-2xl">Stock investing</h2>
             <p className="mt-1 text-sm text-white/70 phone:text-base">
               Real-time market chart and assistant.
             </p>

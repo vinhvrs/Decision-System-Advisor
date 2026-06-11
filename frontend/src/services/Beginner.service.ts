@@ -35,6 +35,7 @@ export type BeginnerBoardRow = {
   radar: BeginnerRadarPoint[];
   liquidity: number;
   volume: number;
+  market_cap?: number | null;
   people_watching: number;
   price: number;
   candle_move_abs_pct: number;
@@ -89,6 +90,7 @@ export type TopByVolumePayload = {
 type CachedEnvelope<T> = { ts: number; data: T };
 
 export const BOARD_CACHE_KEY = "beginner:dashboard-daily:v2";
+export const DASHBOARD_RADAR_ROWS_CACHE_KEY = "beginner:dashboard-radar-rows:v1";
 
 /** Call when ``dashboard:daily`` is pushed over WebSocket so the next HTTP fetch is not stale. */
 export function invalidateDashboardDailyCache(): void {
@@ -129,6 +131,40 @@ function writeCache<T>(key: string, data: T): void {
   } catch {
     // Ignore localStorage quota / serialization issues.
   }
+}
+
+export function cacheDashboardRadarRows(rows: BeginnerBoardRow[], updatedAt?: string | null): void {
+  const bySymbol: Record<string, BeginnerBoardRow> = {};
+  for (const row of rows) {
+    const sym = String(row?.symbol || "").trim().toUpperCase();
+    if (sym) bySymbol[sym] = row;
+  }
+  writeCache(DASHBOARD_RADAR_ROWS_CACHE_KEY, { updated_at: updatedAt ?? null, rows: bySymbol });
+}
+
+export function readCachedDashboardRadarRow(symbol: string, maxAgeMs = 30 * 60_000): BeginnerBoardRow | null {
+  const sym = String(symbol || "").trim().toUpperCase();
+  if (!sym) return null;
+
+  const direct = readCache<{ updated_at?: string | null; rows?: Record<string, BeginnerBoardRow> }>(
+    DASHBOARD_RADAR_ROWS_CACHE_KEY
+  );
+  if (direct && isFresh(direct.ts, maxAgeMs)) {
+    const row = direct.data?.rows?.[sym];
+    if (row?.radar?.length) return row;
+  }
+
+  const board = readCache<BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] }>(BOARD_CACHE_KEY);
+  if (board && isFresh(board.ts, maxAgeMs)) {
+    const rows =
+      Array.isArray(board.data?.rows) && board.data.rows.length > 0
+        ? board.data.rows
+        : board.data?.ranking_board ?? [];
+    const row = rows.find((r) => String(r.symbol || "").trim().toUpperCase() === sym);
+    if (row?.radar?.length) return row;
+  }
+
+  return null;
 }
 
 function isFresh(ts: number, maxAgeMs: number): boolean {

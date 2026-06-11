@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { TicketsWithPnl, Tickets } from "@/src/types/Tickets";
 import { useClosedHistory } from "@/src/hooks/useClosedHistory";
+import { calcTicketProfit } from "@/src/libs/tradingPnl";
 
 interface PositionsPanelProps {
   positions: TicketsWithPnl[];
@@ -12,20 +13,6 @@ interface PositionsPanelProps {
   closePosition: (id: string, price?: number) => Promise<void>;
   /** Real-time price per symbol (e.g. from socket). Used to compute live PnL. */
   currentPriceBySymbol?: Record<string, number>;
-}
-
-function calcLiveProfit(
-  type: "Buy" | "Sell",
-  openPrice: number,
-  currentPrice: number,
-  volume: number,
-  leverage: number
-): number {
-  if (!Number.isFinite(openPrice) || openPrice <= 0 || !Number.isFinite(currentPrice)) return 0;
-  const mult = (volume * (leverage || 1)) / openPrice;
-  return type.toLowerCase() === "buy"
-    ? (currentPrice - openPrice) * mult
-    : (openPrice - currentPrice) * mult;
 }
 
 export default function PositionsPanel({
@@ -218,7 +205,7 @@ function PositionRow({
   const displayPrice = currentPrice ?? position.current_price ?? openPrice;
   const profit =
     currentPrice != null && Number.isFinite(currentPrice)
-      ? calcLiveProfit(position.type, openPrice, currentPrice, vol, lev)
+      ? calcTicketProfit(position.type, openPrice, currentPrice, vol, lev)
       : position.profit ?? null;
 
   const pnlColor =

@@ -2,10 +2,13 @@
 
 namespace Platform\Plugins\Trading\Src\Services;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class NewsService
 {
+    private const SYMBOL_NEWS_FRESH_DAYS = 14;
+
     public function __construct()
     {
         
@@ -98,7 +101,80 @@ class NewsService
                 ->get();
         }
 
+        if ($rows->isEmpty() || $this->isStaleSymbolFeed($rows->first())) {
+            $relatedRows = $this->latestRelatedRows($sym, $selectCols, $limit);
+            if ($relatedRows->isNotEmpty()) {
+                return $relatedRows;
+            }
+        }
+
         return $rows;
+    }
+
+    private function latestRelatedRows(string $symbol, array $selectCols, int $limit)
+    {
+        $terms = $this->symbolSearchTerms($symbol);
+        if ($terms === []) {
+            return collect();
+        }
+
+        $freshCutoff = now()->subDays(self::SYMBOL_NEWS_FRESH_DAYS);
+
+        $rows = DB::table('knowledge_docs')
+            ->select($selectCols)
+            ->where(function ($q) use ($terms) {
+                foreach ($terms as $term) {
+                    $like = '%'.$term.'%';
+                    $q->orWhere('title', 'like', $like);
+                }
+            })
+            ->whereRaw('COALESCE(published_at, created_at) >= ?', [$freshCutoff])
+            ->orderByRaw('COALESCE(published_at, created_at) DESC')
+            ->limit($limit)
+            ->get();
+
+        return $rows->map(function ($row) use ($symbol) {
+            $row->symbol = $symbol;
+            return $row;
+        });
+    }
+
+    private function symbolSearchTerms(string $symbol): array
+    {
+        $terms = [$symbol];
+        $profile = DB::table('company_profile')
+            ->whereRaw('UPPER(TRIM(symbol)) = ?', [$symbol])
+            ->first(['company_name']);
+
+        $name = trim((string) ($profile->company_name ?? ''));
+        if ($name !== '') {
+            $terms[] = $name;
+            $base = preg_replace('/\b(inc|incorporated|corporation|corp|company|co|ltd|limited|plc|class|common|stock)\b\.?/i', '', $name);
+            $base = trim((string) preg_replace('/\s+/', ' ', (string) $base));
+            if ($base !== '' && mb_strlen($base) >= 4) {
+                $terms[] = $base;
+            }
+        }
+
+        return array_values(array_unique(array_filter($terms, fn ($t) => trim((string) $t) !== '')));
+    }
+
+    private function isStaleSymbolFeed($row): bool
+    {
+        if (! $row) {
+            return true;
+        }
+
+        $raw = $row->published_at ?? $row->created_at ?? null;
+        if ($raw === null || $raw === '') {
+            return true;
+        }
+
+        try {
+            return Carbon::parse($raw)->lt(now()->subDays(self::SYMBOL_NEWS_FRESH_DAYS));
+        } catch (\Throwable) {
+            return true;
+        }
     }
 
 }

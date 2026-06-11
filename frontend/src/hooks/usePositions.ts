@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   TradingServices,
+  isTicketAlreadyClosedError,
 } from "@/src/services/Trading.service";
 import type { TicketsWithPnl } from "@/src/types/Tickets";
 import {
@@ -70,9 +71,14 @@ export function usePositions(perPage = 100) {
       setPositions((prev) => prev.filter((p) => p.id !== ticketId));
       try {
         await TradingServices.closeTicket(ticketId, closePrice);
+        window.dispatchEvent(new CustomEvent("ticket-changed"));
       } catch (e) {
-        console.error("Close position failed:", e);
-        await fetchPositions();
+        if (!isTicketAlreadyClosedError(e)) {
+          console.error("Close position failed:", e);
+          await fetchPositions();
+        } else {
+          window.dispatchEvent(new CustomEvent("ticket-changed"));
+        }
       }
     },
     [fetchPositions]

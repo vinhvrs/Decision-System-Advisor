@@ -4,6 +4,7 @@ import { Menu, Search, X, LogIn, UserPlus, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import SiteLogo from "@/src/components/brand/SiteLogo";
 import UserProfileDropdown from "../../sections/UserProfileDropdown";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
 import { SITE_NAV_LINKS, SITE_NAV_ACTIVE_ALIASES } from "@/src/components/header/nav-config";
@@ -140,17 +141,15 @@ export default function Header() {
   return (
     <header
       className={[
-        "sticky top-0 z-50 border-b transition",
+        "sticky top-0 z-50 overflow-visible border-b transition",
         isScrolled
           ? "bg-[#0b0e14]/90 backdrop-blur-md border-white/10"
           : "bg-transparent border-transparent",
       ].join(" ")}
     >
-      <div className="mx-auto flex h-14 max-w-[100vw] items-center justify-between gap-2 overflow-hidden px-3 phone:h-16 phone:px-4 tablet:gap-3 tablet:px-6 laptop:px-8">
+      <div className="mx-auto flex h-14 max-w-[100vw] items-center justify-between gap-2 overflow-visible px-3 phone:h-16 phone:px-4 tablet:gap-3 tablet:px-6 laptop:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 tablet:gap-4 laptop:gap-6">
-          <Link href="/" className="text-xl phone:text-2xl font-black tracking-tighter text-white">
-            DSA<span className="text-indigo-500">.</span>
-          </Link>
+          <SiteLogo priority />
 
           <div ref={searchRef} className="relative hidden md:block w-64 lg:w-96">
             <input

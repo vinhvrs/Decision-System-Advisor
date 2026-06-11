@@ -6,7 +6,12 @@ import dynamic from "next/dynamic";
 
 import BeginnerRadarChart from "@/src/app/(site)/test/BeginnerRadarChart";
 import { fearGreedFromChangePct } from "@/src/libs/fearGreed";
-import { BeginnerService, type BeginnerFormalRadarPayload } from "@/src/services/Beginner.service";
+import {
+  BeginnerService,
+  readCachedDashboardRadarRow,
+  type BeginnerBoardRow,
+  type BeginnerFormalRadarPayload,
+} from "@/src/services/Beginner.service";
 
 /** Legacy 6-axis chart when no symbol (0–100, profile heuristics). */
 const LegacyRadarChartClient = dynamic(
@@ -161,16 +166,44 @@ const FundamentalRadar = memo(
     details,
   }: FundamentalRadarProps) => {
     const [formal, setFormal] = useState<BeginnerFormalRadarPayload | null>(null);
+    const [dashboardRow, setDashboardRow] = useState<BeginnerBoardRow | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-      const sym = symbol?.trim();
-      if (!sym) {
-        setFormal(null);
-        return;
-      }
+      const sym = symbol?.trim().toUpperCase();
       let cancelled = false;
-      setLoading(true);
+      const timer = window.setTimeout(() => {
+        if (cancelled) return;
+        if (!sym) {
+          setFormal(null);
+          setDashboardRow(null);
+          return;
+        }
+        setDashboardRow(readCachedDashboardRadarRow(sym));
+        setLoading(true);
+      }, 0);
+
+      if (!sym) {
+        return () => {
+          cancelled = true;
+          window.clearTimeout(timer);
+        };
+      }
+
+      BeginnerService.getDashboardDaily({ maxAgeMs: 30_000, staleWhileRevalidateMs: 10 * 60_000 })
+        .then((payload) => {
+          if (cancelled) return;
+          const rows =
+            Array.isArray(payload?.rows) && payload.rows.length > 0
+              ? payload.rows
+              : (payload as (typeof payload & { ranking_board?: BeginnerBoardRow[] }) | null)?.ranking_board ?? [];
+          const row = rows.find((r) => String(r.symbol || "").trim().toUpperCase() === sym);
+          if (row?.radar?.length) setDashboardRow(row);
+        })
+        .catch(() => {
+          /* keep cached/formal fallback */
+        });
+
       BeginnerService.getFormalRadar(sym.toUpperCase(), poolLimit)
         .then((d) => {
           if (!cancelled) setFormal(d);
@@ -180,6 +213,7 @@ const FundamentalRadar = memo(
         });
       return () => {
         cancelled = true;
+        window.clearTimeout(timer);
       };
     }, [symbol, poolLimit]);
 
@@ -189,6 +223,16 @@ const FundamentalRadar = memo(
     }, [details]);
 
     if (symbol?.trim()) {
+      if (dashboardRow?.radar?.length) {
+        return (
+          <BeginnerRadarChart
+            data={dashboardRow.radar}
+            fearGreed={showFearGreed ? fearGreedFromChangePct(dashboardRow.change_pct_snapshot) : null}
+            variant={compact ? "compact" : "default"}
+          />
+        );
+      }
+
       if (loading) {
         return (
           <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>

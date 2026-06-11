@@ -13,15 +13,12 @@ import {
   Newspaper,
   Layers,
   Building2,
-  Briefcase,
   Link as LinkIcon,
   Activity,
   ChevronRight,
   Info,
   Star,
   Share2,
-  MessageCircle,
-  Heart,
 } from "lucide-react";
 
 import TradingChart from "@/src/components/charts/page";
@@ -47,7 +44,6 @@ type ProfileMainTab = "chart" | "markets" | "news" | "holders" | "fundamentals" 
 
 const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
-  { id: "weekly", label: "Weekly" },
   { id: "monthly", label: "Monthly" },
   { id: "yearly", label: "Yearly" },
 ];
@@ -145,6 +141,10 @@ function formatDate(dateStr?: string | null) {
   });
 }
 
+function formatNewsDate(item: any) {
+  return formatDate(item?.published_at || item?.created_at);
+}
+
 function newsPublishedMs(item: any): number {
   const raw = item?.published_at || item?.created_at;
   if (!raw) return 0;
@@ -160,6 +160,11 @@ function sortNewsByDateDesc(items: any[] | null | undefined): any[] {
 function truncateText(text: string, max = 220) {
   if (!text) return "";
   return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function sourceBadgeText(label: string) {
+  const letter = label.match(/[A-Za-z]/)?.[0];
+  return (letter || "N").toUpperCase();
 }
 
 function formatUsdStat(n: number): string {
@@ -257,7 +262,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
-  const [chartLoading, setChartLoading] = useState(false);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlisted, setWatchlisted] = useState(false);
   const [sentimentBull, setSentimentBull] = useState(42);
@@ -311,6 +315,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
     marketCap > 0 && volUsdEst > 0 ? (volUsdEst / marketCap) * 100 : null;
 
   const profileScore = useMemo(() => computeProfileScore(details), [details]);
+  const sidebarNews = useMemo(() => sortNewsByDateDesc(news).slice(0, 8), [news]);
+  const latestNewsMs = sidebarNews.length ? newsPublishedMs(sidebarNews[0]) : 0;
+  const hasRecentSidebarNews =
+    latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
   const sentimentTotal = sentimentBull + sentimentBear;
   const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
@@ -432,7 +440,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const requestId = ++candleRequestIdRef.current;
 
     try {
-      setChartLoading(true);
       setRealtimeCandle(null);
 
       const raw = await InstrumentService.getInstrumentData(ticker, period, 1000, 1);
@@ -445,10 +452,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
       if (requestId !== candleRequestIdRef.current) return;
       console.error("Fetch candles failed:", error);
       setCandles([]);
-    } finally {
-      if (requestId === candleRequestIdRef.current) {
-        setChartLoading(false);
-      }
     }
   }, []);
 
@@ -1105,61 +1108,77 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </div>
             </div>
 
-            <div className={`rounded-xl ${CMC.card} flex min-h-[200px] flex-1 flex-col overflow-hidden`}>
-              <div className={`flex items-center justify-between border-b ${CMC.line} px-3 py-2`}>
-                <span className="text-xs font-bold text-white">Latest</span>
-                <span className={`text-[10px] ${CMC.muted}`}>Newest first</span>
+            <div className={`rounded-xl ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
+              <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
+                <div className="min-w-0">
+                  <span className="block text-xs font-bold text-white">Latest</span>
+                  <span className={`block truncate text-[10px] ${CMC.muted}`}>
+                    {hasRecentSidebarNews ? "Newest first" : "Archived headlines"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMainTab("news")}
+                  className="shrink-0 rounded-md border border-[#3861fb]/30 px-2 py-1 text-[10px] font-bold text-[#7b9cff] transition hover:bg-[#3861fb]/10"
+                >
+                  View all
+                </button>
               </div>
-              <div className="flex-1 space-y-3 overflow-y-auto p-3">
-                {news.map((item, idx) => (
-                  <div key={item.id || idx} className={`rounded-lg border ${CMC.line} bg-black/20 p-3`}>
-                    <div className="flex gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#3861fb]/20 text-[10px] font-bold text-[#7b9cff]">
-                        {(newsSourceLabel(item).slice(0, 1) || "N").toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="truncate text-xs font-bold text-white">{newsSourceLabel(item)}</span>
-                          <span className={`shrink-0 text-[10px] ${CMC.muted}`}>{formatDate(item.published_at)}</span>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-white/90">
-                          <span className="text-[#3861fb]">${symbol}</span> {truncateText(item.title || "", 120)}
-                        </p>
-                        <div className="mt-2 flex items-center gap-3 text-[#848e9c]">
-                          <span className="inline-flex items-center gap-0.5 text-[10px]">
-                            <Heart className="h-3.5 w-3.5" /> —
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-[10px]">
-                            <MessageCircle className="h-3.5 w-3.5" /> —
-                          </span>
+              <div className="flex-1 space-y-2 overflow-y-auto p-3">
+                {sidebarNews.map((item, idx) => {
+                  const { kind, href } = resolveNewsHref(item);
+                  const label = newsSourceLabel(item);
+                  const thumb = pickNewsThumbImage(item);
+                  const itemSymbol = String(item?.symbol || symbol).trim().toUpperCase();
+                  const content = (
+                    <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
+                      <div className="flex gap-3">
+                        {thumb ? (
+                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
+                            <img src={thumb} alt="" className="h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3861fb]/15 text-[#7b9cff]">
+                            <Newspaper className="h-4 w-4" aria-hidden />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#3861fb]/20 text-[9px] font-bold text-[#9bb4ff]">
+                              {sourceBadgeText(label)}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white">
+                              {label}
+                            </span>
+                            <span className={`shrink-0 text-[10px] ${CMC.muted}`}>{formatNewsDate(item)}</span>
+                          </div>
+                          <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-white/90">
+                            <span className="font-semibold text-[#7b9cff]">${itemSymbol || symbol}</span>{" "}
+                            {truncateText(item.title || "", 140)}
+                          </p>
                         </div>
                       </div>
                     </div>
+                  );
+                  if (kind === "external") {
+                    return (
+                      <a key={item.id || idx} href={href} target="_blank" rel="noreferrer" className="block">
+                        {content}
+                      </a>
+                    );
+                  }
+                  return (
+                    <Link key={item.id || idx} href={href} className="block">
+                      {content}
+                    </Link>
+                  );
+                })}
+                {sidebarNews.length === 0 ? (
+                  <div className={`rounded-lg border ${CMC.line} bg-[#0d1621]/70 px-4 py-8 text-center`}>
+                    <Newspaper className="mx-auto mb-3 h-5 w-5 text-[#7b9cff]" aria-hidden />
+                    <p className={`text-xs ${CMC.muted}`}>No headlines for {symbol} yet.</p>
                   </div>
-                ))}
-                {news.length === 0 ? (
-                  <p className={`py-6 text-center text-xs ${CMC.muted}`}>No headlines yet — try the News tab in the toolbar.</p>
                 ) : null}
-              </div>
-              <div className={`border-t ${CMC.line} p-3`}>
-                <div className="flex gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2b3139] text-[10px] font-bold text-[#848e9c]">
-                    You
-                  </div>
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder={`Share your take on ${symbol}…`}
-                    className={`min-w-0 flex-1 rounded-lg border ${CMC.line} bg-[#0b0e11] px-3 py-2 text-xs text-white placeholder:text-[#5e6673]`}
-                  />
-                  <button
-                    type="button"
-                    disabled
-                    className="shrink-0 rounded-lg bg-[#3861fb]/40 px-3 py-2 text-xs font-bold text-white/70"
-                  >
-                    Post
-                  </button>
-                </div>
               </div>
             </div>
           </aside>

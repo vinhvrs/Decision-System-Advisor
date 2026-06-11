@@ -20,8 +20,22 @@ class CompanyService
 
     public function getProfileBySymbol(string $symbol)
     {
-        $company = DB::table('company_profile')
-            ->where('symbol', $symbol)
+        $sym = strtoupper(trim($symbol));
+
+        $company = DB::table('company_profile as cp')
+            ->leftJoin('instrument_snapshot as s', function ($join) {
+                $join->on(DB::raw('UPPER(s.symbol)'), '=', DB::raw('UPPER(cp.symbol)'));
+            })
+            ->whereRaw('UPPER(cp.symbol) = ?', [$sym])
+            ->select([
+                'cp.*',
+                's.price as snapshot_price',
+                's.volume as snapshot_volume',
+                's.liquidity as snapshot_liquidity',
+                's.market_cap as market_cap',
+                's.change_pct as snapshot_change_pct',
+                's.updated_at as snapshot_updated_at',
+            ])
             ->first();
         return $company;
     }
@@ -44,9 +58,21 @@ class CompanyService
             return collect();
         }
 
-        return DB::table('company_profile')
-            ->where('sector', $sector)
-            ->where('symbol', '!=', $excludeSymbol)
+        return DB::table('company_profile as cp')
+            ->leftJoin('instrument_snapshot as s', function ($join) {
+                $join->on(DB::raw('UPPER(s.symbol)'), '=', DB::raw('UPPER(cp.symbol)'));
+            })
+            ->where('cp.sector', $sector)
+            ->whereRaw('UPPER(cp.symbol) != ?', [strtoupper(trim($excludeSymbol))])
+            ->select([
+                'cp.*',
+                's.price as snapshot_price',
+                's.volume as snapshot_volume',
+                's.liquidity as snapshot_liquidity',
+                's.market_cap as market_cap',
+                's.change_pct as snapshot_change_pct',
+                's.updated_at as snapshot_updated_at',
+            ])
             ->limit($limit)
             ->get();
     }

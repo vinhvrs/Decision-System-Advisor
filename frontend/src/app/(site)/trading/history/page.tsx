@@ -65,11 +65,9 @@ type AdviceRow = {
 };
 
 const SPEED_INTERVAL_MS: Record<Speed, number> = {
-  // 1x means one candle every 15 seconds.
-  1: 15_000,
-  // 2x, 4x are faster multiples.
-  2: 7_500,
-  4: 3_750,
+  1: 700,
+  2: 350,
+  4: 150,
 };
 
 const INITIAL_VISIBLE_BARS = 20;
@@ -186,10 +184,6 @@ const DEMO_HISTORY_ADVICE_BASE: Omit<AdviceRow, "asOf">[] = [
   { symbol: "JNJ", value: 4.0, quality: 4.4, growth: 3.2, momentum: 2.8, stability: 4.8, sentiment: 3.5, advice: "KEEP", note: "Lower growth but strong stability for long-horizon allocation." },
 ];
 
-function toDayMs(days: number): number {
-  return days * 24 * 60 * 60 * 1000;
-}
-
 function shiftDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
@@ -218,6 +212,11 @@ function fmtMoney(v: number, currency: CurrencyCode): string {
 
 function investingSideLabel(side: OrderSide): string {
   return side === "buy" ? "Accumulate" : "Reduce";
+}
+
+function replayStartCursor(length: number): number {
+  if (length <= 0) return 0;
+  return Math.min(Math.max(0, INITIAL_VISIBLE_BARS - 1), length - 1);
 }
 
 function buildPaperRunKey(parts: {
@@ -424,6 +423,14 @@ export default function TradingHistoryPage() {
     setAutoRunning(false);
   };
 
+  const startAuto = () => {
+    if (autoRunning || bars.length < 2) return;
+    if (!canStep) {
+      setCursor(replayStartCursor(bars.length));
+    }
+    setAutoRunning(true);
+  };
+
   const applyHorizonPreset = (preset: HorizonPreset) => {
     const nextFrom = shiftDays(toDate || today, -HORIZON_DAYS[preset]);
     setHorizonPreset(preset);
@@ -541,7 +548,7 @@ export default function TradingHistoryPage() {
         InstrumentService.getHistoryAdvice(sym, fromDate, toDate).catch(() => []),
       ]);
       setHistoryAdviceApiRows(Array.isArray(advicePayload) ? (advicePayload as HistoryAdviceApiRow[]) : []);
-      let scoped = [...historyRows]
+      const scoped = [...historyRows]
         .filter((r) => Number.isFinite(Number(r.close)))
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
@@ -689,7 +696,6 @@ export default function TradingHistoryPage() {
     stopAuto();
     if (!seedBars.length) return;
     setRawBars(seedBars);
-    // Keep full-range visibility after reset; replay controls can still step when target is adjusted.
     setCursor(Math.max(0, seedBars.length - 1));
     cashRef.current = startingCash;
     sharesRef.current = 0;
@@ -990,12 +996,12 @@ export default function TradingHistoryPage() {
               <button onClick={stepForward} disabled={!canStep} className="rounded bg-[#1f2937] px-2.5 py-1 text-xs text-white disabled:opacity-60">Next</button>
               <span className="text-[10px] text-white/70">Speed:</span>
               <select value={String(speed)} onChange={(e) => setSpeed(Number(e.target.value) as Speed)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs">
-                <option value="1">1x (15s/candle)</option>
-                <option value="2">2x (7.5s/candle)</option>
-                <option value="4">4x (3.75s/candle)</option>
+                <option value="1">1x (0.7s/candle)</option>
+                <option value="2">2x (0.35s/candle)</option>
+                <option value="4">4x (0.15s/candle)</option>
               </select>
               <input type="date" min={fromDate || undefined} max={toDate || undefined} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
-              <button onClick={() => setAutoRunning(true)} disabled={!canStep || autoRunning} className="rounded bg-[#2563eb] px-2 py-1 text-xs font-semibold disabled:opacity-60">Speed Up</button>
+              <button onClick={startAuto} disabled={bars.length < 2 || autoRunning} className="rounded bg-[#2563eb] px-2 py-1 text-xs font-semibold disabled:opacity-60">Speed Up</button>
               <button onClick={stopAuto} disabled={!autoRunning} className="rounded bg-[#1f2937] px-2 py-1 text-xs disabled:opacity-60">Stop</button>
             </div>
             <p className="mt-2 text-[10px] text-white/70">
@@ -1083,4 +1089,3 @@ export default function TradingHistoryPage() {
     </div>
   );
 }
-

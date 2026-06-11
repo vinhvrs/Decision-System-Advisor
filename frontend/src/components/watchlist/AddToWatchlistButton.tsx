@@ -43,6 +43,8 @@ export default function AddToWatchlistButton({ symbol, className = "" }: AddToWa
 
   const isDisabled = listLoading || adding;
 
+  if (!listLoading && inList) return null;
+
   return (
     <div className={`relative ${className}`}>
       <button

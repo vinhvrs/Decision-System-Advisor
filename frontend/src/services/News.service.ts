@@ -17,9 +17,16 @@ class NewsService {
                     perPage: paginated?.per_page ?? params?.per_page ?? 15,
                 },
             };
-        } catch (error) {
-            console.error('Error fetching news:', error);
-            throw error;
+        } catch {
+            return {
+                data: [],
+                pagination: {
+                    currentPage: params?.page ?? 1,
+                    totalPages: 1,
+                    totalItems: 0,
+                    perPage: params?.per_page ?? 15,
+                },
+            };
         }
     }
 

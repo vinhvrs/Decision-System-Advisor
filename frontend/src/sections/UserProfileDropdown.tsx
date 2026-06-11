@@ -1,132 +1,163 @@
 "use client";
 
-import { useState, useRef, useEffect, memo } from 'react';
-import { ChevronDown, Settings, LogOut, Loader2, Shield } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { AuthService } from '../services/Auth.service';
+import { useState, useRef, useEffect, memo, useCallback } from "react";
+import { ChevronDown, Settings, LogOut, Loader2, Shield } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AuthService } from "../services/Auth.service";
 import { stripParentheticals } from "@/src/libs/displayString";
 
 interface User {
-    id: string;
-    name: string;
-    username: string;
-    email: string;
-    phone?: string;
-    role?: string;
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  phone?: string;
+  role?: string;
 }
 
 interface UserProfileDropdownProps {
-    user: User;
+  user: User;
 }
 
 function UserProfileDropdown({ user }: UserProfileDropdownProps) {
-    const router = useRouter();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Xử lý đóng dropdown khi click ra ngoài
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+  const close = useCallback(() => setIsOpen(false), []);
 
-    const handleLogout = async () => {
-        setIsLoggingOut(true);
-        setIsOpen(false);
-        try {
-            await AuthService.logout();
-            router.replace("/auth/login");
-        } catch (error) {
-            console.error("Logout failed:", error);
-            alert("Đăng xuất thất bại. Vui lòng thử lại.");
-        } finally {
-            setIsLoggingOut(false);
-        }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        close();
+      }
     };
-
-    // Hàm lấy chữ cái đầu của tên (ví dụ: "Nguyễn Văn A" -> N)
-    const getInitial = (name: string): string => {
-        if (!name) return 'U';
-        return name.trim().charAt(0).toUpperCase();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [close]);
 
-    const displayName = stripParentheticals(user.name || "").trim() || user.name || "User";
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    close();
+    try {
+      await AuthService.logout();
+      router.replace("/auth/login");
+    } catch {
+      alert("Sign out failed. Please try again.");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
-    return (
-        <div className="relative" ref={dropdownRef}>
-            {/* Nút chính hiển thị Tên và Icon */}
-            <button
-                className="flex items-center gap-2 rounded-full px-2 py-1.5 text-white hover:bg-white/10 transition duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
-                onClick={() => setIsOpen(!isOpen)}
-                disabled={isLoggingOut} // Vô hiệu hóa khi đang xử lý đăng xuất
-            >
-                {/* Tên Người Dùng */}
-                <span className="hidden sm:block font-semibold text-white/90">
-                    {displayName}
-                </span>
-                {/* Avatar Initial */}
-                <div className="w-8 h-8 rounded-full bg-white/15 text-indigo-200 flex items-center justify-center font-bold text-sm">
-                    {getInitial(displayName)}
-                </div>
-                {/* Icon Dropdown */}
-                <ChevronDown size={18} className="text-white/70" />
-            </button>
+  const getInitial = (name: string): string => {
+    if (!name) return "U";
+    return name.trim().charAt(0).toUpperCase();
+  };
 
-            {/* Menu Dropdown */}
-            {isOpen && (
-                <div
-                    className="absolute right-0 mt-3 w-56 bg-white border border-gray-200 rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1"
-                >
-                    <div className="px-4 py-2 text-sm text-gray-500 border-b mb-1">
-                        Signed in as <span className="font-medium text-gray-800 break-words">{user.email}</span>
-                    </div>
+  const displayName =
+    stripParentheticals(user.name || "").trim() ||
+    user.username?.trim() ||
+    user.email?.split("@")[0] ||
+    "User";
 
-                    {/* Account Settings */}
-                    <Link 
-                        href="/profile" 
-                        onClick={() => setIsOpen(false)}
-                        className="flex items-center px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600"
-                    >
-                        <Settings size={18} className="mr-3" />
-                        Account Settings
-                    </Link>
+  const menuItemClass =
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/80 transition hover:bg-white/5 hover:text-white";
 
-                    {/* Admin Dashboard */}
-                    {(user.role === 'admin' || user.role === 'staff') && (
-                        <Link 
-                            href="/admin" 
-                            onClick={() => setIsOpen(false)}
-                            className="flex items-center px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600"
-                        >
-                            <Shield size={18} className="mr-3" />
-                            Admin Dashboard
-                        </Link>
-                    )}
-
-                    {/* Log Out */}
-                    <button 
-                        onClick={handleLogout} 
-                        disabled={isLoggingOut}
-                        className="flex w-full items-center px-4 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                        {isLoggingOut ? (
-                            <Loader2 size={18} className="mr-3 animate-spin" />
-                        ) : (
-                            <LogOut size={18} className="mr-3" />
-                        )}
-                        {isLoggingOut ? 'Logging out...' : 'Log Out'}
-                    </button>
-                </div>
-            )}
+  return (
+    <div className="relative z-[60]" ref={dropdownRef}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        className={[
+          "flex items-center gap-2 rounded-full border px-2 py-1.5 text-white transition duration-150",
+          "focus:outline-none focus:ring-2 focus:ring-indigo-500/60",
+          isOpen
+            ? "border-white/20 bg-white/10"
+            : "border-white/10 bg-white/5 hover:border-white/15 hover:bg-white/10",
+        ].join(" ")}
+        onClick={() => setIsOpen((open) => !open)}
+        disabled={isLoggingOut}
+      >
+        <span className="hidden max-w-[8rem] truncate font-medium text-white/90 sm:block">
+          {displayName}
+        </span>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/25 text-sm font-bold text-indigo-100">
+          {getInitial(displayName)}
         </div>
-    );
+        <ChevronDown
+          size={16}
+          className={[
+            "shrink-0 text-white/50 transition-transform duration-200",
+            isOpen ? "rotate-180" : "",
+          ].join(" ")}
+          aria-hidden
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-60 rounded-xl border border-white/10 bg-[#0b1220] py-1.5 shadow-2xl shadow-black/50"
+        >
+          <div className="border-b border-white/10 px-3 py-2.5">
+            <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+            <p className="truncate text-xs text-white/45">{user.email}</p>
+          </div>
+
+          <div className="p-1.5">
+            <Link
+              href="/profile"
+              role="menuitem"
+              onClick={close}
+              className={menuItemClass}
+            >
+              <Settings size={16} className="shrink-0 text-white/50" />
+              Account settings
+            </Link>
+
+            {(user.role === "admin" || user.role === "staff") && (
+              <Link
+                href="/admin"
+                role="menuitem"
+                onClick={close}
+                className={menuItemClass}
+              >
+                <Shield size={16} className="shrink-0 text-white/50" />
+                Admin dashboard
+              </Link>
+            )}
+          </div>
+
+          <div className="border-t border-white/10 p-1.5">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoggingOut ? (
+                <Loader2 size={16} className="shrink-0 animate-spin" />
+              ) : (
+                <LogOut size={16} className="shrink-0" />
+              )}
+              {isLoggingOut ? "Signing out…" : "Sign out"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default memo(UserProfileDropdown);
