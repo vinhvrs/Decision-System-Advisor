@@ -7,6 +7,7 @@ import React, {
   useMemo,
   KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check, Search } from "lucide-react";
 
 export interface DropdownOption {
@@ -24,6 +25,8 @@ interface SelectDropdownProps {
   /** Show search box (long lists only). Default: simple list. */
   searchable?: boolean;
   className?: string;
+  /** Render menu at document body level to escape chart/canvas stacking contexts. */
+  portalMenu?: boolean;
 }
 
 export default function SelectDropdown({
@@ -35,12 +38,15 @@ export default function SelectDropdown({
   maxRender = 100,
   searchable = false,
   className = "",
+  portalMenu = false,
 }: SelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [portalStyle, setPortalStyle] = useState<React.CSSProperties | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -53,6 +59,18 @@ export default function SelectDropdown({
   const openDropdown = () => {
     setIsOpen(true);
     setSearchTerm("");
+    if (portalMenu) {
+      const rect = dropdownRef.current?.getBoundingClientRect();
+      if (rect) {
+        setPortalStyle({
+          position: "fixed",
+          left: rect.left,
+          top: rect.bottom + 4,
+          width: rect.width,
+          zIndex: 10020,
+        });
+      }
+    }
     const idx = selected
       ? Math.max(0, options.findIndex((o) => o.id === selected.id))
       : 0;
@@ -83,7 +101,8 @@ export default function SelectDropdown({
     const handleClickOutside = (e: MouseEvent) => {
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
+        !dropdownRef.current.contains(e.target as Node) &&
+        !menuRef.current?.contains(e.target as Node)
       ) {
         closeDropdown();
       }
@@ -128,6 +147,102 @@ export default function SelectDropdown({
     }
   }, [activeIndex]);
 
+  useEffect(() => {
+    if (!isOpen || !portalMenu) return;
+
+    const updatePortalStyle = () => {
+      const rect = dropdownRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPortalStyle({
+        position: "fixed",
+        left: rect.left,
+        top: rect.bottom + 4,
+        width: rect.width,
+        zIndex: 10020,
+      });
+    };
+
+    updatePortalStyle();
+    window.addEventListener("resize", updatePortalStyle);
+    window.addEventListener("scroll", updatePortalStyle, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePortalStyle);
+      window.removeEventListener("scroll", updatePortalStyle, true);
+    };
+  }, [isOpen, portalMenu]);
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      style={portalMenu ? portalStyle ?? undefined : undefined}
+      className={`${portalMenu ? "fixed" : "absolute"} z-[100] mt-1 w-full min-w-full overflow-hidden rounded-lg border border-white/10 bg-[#1e212b] shadow-xl`}
+    >
+      {searchable ? (
+        <div className="border-b border-white/10 p-2">
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40"
+            />
+            <input
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (e.target.value === "") {
+                  setActiveIndex(0);
+                }
+              }}
+              placeholder="Search…"
+              className="w-full rounded-md border border-white/10 bg-[#262a3b] py-2 pl-8 pr-2 text-xs text-white placeholder:text-white/35 focus:border-[#3861fb]/50 focus:outline-none"
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        ref={listRef}
+        className="max-h-56 overflow-y-auto no-scrollbar py-0.5"
+      >
+        {filteredOptions.length > 0 ? (
+          filteredOptions.map((option, idx) => {
+            const isActive = idx === activeIndex;
+            const isSelected = selectedIds?.includes(option.id) || selected?.id === option.id;
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                ref={(el) => {
+                  itemRefs.current[idx] = el;
+                }}
+                onMouseEnter={() => setActiveIndex(idx)}
+                onClick={() => handleSelect(option)}
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition ${
+                  isSelected
+                    ? "bg-[#2c344e] text-white"
+                    : isActive
+                      ? "bg-white/[0.06] text-white"
+                      : "text-white/90 hover:bg-white/[0.06]"
+                }`}
+              >
+                <span className="truncate">{option.label}</span>
+                {isSelected ? (
+                  <Check size={16} className="shrink-0 text-[#3861fb]" />
+                ) : null}
+              </button>
+            );
+          })
+        ) : (
+          <div className="px-3 py-4 text-center text-xs text-white/45">
+            No results
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div
       className={`relative ${className}`}
@@ -152,72 +267,9 @@ export default function SelectDropdown({
         />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-[100] mt-1 w-full min-w-full overflow-hidden rounded-lg border border-white/10 bg-[#1e212b] shadow-xl">
-          {searchable ? (
-            <div className="border-b border-white/10 p-2">
-              <div className="relative">
-                <Search
-                  size={14}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40"
-                />
-                <input
-                  autoFocus
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    if (e.target.value === "") {
-                      setActiveIndex(0);
-                    }
-                  }}
-                  placeholder="Search…"
-                  className="w-full rounded-md border border-white/10 bg-[#262a3b] py-2 pl-8 pr-2 text-xs text-white placeholder:text-white/35 focus:border-[#3861fb]/50 focus:outline-none"
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <div
-            ref={listRef}
-            className="max-h-56 overflow-y-auto no-scrollbar py-0.5"
-          >
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((option, idx) => {
-                const isActive = idx === activeIndex;
-                const isSelected = selectedIds?.includes(option.id) || selected?.id === option.id;
-
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    ref={(el) => {
-                      itemRefs.current[idx] = el;
-                    }}
-                    onMouseEnter={() => setActiveIndex(idx)}
-                    onClick={() => handleSelect(option)}
-                    className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition ${
-                      isSelected
-                        ? "bg-[#2c344e] text-white"
-                        : isActive
-                          ? "bg-white/[0.06] text-white"
-                          : "text-white/90 hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    <span className="truncate">{option.label}</span>
-                    {isSelected ? (
-                      <Check size={16} className="shrink-0 text-[#3861fb]" />
-                    ) : null}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="px-3 py-4 text-center text-xs text-white/45">
-                No results
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {portalMenu && menu && typeof document !== "undefined"
+        ? createPortal(menu, document.body)
+        : menu}
     </div>
   );
 }
