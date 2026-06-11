@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   createChart,
   createSeriesMarkers,
@@ -11,6 +12,7 @@ import {
   ISeriesApi,
   IChartApi,
   Time,
+  Logical,
   LogicalRange,
 } from "lightweight-charts";
 import { Maximize2, Minimize2 } from "lucide-react";
@@ -110,6 +112,8 @@ interface Props {
   historyOrderMarkers?: HistoryOrderMarker[];
   /** Profile sidebar: current position + trade history. */
   onPaperTradingChange?: (snapshot: PaperTradingSnapshot) => void;
+  /** Toolbar rendered over the expanded chart. */
+  expandedToolbar?: ReactNode;
 }
 
 type TradeSide = "buy" | "sell";
@@ -131,6 +135,8 @@ type Marker = {
   shape: "arrowUp" | "arrowDown" | "square";
   text?: string;
 };
+
+const HISTORY_LOAD_MORE_THRESHOLD = 10;
 
 const INDICATOR_COLORS: Record<string, string> = {
   ema20: "#2962FF",
@@ -418,6 +424,7 @@ export default function LightChart({
   historyAdviceByCandleDay,
   historyOrderMarkers,
   onPaperTradingChange,
+  expandedToolbar,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -426,6 +433,8 @@ export default function LightChart({
   const indicatorSeriesRef = useRef<ISeriesApi<any>[]>([]);
   const displayMapRef = useRef<Map<number, any>>(new Map());
   const loadMoreLockRef = useRef(false);
+  const onLoadMoreRef = useRef(onLoadMore);
+  const previousDataFirstTimeRef = useRef<number | null>(null);
   const tradesRef = useRef<Trade[]>([]);
   const markersRef = useRef<Marker[]>([]);
   const positionPriceLineRef = useRef<any>(null);
@@ -458,6 +467,106 @@ export default function LightChart({
     pick: HistoryCandlePick;
   } | null>(null);
   const [expandedChart, setExpandedChart] = useState(false);
+  const [expandedOverlayBox, setExpandedOverlayBox] = useState<{
+    left: number;
+    top: number;
+    closeLeft: number;
+    closeTop: number;
+    maxWidth: number;
+  } | null>(null);
+  const expandedToolbarPortal =
+    expandedChart && expandedToolbar && typeof document !== "undefined"
+      ? createPortal(
+          <>
+            <div
+              className="fixed z-[10000] pointer-events-auto select-none"
+              style={
+                expandedOverlayBox
+                  ? {
+                      left: expandedOverlayBox.left,
+                      top: expandedOverlayBox.top,
+                      maxWidth: expandedOverlayBox.maxWidth,
+                    }
+                  : { left: 32, top: 32, maxWidth: "calc(100vw - 7rem)" }
+              }
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onMouseMove={(event) => event.stopPropagation()}
+              onMouseUp={(event) => event.stopPropagation()}
+              onWheel={(event) => event.stopPropagation()}
+            >
+              {expandedToolbar}
+            </div>
+            <button
+              type="button"
+              onClick={() => setExpandedChart(false)}
+              className="fixed z-[10000] inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-slate-950/80 text-slate-200 shadow hover:border-indigo-400/50 hover:text-white"
+              style={
+                expandedOverlayBox
+                  ? {
+                      left: expandedOverlayBox.closeLeft,
+                      top: expandedOverlayBox.closeTop,
+                    }
+                  : { right: 32, top: 32 }
+              }
+              aria-label="Exit full-window chart"
+              title="Exit full-window chart"
+            >
+              <Minimize2 size={17} />
+            </button>
+          </>,
+          document.body
+        )
+      : null;
+
+  useEffect(() => {
+    if (!expandedChart) {
+      setExpandedOverlayBox(null);
+      return;
+    }
+
+    let frame = 0;
+    const updateOverlayBox = () => {
+      const rect = chartWrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const left = Math.max(8, rect.left + 12);
+      const top = Math.max(8, rect.top + 12);
+      setExpandedOverlayBox({
+        left,
+        top,
+        closeLeft: Math.max(8, rect.right - 48),
+        closeTop: top,
+        maxWidth: Math.max(280, rect.width - 72),
+      });
+    };
+
+    updateOverlayBox();
+    frame = requestAnimationFrame(updateOverlayBox);
+    window.addEventListener("resize", updateOverlayBox);
+    window.addEventListener("scroll", updateOverlayBox, true);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateOverlayBox);
+      window.removeEventListener("scroll", updateOverlayBox, true);
+    };
+  }, [expandedChart]);
+
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
+
+  const requestMoreHistoryIfNeeded = useCallback((range: LogicalRange | null) => {
+    if (!range || loadMoreLockRef.current || !onLoadMoreRef.current) return;
+    if (range.from < HISTORY_LOAD_MORE_THRESHOLD) {
+      loadMoreLockRef.current = true;
+      onLoadMoreRef.current();
+    }
+  }, []);
 
   const setHistoryHoverTipIfChanged = useCallback(
     (next: { x: number; y: number; pick: HistoryCandlePick } | null) => {
@@ -515,14 +624,22 @@ export default function LightChart({
     const el = containerRef.current;
     if (!chart || !el) return;
 
-    const frame = requestAnimationFrame(() => {
+    const syncExpandedSize = () => {
       chart.applyOptions({
         width: Math.max(1, Math.floor(el.clientWidth)),
         height: Math.max(200, Math.floor(el.clientHeight)),
       });
-    });
+    };
 
-    return () => cancelAnimationFrame(frame);
+    const frame = requestAnimationFrame(syncExpandedSize);
+    const secondFrame = requestAnimationFrame(() => requestAnimationFrame(syncExpandedSize));
+    const timeout = window.setTimeout(syncExpandedSize, 120);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(secondFrame);
+      window.clearTimeout(timeout);
+    };
   }, [expandedChart]);
 
   useEffect(() => {
@@ -535,6 +652,7 @@ export default function LightChart({
 
   useEffect(() => {
     shouldFitTimeScaleRef.current = true;
+    previousDataFirstTimeRef.current = null;
     tradesRef.current = [];
     markersRef.current = [];
     ticketIdsRef.current = [];
@@ -1407,13 +1525,33 @@ export default function LightChart({
 
     if (!sortedData.length) return;
 
+    const chart = chartRef.current;
+    const previousVisibleRange = chart?.timeScale().getVisibleLogicalRange() ?? null;
+    const previousFirstTime = previousDataFirstTimeRef.current;
+    const firstTime = Number(sortedData[0]?.time);
+    const previousFirstIndex =
+      previousFirstTime == null
+        ? -1
+        : sortedData.findIndex((item) => Number(item.time) === previousFirstTime);
+    const prependedBars =
+      previousFirstTime != null &&
+      previousFirstIndex > 0 &&
+      Number.isFinite(firstTime) &&
+      firstTime < previousFirstTime
+        ? previousFirstIndex
+        : 0;
+    const shouldRestoreVisibleRange =
+      prependedBars > 0 && previousVisibleRange !== null && !shouldFitTimeScaleRef.current;
+    const shouldRecheckHistoryLoad = loadMoreLockRef.current;
+
     try {
       seriesRef.current.setData(sortedData);
     } catch (e) {
       console.error("Candle setData error:", e);
     }
 
-    const chart = chartRef.current;
+    previousDataFirstTimeRef.current = Number.isFinite(firstTime) ? firstTime : null;
+
     const box = containerRef.current;
     if (chart && box) {
       const w = Math.max(1, Math.floor(box.clientWidth));
@@ -1431,11 +1569,38 @@ export default function LightChart({
       }
     }
 
+    if (chart && shouldRestoreVisibleRange) {
+      const restoredRange: LogicalRange = {
+        from: (previousVisibleRange.from + prependedBars) as Logical,
+        to: (previousVisibleRange.to + prependedBars) as Logical,
+      };
+
+      requestAnimationFrame(() => {
+        try {
+          chart.timeScale().setVisibleLogicalRange(restoredRange);
+        } catch {
+          /* ignore */
+        }
+
+        if (shouldRecheckHistoryLoad) {
+          requestAnimationFrame(() => {
+            loadMoreLockRef.current = false;
+            requestMoreHistoryIfNeeded(chart.timeScale().getVisibleLogicalRange());
+          });
+        }
+      });
+    } else if (shouldRecheckHistoryLoad) {
+      requestAnimationFrame(() => {
+        loadMoreLockRef.current = false;
+        requestMoreHistoryIfNeeded(chart?.timeScale().getVisibleLogicalRange() ?? null);
+      });
+    } else {
+      loadMoreLockRef.current = false;
+    }
+
     // re-apply markers after any full setData()
     markTradesOnChart();
-
-    loadMoreLockRef.current = false;
-  }, [mergedCandleData, realtimeCandle, markTradesOnChart]);
+  }, [mergedCandleData, realtimeCandle, markTradesOnChart, requestMoreHistoryIfNeeded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1641,11 +1806,7 @@ export default function LightChart({
     if (!chartRef.current || !onLoadMore) return;
 
     const handleVisibleRangeChange = (range: LogicalRange | null) => {
-      if (!range || loadMoreLockRef.current) return;
-      if (range.from < 10) {
-        loadMoreLockRef.current = true;
-        onLoadMore();
-      }
+      requestMoreHistoryIfNeeded(range);
     };
 
     chartRef.current
@@ -1657,11 +1818,11 @@ export default function LightChart({
         ?.timeScale()
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
     };
-  }, [onLoadMore]);
+  }, [onLoadMore, requestMoreHistoryIfNeeded]);
 
   const chartWrapperClass = expandedChart
-    ? "fixed inset-4 z-50 min-w-0 overflow-hidden rounded-xl border border-indigo-500/40 bg-[#0b0e14] shadow-2xl shadow-black/60"
-    : "relative w-full min-w-0 min-h-0 flex-1 overflow-hidden";
+    ? "fixed inset-4 z-50 flex min-w-0 overflow-hidden rounded-xl border border-indigo-500/40 bg-[#0B1220] shadow-2xl shadow-black/60"
+    : "relative flex w-full min-w-0 min-h-0 flex-1 overflow-hidden";
 
   return (
     <div className="flex h-full min-h-[260px] w-full min-w-0 flex-col gap-3">
@@ -1673,6 +1834,7 @@ export default function LightChart({
           aria-label="Exit full-window chart"
         />
       ) : null}
+      {expandedToolbarPortal}
       <div
         ref={chartWrapperRef}
         className={chartWrapperClass}
@@ -1693,7 +1855,7 @@ export default function LightChart({
         >
           {expandedChart ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </button>
-        <div ref={containerRef} className="h-full w-full min-h-[220px]" />
+        <div ref={containerRef} className="relative h-full min-h-[220px] w-full flex-1" />
         {historyCommittedRectStyles.map((s) => (
           <div
             key={s.key}

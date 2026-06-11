@@ -49,7 +49,6 @@ type InstrumentLike = Instrument & {
 
 const FIXED_PERIODS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
-  { id: "weekly", label: "Weekly" },
   { id: "monthly", label: "Monthly" },
   { id: "yearly", label: "Yearly" },
 ];
@@ -555,6 +554,96 @@ export default function TradingChart({
     return Array.from(ids);
   }, [selectedIndicators]);
 
+  const expandedInstrumentOptions = useMemo(() => {
+    if (lockSymbol) {
+      return [
+        {
+          id: activeSymbol,
+          label: `${activeSymbol} - ${getInstrumentDisplayName(selectedInstrument) || activeSymbol}`,
+        },
+      ];
+    }
+
+    return instruments.map((i) => ({
+      id: String(i.id),
+      label: `${i.symbol} - ${getInstrumentDisplayName(i)}`,
+    }));
+  }, [activeSymbol, instruments, lockSymbol, selectedInstrument]);
+
+  const selectedInstrumentOption = selectedInstrument
+    ? {
+        id: String(selectedInstrument.id),
+        label: `${selectedInstrument.symbol} - ${getInstrumentDisplayName(selectedInstrument)}`,
+      }
+    : {
+        id: activeSymbol,
+        label: `${activeSymbol} - ${activeSymbol}`,
+      };
+
+  const expandedChartToolbar = (
+    <div className="flex max-w-full flex-wrap items-center gap-2">
+      <SelectDropdown
+        portalMenu
+        searchable={!lockSymbol}
+        maxRender={200}
+        className="w-[min(18rem,calc(100vw-7rem))]"
+        options={expandedInstrumentOptions}
+        selected={selectedInstrumentOption}
+        placeholder="Select instrument"
+        onSelect={(v) => {
+          if (lockSymbol) return;
+          const found = instruments.find((i) => String(i.id) === String(v.id));
+          setSelectedInstrument(found || null);
+        }}
+      />
+
+      <SelectDropdown
+        portalMenu
+        className="w-32"
+        options={FIXED_PERIODS}
+        selected={{
+          id: selectedPeriod,
+          label:
+            FIXED_PERIODS.find((p) => p.id === selectedPeriod)?.label ||
+            selectedPeriod,
+        }}
+        placeholder="Select period"
+        onSelect={(v) => {
+          setSelectedPeriod(v.id as TF);
+        }}
+      />
+
+      <SelectDropdown
+        portalMenu
+        className="w-48"
+        options={INDICATOR_OPTIONS}
+        selectedIds={selectedIndicatorMenuIds}
+        selected={
+          selectedIndicators.length > 0
+            ? {
+                id: "multi",
+                label: `Indicators (${selectedIndicators.length})`,
+              }
+            : null
+        }
+        placeholder="Add Indicators"
+        onSelect={(v) =>
+          onToggleIndicator(v as { id: string; label: string })
+        }
+      />
+
+      {selectedIndicators.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setSelectedIndicators([])}
+          className="px-2 text-[11px] font-medium text-red-300 underline hover:text-red-200"
+        >
+          Clear All
+        </button>
+      ) : null}
+    </div>
+  );
+
   const shellClass = embed
     ? "flex h-full min-h-0 w-full flex-col overflow-hidden"
     : "flex flex-col h-full w-full overflow-hidden bg-[#0B1220]";
@@ -662,6 +751,7 @@ export default function TradingChart({
                 showTrading={!isFixed && canTrade}
                 positionsForSymbol={canTrade ? symbolPositions : []}
                 onPaperTradingChange={canTrade ? onPaperTradingChange : undefined}
+                expandedToolbar={expandedChartToolbar}
               />
             </div>
           ) : (

@@ -69,40 +69,35 @@ class InstrumentDataRepository implements InstrumentDataInterface {
     {
         $period = $period !== '' && $period !== null ? strtolower((string) $period) : 'daily';
 
-        // Fast path: serve from snapshot tables when requested page is within cached window.
-        $snapshotCandles = $this->loadSnapshotCandles($symbol, $period);
-        if (! empty($snapshotCandles)) {
-            $total = count($snapshotCandles);
-            $offset = max(0, ($page - 1) * $perPage);
-            if ($offset < $total) {
-                // Snapshots are stored oldest->newest; API expects newest->oldest pages.
-                $desc = array_reverse($snapshotCandles);
-                $slice = array_slice($desc, $offset, $perPage);
-                return new LengthAwarePaginator(
-                    $slice,
-                    $total,
-                    $perPage,
-                    $page,
-                    ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page']
-                );
-            }
-            // Offset outside snapshot window -> fallback to instrument_data below.
-        }
-
         $slug = strtolower((string) $symbol).'-'.$period;
 
         $periodId = DB::table('instrument_periods')->where('slug', $slug)->value('id');
 
-        if (!$periodId) {
+        if ($periodId) {
             return InstrumentData::query()
-                ->whereRaw('1 = 0')
+                ->where('instrument_period_id', $periodId)
+                ->orderByDesc('timestamps')
+                ->selectRaw('timestamps as timestamp, open, high, low, close, volume')
                 ->paginate($perPage, ['*'], 'page', $page);
         }
 
+        $snapshotCandles = $this->loadSnapshotCandles($symbol, $period);
+        if (! empty($snapshotCandles)) {
+            $total = count($snapshotCandles);
+            $offset = max(0, ($page - 1) * $perPage);
+            // Snapshots are stored oldest->newest; API expects newest->oldest pages.
+            $slice = array_slice(array_reverse($snapshotCandles), $offset, $perPage);
+            return new LengthAwarePaginator(
+                $slice,
+                $total,
+                $perPage,
+                $page,
+                ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page']
+            );
+        }
+
         return InstrumentData::query()
-            ->where('instrument_period_id', $periodId)
-            ->orderByDesc('timestamps')
-            ->selectRaw('timestamps as timestamp, open, high, low, close, volume')
+            ->whereRaw('1 = 0')
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
