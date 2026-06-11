@@ -118,6 +118,14 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
     () => (ind === 'macd' ? computeMACDSeries(bars, macdFast, macdSlow, macdSignal) : []),
     [bars, ind, macdFast, macdSlow, macdSignal]
   );
+  const macdFastEmaSeries = useMemo(
+    () => (ind === 'macd' ? computeEMASeries(bars, macdFast) : []),
+    [bars, ind, macdFast]
+  );
+  const macdSlowEmaSeries = useMemo(
+    () => (ind === 'macd' ? computeEMASeries(bars, macdSlow) : []),
+    [bars, ind, macdSlow]
+  );
   const bbSeries = useMemo(
     () => (ind === 'bb' ? computeBollingerSeries(bars, bbPeriod, bbK) : []),
     [bars, ind, bbPeriod, bbK]
@@ -144,10 +152,25 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
       emaSeries,
       rsiSeries,
       macdSeries,
+      macdFastEmaSeries,
+      macdSlowEmaSeries,
       bbSeries,
       stochSeries,
     }),
-    [lsSeries, volSeries, adxSeries, mfiSeries, smaSeries, emaSeries, rsiSeries, macdSeries, bbSeries, stochSeries]
+    [
+      lsSeries,
+      volSeries,
+      adxSeries,
+      mfiSeries,
+      smaSeries,
+      emaSeries,
+      rsiSeries,
+      macdSeries,
+      macdFastEmaSeries,
+      macdSlowEmaSeries,
+      bbSeries,
+      stochSeries,
+    ]
   );
 
   const indicatorModel = useMemo(() => buildIndicatorLightModel(ind, bundle), [ind, bundle]);
