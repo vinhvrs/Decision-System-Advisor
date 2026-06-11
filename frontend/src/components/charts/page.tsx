@@ -7,6 +7,8 @@ import { InstrumentService } from "@/src/services/Instrument.service";
 import SelectDropdown from "@/src/sections/Dropdown";
 import LightChart from "./LightChart";
 import PositionsPanel from "@/src/components/trading/PositionsPanel";
+import TradingSummaryPanel from "@/src/components/trading/TradingSummaryPanel";
+import { useTradeSummary } from "@/src/hooks/useTradeSummary";
 import AddToWatchlistButton from "@/src/components/watchlist/AddToWatchlistButton";
 import { usePositions } from "@/src/hooks/usePositions";
 import { Instrument } from "@/src/types/Instrument";
@@ -272,6 +274,21 @@ export default function TradingChart({
     defaultSymbol
   ).toUpperCase();
 
+  const currentPriceBySymbol = useMemo(
+    () =>
+      activeSymbol && realtimeCandle?.close != null
+        ? { [activeSymbol]: Number(realtimeCandle.close) }
+        : undefined,
+    [activeSymbol, realtimeCandle?.close]
+  );
+
+  const {
+    stats: tradeSummary,
+    loading: tradeSummaryLoading,
+    error: tradeSummaryError,
+    refresh: refreshTradeSummary,
+  } = useTradeSummary(positions, currentPriceBySymbol);
+
   const symbolPositions = useMemo(
     () =>
       positions
@@ -517,12 +534,26 @@ export default function TradingChart({
   }, [selectedInstrument?.symbol, selectedPeriod]);
 
   const onToggleIndicator = (item: { id: string; label: string }) => {
-    setSelectedIndicators((prev) =>
-      prev.includes(item.id)
+    setSelectedIndicators((prev) => {
+      if (item.id === "macd") {
+        const hasMacdPair = prev.includes("ema20") && prev.includes("ema100");
+        if (hasMacdPair) {
+          return prev.filter((id) => id !== "ema20" && id !== "ema100" && id !== "macd");
+        }
+        return Array.from(new Set([...prev.filter((id) => id !== "macd"), "ema20", "ema100"]));
+      }
+
+      return prev.includes(item.id)
         ? prev.filter((id) => id !== item.id)
-        : [...prev, item.id]
-    );
+        : [...prev, item.id];
+    });
   };
+
+  const selectedIndicatorMenuIds = useMemo(() => {
+    const ids = new Set(selectedIndicators);
+    if (ids.has("ema20") && ids.has("ema100")) ids.add("macd");
+    return Array.from(ids);
+  }, [selectedIndicators]);
 
   const shellClass = embed
     ? "flex h-full min-h-0 w-full flex-col overflow-hidden"
@@ -573,6 +604,7 @@ export default function TradingChart({
           <div className="flex items-center gap-2">
             <SelectDropdown
               options={INDICATOR_OPTIONS}
+              selectedIds={selectedIndicatorMenuIds}
               selected={
                 selectedIndicators.length > 0
                   ? {
@@ -644,18 +676,22 @@ export default function TradingChart({
             {!canTrade ? (
               <TradingSignInPrompt className="w-full" compact />
             ) : (
-              <PositionsPanel
-                positions={positions}
-                loading={positionsLoading}
-                error={positionsError}
-                refetch={refetchPositions}
-                closePosition={closePosition}
-                currentPriceBySymbol={
-                  activeSymbol && realtimeCandle?.close != null
-                    ? { [activeSymbol]: Number(realtimeCandle.close) }
-                    : undefined
-                }
-              />
+              <div className="flex flex-col gap-3">
+                <PositionsPanel
+                  positions={positions}
+                  loading={positionsLoading}
+                  error={positionsError}
+                  refetch={refetchPositions}
+                  closePosition={closePosition}
+                  currentPriceBySymbol={currentPriceBySymbol}
+                />
+                <TradingSummaryPanel
+                  stats={tradeSummary}
+                  loading={tradeSummaryLoading}
+                  error={tradeSummaryError}
+                  onRefresh={refreshTradeSummary}
+                />
+              </div>
             )}
           </aside>
         )}

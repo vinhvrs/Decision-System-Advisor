@@ -18,12 +18,13 @@ class AnalysistService
 
     public function indicatorSummaryData(string $symbol, string $period = 'daily'): array
     {
-        $sma = $this->indicatorSmaData($symbol, $period, 14);
-        $ema = $this->indicatorEmaData($symbol, $period, 14);
-        $rsi = $this->indicatorRsiData($symbol, $period, 14);
-        $macd = $this->indicatorMacdData($symbol, $period, 12, 26, 9);
-        $stochastic = $this->indicatorStochasticOscillatorData($symbol, $period, 14, 3);
-        $bollinger = $this->indicatorBollingerBandsData($symbol, $period, 2.0, 20);
+        $period = $period !== '' ? $period : $this->defaultPeriod();
+        $sma = $this->indicatorSmaData($symbol, $period);
+        $ema = $this->indicatorEmaData($symbol, $period);
+        $rsi = $this->indicatorRsiData($symbol, $period);
+        $macd = $this->indicatorMacdData($symbol, $period);
+        $stochastic = $this->indicatorStochasticOscillatorData($symbol, $period);
+        $bollinger = $this->indicatorBollingerBandsData($symbol, $period);
         $price = $this->stockRepository->getCurrentPrice($symbol, $period);
         return [
             'symbol' => strtoupper($symbol),
@@ -40,8 +41,9 @@ class AnalysistService
         ];
     }
 
-    public function indicatorSmaData(string $symbol, string $period = 'daily', int $n = 14): array
+    public function indicatorSmaData(string $symbol, string $period = 'daily', int $n = 0): array
     {
+        $n = $this->defaultInt($n, 'sma_period', 14);
         $closes = $this->indicatorMath->getLastCandles($symbol, $period, 300);
         if ($closes->count() < $n + 2) {
             return ['error' => 'Not enough data for SMA'];
@@ -57,8 +59,9 @@ class AnalysistService
         ];
     }
 
-    public function indicatorEmaData(string $symbol, string $period = 'daily', int $n = 14): array
+    public function indicatorEmaData(string $symbol, string $period = 'daily', int $n = 0): array
     {
+        $n = $this->defaultInt($n, 'ema_period', 14);
         $closes = $this->indicatorMath->getLastCandles($symbol, $period, 300);
         if ($closes->count() < $n + 2) {
             return ['error' => 'Not enough data for EMA'];
@@ -74,8 +77,9 @@ class AnalysistService
         ];
     }
 
-    public function indicatorRsiData(string $symbol, string $period = 'daily', int $n = 14): array
+    public function indicatorRsiData(string $symbol, string $period = 'daily', int $n = 0): array
     {
+        $n = $this->defaultInt($n, 'rsi_period', 14);
         $closes = $this->indicatorMath->getLastCandles($symbol, $period, 300);
         if ($closes->count() < $n + 2) {
             return ['error' => 'Not enough data for RSI'];
@@ -94,10 +98,13 @@ class AnalysistService
     public function indicatorMacdData(
         string $symbol,
         string $period = 'daily',
-        int $fast = 12,
-        int $slow = 26,
-        int $signal = 9
+        int $fast = 0,
+        int $slow = 0,
+        int $signal = 0
     ): array {
+        $fast = $this->defaultInt($fast, 'macd_fast_period', 12);
+        $slow = $this->defaultInt($slow, 'macd_slow_period', 26);
+        $signal = $this->defaultInt($signal, 'macd_signal_period', 9);
         $closes = $this->indicatorMath->getLastCandles($symbol, $period, 400);
         if ($closes->count() < ($slow + $signal + 5)) {
             return ['error' => 'Not enough data for MACD'];
@@ -117,8 +124,10 @@ class AnalysistService
         ];
     }
 
-    public function indicatorBollingerBandsData(string $symbol, string $period = 'daily', float $stdDevMultiplier = 2.0, int $n = 20): array
+    public function indicatorBollingerBandsData(string $symbol, string $period = 'daily', float $stdDevMultiplier = 0.0, int $n = 0): array
     {
+        $stdDevMultiplier = $this->defaultFloat($stdDevMultiplier, 'bollinger_std_dev_multiplier', 2.0);
+        $n = $this->defaultInt($n, 'bollinger_period', 20);
         $closes = $this->indicatorMath->getLastCandles($symbol, $period, 300);
         if ($closes->count() < $n + 5) {
             return ['error' => 'Not enough data for Bollinger Bands'];
@@ -137,8 +146,10 @@ class AnalysistService
         ];
     }
 
-    public function indicatorStochasticOscillatorData(string $symbol, string $period = 'daily', int $kPeriod = 14, int $dPeriod = 3): array
+    public function indicatorStochasticOscillatorData(string $symbol, string $period = 'daily', int $kPeriod = 0, int $dPeriod = 0): array
     {
+        $kPeriod = $this->defaultInt($kPeriod, 'stochastic_k_period', 14);
+        $dPeriod = $this->defaultInt($dPeriod, 'stochastic_d_period', 3);
         $candles = $this->indicatorMath->getLastCandles(symbol: $symbol, period: $period, limit: 300);
         $series = $candles->map(fn($c) => [
             'high' => (float) $c->high,
@@ -167,17 +178,17 @@ class AnalysistService
         return response()->json($this->indicatorSummaryData($symbol, $period));
     }
 
-    public function Indicator_SMA(string $symbol, string $period = 'daily', int $n = 14): JsonResponse
+    public function Indicator_SMA(string $symbol, string $period = 'daily', int $n = 0): JsonResponse
     {
         return $this->toJsonResponse($this->indicatorSmaData($symbol, $period, $n));
     }
 
-    public function Indicator_EMA(string $symbol, string $period = 'daily', int $n = 14): JsonResponse
+    public function Indicator_EMA(string $symbol, string $period = 'daily', int $n = 0): JsonResponse
     {
         return $this->toJsonResponse($this->indicatorEmaData($symbol, $period, $n));
     }
 
-    public function Indicator_RSI(string $symbol, string $period = 'daily', int $n = 14): JsonResponse
+    public function Indicator_RSI(string $symbol, string $period = 'daily', int $n = 0): JsonResponse
     {
         return $this->toJsonResponse($this->indicatorRsiData($symbol, $period, $n));
     }
@@ -185,19 +196,19 @@ class AnalysistService
     public function Indicator_MACD(
         string $symbol,
         string $period = 'daily',
-        int $fast = 12,
-        int $slow = 26,
-        int $signal = 9
+        int $fast = 0,
+        int $slow = 0,
+        int $signal = 0
     ): JsonResponse {
         return $this->toJsonResponse($this->indicatorMacdData($symbol, $period, $fast, $slow, $signal));
     }
 
-    public function Indicator_BollingerBands(string $symbol, string $period = 'daily', float $stdDevMultiplier = 2.0, int $n = 20): JsonResponse
+    public function Indicator_BollingerBands(string $symbol, string $period = 'daily', float $stdDevMultiplier = 0.0, int $n = 0): JsonResponse
     {
         return $this->toJsonResponse($this->indicatorBollingerBandsData($symbol, $period, $stdDevMultiplier, $n));
     }
 
-    public function Indicator_StochasticOscillator(string $symbol, string $period = 'daily', int $kPeriod = 14, int $dPeriod = 3): JsonResponse
+    public function Indicator_StochasticOscillator(string $symbol, string $period = 'daily', int $kPeriod = 0, int $dPeriod = 0): JsonResponse
     {
         return $this->toJsonResponse($this->indicatorStochasticOscillatorData($symbol, $period, $kPeriod, $dPeriod));
     }
@@ -206,5 +217,29 @@ class AnalysistService
     {
         $status = array_key_exists('error', $payload) ? 422 : 200;
         return response()->json($payload, $status);
+    }
+
+    private function defaultPeriod(): string
+    {
+        $period = trim((string) config('trading_indicators.default_period', 'daily'));
+        return $period !== '' ? $period : 'daily';
+    }
+
+    private function defaultInt(int $value, string $key, int $fallback): int
+    {
+        if ($value > 0) {
+            return $value;
+        }
+        $configured = (int) config("trading_indicators.{$key}", $fallback);
+        return $configured > 0 ? $configured : $fallback;
+    }
+
+    private function defaultFloat(float $value, string $key, float $fallback): float
+    {
+        if ($value > 0) {
+            return $value;
+        }
+        $configured = (float) config("trading_indicators.{$key}", $fallback);
+        return $configured > 0 ? $configured : $fallback;
     }
 }

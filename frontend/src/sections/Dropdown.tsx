@@ -17,6 +17,7 @@ export interface DropdownOption {
 interface SelectDropdownProps {
   options: DropdownOption[];
   selected: DropdownOption | null;
+  selectedIds?: string[];
   onSelect: (option: DropdownOption) => void;
   placeholder?: string;
   maxRender?: number;
@@ -28,6 +29,7 @@ interface SelectDropdownProps {
 export default function SelectDropdown({
   options,
   selected,
+  selectedIds,
   onSelect,
   placeholder = "Select an option",
   maxRender = 100,
@@ -182,7 +184,7 @@ export default function SelectDropdown({
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option, idx) => {
                 const isActive = idx === activeIndex;
-                const isSelected = selected?.id === option.id;
+                const isSelected = selectedIds?.includes(option.id) || selected?.id === option.id;
 
                 return (
                   <button

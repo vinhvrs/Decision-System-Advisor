@@ -76,10 +76,18 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const payload = await BeginnerService.getDashboardDaily({ maxAgeMs: 30_000, staleWhileRevalidateMs: 90_000 });
-      if (cancelled) return;
-      setRows(payload?.rows ?? []);
-      setLoading(false);
+      try {
+        const payload = await BeginnerService.getDashboardDaily({
+          maxAgeMs: 30_000,
+          staleWhileRevalidateMs: 90_000,
+        });
+        if (cancelled) return;
+        setRows(payload?.rows ?? []);
+      } catch {
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
     load();
     const t = window.setInterval(load, 150_000);

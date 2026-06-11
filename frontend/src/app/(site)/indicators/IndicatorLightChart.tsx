@@ -35,6 +35,8 @@ export function dayToTime(day: number): UTCTimestamp {
 }
 
 export type OverlayLineSpec = {
+  id?: string;
+  label?: string;
   color: string;
   lineWidth?: number;
   data: { time: UTCTimestamp; value: number }[];

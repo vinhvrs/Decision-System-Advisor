@@ -6,7 +6,7 @@ import Card from "@/src/sections/Card";
 import WatchlistDashboardTable from "@/src/components/home/WatchlistDashboardTable";
 
 const DEFAULT_MAIN = "NVDA";
-const DEFAULT_SIDE = ["AAPL", "MSFT", "AMD"];
+const DEFAULT_SIDE = ["AAPL", "MSFT", "ORCL"];
 
 export default function DashboardCharts() {
   const { items } = useWatchlist();
@@ -31,16 +31,16 @@ export default function DashboardCharts() {
         </div>
       </Card>
 
-      {/* Side charts: next 3 symbols from watchlist or AAPL, MSFT, AMD */}
+      {/* Side charts: next 3 symbols from watchlist or AAPL, MSFT, ORCL */}
       <div>
         <h3 className="text-lg font-semibold mb-3 tablet:mb-4">Watchlist Workspace</h3>
         <p className="text-sm text-white/60 mb-4">Quick monitoring for your watchlist symbols.</p>
       </div>
-      <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 gap-4 tablet:gap-6">
+      <div className="flex flex-col gap-4 tablet:gap-6">
         {sideSymbols.map((symbol) => (
           <Card
             key={symbol}
-            className="flex h-[320px] min-h-0 flex-col overflow-hidden phone:h-[380px] tablet:h-[420px] laptop:h-[480px] pc:h-[520px]"
+            className="flex h-[360px] min-h-0 w-full flex-col overflow-hidden phone:h-[400px] tablet:h-[440px] laptop:h-[480px]"
             bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
           >
             <div className="min-h-0 flex-1">

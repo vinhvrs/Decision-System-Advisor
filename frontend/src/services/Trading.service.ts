@@ -24,6 +24,14 @@ const tradingApi = axios.create({
 
 attachAuthInterceptors(tradingApi);
 
+/** Close is idempotent: backend returns 404 when the ticket is already closed. */
+export function isTicketAlreadyClosedError(e: unknown): boolean {
+  return (
+    axios.isAxiosError(e) &&
+    (e.response?.status === 404 || e.response?.status === 410)
+  );
+}
+
 function unwrapPaginated(res: any): PaginatedTickets {
   const d = res?.data ?? res;
   return {
@@ -153,11 +161,18 @@ export const TradingServices = {
   ): Promise<Tickets> => {
     const body: ClosePositionPayload = { ticket_id: ticketId };
     if (closePrice != null && closePrice > 0) body.close_price = closePrice;
-    const res =
-      method === "PUT"
-        ? await tradingApi.put("/tickets/close", body)
-        : await tradingApi.post("/tickets/close", body);
-    return (res.data?.data ?? res.data) as Tickets;
+    try {
+      const res =
+        method === "PUT"
+          ? await tradingApi.put("/tickets/close", body)
+          : await tradingApi.post("/tickets/close", body);
+      return (res.data?.data ?? res.data) as Tickets;
+    } catch (e) {
+      if (isTicketAlreadyClosedError(e)) {
+        return { id: ticketId, status: "closed" } as Tickets;
+      }
+      throw e;
+    }
   },
 
   /** DELETE /tickets/{id} - delete ticket */

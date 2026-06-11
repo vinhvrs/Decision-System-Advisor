@@ -421,7 +421,6 @@ def build_ranking_rows(
     symbols = [str(r["symbol"]).strip().upper() for r in snapshot_rows]
     watch = watchlist_counts(conn, symbols)
     iids = [str(r["instrument_id"]) for r in snapshot_rows]
-    vs_prev = beginner_vs_prev_close_abs_pct(conn, iids)
     charts = fetch_daily_closes_for_charts(conn, iids, chart_bars)
     last_prev_close = fetch_daily_last_prev_close(conn, iids)
     conf_by_sym = fetch_confidence_batch(redis_client, symbols)
@@ -431,9 +430,6 @@ def build_ranking_rows(
         sym = str(r["symbol"]).strip().upper()
         people = int(watch.get(sym, 0))
         iid = str(r["instrument_id"])
-        vs_abs = vs_prev.get(iid)
-        chg = abs(float(r.get("change_pct") or 0))
-        candle_move = float(vs_abs) if vs_abs is not None and vs_abs > 0 else chg
 
         logo = r.get("company_logo")
         logo_url = str(logo).strip() if logo else None
@@ -449,6 +445,8 @@ def build_ranking_rows(
             change_pct = (price - prev_close) / prev_close * 100.0
         else:
             change_pct = snap_change
+        # Keep the Change spoke aligned with the displayed 24H % column.
+        candle_move = abs(float(change_pct))
         chart_vals = [round(x, 4) for x in charts.get(iid, [])]
         if price > 0:
             # Keep sparkline aligned with displayed price by appending latest snapshot value.

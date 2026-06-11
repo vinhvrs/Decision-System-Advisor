@@ -24,7 +24,7 @@ class AnalysistController extends Controller
             'price' => ['required', 'numeric'],
         ]);
 
-        $period = $data['period'] ?? 'daily';
+        $period = $data['period'] ?? $this->defaultPeriod();
 
         $summary = $this->analysistService->indicatorSummaryData($data['symbol'], $period);
 
@@ -38,55 +38,57 @@ class AnalysistController extends Controller
 
     public function IndicatorSummary(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
+        $period = $request->input('period', $this->defaultPeriod());
         return response()->json($this->analysistService->indicatorSummaryData($symbol, $period));
     }
 
     public function SMA(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
-        $n = (int) $request->input('n', 14);
+        $period = $request->input('period', $this->defaultPeriod());
+        $n = (int) $request->input('n', 0);
 
         return $this->respondIndicator($this->analysistService->indicatorSmaData($symbol, $period, $n));
     }
 
     public function EMA(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
-        $n = (int) $request->input('n', 14);
+        $period = $request->input('period', $this->defaultPeriod());
+        $n = (int) $request->input('n', 0);
 
         return $this->respondIndicator($this->analysistService->indicatorEmaData($symbol, $period, $n));
     }
 
     public function MACD(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
-        $fast = (int) $request->input('fast', 12);
-        $slow = (int) $request->input('slow', 26);
-        $signal = (int) $request->input('signal', 9);
+        $period = $request->input('period', $this->defaultPeriod());
+        $fast = (int) $request->input('fast', 0);
+        $slow = (int) $request->input('slow', 0);
+        $signal = (int) $request->input('signal', 0);
 
         return $this->respondIndicator($this->analysistService->indicatorMacdData($symbol, $period, $fast, $slow, $signal));
     }
 
     public function RSI(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
-        return $this->respondIndicator($this->analysistService->indicatorRsiData($symbol, $period));
+        $period = $request->input('period', $this->defaultPeriod());
+        $n = (int) $request->input('n', 0);
+        return $this->respondIndicator($this->analysistService->indicatorRsiData($symbol, $period, $n));
     }
 
     public function BollingerBands(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
-        $stdDevMultiplier = (float) $request->input('stdDevMultiplier', 2.0);
+        $period = $request->input('period', $this->defaultPeriod());
+        $stdDevMultiplier = (float) $request->input('stdDevMultiplier', 0.0);
+        $n = (int) $request->input('n', 0);
 
-        return $this->respondIndicator($this->analysistService->indicatorBollingerBandsData($symbol, $period, $stdDevMultiplier));
+        return $this->respondIndicator($this->analysistService->indicatorBollingerBandsData($symbol, $period, $stdDevMultiplier, $n));
     }
 
     public function StochasticOscillator(Request $request, string $symbol)
     {
-        $period = $request->input('period', 'daily');
-        $kPeriod = (int) $request->input('kPeriod', 14);
-        $dPeriod = (int) $request->input('dPeriod', 3);
+        $period = $request->input('period', $this->defaultPeriod());
+        $kPeriod = (int) $request->input('kPeriod', 0);
+        $dPeriod = (int) $request->input('dPeriod', 0);
         return $this->respondIndicator($this->analysistService->indicatorStochasticOscillatorData($symbol, $period, $kPeriod, $dPeriod));
     }
 
@@ -94,5 +96,11 @@ class AnalysistController extends Controller
     {
         $status = array_key_exists('error', $payload) ? 422 : 200;
         return response()->json($payload, $status);
+    }
+
+    private function defaultPeriod(): string
+    {
+        $period = trim((string) config('trading_indicators.default_period', 'daily'));
+        return $period !== '' ? $period : 'daily';
     }
 }

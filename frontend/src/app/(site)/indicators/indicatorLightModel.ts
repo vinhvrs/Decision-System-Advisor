@@ -25,6 +25,8 @@ export type IndicatorSeriesBundle = {
   emaSeries: { day: number; ema: number | null; close: number }[];
   rsiSeries: { day: number; rsi: number | null }[];
   macdSeries: MacdPoint[];
+  macdFastEmaSeries: { day: number; ema: number | null; close: number }[];
+  macdSlowEmaSeries: { day: number; ema: number | null; close: number }[];
   bbSeries: BollingerPoint[];
   stochSeries: { day: number; k: number | null; d: number | null }[];
 };
@@ -40,12 +42,16 @@ export function buildIndicatorLightModel(
         subPane: {
           lines: [
             {
+              id: 'ls-score',
+              label: 'Score',
               color: '#facc15',
               lineWidth: 2,
               lockZeroToHundred: true,
               data: pointsFrom(b.lsSeries, (r) => r.day, (r) => r.score),
             },
             {
+              id: 'ls-liquidity',
+              label: 'Liquidity',
               color: '#6366f1',
               lineWidth: 1,
               priceScaleId: 'ls-liq',
@@ -59,7 +65,13 @@ export function buildIndicatorLightModel(
         overlays: [],
         subPane: {
           lines: [
-            { color: '#38bdf8', lineWidth: 2, data: pointsFrom(b.volSeries, (r) => r.day, (r) => r.vol) },
+            {
+              id: 'vol-rolling',
+              label: 'Rolling vol',
+              color: '#38bdf8',
+              lineWidth: 2,
+              data: pointsFrom(b.volSeries, (r) => r.day, (r) => r.vol),
+            },
           ],
         },
       };
@@ -69,13 +81,27 @@ export function buildIndicatorLightModel(
         subPane: {
           lines: [
             {
+              id: 'adx-main',
+              label: 'ADX',
               color: '#4ade80',
               lineWidth: 2,
               lockZeroToHundred: true,
               data: pointsFrom(b.adxSeries, (r) => r.day, (r) => r.adx),
             },
-            { color: '#22d3ee', lineWidth: 1, data: pointsFrom(b.adxSeries, (r) => r.day, (r) => r.plusDi) },
-            { color: '#f472b6', lineWidth: 1, data: pointsFrom(b.adxSeries, (r) => r.day, (r) => r.minusDi) },
+            {
+              id: 'adx-plus-di',
+              label: '+DI',
+              color: '#22d3ee',
+              lineWidth: 1,
+              data: pointsFrom(b.adxSeries, (r) => r.day, (r) => r.plusDi),
+            },
+            {
+              id: 'adx-minus-di',
+              label: '-DI',
+              color: '#f472b6',
+              lineWidth: 1,
+              data: pointsFrom(b.adxSeries, (r) => r.day, (r) => r.minusDi),
+            },
           ],
         },
       };
@@ -85,6 +111,8 @@ export function buildIndicatorLightModel(
         subPane: {
           lines: [
             {
+              id: 'mfi-main',
+              label: 'MFI',
               color: '#a78bfa',
               lineWidth: 2,
               lockZeroToHundred: true,
@@ -95,12 +123,28 @@ export function buildIndicatorLightModel(
       };
     case 'sma':
       return {
-        overlays: [{ color: '#facc15', lineWidth: 2, data: pointsFrom(b.smaSeries, (r) => r.day, (r) => r.sma) }],
+        overlays: [
+          {
+            id: 'sma-main',
+            label: 'SMA',
+            color: '#facc15',
+            lineWidth: 2,
+            data: pointsFrom(b.smaSeries, (r) => r.day, (r) => r.sma),
+          },
+        ],
         subPane: null,
       };
     case 'ema':
       return {
-        overlays: [{ color: '#22d3ee', lineWidth: 2, data: pointsFrom(b.emaSeries, (r) => r.day, (r) => r.ema) }],
+        overlays: [
+          {
+            id: 'ema-main',
+            label: 'EMA',
+            color: '#22d3ee',
+            lineWidth: 2,
+            data: pointsFrom(b.emaSeries, (r) => r.day, (r) => r.ema),
+          },
+        ],
         subPane: null,
       };
     case 'rsi':
@@ -109,6 +153,8 @@ export function buildIndicatorLightModel(
         subPane: {
           lines: [
             {
+              id: 'rsi-main',
+              label: 'RSI',
               color: '#fb923c',
               lineWidth: 2,
               lockZeroToHundred: true,
@@ -118,30 +164,50 @@ export function buildIndicatorLightModel(
         },
       };
     case 'macd': {
-      const hist = b.macdSeries
-        .filter((d) => d.histogram != null && Number.isFinite(d.histogram))
-        .map((d) => ({
-          time: dayToTime(d.day),
-          value: d.histogram!,
-          color: d.histogram! >= 0 ? 'rgba(99,102,241,0.8)' : 'rgba(244,114,182,0.8)',
-        }));
       return {
-        overlays: [],
-        subPane: {
-          histogram: hist,
-          lines: [
-            { color: '#38bdf8', lineWidth: 2, data: pointsFrom(b.macdSeries, (r) => r.day, (r) => r.macd) },
-            { color: '#f472b6', lineWidth: 2, data: pointsFrom(b.macdSeries, (r) => r.day, (r) => r.signal) },
-          ],
-        },
+        overlays: [
+          {
+            id: 'macd-fast-ema',
+            label: 'Fast EMA',
+            color: '#38bdf8',
+            lineWidth: 2,
+            data: pointsFrom(b.macdFastEmaSeries, (r) => r.day, (r) => r.ema),
+          },
+          {
+            id: 'macd-slow-ema',
+            label: 'Slow EMA',
+            color: '#f472b6',
+            lineWidth: 2,
+            data: pointsFrom(b.macdSlowEmaSeries, (r) => r.day, (r) => r.ema),
+          },
+        ],
+        subPane: null,
       };
     }
     case 'bb':
       return {
         overlays: [
-          { color: '#94a3b8', lineWidth: 1, data: pointsFrom(b.bbSeries, (r) => r.day, (r) => r.upper) },
-          { color: '#facc15', lineWidth: 2, data: pointsFrom(b.bbSeries, (r) => r.day, (r) => r.mid) },
-          { color: '#94a3b8', lineWidth: 1, data: pointsFrom(b.bbSeries, (r) => r.day, (r) => r.lower) },
+          {
+            id: 'bb-upper',
+            label: 'Upper band',
+            color: '#cbd5e1',
+            lineWidth: 1,
+            data: pointsFrom(b.bbSeries, (r) => r.day, (r) => r.upper),
+          },
+          {
+            id: 'bb-mid',
+            label: 'Middle band',
+            color: '#facc15',
+            lineWidth: 2,
+            data: pointsFrom(b.bbSeries, (r) => r.day, (r) => r.mid),
+          },
+          {
+            id: 'bb-lower',
+            label: 'Lower band',
+            color: '#64748b',
+            lineWidth: 1,
+            data: pointsFrom(b.bbSeries, (r) => r.day, (r) => r.lower),
+          },
         ],
         subPane: null,
       };
@@ -151,12 +217,20 @@ export function buildIndicatorLightModel(
         subPane: {
           lines: [
             {
+              id: 'stoch-k',
+              label: '%K',
               color: '#a78bfa',
               lineWidth: 2,
               lockZeroToHundred: true,
               data: pointsFrom(b.stochSeries, (r) => r.day, (r) => r.k),
             },
-            { color: '#22d3ee', lineWidth: 2, data: pointsFrom(b.stochSeries, (r) => r.day, (r) => r.d) },
+            {
+              id: 'stoch-d',
+              label: '%D',
+              color: '#22d3ee',
+              lineWidth: 2,
+              data: pointsFrom(b.stochSeries, (r) => r.day, (r) => r.d),
+            },
           ],
         },
       };
