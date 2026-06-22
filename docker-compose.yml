@@ -23,6 +23,7 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     container_name: dsa-elasticsearch
+    restart: unless-stopped
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -36,6 +37,7 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     container_name: dsa-qdrant
+    restart: unless-stopped
     volumes:
       - qdrantdata:/qdrant/storage
     ports:

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, Building2, Newspaper, BarChart3, Terminal } from "lucide-react";
+import { Users, Building2, Newspaper, BarChart3, Terminal, Database } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -28,6 +28,7 @@ export default function AdminDashboardPage() {
     { href: "/admin/users", label: "User Management", icon: Users, desc: "Edit roles, manage accounts" },
     { href: "/admin/companies", label: "Company / Symbol", icon: Building2, desc: "Manage symbols and company profiles" },
     { href: "/admin/news", label: "News Management", icon: Newspaper, desc: "View and delete news articles" },
+    { href: "/admin/data-fill", label: "Fill Data", icon: Database, desc: "Backfill market OHLC, demo board, and news history" },
     { href: "/admin/statistics", label: "Most Watched", icon: BarChart3, desc: "Companies most added to watchlists" },
     { href: "/admin/logs", label: "Service logs", icon: Terminal, desc: "PHP, Python, and frontend log tails" },
   ];

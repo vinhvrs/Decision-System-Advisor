@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from app.api.internal_trigger import verify_internal_trigger
+from app.api.routes.data_backfill import router as data_backfill_router
 from app.api.routes.embed import router as embed_router
 from app.bootstrap.scheduler_runtime import build_scheduler_health_payload, lifespan
 from app.services.chatbot import chatbot_service
@@ -15,14 +17,6 @@ from app.socket.chatbot_options import router as chatbot_ws_router
 from app.socket.events import router as websocket_router
 
 logger = logging.getLogger(__name__)
-
-
-def _trigger_client_is_loopback(request: Request) -> bool:
-    client = request.client
-    if client is None:
-        return False
-    host = (client.host or "").lower().strip("[]")
-    return host in ("127.0.0.1", "::1", "localhost")
 
 
 app = FastAPI(
@@ -47,6 +41,7 @@ app.add_middleware(
 app.include_router(websocket_router)
 app.include_router(chatbot_ws_router)
 app.include_router(embed_router)
+app.include_router(data_backfill_router)
 
 
 class ChatRequest(BaseModel):
@@ -83,25 +78,7 @@ async def internal_dashboard_warm_up(
     Guard with ``ENGINE_INTERNAL_TRIGGER_SECRET`` (header ``X-Engine-Trigger-Token``), or for **local
     dev only** set ``ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL=1`` and call from loopback without a secret.
     """
-    secret = (os.environ.get("ENGINE_INTERNAL_TRIGGER_SECRET") or "").strip()
-    insecure = (os.environ.get("ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL") or "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    if secret:
-        token = (request.headers.get("X-Engine-Trigger-Token") or "").strip()
-        if token != secret:
-            raise HTTPException(status_code=403, detail="Invalid trigger token")
-    elif insecure and _trigger_client_is_loopback(request):
-        logger.warning(
-            "internal dashboard warm-up: no ENGINE_INTERNAL_TRIGGER_SECRET; allowing loopback only (insecure local)"
-        )
-    else:
-        raise HTTPException(
-            status_code=503,
-            detail="Set ENGINE_INTERNAL_TRIGGER_SECRET or ENGINE_INTERNAL_TRIGGER_INSECURE_LOCAL=1 (loopback only)",
-        )
+    verify_internal_trigger(request)
 
     background_tasks.add_task(_run_dashboard_warm_up_sync)
     return {"ok": True, "accepted": True, "task": "dashboard_warm_up"}

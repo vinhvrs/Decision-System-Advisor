@@ -28,6 +28,17 @@ export const AdminService = {
   statistics: {
     mostWatched: () => api.get(`${ADMIN_PREFIX}/statistics/most-watched`).then((r) => r.data),
   },
+  dataBackfill: {
+    catalog: () =>
+      api.get(`${ADMIN_PREFIX}/data-backfill/catalog`).then((r) => (r.data as { data?: unknown }).data ?? r.data),
+    run: (payload: {
+      job: string;
+      symbol?: string;
+      backfill_days?: number;
+      limit_year?: number;
+      history_period?: string;
+    }) => api.post(`${ADMIN_PREFIX}/data-backfill/run`, payload).then((r) => r.data),
+  },
   logs: {
     tail: () => api.get(`${ADMIN_PREFIX}/logs`).then((r) => r.data?.data ?? r.data),
     laravelEntries: (params?: { levels?: string; limit?: number }) =>
@@ -70,14 +81,6 @@ export const AdminService = {
       api.post(`${ADMIN_PREFIX}/email/contact-submissions/${encodeURIComponent(id)}/read`).then((r) => r.data),
     markAllContactsRead: () =>
       api.post(`${ADMIN_PREFIX}/email/contact-submissions/read-all`).then((r) => r.data),
-  },
-  siteMailSettings: {
-    get: () => api.get(`${ADMIN_PREFIX}/site-mail-settings`).then((r) => (r.data as { data?: unknown }).data ?? r.data),
-    update: (payload: {
-      contact_notification_email?: string | null;
-      support_public_email?: string | null;
-      internal_notes?: string | null;
-    }) => api.put(`${ADMIN_PREFIX}/site-mail-settings`, payload).then((r) => r.data),
   },
   indicators: {
     catalog: () =>

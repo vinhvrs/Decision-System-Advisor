@@ -1,61 +1,115 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Decision System Advisor
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Source repository for the **Decision System Advisor (DSA)** — a web-based investment advisory system. The stack comprises a **Next.js** client, a **Laravel** REST API, and a **Python** analysis engine. Shared persistence uses **MySQL**; **Redis** and **Elasticsearch** support caching and search. Schema definitions live in `backend/database/migrations`.
 
-## About Laravel
+This README is an index for thesis reviewers. Detailed figures and prose are under [`docs/`](docs/).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Repository layout
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Path | Contents |
+|------|----------|
+| [`frontend/`](frontend/) | Next.js application (App Router, charts, admin UI) |
+| [`backend/`](backend/) | Laravel API, plugins (`trading`, `advisor`, `users`), migrations |
+| [`backend/python_engine/`](backend/python_engine/) | FastAPI services, ingest jobs, indicators, ranking, fundamentals |
+| [`docs/`](docs/) | UML figures, ERD, architecture diagrams (thesis sources) |
+| [`docker-compose.yml`](docker-compose.yml) | MySQL, Elasticsearch, Qdrant, Redis (local infrastructure) |
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Documentation index
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+| Topic | Document | Thesis role |
+|-------|----------|-------------|
+| **Chen ERD (conceptual)** | [`docs/erd-overview.md`](docs/erd-overview.md) | Figure 3.2 — entities, attributes, relationships |
+| **Physical schema (tables)** | [`docs/database-schema-diagrams.md`](docs/database-schema-diagrams.md) | Figure 3.3 — columns, PK/FK, types |
+| **Database index** | [`docs/database-erd.md`](docs/database-erd.md) | Quick links to ERD and schema files |
+| **System architecture** | [`docs/architecture-diagrams.md`](docs/architecture-diagrams.md) | Layered view: client, Laravel, Python, stores |
+| **Use cases** | [`docs/use-case-diagrams.md`](docs/use-case-diagrams.md) | End-user and admin use-case diagrams (PlantUML) |
+| **Class diagrams** | [`docs/class-diagrams.md`](docs/class-diagrams.md) | Laravel, Python, and frontend layers |
+| **Sequence diagrams** | [`docs/sequence-diagrams.md`](docs/sequence-diagrams.md) | Ranking and trading request flows |
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Rendered SVG exports are in [`docs/svg/`](docs/svg/). Editable sources: [`docs/plantuml/`](docs/plantuml/), [`docs/mermaid/`](docs/mermaid/).
 
-## Laravel Sponsors
+---
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Database design (two diagram types)
 
-### Premium Partners
+The thesis uses two complementary views of the same schema:
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+1. **Chen ERD** — conceptual model (rectangle = entity, oval = attribute, hexagon = relationship). Overview and per-domain figures: `docs/plantuml/chen-*.puml` → `docs/svg/chen-*.svg`. See [`docs/erd-overview.md`](docs/erd-overview.md).
 
-## Contributing
+2. **Physical schema** — crow's-foot table diagrams with column types and constraints. Domain files: `database-schema-users.puml`, `database-schema-instruments.puml`, `database-schema-knowledges.puml`. See [`docs/database-schema-diagrams.md`](docs/database-schema-diagrams.md).
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+**Domains**
 
-## Code of Conduct
+| Domain | Chen ERD (3.2) | Tables (3.3) |
+|--------|----------------|--------------|
+| Identity & access | `chen-identity-access` | Users hub (`users`, `sessions`, `users_slug`, …) |
+| Trading & advisory | `chen-trading-activity` | `history`, `tickets`, `watchlist` |
+| Admin & mail | `chen-admin-mail` | `admin_activity_logs`, `email_messages` |
+| Knowledge & crawler | `chen-knowledge-crawler` | `knowledge_docs`, `crawler_states` |
+| Instruments & OHLC | `chen-instruments-domain` | `instruments`, periods, OHLC, snapshots, fundamentals |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Cross-domain links (e.g. `symbol` between tickets, watchlist, knowledge, and instruments) are logical associations, not always enforced as foreign keys in migrations.
 
-## Security Vulnerabilities
+**Source of truth:** `backend/database/migrations/`
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## Reproducing figures
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**PlantUML** (Chen ERD, use cases, physical schema) — requires Java and Graphviz:
+
+```bash
+export PATH="/opt/homebrew/bin:$PATH"
+export PLANTUML_LIMIT_SIZE=16384   # needed for the combined Chen overview
+
+java -jar plantuml.jar -tsvg docs/plantuml/chen-*.puml
+java -jar plantuml.jar -tsvg docs/plantuml/database-schema-*.puml
+java -jar plantuml.jar -tsvg docs/plantuml/use-case-*.puml
+```
+
+For `chen-database-overview`, move the output to `docs/svg/chen-database-overview.svg` (PlantUML names the file from the `@startuml` block id).
+
+**Mermaid** (architecture, class, sequence) — paste blocks from the `.md` files into [mermaid.live](https://mermaid.live), or use the CLI:
+
+```bash
+npx @mermaid-js/mermaid-cli -i docs/mermaid/erd-users-domain.mmd -o docs/svg/erd-users-domain.svg -b transparent
+```
+
+---
+
+## Running the system (brief)
+
+Infrastructure:
+
+```bash
+docker compose up -d
+```
+
+Backend (from `backend/`): configure `.env`, run `composer install`, `php artisan migrate`.
+
+Frontend (from `frontend/`): `npm install`, `npm run dev`.
+
+Python engine (from `backend/python_engine/`): see `requirements.txt` and `run_local.ps1` / `run_local.bat`.
+
+Exact environment variables and ports depend on local `.env` files and are not duplicated here.
+
+---
+
+## Figure file map
+
+```
+docs/
+├── erd-overview.md              # Chen ERD — thesis overview (Fig. 3.2)
+├── database-schema-diagrams.md  # Physical tables (Fig. 3.3)
+├── architecture-diagrams.md
+├── use-case-diagrams.md
+├── class-diagrams.md
+├── sequence-diagrams.md
+├── plantuml/                    # .puml sources
+├── mermaid/                     # .mmd sources
+└── svg/                         # Rendered exports for Word/PDF
+```
