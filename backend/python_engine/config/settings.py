@@ -78,6 +78,17 @@ def _resolve_redis_host() -> str:
     return "127.0.0.1"
 
 
+def _resolve_qdrant_url() -> str:
+    """
+    Engine in Docker should use the compose container name (http://dsa-qdrant:6333).
+    Native Python on the host should use loopback via QDRANT_URL_PYTHON.
+    """
+    explicit = _e("QDRANT_URL_PYTHON").strip()
+    if explicit:
+        return explicit
+    return _e("QDRANT_URL", "http://localhost:6333")
+
+
 def _redis_should_use_ssl() -> bool:
     """
     Use TLS only when explicitly configured — same idea as Laravel ``REDIS_SCHEME`` default ``tcp``.
@@ -170,7 +181,7 @@ class Settings:
         self.ELASTIC_HOST = _e("ELASTIC_HOST", "http://localhost:9200")
         self.ELASTIC_INDEX = _e("ELASTIC_INDEX", "dsa_entities")
 
-        self.QDRANT_URL = _e("QDRANT_URL", "http://localhost:6333")
+        self.QDRANT_URL = _resolve_qdrant_url()
         self.QDRANT_COLLECTION = _e("QDRANT_COLLECTION", "knowledge_chunks_v1")
 
         self.EMBEDDING_URL = _e("EMBEDDING_URL", "http://127.0.0.1:8000")

@@ -182,7 +182,7 @@ function snapTimeToBars(sec: number | null, barTimes: number[], fallback: Time |
   return best as Time;
 }
 
-/** Entry markers on the live chart should sit on the forming candle (rightmost bar). */
+/** Entry markers for trades placed in the current session (snap to forming candle when live). */
 function entryMarkerBarTime(
   eventSec: number | null,
   barTimes: number[],
@@ -191,6 +191,34 @@ function entryMarkerBarTime(
 ): Time | null {
   if (livePaperTrading && latestBarTime != null) return latestBarTime;
   return snapTimeToBars(eventSec, barTimes, latestBarTime);
+}
+
+/** Historical open positions from API — never pin to the latest bar. */
+function positionMarkerBarTime(eventSec: number | null, barTimes: number[], period: TF): Time | null {
+  if (eventSec == null || !barTimes.length) return null;
+  let sec = eventSec;
+  if (period === "daily") {
+    const d = new Date(sec * 1000);
+    d.setUTCHours(0, 0, 0, 0);
+    sec = Math.floor(d.getTime() / 1000);
+  } else if (period === "weekly") {
+    const d = new Date(sec * 1000);
+    const day = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() - day + 1);
+    d.setUTCHours(0, 0, 0, 0);
+    sec = Math.floor(d.getTime() / 1000);
+  } else if (period === "monthly") {
+    const d = new Date(sec * 1000);
+    d.setUTCDate(1);
+    d.setUTCHours(0, 0, 0, 0);
+    sec = Math.floor(d.getTime() / 1000);
+  } else if (period === "yearly") {
+    const d = new Date(sec * 1000);
+    d.setUTCMonth(0, 1);
+    d.setUTCHours(0, 0, 0, 0);
+    sec = Math.floor(d.getTime() / 1000);
+  }
+  return snapTimeToBars(sec, barTimes, null);
 }
 
 function toNumber(v: any): number {
@@ -414,6 +442,7 @@ export default function LightChart({
   symbol,
   data,
   realtimeCandle,
+  period,
   onLoadMore,
   indicators = [],
   showTrading = true,
@@ -1173,7 +1202,7 @@ export default function LightChart({
         const isBuy = (p.type || "").toLowerCase() === "buy";
         const rawTime = p.open || p.created_at;
         const sec = rawTime ? normalizeToSec(rawTime) : null;
-        const time = entryMarkerBarTime(sec, barTimes, fallbackTime, livePaperTrading);
+        const time = positionMarkerBarTime(sec, barTimes, period);
         if (time == null) return null;
         const lev = p.leverage ?? 1;
         const vol = Number(p.volume) || 0;
@@ -1224,6 +1253,7 @@ export default function LightChart({
     marketContext.time,
     chartBarTimes,
     realtimeCandle,
+    period,
   ]);
 
   useEffect(() => {

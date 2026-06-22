@@ -194,9 +194,9 @@ users ||--o{ payment : "1 : N"
 users ||--o{ tickets : "1 : N"
 users ||--o{ watchlist : "1 : N"
 users ||--o{ admin_activity_logs : "1 : N"
-users ||--o{ email_messages : "1 : N\n(admin or client FK)"
+users ||--o{ email_messages : "1 : N"
 
-payment ||..o{ payment_status : "1 : N\n(no DB FK yet)"
+payment ||..o{ payment_status : "1 : N"
 
 note as N1
   **Omitted:** jobs, cache, password_reset_tokens,

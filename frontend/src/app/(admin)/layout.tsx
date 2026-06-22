@@ -17,6 +17,7 @@ import {
   Terminal,
   Mail,
   SlidersHorizontal,
+  Database,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/admin/users", label: "User Management", icon: Users },
   { href: "/admin/companies", label: "Company / Symbol", icon: Building2 },
   { href: "/admin/news", label: "News Management", icon: Newspaper },
+  { href: "/admin/data-fill", label: "Fill Data", icon: Database },
   { href: "/admin/statistics", label: "Most Watched", icon: BarChart3 },
   { href: "/admin/logs", label: "Logs & activity", icon: Terminal },
   { href: "/admin/email", label: "Email desk", icon: Mail },
