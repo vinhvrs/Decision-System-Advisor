@@ -18,10 +18,9 @@ numpy
 # Database & Search
 # ==========================================================
 qdrant-client
-elasticsearch
 pymysql
-sqlalchemy
 redis
+requests
 
 # ==========================================================
 # Data Processing & Finance
