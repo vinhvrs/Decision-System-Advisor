@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Read-only catalog row for the core ``indicators`` table (UUID primary key).
+ * Catalog row for the core ``indicators`` table (UUID primary key).
  */
 class Indicator extends Model
 {
+    use HasUuids;
+
     protected $table = 'indicators';
 
     protected $keyType = 'string';

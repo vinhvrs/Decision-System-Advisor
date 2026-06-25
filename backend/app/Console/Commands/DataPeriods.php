@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\DsaTables;
 use Illuminate\Console\Command;
 use Platform\Plugins\Trading\Src\Models\InstrumentData;
 use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
@@ -212,11 +213,11 @@ class DataPeriods extends Command
 
     private function getLatestTimestampsInDb(string $dailyId, string $weeklyId, string $monthlyId, string $yearlyId): array
     {
-        $dailyLatest = DB::table('instrument_data')->where('instrument_period_id', $dailyId)->max('timestamps');
-        $weeklyLatest = DB::table('instrument_data')->where('instrument_period_id', $weeklyId)->max('timestamps');
-        $monthlyLatest = DB::table('instrument_data')->where('instrument_period_id', $monthlyId)->max('timestamps');
-        $yearlyLatest = DB::table('instrument_data')->where('instrument_period_id', $yearlyId)->max('timestamps');
-        $periodStarts = DB::table('instrument_data')
+        $dailyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $dailyId)->max('timestamps');
+        $weeklyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $weeklyId)->max('timestamps');
+        $monthlyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $monthlyId)->max('timestamps');
+        $yearlyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $yearlyId)->max('timestamps');
+        $periodStarts = DB::table(DsaTables::name('instrument_data'))
             ->where('instrument_period_id', $dailyId)
             ->min('timestamps');
         $periodStarts = Carbon::parse($periodStarts ?? now());
@@ -552,7 +553,7 @@ class DataPeriods extends Command
 
     private function getFirstTimestampOrNull(string $periodId): ?Carbon
     {
-        $first = DB::table('instrument_data')
+        $first = DB::table(DsaTables::name('instrument_data'))
             ->where('instrument_period_id', $periodId)
             ->orderBy('timestamps', 'asc')
             ->value('timestamps');

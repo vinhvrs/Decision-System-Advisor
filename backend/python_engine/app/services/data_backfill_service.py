@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 import pymysql
 
 from config.settings import settings
+from app.config.dsa_tables import table as dsa_table
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +41,24 @@ def _db_connect() -> pymysql.connections.Connection:
 
 
 def _get_instrument_id(conn: pymysql.connections.Connection, symbol: str) -> Optional[str]:
+    instruments = dsa_table("instruments")
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM instruments WHERE symbol=%s LIMIT 1", (symbol.upper(),))
+        cur.execute(f"SELECT id FROM `{instruments}` WHERE symbol=%s LIMIT 1", (symbol.upper(),))
         row = cur.fetchone()
         return row["id"] if row else None
 
 
-def _get_production_daily_stats(conn: pymysql.connections.Connection, symbol: str) -> Dict[str, Any]:
+def _get_daily_ohlc_stats(conn: pymysql.connections.Connection, symbol: str) -> Dict[str, Any]:
+    instruments = dsa_table("instruments")
+    periods = dsa_table("instrument_periods")
+    data = dsa_table("instrument_data")
     with conn.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT COUNT(*) AS daily_rows, MAX(d.timestamps) AS latest_ts
-            FROM instruments i
-            JOIN instrument_periods ip ON ip.instrument_id = i.id AND ip.period = 'daily'
-            JOIN instrument_data d ON d.instrument_period_id = ip.id
+            FROM `{instruments}` i
+            JOIN `{periods}` ip ON ip.instrument_id = i.id AND ip.period = 'daily'
+            JOIN `{data}` d ON d.instrument_period_id = ip.id
             WHERE i.symbol = %s
             """,
             (symbol.upper(),),
@@ -84,7 +89,7 @@ def _sync_production_symbol(symbol: str, *, backfill_days: int) -> Dict[str, Any
         if not inst_id:
             return {"ok": False, "symbol": sym, "error": "instrument not found"}
 
-        before = _get_production_daily_stats(conn, sym)
+        before = _get_daily_ohlc_stats(conn, sym)
     finally:
         conn.close()
 
@@ -99,14 +104,14 @@ def _sync_production_symbol(symbol: str, *, backfill_days: int) -> Dict[str, Any
 
     conn = _db_connect()
     try:
-        after = _get_production_daily_stats(conn, sym)
+        after = _get_daily_ohlc_stats(conn, sym)
     finally:
         conn.close()
 
     return {
         "ok": True,
         "symbol": sym,
-        "target_table": "instrument_data",
+        "target_table": dsa_table("instrument_data"),
         "backfill_days": days,
         "before": before,
         "after": after,
@@ -130,7 +135,7 @@ def catch_up_demo_board(*, backfill_days: int = DEFAULT_CATCH_UP_DAYS) -> Dict[s
 
     conn = _db_connect()
     try:
-        before = {s: _get_production_daily_stats(conn, s) for s in DEMO_BOARD_SYMBOLS}
+        before = {s: _get_daily_ohlc_stats(conn, s) for s in DEMO_BOARD_SYMBOLS}
     finally:
         conn.close()
 
@@ -152,7 +157,7 @@ def catch_up_demo_board(*, backfill_days: int = DEFAULT_CATCH_UP_DAYS) -> Dict[s
     return {
         "ok": True,
         "job": "demo_board_refill",
-        "target_table": "instrument_data",
+        "target_table": dsa_table("instrument_data"),
         "synced": synced,
         "errors": errors,
         "before": before,
@@ -191,7 +196,7 @@ def backfill_market_symbol_demo(symbol: str, *, backfill_days: int = DEFAULT_BAC
         "ok": True,
         "job": "market_symbol_demo",
         "symbol": sym,
-        "target_table": "instrument_data_demo",
+        "target_table": dsa_table("instrument_data"),
         "backfill_days": days,
     }
 
@@ -240,7 +245,7 @@ def sync_market_universe(
     return {
         "ok": True,
         "job": "demo_sync_all",
-        "target_table": "instrument_data",
+        "target_table": dsa_table("instrument_data"),
         "symbol_count": len(symbols),
         "symbols": symbols[:50],
         "backfill_days": days,
@@ -271,7 +276,7 @@ def sync_demo_universe(
     return {
         "ok": True,
         "job": "demo_sync_all_demo",
-        "target_table": "instrument_data_demo",
+        "target_table": dsa_table("instrument_data"),
         "symbol_count": len(symbols),
         "symbols": symbols[:50],
         "backfill_days": days,

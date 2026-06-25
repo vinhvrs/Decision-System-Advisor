@@ -602,7 +602,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             <span className="text-white">{symbol}</span>
           </div>
           <Link
-            href="/trading"
+            href="/investing"
             className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
           >
             Investing site

@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, ChevronUp, RefreshCw, Sparkles, X } from "lucide-react";
+import { ArrowUp, ChevronUp, MessageCircle, RefreshCw, X } from "lucide-react";
 import { CHATBOT_SCOPE_STORAGE_KEY } from "@/src/constants/chatbotScope";
 import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 import { stripParentheticals } from "@/src/libs/displayString";
@@ -102,7 +102,7 @@ function payloadToBotMessages(payload: any): { from: "bot"; text: string }[] {
     return blocks;
   }
 
-  return [{ from: "bot", text: "Unknown response shape from assistant." }];
+  return [{ from: "bot", text: "Unexpected response from the chat service." }];
 }
 
 export default function ChatBox() {
@@ -348,10 +348,10 @@ export default function ChatBox() {
         const httpsPage = typeof window !== "undefined" && window.location.protocol === "https:";
         const mixed =
           httpsPage && url.startsWith("ws://")
-            ? " Secure pages require a matching secure (wss) assistant endpoint."
+            ? " Secure pages require a matching secure (wss) chat endpoint."
             : "";
         setConnectError(
-          `We cannot reach the assistant right now.${mixed} Please check your connection or try again in a moment.`
+          `We cannot reach the chat service right now.${mixed} Please check your connection or try again in a moment.`
         );
         setWsReady(false);
       };
@@ -479,7 +479,7 @@ export default function ChatBox() {
           className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#3c3c3c] bg-[#1e1e1e] text-[#c4b5fd] shadow-lg shadow-black/40 transition hover:border-[#5a5a5a] hover:bg-[#252526]"
           onClick={() => setOpen(true)}
         >
-          <Sparkles size={20} strokeWidth={1.75} aria-hidden />
+          <MessageCircle size={20} strokeWidth={1.75} aria-hidden />
         </button>
       )}
 
@@ -524,7 +524,7 @@ export default function ChatBox() {
           )}
           {!wsReady && !connectError && (
             <div className="shrink-0 border-b border-[#2d2d2d] bg-[#1e1e1e] px-3 py-2 font-mono text-[11px] text-[#6e6e6e]">
-              Connecting to assistant…
+              Connecting to chat…
             </div>
           )}
 
@@ -548,7 +548,7 @@ export default function ChatBox() {
                       className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#3c3c3c] bg-[#252526] font-mono text-[10px] font-semibold text-[#a78bfa]"
                       aria-hidden
                     >
-                      AI
+                      DSA
                     </div>
                     <div className="min-w-0 flex-1 border-l border-[#3c3c3c] pl-3 text-[13px] leading-relaxed text-[#cccccc] whitespace-pre-line">
                       {msg.text}

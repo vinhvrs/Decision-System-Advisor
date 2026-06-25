@@ -1625,7 +1625,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               onSelect={(opt) => setPeriod(opt.id as Period)}
             />
             <Link
-              href="/trading"
+              href="/investing"
               className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
             >
               <Home className="h-3.5 w-3.5 shrink-0" />

@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
         destination: "/companies/profile/:path*",
         permanent: true,
       },
+      { source: "/trading", destination: "/investing", permanent: true },
+      { source: "/trading/history", destination: "/investing/history", permanent: true },
+      { source: "/instrument", destination: "/screener", permanent: true },
+      { source: "/analysis", destination: "/indicators", permanent: true },
+      { source: "/strategy", destination: "/indicators?tab=strategy", permanent: true },
     ];
   },
 };

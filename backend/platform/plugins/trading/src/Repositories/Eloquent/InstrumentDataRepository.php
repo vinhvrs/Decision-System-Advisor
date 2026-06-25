@@ -1,5 +1,6 @@
 <?php
 namespace Platform\Plugins\Trading\Src\Repositories\Eloquent;
+use App\Support\DsaTables;
 use Platform\Plugins\Trading\Src\Models\InstrumentData;
 use Illuminate\Support\Facades\DB;
 use Platform\Plugins\Trading\Src\Repositories\Interfaces\InstrumentDataInterface;
@@ -71,7 +72,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
 
         $slug = strtolower((string) $symbol).'-'.$period;
 
-        $periodId = DB::table('instrument_periods')->where('slug', $slug)->value('id');
+        $periodId = DB::table(DsaTables::name('instrument_periods'))->where('slug', $slug)->value('id');
 
         if ($periodId) {
             return InstrumentData::query()
@@ -110,7 +111,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
     {
         $period = $period !== '' && $period !== null ? strtolower((string) $period) : 'daily';
         $slug = strtolower(trim((string) $symbol)).'-'.$period;
-        $periodId = DB::table('instrument_periods')->where('slug', $slug)->value('id');
+        $periodId = DB::table(DsaTables::name('instrument_periods'))->where('slug', $slug)->value('id');
         if (! $periodId) {
             return [];
         }
@@ -161,7 +162,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
             $slugs[] = $slug;
             $slugToSymbol[$slug] = $sym;
         }
-        $periodRows = DB::table('instrument_periods')->whereIn('slug', $slugs)->get(['id', 'slug']);
+        $periodRows = DB::table(DsaTables::name('instrument_periods'))->whereIn('slug', $slugs)->get(['id', 'slug']);
         $result = [];
         foreach ($symbols as $sym) {
             $result[$sym] = [];
@@ -193,7 +194,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
     {
         $period = $period !== '' && $period !== null ? strtolower((string) $period) : 'daily';
         $slug = strtolower(trim((string) $symbol)).'-'.$period;
-        $periodId = DB::table('instrument_periods')->where('slug', $slug)->value('id');
+        $periodId = DB::table(DsaTables::name('instrument_periods'))->where('slug', $slug)->value('id');
         if (! $periodId) {
             return [];
         }
@@ -257,7 +258,7 @@ class InstrumentDataRepository implements InstrumentDataInterface {
 
     public function findBySymbolAndPeriod(string $symbol, string $period, int $perPage, int $page): ?LengthAwarePaginator {
         $slug = strtolower($symbol).'-'.strtolower($period);
-        $period_id = DB::table('instrument_periods')->where('slug', $slug)->value('id');
+        $period_id = DB::table(DsaTables::name('instrument_periods'))->where('slug', $slug)->value('id');
         return InstrumentData::query()
             ->where('instrument_period_id', $period_id)
             ->orderBy('timestamps', 'desc')

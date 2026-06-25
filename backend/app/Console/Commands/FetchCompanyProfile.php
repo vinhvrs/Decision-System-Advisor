@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\DsaTables;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ class FetchCompanyProfile extends Command
         $batchSize = 50;
         $rows = [];
 
-        DB::table('instruments')
+        DB::table(DsaTables::name('instruments'))
             ->select('id', 'symbol')
             ->orderBy('id')
             ->chunkById(50, function ($instruments) use (&$rows, $batchSize, $apiKey) {
@@ -31,7 +32,7 @@ class FetchCompanyProfile extends Command
                 foreach ($instruments as $instrument) {
 
                     // Skip if profile already exists
-                    $exists = DB::table('company_profile')
+                    $exists = DB::table(DsaTables::name('company_profile'))
                         ->where('symbol', $instrument->symbol)
                         ->exists();
 
@@ -69,7 +70,7 @@ class FetchCompanyProfile extends Command
                     ];
 
                     if (count($rows) >= $batchSize) {
-                        DB::table('company_profile')->insert($rows);
+                        DB::table(DsaTables::name('company_profile'))->insert($rows);
                         $this->info("Inserted batch of {$batchSize}");
                         $rows = [];
                     }
@@ -81,7 +82,7 @@ class FetchCompanyProfile extends Command
 
         // Insert remaining
         if (!empty($rows)) {
-            DB::table('company_profile')->insert($rows);
+            DB::table(DsaTables::name('company_profile'))->insert($rows);
             $this->info("Inserted remaining " . count($rows));
         }
 

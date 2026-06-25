@@ -323,7 +323,7 @@ export default function BeginnerTestMarketExtras({
                 {heatmapTitle}
               </h3>
             </div>
-            <Link href="/trading" className={`text-[10px] font-semibold text-[#7b9cff] hover:underline`}>
+            <Link href="/investing" className={`text-[10px] font-semibold text-[#7b9cff] hover:underline`}>
               Heatmap on trading
             </Link>
           </div>

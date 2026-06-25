@@ -4,6 +4,8 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import pandas_ta
 
+from app.config.indicator_runtime import IndicatorRuntime, get_indicator_runtime
+
 class IndicatorService:
     """
     Pure indicator calculator.
@@ -17,6 +19,12 @@ class IndicatorService:
     """
 
     MIN_REQUIRED_CANDLES = 100
+
+    def __init__(self, runtime: Optional[IndicatorRuntime] = None):
+        self._runtime = runtime
+
+    def _params(self) -> IndicatorRuntime:
+        return self._runtime or get_indicator_runtime()
 
     @staticmethod
     def _safe_float(value, default: float = 0.0) -> float:
@@ -62,6 +70,7 @@ class IndicatorService:
 
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute RSI/MACD/stoch/EMA/Bollinger columns via pandas_ta."""
+        p = self._params()
         df = self.prepare_dataframe(df)
         if df.empty:
             return df
@@ -72,25 +81,45 @@ class IndicatorService:
         df = df.copy()
 
         # Momentum
-        df.ta.rsi(length=14, append=True)
-        df.ta.macd(fast=12, slow=26, signal=9, append=True)
-        df.ta.stoch(k=14, d=3, smooth_k=3, append=True)
+        df.ta.rsi(length=p.rsi_period, append=True)
+        df.ta.macd(
+            fast=p.macd_fast_period,
+            slow=p.macd_slow_period,
+            signal=p.macd_signal_period,
+            append=True,
+        )
+        df.ta.stoch(
+            k=p.stochastic_k_period,
+            d=p.stochastic_d_period,
+            smooth_k=p.stochastic_smooth_k,
+            append=True,
+        )
 
         # Trend
-        df.ta.ema(length=20, append=True)
-        df.ta.ema(length=100, append=True)
+        df.ta.ema(length=p.ema_fast_period, append=True)
+        df.ta.ema(length=p.ema_slow_period, append=True)
 
         # Volatility
-        df.ta.bbands(length=20, std=2.0, append=True)
+        df.ta.bbands(length=p.bollinger_period, std=p.bollinger_std_dev_multiplier, append=True)
 
         return df
 
     def _resolve_states(self, prev_row: pd.Series, last_row: pd.Series, df: pd.DataFrame) -> Dict[str, Any]:
         """Derive crossover and zone states from the last two rows."""
-        e20_p = self._safe_float(prev_row.get("EMA_20"))
-        e100_p = self._safe_float(prev_row.get("EMA_100"))
-        e20_c = self._safe_float(last_row.get("EMA_20"))
-        e100_c = self._safe_float(last_row.get("EMA_100"))
+        p = self._params()
+        ema_fast_col = f"EMA_{p.ema_fast_period}"
+        ema_slow_col = f"EMA_{p.ema_slow_period}"
+        rsi_col = f"RSI_{p.rsi_period}"
+        macd_col = f"MACD_{p.macd_fast_period}_{p.macd_slow_period}_{p.macd_signal_period}"
+        macd_sig_col = f"MACDs_{p.macd_fast_period}_{p.macd_slow_period}_{p.macd_signal_period}"
+        macd_hist_col = f"MACDh_{p.macd_fast_period}_{p.macd_slow_period}_{p.macd_signal_period}"
+        stoch_k_col = f"STOCHk_{p.stochastic_k_period}_{p.stochastic_d_period}_{p.stochastic_smooth_k}"
+        stoch_d_col = f"STOCHd_{p.stochastic_k_period}_{p.stochastic_d_period}_{p.stochastic_smooth_k}"
+
+        e20_p = self._safe_float(prev_row.get(ema_fast_col))
+        e100_p = self._safe_float(prev_row.get(ema_slow_col))
+        e20_c = self._safe_float(last_row.get(ema_fast_col))
+        e100_c = self._safe_float(last_row.get(ema_slow_col))
 
         ema_signal = "neutral"
         if self._cross_up(e20_p, e100_p, e20_c, e100_c):
@@ -105,7 +134,7 @@ class IndicatorService:
         else:
             trend_20_100 = "neutral"
 
-        rsi_val = self._safe_float(last_row.get("RSI_14"))
+        rsi_val = self._safe_float(last_row.get(rsi_col))
         if rsi_val >= 70:
             rsi_state = "overbought"
         elif rsi_val <= 30:
@@ -113,16 +142,16 @@ class IndicatorService:
         else:
             rsi_state = "neutral"
 
-        macd_val = self._safe_float(last_row.get("MACD_12_26_9"))
-        macd_sig = self._safe_float(last_row.get("MACDs_12_26_9"))
-        macd_hist = self._safe_float(last_row.get("MACDh_12_26_9"))
+        macd_val = self._safe_float(last_row.get(macd_col))
+        macd_sig = self._safe_float(last_row.get(macd_sig_col))
+        macd_hist = self._safe_float(last_row.get(macd_hist_col))
 
-        stoch_k = self._safe_float(last_row.get("STOCHk_14_3_3"))
-        stoch_d = self._safe_float(last_row.get("STOCHd_14_3_3"))
+        stoch_k = self._safe_float(last_row.get(stoch_k_col))
+        stoch_d = self._safe_float(last_row.get(stoch_d_col))
 
-        bb_lower_col = next((c for c in df.columns if c.startswith("BBL_20")), None)
-        bb_middle_col = next((c for c in df.columns if c.startswith("BBM_20")), None)
-        bb_upper_col = next((c for c in df.columns if c.startswith("BBU_20")), None)
+        bb_lower_col = next((c for c in df.columns if c.startswith(f"BBL_{p.bollinger_period}")), None)
+        bb_middle_col = next((c for c in df.columns if c.startswith(f"BBM_{p.bollinger_period}")), None)
+        bb_upper_col = next((c for c in df.columns if c.startswith(f"BBU_{p.bollinger_period}")), None)
 
         bb_lower = self._safe_float(last_row.get(bb_lower_col)) if bb_lower_col else 0.0
         bb_middle = self._safe_float(last_row.get(bb_middle_col)) if bb_middle_col else 0.0

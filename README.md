@@ -1,115 +1,174 @@
 # Decision System Advisor
 
-Source repository for the **Decision System Advisor (DSA)** — a web-based investment advisory system. The stack comprises a **Next.js** client, a **Laravel** REST API, and a **Python** analysis engine. Shared persistence uses **MySQL**; **Redis** and **Elasticsearch** support caching and search. Schema definitions live in `backend/database/migrations`.
+Web-based investment advisory system: **Next.js** client, **Laravel** REST API, **Python** analysis engine. Primary persistence is **MySQL**; **Elasticsearch**, **Qdrant**, and **Redis** support search, vectors, and caching.
 
-This README is an index for thesis reviewers. Detailed figures and prose are under [`docs/`](docs/).
+This README is a **committee index**: key figures, short explanations, and how to run locally. Full prose and editable sources live under [`docs/`](docs/).
+
+---
+
+## Quick start (committee)
+
+```bash
+# 1. Infrastructure
+docker compose up -d
+
+# 2. Backend
+cp backend/.env.example backend/.env
+cd backend && composer install && php artisan key:generate && php artisan migrate
+
+# 3. Frontend
+cp frontend/.env.example frontend/.env.local
+cd frontend && npm install && npm run dev
+```
+
+| Service | URL |
+|---------|-----|
+| Web app | http://localhost:3000 |
+| Laravel API | http://localhost:1111/api |
+| Python engine | http://localhost:8000 |
+| MySQL (host) | `127.0.0.1:3307` (user `root`, db `dsa`) |
+
+Environment templates: [`backend/.env.example`](backend/.env.example), [`frontend/.env.example`](frontend/.env.example).
+
+---
+
+## Figures (thesis)
+
+### System architecture
+
+Layered view: browser → Next.js → Laravel → Python, and shared stores (MySQL, Redis, Elasticsearch).  
+Detail: [`docs/architecture-diagrams.md`](docs/architecture-diagrams.md)
+
+```mermaid
+flowchart LR
+  Browser --> NextJS[Next.js]
+  NextJS --> Laravel[Laravel API]
+  NextJS --> Python[Python engine]
+  Laravel --> MySQL[(MySQL)]
+  Python --> MySQL
+  Laravel --> Redis[(Redis)]
+  Python --> Qdrant[(Qdrant)]
+  Laravel --> ES[(Elasticsearch)]
+```
+
+---
+
+### Database — Chen ERD (Figure 3.2, conceptual)
+
+Entities (rectangles), attributes (ovals), relationships (hexagons). Not a physical table diagram.  
+Detail: [`docs/erd-overview.md`](docs/erd-overview.md)
+
+![Chen ERD overview](docs/svg/chen-database-overview.svg)
+
+| Domain | Diagram |
+|--------|---------|
+| Identity & access | ![identity](docs/svg/chen-identity-access.svg) |
+| Trading & tickets | ![trading](docs/svg/chen-trading-activity.svg) |
+| Admin & mail | ![admin](docs/svg/chen-admin-mail.svg) |
+| Knowledge & crawler | ![knowledge](docs/svg/chen-knowledge-crawler.svg) |
+| Instruments & OHLC | ![instruments](docs/svg/chen-instruments-domain.svg) |
+
+---
+
+### Database — physical schema (Figure 3.3, tables)
+
+Columns, PK/FK, types — source of truth: `backend/database/migrations`.  
+Detail: [`docs/database-schema-diagrams.md`](docs/database-schema-diagrams.md)
+
+![Users schema](docs/svg/database-schema-users.svg)
+
+![Instruments schema](docs/svg/database-schema-instruments.svg)
+
+![Knowledges schema](docs/svg/database-schema-knowledges.svg)
+
+---
+
+### Use cases
+
+End-user and admin boundaries (PlantUML).  
+Detail: [`docs/use-case-diagrams.md`](docs/use-case-diagrams.md) · sources: `docs/plantuml/use-case-*.puml`
+
+---
+
+### Class diagrams
+
+Laravel, Python, and frontend layers (Mermaid).  
+Detail: [`docs/class-diagrams.md`](docs/class-diagrams.md)
+
+---
+
+### Sequence diagrams
+
+Ranking and trading request flows (Mermaid).  
+Detail: [`docs/sequence-diagrams.md`](docs/sequence-diagrams.md)
 
 ---
 
 ## Repository layout
 
-| Path | Contents |
-|------|----------|
-| [`frontend/`](frontend/) | Next.js application (App Router, charts, admin UI) |
-| [`backend/`](backend/) | Laravel API, plugins (`trading`, `advisor`, `users`), migrations |
-| [`backend/python_engine/`](backend/python_engine/) | FastAPI services, ingest jobs, indicators, ranking, fundamentals |
-| [`docs/`](docs/) | UML figures, ERD, architecture diagrams (thesis sources) |
-| [`docker-compose.yml`](docker-compose.yml) | MySQL, Elasticsearch, Qdrant, Redis (local infrastructure) |
-
----
-
-## Documentation index
-
-| Topic | Document | Thesis role |
-|-------|----------|-------------|
-| **Chen ERD (conceptual)** | [`docs/erd-overview.md`](docs/erd-overview.md) | Figure 3.2 — entities, attributes, relationships |
-| **Physical schema (tables)** | [`docs/database-schema-diagrams.md`](docs/database-schema-diagrams.md) | Figure 3.3 — columns, PK/FK, types |
-| **Database index** | [`docs/database-erd.md`](docs/database-erd.md) | Quick links to ERD and schema files |
-| **System architecture** | [`docs/architecture-diagrams.md`](docs/architecture-diagrams.md) | Layered view: client, Laravel, Python, stores |
-| **Use cases** | [`docs/use-case-diagrams.md`](docs/use-case-diagrams.md) | End-user and admin use-case diagrams (PlantUML) |
-| **Class diagrams** | [`docs/class-diagrams.md`](docs/class-diagrams.md) | Laravel, Python, and frontend layers |
-| **Sequence diagrams** | [`docs/sequence-diagrams.md`](docs/sequence-diagrams.md) | Ranking and trading request flows |
-
-Rendered SVG exports are in [`docs/svg/`](docs/svg/). Editable sources: [`docs/plantuml/`](docs/plantuml/), [`docs/mermaid/`](docs/mermaid/).
-
----
-
-## Database design (two diagram types)
-
-The thesis uses two complementary views of the same schema:
-
-1. **Chen ERD** — conceptual model (rectangle = entity, oval = attribute, hexagon = relationship). Overview and per-domain figures: `docs/plantuml/chen-*.puml` → `docs/svg/chen-*.svg`. See [`docs/erd-overview.md`](docs/erd-overview.md).
-
-2. **Physical schema** — crow's-foot table diagrams with column types and constraints. Domain files: `database-schema-users.puml`, `database-schema-instruments.puml`, `database-schema-knowledges.puml`. See [`docs/database-schema-diagrams.md`](docs/database-schema-diagrams.md).
-
-**Domains**
-
-| Domain | Chen ERD (3.2) | Tables (3.3) |
-|--------|----------------|--------------|
-| Identity & access | `chen-identity-access` | Users hub (`users`, `sessions`, `users_slug`, …) |
-| Trading & advisory | `chen-trading-activity` | `history`, `tickets`, `watchlist` |
-| Admin & mail | `chen-admin-mail` | `admin_activity_logs`, `email_messages` |
-| Knowledge & crawler | `chen-knowledge-crawler` | `knowledge_docs`, `crawler_states` |
-| Instruments & OHLC | `chen-instruments-domain` | `instruments`, periods, OHLC, snapshots, fundamentals |
-
-Cross-domain links (e.g. `symbol` between tickets, watchlist, knowledge, and instruments) are logical associations, not always enforced as foreign keys in migrations.
-
-**Source of truth:** `backend/database/migrations/`
+| Path | Role |
+|------|------|
+| [`frontend/`](frontend/) | Next.js UI, charts, admin |
+| [`backend/`](backend/) | Laravel API, migrations, plugins |
+| [`backend/python_engine/`](backend/python_engine/) | FastAPI, ingest, indicators, ranking |
+| [`docs/`](docs/) | Thesis diagrams (PlantUML, Mermaid, SVG) |
+| [`docker-compose.yml`](docker-compose.yml) | MySQL, Elasticsearch, Qdrant, API, engine |
 
 ---
 
 ## Reproducing figures
 
-**PlantUML** (Chen ERD, use cases, physical schema) — requires Java and Graphviz:
+**PlantUML** (Chen ERD, use cases, physical schema):
 
 ```bash
 export PATH="/opt/homebrew/bin:$PATH"
-export PLANTUML_LIMIT_SIZE=16384   # needed for the combined Chen overview
-
+export PLANTUML_LIMIT_SIZE=16384
 java -jar plantuml.jar -tsvg docs/plantuml/chen-*.puml
 java -jar plantuml.jar -tsvg docs/plantuml/database-schema-*.puml
-java -jar plantuml.jar -tsvg docs/plantuml/use-case-*.puml
 ```
 
-For `chen-database-overview`, move the output to `docs/svg/chen-database-overview.svg` (PlantUML names the file from the `@startuml` block id).
-
-**Mermaid** (architecture, class, sequence) — paste blocks from the `.md` files into [mermaid.live](https://mermaid.live), or use the CLI:
-
-```bash
-npx @mermaid-js/mermaid-cli -i docs/mermaid/erd-users-domain.mmd -o docs/svg/erd-users-domain.svg -b transparent
-```
+**Mermaid** (architecture, class, sequence): paste from `docs/*.md` into [mermaid.live](https://mermaid.live), or use `@mermaid-js/mermaid-cli`.
 
 ---
 
-## Running the system (brief)
+## MongoDB: would changing the URL be enough?
 
-Infrastructure:
+**No.** Swapping `DB_HOST` / connection URL to MongoDB is not sufficient, and a thin MySQL ↔ MongoDB “converter” module is not enough on its own.
 
-```bash
-docker compose up -d
-```
+DSA is built as a **relational** stack end to end:
 
-Backend (from `backend/`): configure `.env`, run `composer install`, `php artisan migrate`.
+| Layer | How data is accessed today |
+|-------|----------------------------|
+| **Laravel** | Eloquent models, migrations, SQL joins, `DB::` queries, repositories |
+| **Python engine** | `pymysql` + raw `SELECT` / `INSERT` / `UPDATE` across ingest, OHLC, news, ranking |
+| **Schema** | Normalized tables (`instrument_data`, `tickets`, `knowledge_docs`, …) with indexes and FK-style design |
 
-Frontend (from `frontend/`): `npm install`, `npm run dev`.
+MongoDB is **document-oriented**. There is no drop-in URL change:
 
-Python engine (from `backend/python_engine/`): see `requirements.txt` and `run_local.ps1` / `run_local.bat`.
+1. **Models / access code must change** — Eloquent does not speak MongoDB; you would use `mongodb/laravel-mongodb` (or similar) and rewrite models, relationships, and many queries. Python would move from `pymysql` to `pymongo` (or an ODM) with different query patterns.
+2. **Schema must be redesigned** — e.g. embed OHLC arrays per symbol vs separate period rows; denormalize news/chunks; rethink transactions and uniqueness.
+3. **Migrations don’t port** — Laravel migrations are MySQL DDL; MongoDB uses collections and indexes, not the same migration files.
+4. **A converter alone only helps migration or sync** — useful for one-time ETL or dual-write, but every read/write path still needs a **repository or driver** that targets the store you actually use at runtime.
 
-Exact environment variables and ports depend on local `.env` files and are not duplicated here.
+**Practical options:**
+
+- **Keep MySQL** as system of record (current design; matches thesis ERD).
+- **Add MongoDB for a subset** (e.g. raw news blobs, logs) via explicit services — not a global URL swap.
+- **Full migration** — new document schema + replace Laravel/Python data layers + data migration scripts; budget a large refactor, not a config change.
 
 ---
 
-## Figure file map
+## Figure sources
 
 ```
 docs/
-├── erd-overview.md              # Chen ERD — thesis overview (Fig. 3.2)
+├── erd-overview.md              # Chen ERD (Fig. 3.2)
 ├── database-schema-diagrams.md  # Physical tables (Fig. 3.3)
 ├── architecture-diagrams.md
 ├── use-case-diagrams.md
 ├── class-diagrams.md
 ├── sequence-diagrams.md
-├── plantuml/                    # .puml sources
-├── mermaid/                     # .mmd sources
-└── svg/                         # Rendered exports for Word/PDF
+├── plantuml/                    # .puml
+├── mermaid/                     # .mmd
+└── svg/                         # Rendered SVG for Word/PDF
 ```

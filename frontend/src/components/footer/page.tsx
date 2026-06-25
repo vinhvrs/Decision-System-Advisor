@@ -10,7 +10,7 @@ export default function Footer() {
       links: [
         { name: "Dashboard", href: "#dashboard" },
         { name: "Market Heatmap", href: "/analyze" },
-        { name: "Indicators & Strategy", href: "/analysis" },
+        { name: "Indicators & Strategy", href: "/indicators" },
       ],
     },
     {
@@ -45,8 +45,8 @@ export default function Footer() {
               Decision Stocks Advisor
             </Link>
             <p className="mt-3 tablet:mt-4 text-white/50 text-xs phone:text-sm leading-relaxed max-w-sm">
-              Empowering investors with real-time analytics, institutional-grade indicators, 
-              and AI-driven market insights. Stay ahead of the curve with DSA.
+              Empowering investors with real-time analytics, institutional-grade indicators,
+              and data-driven market context. Stay ahead of the curve with DSA.
             </p>
             <div className="flex gap-4 mt-6">
               <a href="#" className="text-white/40 hover:text-blue-400 transition-colors"><Twitter size={20} /></a>

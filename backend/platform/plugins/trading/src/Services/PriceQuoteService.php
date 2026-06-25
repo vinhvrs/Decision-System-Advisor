@@ -2,6 +2,7 @@
 
 namespace Platform\Plugins\Trading\Src\Services;
 
+use App\Support\DsaTables;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\DB;
 
@@ -28,7 +29,7 @@ class PriceQuoteService
             return null;
         }
 
-        $price = DB::table('instrument_snapshot')
+        $price = DB::table(DsaTables::name('instrument_snapshot'))
             ->where('symbol', $symbol)
             ->value('price');
 
@@ -52,7 +53,7 @@ class PriceQuoteService
             return [];
         }
 
-        $rows = DB::table('instrument_snapshot')
+        $rows = DB::table(DsaTables::name('instrument_snapshot'))
             ->whereIn('symbol', $symbols)
             ->pluck('price', 'symbol');
 

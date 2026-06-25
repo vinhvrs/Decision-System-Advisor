@@ -108,7 +108,7 @@ export default function NewsDetailPage() {
         {/* FOOTER DISCLAIMER */}
         <footer className="mt-24 pt-12 border-t border-white/5 opacity-40">
           <p className="text-sm italic leading-relaxed">
-            © Copyright {news.author?.split(',')[0] || "Reuters"} 2026. This data is part of the Decision Stocks Advisor automated news flow.
+            © Copyright {news.author?.split(',')[0] || "Reuters"} 2026. This data is part of the Decision Stocks Advisor news feed.
           </p>
         </footer>
       </article>

@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Indicator;
 use App\Models\IndicatorParameter;
+use App\Services\IndicatorConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class IndicatorParameterController extends Controller
 {
+    public function __construct(private readonly IndicatorConfigService $indicatorConfig)
+    {
+    }
+
     public function catalog()
     {
         $rows = Indicator::query()
@@ -76,6 +81,8 @@ class IndicatorParameterController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
+        $this->indicatorConfig->flushCache();
+
         return response()->json(['data' => $row], 201);
     }
 
@@ -113,6 +120,8 @@ class IndicatorParameterController extends Controller
         $row->fill($validated);
         $row->save();
 
+        $this->indicatorConfig->flushCache();
+
         return response()->json(['data' => $row->fresh()]);
     }
 
@@ -126,6 +135,8 @@ class IndicatorParameterController extends Controller
         if (! $deleted) {
             return response()->json(['message' => 'Parameter not found'], 404);
         }
+
+        $this->indicatorConfig->flushCache();
 
         return response()->json(['message' => 'Deleted']);
     }

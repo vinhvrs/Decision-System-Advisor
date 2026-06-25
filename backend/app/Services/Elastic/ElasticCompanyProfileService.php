@@ -2,6 +2,7 @@
 
 namespace App\Services\Elastic;
 
+use App\Support\DsaTables;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -20,7 +21,7 @@ class ElasticCompanyProfileService
         $failed = 0;
         $errors = [];
 
-        DB::table('company_profile')
+        DB::table(DsaTables::name('company_profile'))
             ->orderBy('instrument_id')
             ->chunk($chunkSize, function ($rows) use ($client, $index, &$total, &$failed, &$errors) {
                 $body = [];

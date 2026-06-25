@@ -2,6 +2,7 @@
 
 namespace Platform\Plugins\Trading\Src\Http\Controllers\CollectData;
 
+use App\Support\DsaTables;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
 use Platform\Plugins\Trading\Src\Models\Instruments;
@@ -54,7 +55,7 @@ class GetInstrumentData extends Controller
         }
 
         // INSERT WITHOUT DUPLICATE
-        DB::table('instrument_data')->upsert(
+        DB::table(DsaTables::name('instrument_data'))->upsert(
             $bulk,
             ['instrument_period_id', 'timestamps'], // unique
             ['open','high','low','close','volume','source','slug','updated_at']

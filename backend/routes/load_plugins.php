@@ -19,3 +19,4 @@ require base_path('/routes/admin.php');
 require base_path('/routes/elastic.php');
 require base_path('/routes/contact.php');
 require base_path('/routes/fundamentals.php');
+require base_path('/routes/indicator_config.php');

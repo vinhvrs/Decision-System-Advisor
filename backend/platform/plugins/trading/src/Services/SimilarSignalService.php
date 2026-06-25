@@ -5,6 +5,7 @@ namespace Platform\Plugins\Trading\Src\Services;
 use Platform\Plugins\Trading\Src\Models\InstrumentData;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentRepository;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentDataRepository;
+use App\Support\DsaTables;
 
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
@@ -88,10 +89,11 @@ class SimilarSignalService
 
     protected function getGroupedOHLC(string $instrumentId, string $period): Collection
 {
+    $periodTable = DsaTables::name('instrument_periods');
     $raw = InstrumentData::query()
-        ->join('instrument_periods', 'instrument_data.instrument_period_id', '=', 'instrument_periods.id')
-        ->where('instrument_periods.instrument_id', $instrumentId)
-        ->where('instrument_periods.period', $period)
+        ->join($periodTable, 'instrument_data.instrument_period_id', '=', "{$periodTable}.id")
+        ->where("{$periodTable}.instrument_id", $instrumentId)
+        ->where("{$periodTable}.period", $period)
         ->orderBy('instrument_data.timestamps')
         ->select([
             'instrument_data.open',

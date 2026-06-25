@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { TicketsWithPnl, Tickets } from "@/src/types/Tickets";
 import { useClosedHistory } from "@/src/hooks/useClosedHistory";
-import { calcTicketProfit } from "@/src/libs/tradingPnl";
+import { calcTicketProfit, formatOpenPnl } from "@/src/libs/tradingPnl";
 
 interface PositionsPanelProps {
   positions: TicketsWithPnl[];
@@ -177,10 +177,7 @@ function HistoryRow({ ticket }: { ticket: Tickets }) {
         </div>
       </div>
       {profitNum != null && Number.isFinite(profitNum) && (
-        <span className={`font-semibold shrink-0 ${pnlColor}`}>
-          {profitNum >= 0 ? "+" : ""}
-          {profitNum.toFixed(4)}
-        </span>
+        <span className={`font-semibold shrink-0 ${pnlColor}`}>{formatOpenPnl(profitNum)}</span>
       )}
     </div>
   );
@@ -230,10 +227,7 @@ function PositionRow({
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {profit != null && (
-          <span className={`font-semibold ${pnlColor}`}>
-            {profit >= 0 ? "+" : ""}
-            {profit.toFixed(4)}
-          </span>
+          <span className={`font-semibold ${pnlColor}`}>{formatOpenPnl(profit)}</span>
         )}
         <button
           onClick={handleClose}

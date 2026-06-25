@@ -16,11 +16,16 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Symbol universe for DSATurbo sync: demo mirror only (not instrument_snapshot).
-SNAPSHOT_SYMBOL_TABLE = "snapshot_demo"
+# Symbol universe for DSATurbo sync follows DEV_MODE (snapshot_demo or instrument_snapshot).
+from app.config.dsa_tables import table as dsa_table
 
 
-def ensure_snapshot_demo_table(conn: pymysql.connections.Connection) -> None:
+def snapshot_symbol_table() -> str:
+    return dsa_table("instrument_snapshot")
+
+
+def ensure_snapshot_symbol_table(conn: pymysql.connections.Connection) -> None:
+    table_name = snapshot_symbol_table()
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -28,13 +33,18 @@ def ensure_snapshot_demo_table(conn: pymysql.connections.Connection) -> None:
             WHERE table_schema = DATABASE() AND table_name = %s
             LIMIT 1
             """,
-            (SNAPSHOT_SYMBOL_TABLE,),
+            (table_name,),
         )
         if not cur.fetchone():
             raise RuntimeError(
-                f"Table `{SNAPSHOT_SYMBOL_TABLE}` not found in this database. "
+                f"Table `{table_name}` not found in this database. "
                 "Create and populate it before running stock sync."
             )
+
+
+# Backward-compatible alias
+ensure_snapshot_demo_table = ensure_snapshot_symbol_table
+SNAPSHOT_SYMBOL_TABLE = snapshot_symbol_table()
 
 
 def _doc_id_corporate(symbol: str, title: str, published_at, url: str) -> str:

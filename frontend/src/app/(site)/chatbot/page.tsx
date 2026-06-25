@@ -9,7 +9,6 @@ import {
   LineChart,
   MessageCircle,
   Newspaper,
-  Sparkles,
 } from "lucide-react";
 import {
   CHATBOT_SCOPE_OPTIONS,
@@ -18,7 +17,7 @@ import {
 } from "@/src/constants/chatbotScope";
 
 const ICONS: Record<ChatbotScopeId, ReactNode> = {
-  analyze: <Sparkles className="text-amber-400" size={26} aria-hidden />,
+  analyze: <BarChart3 className="text-amber-400" size={26} aria-hidden />,
   news: <Newspaper className="text-sky-400" size={26} aria-hidden />,
   companies: <Building2 className="text-emerald-400" size={26} aria-hidden />,
   analysis: <LineChart className="text-violet-400" size={26} aria-hidden />,
@@ -53,7 +52,7 @@ export default function ChatbotSelectPage() {
         <div className="mb-10 flex flex-col gap-4 border-b border-gray-800 pb-10">
           <div className="flex items-center gap-3 text-indigo-400">
             <MessageCircle size={28} aria-hidden />
-            <span className="text-sm font-semibold uppercase tracking-wider">Assistant</span>
+            <span className="text-sm font-semibold uppercase tracking-wider">Site chat</span>
           </div>
           <h1 className="text-3xl font-bold text-white tablet:text-4xl">Choose a chat focus</h1>
           <p className="max-w-2xl text-gray-400">
@@ -121,7 +120,7 @@ export default function ChatbotSelectPage() {
         </ul>
 
         <p className="mt-10 text-center text-sm text-gray-500">
-          Use the blue chat button at the bottom-right of the site to talk with the assistant.
+          Use the blue chat button at the bottom-right of the site to open the chat panel.
         </p>
       </div>
     </div>

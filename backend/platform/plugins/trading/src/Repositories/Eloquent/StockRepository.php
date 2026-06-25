@@ -1,6 +1,7 @@
 <?php
 namespace Platform\Plugins\Trading\Src\Repositories\Eloquent;
 
+use App\Support\DsaTables;
 use Platform\Plugins\Trading\Src\Models\StockAttribute;
 use Platform\Plugins\Trading\Src\Repositories\Interfaces\StockInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -37,9 +38,9 @@ class StockRepository implements StockInterface {
 
     public function getCurrentPrice(string $symbol, string $period = 'daily'): ?float
     {
-        $price = DB::table('instrument_data as d')
-            ->join('instrument_periods as ip', 'ip.id', '=', 'd.instrument_period_id')
-            ->join('instruments as i', 'i.id', '=', 'ip.instrument_id')
+        $price = DB::table(DsaTables::name('instrument_data').' as d')
+            ->join(DsaTables::name('instrument_periods').' as ip', 'ip.id', '=', 'd.instrument_period_id')
+            ->join(DsaTables::name('instruments').' as i', 'i.id', '=', 'ip.instrument_id')
             ->where('i.symbol', $symbol)
             ->where('ip.period', $period ?? 'daily')
             ->orderByDesc('d.created_at')

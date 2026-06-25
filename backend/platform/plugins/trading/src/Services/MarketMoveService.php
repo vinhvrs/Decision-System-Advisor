@@ -4,6 +4,7 @@ namespace Platform\Plugins\Trading\Src\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
+use App\Support\DsaTables;
 use Platform\Plugins\Trading\Src\Models\Instruments;
 
 class MarketMoveService
@@ -22,16 +23,18 @@ class MarketMoveService
             ->chunk(1000, function ($instruments) use (&$top, &$bottom, &$count) {
 
                 $ids = $instruments->pluck('id')->toArray();
+                $dataTable = DsaTables::name('instrument_data');
+                $periodTable = DsaTables::name('instrument_periods');
 
-                $rows = DB::table('instrument_data as d')
-                    ->join('instrument_periods as p', 'p.id', '=', 'd.instrument_period_id')
+                $rows = DB::table("{$dataTable} as d")
+                    ->join("{$periodTable} as p", 'p.id', '=', 'd.instrument_period_id')
                     ->where('p.period', 'daily')
                     ->whereIn('p.instrument_id', $ids)
-                    ->whereRaw('d.timestamps = (
+                    ->whereRaw("d.timestamps = (
                         SELECT MAX(d2.timestamps)
-                        FROM instrument_data d2
+                        FROM {$dataTable} d2
                         WHERE d2.instrument_period_id = d.instrument_period_id
-                    )')
+                    )")
                     ->select('p.instrument_id', 'd.open', 'd.close', 'd.volume')
                     ->get()
                     ->keyBy('instrument_id');

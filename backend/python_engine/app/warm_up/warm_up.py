@@ -28,6 +28,7 @@ from app.analyze.dashboard.dashboard import (  # noqa: E402
     push_redis_payload,
     validate_dashboard_daily_payload,
 )
+from app.config.dsa_tables import table as dsa_table
 from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ def maybe_run_demo_data_sync(*, snapshot_limit: int) -> None:
     warm-up can take tens of minutes and holds the dashboard job lock, so hourly Redis refreshes
     were skipped and ``dashboard:daily`` TTL never reset.
     """
-    if not settings.DASHBOARD_USE_DEMO:
+    if not settings.USE_DEMO_TABLES:
         return
     if not getattr(settings, "DASHBOARD_WARMUP_RUN_DEMO_SYNC", False):
         return
@@ -86,13 +87,14 @@ def run_dashboard_daily_warmup(
     strict = getattr(settings, "DASHBOARD_REDIS_STRICT_VALIDATION", False)
     skip_push = (not ok_val) and strict and (not skip_validation)
     if skip_push:
-        pool = "snapshot_demo" if settings.DASHBOARD_USE_DEMO else "instrument_snapshot"
+        pool = dsa_table("instrument_snapshot")
         logger.error(
             "dashboard warm-up skipped Redis SET (DASHBOARD_REDIS_STRICT_VALIDATION=1): rows=%s issues=%s. "
-            "If rows=0, ensure `%s` has rows (and demo OHLC when DASHBOARD_USE_DEMO=1).",
+            "If rows=0, ensure `%s` has rows (and OHLC in `%s` when DEV_MODE=dev).",
             row_count,
             len(issues),
             pool,
+            dsa_table("instrument_data"),
         )
         return False, False, row_count
 

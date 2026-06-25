@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { usePositions } from "@/src/hooks/usePositions";
 import { useAuth } from "@/src/hooks/useAuth";
+import { calcTicketProfit, formatOpenPnl } from "@/src/libs/tradingPnl";
 import type { PaperTradingSnapshot } from "./paperTradingTypes";
 
 const CMC = {
@@ -113,12 +114,12 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
             <table className="w-full min-w-[480px] text-left text-[11px]">
               <thead>
                 <tr className={`border-b ${CMC.line} ${CMC.muted}`}>
-                  <th className="px-2 py-1.5 font-semibold">Type</th>
-                  <th className="px-2 py-1.5 font-semibold">Vol</th>
-                  <th className="px-2 py-1.5 font-semibold">Lev</th>
-                  <th className="px-2 py-1.5 font-semibold">Entry</th>
+                  <th className="px-2 py-1.5 font-semibold">Side</th>
+                  <th className="px-2 py-1.5 font-semibold">Volume</th>
+                  <th className="px-2 py-1.5 font-semibold">Leverage</th>
+                  <th className="px-2 py-1.5 font-semibold">Entry price</th>
                   <th className="px-2 py-1.5 font-semibold">Opened</th>
-                  <th className="px-2 py-1.5 font-semibold text-right">uPnL</th>
+                  <th className="px-2 py-1.5 font-semibold text-right">Unrealized profit</th>
                   <th className="px-2 py-1.5 font-semibold text-right">Close</th>
                 </tr>
               </thead>
@@ -132,7 +133,21 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
                 ) : (
                   openTickets.map((p) => {
                     const isBuy = (p.type || "").toLowerCase() === "buy";
-                    const pnl = p.profit;
+                    const openPrice = Number(p.price) || 0;
+                    const vol = Number(p.volume) || 0;
+                    const lev = Number(p.leverage) || 1;
+                    const livePrice =
+                      marketPrice != null && Number.isFinite(marketPrice)
+                        ? marketPrice
+                        : p.current_price != null
+                          ? Number(p.current_price)
+                          : null;
+                    const pnl =
+                      livePrice != null && Number.isFinite(livePrice)
+                        ? calcTicketProfit(p.type, openPrice, livePrice, vol, lev)
+                        : p.profit != null
+                          ? Number(p.profit)
+                          : null;
                     const pnlClass =
                       pnl == null ? CMC.muted : pnl >= 0 ? CMC.green : CMC.red;
                     const isClosing = closingId === p.id;
@@ -148,7 +163,7 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
                           {formatOpened(p.open || p.created_at)}
                         </td>
                         <td className={`px-2 py-1.5 text-right font-mono font-semibold ${pnlClass}`}>
-                          {pnl != null ? `${pnl >= 0 ? "+" : ""}${pnl.toFixed(4)}` : "—"}
+                          {formatOpenPnl(pnl)}
                         </td>
                         <td className="px-2 py-1.5 text-right">
                           <button

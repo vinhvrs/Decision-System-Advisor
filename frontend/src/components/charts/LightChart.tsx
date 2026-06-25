@@ -18,6 +18,7 @@ import {
 import { Maximize2, Minimize2 } from "lucide-react";
 import { TradingServices } from "@/src/services/Trading.service";
 import { useTradeApiQueue } from "@/src/hooks/useTradeApiQueue";
+import { calcPositionUnrealizedPnl, formatOpenPnl } from "@/src/libs/tradingPnl";
 import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
@@ -1116,15 +1117,13 @@ export default function LightChart({
         };
       }),
       marketPrice: marketContext.price ?? null,
-      unrealizedPnl:
-        p.side === "flat" || marketContext.price == null || !p.avgPrice
-          ? 0
-          : (() => {
-              const dir = p.side === "long" ? 1 : -1;
-              const lev = p.leverage ?? 1;
-              const factor = (p.qty * lev) / p.avgPrice;
-              return dir * ((marketContext.price as number) - p.avgPrice) * factor;
-            })(),
+      unrealizedPnl: calcPositionUnrealizedPnl(
+        p.side,
+        p.avgPrice,
+        p.qty,
+        p.leverage ?? 1,
+        marketContext.price ?? 0
+      ),
     };
     onPaperTradingChange(snapshot);
   }, [onPaperTradingChange, marketContext.price]);
@@ -1343,8 +1342,8 @@ export default function LightChart({
 
       if (p.side !== "flat" && isOpposite) {
         const closeVol = Math.min(p.qty, v);
-        const factor = (closeVol * (p.leverage ?? 1)) / (p.avgPrice || 1);
-        const realized = dir * (price - p.avgPrice) * factor;
+        const exposure = closeVol * (p.leverage ?? 1);
+        const realized = dir * (price - p.avgPrice) * exposure;
         const isProfit = realized >= 0;
         markersRef.current = [
           ...markersRef.current,
@@ -1466,14 +1465,17 @@ export default function LightChart({
   }, [position.side, positionsForSymbol, marketContext.price, emitPaperSnapshot, markTicketsClosing]);
 
   const currentPrice = marketContext.price ?? 0;
-  const unrealizedPnl = useMemo(() => {
-    if (position.side === "flat" || !currentPrice || !position.avgPrice) return 0;
-    const dir = position.side === "long" ? 1 : -1;
-    const lev = position.leverage ?? 1;
-    // P = (Current - Open) × (Volume × Leverage / Open) for Long; (Open - Current) × (...) for Short
-    const factor = (position.qty * lev) / position.avgPrice;
-    return dir * (currentPrice - position.avgPrice) * factor;
-  }, [currentPrice, position.avgPrice, position.qty, position.leverage, position.side]);
+  const unrealizedPnl = useMemo(
+    () =>
+      calcPositionUnrealizedPnl(
+        position.side,
+        position.avgPrice,
+        position.qty,
+        position.leverage ?? 1,
+        currentPrice
+      ),
+    [currentPrice, position.avgPrice, position.qty, position.leverage, position.side]
+  );
 
   // Dotted entry line showing current position avg price
   useEffect(() => {
@@ -1999,7 +2001,8 @@ export default function LightChart({
         <div className="flex items-center gap-2">
           <div className="font-semibold">Paper trading</div>
           <div className="text-slate-300">
-            market @ {marketContext.price != null ? marketContext.price.toFixed(4) : "--"}
+            Market price{" "}
+            {marketContext.price != null ? marketContext.price.toFixed(4) : "—"}
           </div>
         </div>
         {tradeError ? (
@@ -2008,40 +2011,40 @@ export default function LightChart({
 
         <div className="mt-2 grid grid-cols-5 gap-2 text-[11px]">
           <div>
-            <span className="text-slate-400">O</span>{" "}
+            <span className="text-slate-400">Open</span>{" "}
             <span className="font-semibold">
-              {ohlcvContext.o != null ? ohlcvContext.o.toFixed(4) : "--"}
+              {ohlcvContext.o != null ? ohlcvContext.o.toFixed(4) : "—"}
             </span>
           </div>
           <div>
-            <span className="text-slate-400">H</span>{" "}
+            <span className="text-slate-400">High</span>{" "}
             <span className="font-semibold">
-              {ohlcvContext.h != null ? ohlcvContext.h.toFixed(4) : "--"}
+              {ohlcvContext.h != null ? ohlcvContext.h.toFixed(4) : "—"}
             </span>
           </div>
           <div>
-            <span className="text-slate-400">L</span>{" "}
+            <span className="text-slate-400">Low</span>{" "}
             <span className="font-semibold">
-              {ohlcvContext.l != null ? ohlcvContext.l.toFixed(4) : "--"}
+              {ohlcvContext.l != null ? ohlcvContext.l.toFixed(4) : "—"}
             </span>
           </div>
           <div>
-            <span className="text-slate-400">C</span>{" "}
+            <span className="text-slate-400">Close</span>{" "}
             <span className="font-semibold">
-              {ohlcvContext.c != null ? ohlcvContext.c.toFixed(4) : "--"}
+              {ohlcvContext.c != null ? ohlcvContext.c.toFixed(4) : "—"}
             </span>
           </div>
           <div>
-            <span className="text-slate-400">V</span>{" "}
+            <span className="text-slate-400">Volume</span>{" "}
             <span className="font-semibold">
-              {ohlcvContext.v != null ? String(ohlcvContext.v) : "--"}
+              {ohlcvContext.v != null ? String(ohlcvContext.v) : "—"}
             </span>
           </div>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
-            <label className="text-slate-300 text-[11px]">Vol</label>
+            <label className="text-slate-300 text-[11px]">Volume</label>
             <input
               value={vol}
               onChange={(e) => setVol(Math.max(0.0001, Number(e.target.value) || 1))}
@@ -2052,7 +2055,7 @@ export default function LightChart({
             />
           </div>
           <div className="flex items-center gap-1">
-            <label className="text-slate-300 text-[11px]">Lev</label>
+            <label className="text-slate-300 text-[11px]">Leverage</label>
             <input
               value={leverage}
               onChange={(e) => setLeverage(Math.max(0.01, Math.min(1000, Number(e.target.value) || 1)))}
@@ -2092,20 +2095,23 @@ export default function LightChart({
 
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-200">
           <div>
-            Pos:{" "}
+            Position:{" "}
             <span className="font-semibold">
               {position.side === "flat"
-                ? "FLAT"
-                : `${position.side.toUpperCase()} ${position.qty}`}
+                ? "None"
+                : `${position.side === "long" ? "Long" : "Short"} · ${position.qty} units`}
             </span>
           </div>
           <div>
-            Avg: <span className="font-semibold">{position.avgPrice ? position.avgPrice.toFixed(4) : "--"}</span>
+            Avg entry:{" "}
+            <span className="font-semibold">
+              {position.avgPrice ? position.avgPrice.toFixed(4) : "—"}
+            </span>
           </div>
           <div>
-            uPnL:{" "}
+            Unrealized profit:{" "}
             <span className={`font-semibold ${unrealizedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-              {position.side === "flat" ? "--" : unrealizedPnl.toFixed(4)}
+              {position.side === "flat" ? "—" : formatOpenPnl(unrealizedPnl)}
             </span>
           </div>
         </div>

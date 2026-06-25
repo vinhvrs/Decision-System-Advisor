@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\DsaTables;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +18,7 @@ class BuildSnapshot extends Command
         $now = now();
 
         // All daily instrument periods
-        $periods = DB::table('instrument_periods')
+        $periods = DB::table(DsaTables::name('instrument_periods'))
             ->where('period', 'daily')
             ->select('id', 'instrument_id')
             ->get();
@@ -27,7 +28,7 @@ class BuildSnapshot extends Command
         foreach ($periods as $p) {
 
             // Latest candle by created_at
-            $d = DB::table('instrument_data')
+            $d = DB::table(DsaTables::name('instrument_data'))
                 ->where('instrument_period_id', $p->id)
                 ->orderByDesc('created_at')
                 ->first();
@@ -40,7 +41,7 @@ class BuildSnapshot extends Command
             $liq = $price * $volume;
             $change = (($price - $d->open) / $d->open) * 100;
 
-            $symbol = DB::table('instruments')
+            $symbol = DB::table(DsaTables::name('instruments'))
                 ->where('id', $p->instrument_id)
                 ->value('symbol');
 
@@ -58,7 +59,7 @@ class BuildSnapshot extends Command
             ];
 
             try {
-                DB::table('instrument_snapshot')->updateOrInsert(
+                DB::table(DsaTables::name('instrument_snapshot'))->updateOrInsert(
                     ['instrument_id' => $p->instrument_id],
                     [
                         'symbol' => $symbol,
@@ -78,7 +79,7 @@ class BuildSnapshot extends Command
         $this->info("Fetched: " . count($insert));
 
         // foreach (array_chunk($insert, 1000) as $chunk) {
-        //     DB::table('instrument_snapshot')->upsert(
+        //     DB::table(DsaTables::name('instrument_snapshot'))->upsert(
         //         $chunk,
         //         ['instrument_id'],
         //         ['price','open','volume','liquidity','change_pct','updated_at']

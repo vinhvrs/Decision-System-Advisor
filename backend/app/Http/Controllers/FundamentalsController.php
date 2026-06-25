@@ -7,6 +7,7 @@ use App\Models\FinancialMetricAnnual;
 use App\Models\FinancialMetricQuarterly;
 use App\Models\FundamentalIssuerProfile;
 use App\Models\FundamentalScore;
+use App\Support\DsaTables;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -26,7 +27,7 @@ class FundamentalsController extends Controller
     }
 
     /**
-     * Market quotes: prefer ``snapshot_demo``, then ``instrument_snapshot``.
+     * Market quotes from the resolved snapshot table (``DEV_MODE``).
      *
      * @param  list<string>  $symbols
      * @return array<string, object>
@@ -35,37 +36,29 @@ class FundamentalsController extends Controller
     {
         $snapBySym = [];
         $placeholders = implode(',', array_fill(0, count($symbols), '?'));
+        $snapTable = DsaTables::name('instrument_snapshot');
 
-        if (Schema::hasTable('snapshot_demo')) {
-            $cols = ['symbol', 'price', 'open', 'change_pct', 'volume', 'liquidity', 'updated_at'];
-            $rows = DB::table('snapshot_demo')
-                ->whereRaw("UPPER(TRIM(symbol)) IN ({$placeholders})", $symbols)
-                ->get($cols);
-            foreach ($rows as $r) {
-                $sym = strtoupper(trim((string) $r->symbol));
-                $snapBySym[$sym] = $r;
-            }
-        }
-
-        if (count($snapBySym) >= count($symbols) || ! Schema::hasTable('instrument_snapshot')) {
+        if (! Schema::hasTable($snapTable)) {
             return $snapBySym;
         }
 
         $snapCols = ['symbol', 'price', 'change_pct', 'volume', 'liquidity'];
-        if (Schema::hasColumn('instrument_snapshot', 'open')) {
+        if (Schema::hasColumn($snapTable, 'open')) {
             $snapCols[] = 'open';
         }
-        if (Schema::hasColumn('instrument_snapshot', 'market_cap')) {
+        if (Schema::hasColumn($snapTable, 'market_cap')) {
             $snapCols[] = 'market_cap';
         }
-        $rows = DB::table('instrument_snapshot')
+        if (Schema::hasColumn($snapTable, 'updated_at')) {
+            $snapCols[] = 'updated_at';
+        }
+
+        $rows = DB::table($snapTable)
             ->whereRaw("UPPER(TRIM(symbol)) IN ({$placeholders})", $symbols)
             ->get($snapCols);
         foreach ($rows as $r) {
             $sym = strtoupper(trim((string) $r->symbol));
-            if (! isset($snapBySym[$sym])) {
-                $snapBySym[$sym] = $r;
-            }
+            $snapBySym[$sym] = $r;
         }
 
         return $snapBySym;
@@ -107,16 +100,17 @@ class FundamentalsController extends Controller
         $snapBySym = $this->loadMarketSnapshots($symbols);
 
         $cpBySym = [];
-        if (Schema::hasTable('company_profile')) {
+        $cpTable = DsaTables::name('company_profile');
+        if (Schema::hasTable($cpTable)) {
             $cpCols = ['symbol', 'company_name'];
-            if (Schema::hasColumn('company_profile', 'market_cap')) {
+            if (Schema::hasColumn($cpTable, 'market_cap')) {
                 $cpCols[] = 'market_cap';
             }
-            if (Schema::hasColumn('company_profile', 'image')) {
+            if (Schema::hasColumn($cpTable, 'image')) {
                 $cpCols[] = 'image';
             }
             $cpPlaceholders = implode(',', array_fill(0, count($symbols), '?'));
-            $cpRows = DB::table('company_profile')
+            $cpRows = DB::table($cpTable)
                 ->whereRaw("UPPER(TRIM(symbol)) IN ({$cpPlaceholders})", $symbols)
                 ->get($cpCols);
             foreach ($cpRows as $r) {
