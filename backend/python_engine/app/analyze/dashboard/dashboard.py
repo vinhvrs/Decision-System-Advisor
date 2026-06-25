@@ -59,6 +59,10 @@ def _ohlc_period_table() -> str:
     return dsa_table("instrument_periods")
 
 
+def _company_profile_table() -> str:
+    return dsa_table("company_profile")
+
+
 BEGINNER_STRONG_TRAIT_MIN_SCORE = 4
 CHART_BARS = 40
 CHART_BARS_DAILY = 90  # warm-up / dashboard:daily line chart
@@ -332,6 +336,7 @@ def fetch_daily_last_prev_close(
 def query_top_snapshot_rows(conn: pymysql.connections.Connection, limit: int) -> List[Dict[str, Any]]:
     limit = max(1, min(500, int(limit)))
     snap_tbl = _ranking_snapshot_table()
+    cp_tbl = _company_profile_table()
     sql_with_cp = f"""
         SELECT
             s.instrument_id,
@@ -343,7 +348,7 @@ def query_top_snapshot_rows(conn: pymysql.connections.Connection, limit: int) ->
             COALESCE(cp.company_name, s.symbol) AS company_name,
             cp.image AS company_logo
         FROM {snap_tbl} s
-        LEFT JOIN company_profile cp ON UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))
+        LEFT JOIN {cp_tbl} cp ON UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))
         ORDER BY s.volume DESC
         LIMIT %s
     """

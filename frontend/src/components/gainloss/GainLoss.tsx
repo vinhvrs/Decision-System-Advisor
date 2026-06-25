@@ -5,15 +5,16 @@ import React, { useEffect, useState } from "react";
 import { CompanyService } from "../../services/Company.service";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { formatCompactVolume, stripParentheticals } from "@/src/libs/displayString";
+import { formatCompactVolume, stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 
 function VolumeListLogo({ symbol, url }: { symbol: string; url?: string | null }) {
   const [broken, setBroken] = useState(false);
-  if (url && !broken) {
+  const src = symbolLogoUrl(symbol, url);
+  if (!broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={url}
+        src={src}
         alt=""
         className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/10"
         onError={() => setBroken(true)}

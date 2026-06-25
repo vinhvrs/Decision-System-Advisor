@@ -7,7 +7,7 @@ import { Newspaper, Activity, LayoutGrid, ExternalLink } from "lucide-react";
 import HeatmapTreemapSvg from "@/src/components/analyze/HeatmapTreemapSvg";
 import newsService from "@/src/services/News.service";
 import { BeginnerService, type BeginnerBoardRow, type TopByVolumeRow } from "@/src/services/Beginner.service";
-import { stripParentheticals } from "@/src/libs/displayString";
+import { stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 import { MARKET_MOVERS_LIST_LIMIT } from "@/src/libs/marketViewConstants";
 import { boardRowsToHeatmap, fetchHeatmapRowsFromApi } from "@/src/libs/heatmapTreemap";
 
@@ -59,11 +59,12 @@ function formatCompactVol(n: number): string {
 
 function VolumeListLogo({ symbol, url }: { symbol: string; url?: string | null }) {
   const [broken, setBroken] = useState(false);
-  if (url && !broken) {
+  const src = symbolLogoUrl(symbol, url);
+  if (!broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={url}
+        src={src}
         alt=""
         className="h-8 w-8 shrink-0 rounded-full object-cover"
         onError={() => setBroken(true)}
