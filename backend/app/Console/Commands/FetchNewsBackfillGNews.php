@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\DsaTables;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,7 @@ class FetchNewsBackfillGNews extends Command
         $emptyLimit  = max(1, (int) $this->option('emptyLimit')); // consecutive empty windows
         $currentYear = now()->year;
 
-        $stocks = DB::table('company_profile')
+        $stocks = DB::table(DsaTables::name('company_profile'))
             ->orderByDesc('market_cap')
             ->limit(20)
             ->pluck('symbol');

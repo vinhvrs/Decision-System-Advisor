@@ -1,87 +1,129 @@
-"use client";
-
+/* eslint-disable @next/next/no-html-link-for-pages */
+import Image from "next/image";
+import bgImg from "@/src/assets/images/bg-landingpage.jpg";
 import Link from "next/link";
-import { BarChart3, ArrowUpRight } from "lucide-react";
-import { FundamentalsService } from "@/src/services/Fundamentals.service";
-import { useEffect, useState } from "react";
-
-const SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA", "GOOGL", "META", "AMZN", "IBM", "ORCL", "AVGO"] as const;
-
-type ScoreLite = { overall_score?: number | null };
+import { ChevronRight } from "lucide-react";
+import HomeLiveMarketSection from "@/src/components/home/HomeLiveMarketSection";
+import {
+  HomeDashboardCharts,
+  HomeWatchlistCard,
+  HomeHotNews,
+  HomeGainLoss,
+  HomeHeatmapCard,
+} from "../home-sections";
 
 export default function InvestingHomePage() {
-  const [scores, setScores] = useState<Record<string, number | null>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const next: Record<string, number | null> = {};
-      await Promise.all(
-        SYMBOLS.map(async (sym) => {
-          try {
-            const res = (await FundamentalsService.score(sym)) as { data?: ScoreLite };
-            const v = res?.data?.overall_score;
-            next[sym] = v != null && Number.isFinite(Number(v)) ? Number(v) : null;
-          } catch {
-            next[sym] = null;
-          }
-        }),
-      );
-      if (!cancelled) setScores(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white">
-      <div className="border-b border-white/10 bg-gradient-to-r from-[#0b1220] via-[#111827] to-[#0b1220]">
-        <div className="mx-auto max-w-6xl px-4 py-12 phone:px-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#7b9cff]">Investing</p>
-              <h1 className="mt-2 text-3xl font-bold phone:text-4xl">US tech fundamentals</h1>
-              <p className="mt-3 max-w-2xl text-sm text-white/65">
-                SEC-based income statement, balance sheet, and cash-flow history for ten large-cap technology names, with
-                dashboard-style scores. Open a symbol for charts; use the company profile for the full market stack
-                (price, stance, trend, watchlist).
-              </p>
+    <div className="text-white bg-[#0b1220]">
+      <section className="relative flex min-h-[200px] max-h-[320px] items-end overflow-hidden phone:min-h-[220px] tablet:min-h-[240px] laptop:min-h-[260px]">
+        <Image
+          src={bgImg}
+          alt="Background"
+          fill
+          priority
+          className="object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/10" />
+
+        <div className="relative z-10 w-full px-4 pb-8 phone:px-5 tablet:px-6 tablet:pb-10">
+          <div className="max-w-5xl mx-0 phone:mx-4 tablet:mx-6">
+            <h1 className="text-2xl font-bold leading-tight phone:text-3xl tablet:text-4xl">
+              Decision Stocks Advisor
+            </h1>
+            <p className="mt-2 text-sm text-white/80 phone:mt-3 phone:text-base tablet:text-lg">
+              All information you need for investing — chart, indicators, news, heatmap, and market movers in one place.
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2 phone:mt-5 phone:flex-row phone:gap-3">
+              <a
+                href="#dashboard"
+                className="px-5 py-2 rounded bg-white text-black font-semibold"
+              >
+                View Dashboard
+              </a>
+              <Link
+                href="/investing/history"
+                className="px-5 py-2 rounded border border-blue-400/70 text-blue-200 hover:bg-blue-500/10"
+              >
+                Investing History Simulator
+              </Link>
+              <a
+                href="#market-news"
+                className="px-5 py-2 rounded border border-white/60 text-white"
+              >
+                Explore News
+              </a>
             </div>
-            <BarChart3 className="h-12 w-12 shrink-0 text-[#3861fb] opacity-90" aria-hidden />
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="mx-auto max-w-6xl px-4 py-10 phone:px-6">
-        <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 laptop:grid-cols-3">
-          {SYMBOLS.map((sym) => (
-            <Link
-              key={sym}
-              href={`/investing/${sym.toLowerCase()}`}
-              className="group rounded-2xl border border-white/10 bg-[#0F172A]/80 p-5 shadow-lg transition hover:border-[#3861fb]/50 hover:shadow-[#3861fb]/10"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-mono text-lg font-bold text-white">{sym}</span>
-                <ArrowUpRight className="h-4 w-4 shrink-0 text-[#848e9c] transition group-hover:text-[#7b9cff]" />
-              </div>
-              <p className="mt-2 text-xs text-white/55">Revenue, margins, cash flow, leverage — SEC annual history.</p>
-              <div className="mt-4 flex items-baseline justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-white/45">Overall score</span>
-                <span className="text-2xl font-bold tabular-nums text-[#7b9cff]">
-                  {scores[sym] != null ? scores[sym]!.toFixed(1) : "—"}
-                </span>
-              </div>
-              <p className="mt-3 text-[10px] text-white/40">
-                Profile (technical + fundamentals):{" "}
-                <span className="text-[#7b9cff] underline-offset-2 group-hover:underline">
-                  /companies/profile/{sym.toLowerCase()}
-                </span>
-              </p>
-            </Link>
-          ))}
+      <section
+        id="dashboard"
+        className="-mx-4 bg-[#0b1220] px-0 py-6 phone:-mx-5 tablet:-mx-6 tablet:py-8 laptop:py-10"
+      >
+        <div className="mx-auto max-w-screen-xl space-y-6 phone:space-y-8">
+          <div className="px-4 phone:px-5 tablet:px-6">
+            <h2 className="text-xl font-bold phone:text-2xl">Stock investing</h2>
+            <p className="mt-1 text-sm text-white/70 phone:text-base">
+              Real-time market chart and decision tools.
+            </p>
+          </div>
+
+          <div className="space-y-6 px-2 phone:px-3 tablet:px-4">
+            <HomeDashboardCharts />
+          </div>
+
+          <HomeLiveMarketSection watchlist={<HomeWatchlistCard />} />
         </div>
-      </div>
+      </section>
+
+      <section id="market-news" className="px-4 py-6 phone:px-5 tablet:px-6 tablet:py-10 bg-[#0b1220]">
+        <div className="max-w-screen-xl mx-auto space-y-2">
+            <div className="flex flex-col phone:flex-row phone:items-start phone:justify-between gap-4">
+            <div>
+              <h2 className="text-xl phone:text-2xl font-bold">Hot Market News</h2>
+              <p className="text-white/70 mt-1 text-sm phone:text-base">
+              Highlighted stories affecting the market right now.
+              </p>
+            </div>
+            <Link
+              href="/news"
+              className="text-sm text-blue-400 hover:underline flex items-center gap-1 group shrink-0"
+            >
+              View all
+              <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+            </div>
+          <HomeHotNews />
+        </div>
+      </section>
+
+      <section className="px-4 py-10 phone:px-5 tablet:px-6 tablet:py-12 laptop:py-16 bg-[#0b1220] border-t border-white/5">
+        <div className="max-w-screen-xl mx-auto space-y-2">
+          <div>
+            <h2 className="text-xl phone:text-2xl font-bold">Top Gainers / Losers</h2>
+            <p className="text-white/70 mt-1 text-sm phone:text-base">
+              Daily market movers ranked by strongest positive and negative performance.
+            </p>
+          </div>
+
+          <HomeGainLoss />
+        </div>
+      </section>
+
+      <section className="px-4 py-10 phone:px-5 tablet:px-6 tablet:py-12 laptop:py-16 bg-[#0b1220] border-t border-white/5">
+        <div className="max-w-screen-xl mx-auto space-y-4">
+          <div>
+            <h2 className="text-xl phone:text-2xl font-bold">Market Heatmap</h2>
+            <p className="text-white/70 mt-1 text-sm phone:text-base">
+              Sector and stock performance overview by size and daily change.
+            </p>
+          </div>
+
+          <HomeHeatmapCard />
+        </div>
+      </section>
     </div>
   );
 }

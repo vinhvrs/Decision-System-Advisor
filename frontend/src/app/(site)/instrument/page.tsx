@@ -1,5 +1,5 @@
-import { InstrumentScreenerDashboard } from "@/src/components/instrument/InstrumentScreenerDashboard";
+import { redirect } from "next/navigation";
 
 export default function InstrumentPage() {
-  return <InstrumentScreenerDashboard />;
+  redirect("/screener");
 }

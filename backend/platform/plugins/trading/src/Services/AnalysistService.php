@@ -1,6 +1,7 @@
 <?php
 namespace Platform\Plugins\Trading\Src\Services;
 
+use App\Services\IndicatorConfigService;
 use Illuminate\Http\JsonResponse;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\StockRepository;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\IndicatorMathRepository;
@@ -9,11 +10,16 @@ class AnalysistService
 {
     protected StockRepository $stockRepository;
     protected IndicatorMathRepository $indicatorMath;
+    protected IndicatorConfigService $indicatorConfig;
 
-    public function __construct(StockRepository $stockRepository, IndicatorMathRepository $indicatorMath)
-    {
+    public function __construct(
+        StockRepository $stockRepository,
+        IndicatorMathRepository $indicatorMath,
+        IndicatorConfigService $indicatorConfig
+    ) {
         $this->stockRepository = $stockRepository;
         $this->indicatorMath = $indicatorMath;
+        $this->indicatorConfig = $indicatorConfig;
     }
 
     public function indicatorSummaryData(string $symbol, string $period = 'daily'): array
@@ -221,7 +227,7 @@ class AnalysistService
 
     private function defaultPeriod(): string
     {
-        $period = trim((string) config('trading_indicators.default_period', 'daily'));
+        $period = trim($this->indicatorConfig->getString('default_period', (string) config('trading_indicators.default_period', 'daily')));
         return $period !== '' ? $period : 'daily';
     }
 
@@ -230,8 +236,7 @@ class AnalysistService
         if ($value > 0) {
             return $value;
         }
-        $configured = (int) config("trading_indicators.{$key}", $fallback);
-        return $configured > 0 ? $configured : $fallback;
+        return $this->indicatorConfig->getInt($key, (int) config("trading_indicators.{$key}", $fallback));
     }
 
     private function defaultFloat(float $value, string $key, float $fallback): float
@@ -239,7 +244,6 @@ class AnalysistService
         if ($value > 0) {
             return $value;
         }
-        $configured = (float) config("trading_indicators.{$key}", $fallback);
-        return $configured > 0 ? $configured : $fallback;
+        return $this->indicatorConfig->getFloat($key, (float) config("trading_indicators.{$key}", $fallback));
     }
 }

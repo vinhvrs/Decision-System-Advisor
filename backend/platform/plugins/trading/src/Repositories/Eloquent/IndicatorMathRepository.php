@@ -1,6 +1,7 @@
 <?php
 namespace Platform\Plugins\Trading\Src\Repositories\Eloquent;
 
+use App\Support\DsaTables;
 use Platform\Plugins\Trading\Src\Repositories\Interfaces\IndicatorMathInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
@@ -210,20 +211,24 @@ class IndicatorMathRepository implements IndicatorMathInterface
 
     public function getLastCandles(string $symbol, string $period, int $limit = 500): Collection
     {
-        $rows = DB::table('instrument_data')
-            ->join('instrument_periods', 'instrument_data.instrument_period_id', '=', 'instrument_periods.id')
-            ->join('instruments', 'instrument_periods.instrument_id', '=', 'instruments.id')
-            ->where('instruments.symbol', strtoupper($symbol))
-            ->where('instrument_periods.period', $period)
-            ->orderByDesc('instrument_data.timestamps')
+        $dataTable = DsaTables::name('instrument_data');
+        $periodTable = DsaTables::name('instrument_periods');
+        $instrumentsTable = DsaTables::name('instruments');
+
+        $rows = DB::table($dataTable)
+            ->join($periodTable, "{$dataTable}.instrument_period_id", '=', "{$periodTable}.id")
+            ->join($instrumentsTable, "{$periodTable}.instrument_id", '=', "{$instrumentsTable}.id")
+            ->where("{$instrumentsTable}.symbol", strtoupper($symbol))
+            ->where("{$periodTable}.period", $period)
+            ->orderByDesc("{$dataTable}.timestamps")
             ->limit($limit)
             ->get([
-                'instrument_data.timestamps as timestamp',
-                'instrument_data.close as close',
-                'instrument_data.open as open',
-                'instrument_data.high as high',
-                'instrument_data.low as low',
-                'instrument_data.volume as volume',
+                "{$dataTable}.timestamps as timestamp",
+                "{$dataTable}.close as close",
+                "{$dataTable}.open as open",
+                "{$dataTable}.high as high",
+                "{$dataTable}.low as low",
+                "{$dataTable}.volume as volume",
             ]);
 
         return $rows->reverse()->values();

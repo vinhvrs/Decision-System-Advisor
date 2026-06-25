@@ -59,8 +59,8 @@ class Ticket extends Model
     }
 
     /**
-     * Buy/Long:  P = (Current - Open) × (Volume × Leverage / Open)
-     * Sell/Short: P = (Open - Current) × (Volume × Leverage / Open)
+     * Buy/Long:  P = (Current - Open) × Volume × Leverage
+     * Sell/Short: P = (Open - Current) × Volume × Leverage
      * Returns profit for Buy; negate for Sell.
      */
     public static function calcRealProfit(float $newPrice, float $openPrice, float $leverage, float $volume): float
@@ -68,7 +68,7 @@ class Ticket extends Model
         if ($openPrice <= 0) {
             return 0.0;
         }
-        return ($newPrice - $openPrice) * ($volume * $leverage / $openPrice);
+        return ($newPrice - $openPrice) * ($volume * $leverage);
     }
 
     /**

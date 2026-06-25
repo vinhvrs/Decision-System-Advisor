@@ -2,6 +2,7 @@
 
 namespace App\Services\Elastic;
 
+use App\Support\DsaTables;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -117,7 +118,7 @@ class ElasticSyncService
 
         $total = 0;
 
-        DB::table('company_profile')
+        DB::table(DsaTables::name('company_profile'))
             ->orderBy('instrument_id')
             ->chunk($chunkSize, function ($rows) use ($client, $index, &$total) {
                 $body = [];

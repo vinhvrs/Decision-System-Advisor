@@ -32,7 +32,7 @@ def run_stock_sync() -> None:
         return
     try:
         lim = snapshot_limit_for_stock_sync(SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N)
-        if settings.DASHBOARD_USE_DEMO:
+        if settings.USE_DEMO_TABLES:
             DSADemoSync(
                 snapshot_limit=lim,
                 history_period=settings.DEMO_SYNC_YF_PERIOD,

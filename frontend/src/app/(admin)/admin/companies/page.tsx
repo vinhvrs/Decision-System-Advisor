@@ -31,7 +31,7 @@ export default function AdminCompaniesPage() {
     try {
       const res = await AdminService.companies.list({
         page,
-        per_page: 15,
+        per_page: 25,
         search: term,
       });
       setCompanies(res.data ?? []);
@@ -54,7 +54,13 @@ export default function AdminCompaniesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Company / Symbol Management</h1>
+      <h1 className="text-2xl font-bold mb-2">Company / Symbol Management</h1>
+      <p className="mb-6 text-sm text-white/50">
+        Demo universe only — symbols from the resolved instruments table (
+        <span className="font-mono text-white/70">instrument_demo</span> when{" "}
+        <span className="font-mono text-white/70">DEV_MODE=dev</span>)
+        (10 US tech names). Search and pagination apply within this set.
+      </p>
 
       <div className="flex flex-wrap gap-4 mb-6">
         <input
@@ -92,8 +98,11 @@ export default function AdminCompaniesPage() {
                 </tr>
               </thead>
               <tbody>
-                {companies.map((c, i) => (
-                  <tr key={c.instrument_id ?? `row-${i}`} className="border-b border-white/5 hover:bg-white/5">
+                {companies.map((c) => (
+                  <tr
+                    key={`${String(c.symbol || "").toUpperCase()}-${c.exchange ?? "na"}`}
+                    className="border-b border-white/5 hover:bg-white/5"
+                  >
                     <td className="p-4 font-mono font-bold">
                       <Link
                         href={`/companies/profile/${String(c.symbol || "").toLowerCase()}`}

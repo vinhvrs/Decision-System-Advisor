@@ -39,7 +39,7 @@ export const CHATBOT_SCOPE_OPTIONS: readonly ChatbotScopeOption[] = [
     id: "analysis",
     title: "Indicators & Strategy",
     description: "Technical indicator lab and strategy playbooks with simulators.",
-    href: "/analysis",
+    href: "/indicators",
     apiFocusLabel: "technical indicators and trading strategies",
   },
 ] as const;

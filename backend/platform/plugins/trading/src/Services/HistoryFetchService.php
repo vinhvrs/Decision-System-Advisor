@@ -2,6 +2,7 @@
 
 namespace Platform\Plugins\Trading\Src\Services;
 
+use App\Support\DsaTables;
 use Illuminate\Support\Facades\Log;
 use Platform\Plugins\Trading\Src\Models\InstrumentData;
 use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
@@ -142,7 +143,7 @@ class HistoryFetchService
 
             // Upsert in chunks of 500
             foreach (array_chunk($bulk, 500) as $chunk) {
-                DB::table('instrument_data')->upsert(
+                DB::table(DsaTables::name('instrument_data'))->upsert(
                     $chunk,
                     ['instrument_period_id', 'timestamps'],
                     ['open', 'high', 'low', 'close', 'volume', 'source', 'slug', 'updated_at']

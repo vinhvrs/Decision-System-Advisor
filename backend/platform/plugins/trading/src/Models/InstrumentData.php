@@ -1,12 +1,18 @@
 <?php
 namespace Platform\Plugins\Trading\Src\Models;
 
+use App\Support\UsesDsaTable;
 use Illuminate\Database\Eloquent\Model;
 use Platform\Plugins\Trading\Src\Models\InstrumentPeriods;
 use Ramsey\Uuid\Uuid;
 
 class InstrumentData extends Model{
-    protected $table = 'instrument_data';
+    use UsesDsaTable;
+
+    protected static function dsaLogicalTable(): string
+    {
+        return 'instrument_data';
+    }
     protected $keyType = 'string';
     protected $primaryKey = 'id';
     protected $fillable = [

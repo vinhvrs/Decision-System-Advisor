@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Schema;
+use App\Support\DsaTables;
+use App\Support\SnapshotQuery;
 use Platform\Plugins\Trading\Src\Models\Instruments;
 
 class SnapshotService
@@ -28,8 +30,8 @@ class SnapshotService
 
     public function updateFromDailyCandle(int $instrumentId): void
     {
-        $row = DB::table('instrument_data as d')
-            ->join('instrument_periods as p', 'p.id', '=', 'd.instrument_period_id')
+        $row = DB::table(DsaTables::name('instrument_data').' as d')
+            ->join(DsaTables::name('instrument_periods').' as p', 'p.id', '=', 'd.instrument_period_id')
             ->where('p.period', 'daily')
             ->where('p.instrument_id', $instrumentId)
             ->orderByDesc('d.timestamps')
@@ -61,7 +63,7 @@ class SnapshotService
         $changePct = (($price - $open) / $open) * 100;
         $liquidity = $price * $volume;
 
-        DB::table('instrument_snapshot')->updateOrInsert(
+        DB::table(DsaTables::name('instrument_snapshot'))->updateOrInsert(
             ['instrument_id' => $instrumentId],
             [
                 'symbol' => $symbol,
@@ -81,7 +83,7 @@ class SnapshotService
         $name = trim($name);
 
         if ($symbol !== '') {
-            $profile = DB::table('company_profile')
+            $profile = DB::table(DsaTables::name('company_profile'))
                 ->where('symbol', $symbol)
                 ->first();
 
@@ -91,7 +93,7 @@ class SnapshotService
         }
 
         if ($name !== '') {
-            return DB::table('company_profile')
+            return DB::table(DsaTables::name('company_profile'))
                 ->where('company_name', $name)
                 ->first();
         }
@@ -114,7 +116,7 @@ class SnapshotService
             return $rows;
         }
 
-        return DB::table('instrument_snapshot')
+        return DB::table(DsaTables::name('instrument_snapshot'))
             ->orderByDesc('liquidity')
             ->limit($limit)
             ->get(['symbol', 'liquidity'])
@@ -140,7 +142,7 @@ class SnapshotService
             return $rows;
         }
 
-        return DB::table('instrument_snapshot')
+        return DB::table(DsaTables::name('instrument_snapshot'))
             ->orderBy('liquidity')
             ->limit($limit)
             ->get(['symbol', 'liquidity'])
@@ -166,7 +168,7 @@ class SnapshotService
             return $rows;
         }
 
-        return DB::table('instrument_snapshot')
+        return DB::table(DsaTables::name('instrument_snapshot'))
             ->orderByDesc('change_pct')
             ->limit($limit)
             ->get(['symbol', 'change_pct'])
@@ -192,7 +194,7 @@ class SnapshotService
             return $rows;
         }
 
-        return DB::table('instrument_snapshot')
+        return DB::table(DsaTables::name('instrument_snapshot'))
             ->orderBy('change_pct')
             ->limit($limit)
             ->get(['symbol', 'change_pct'])
@@ -218,7 +220,7 @@ class SnapshotService
             return $rows;
         }
 
-        return DB::table('instrument_snapshot')
+        return DB::table(DsaTables::name('instrument_snapshot'))
             ->orderByDesc('market_cap')
             ->limit($limit)
             ->get(['symbol', 'market_cap'])
@@ -319,7 +321,7 @@ class SnapshotService
             return $upperSymbols;
         }
 
-        $rows = DB::table('company_profile')
+        $rows = DB::table(DsaTables::name('company_profile'))
             ->whereIn(DB::raw('UPPER(TRIM(symbol))'), $upperSymbols)
             ->get(['symbol', 'sector']);
 
@@ -342,24 +344,25 @@ class SnapshotService
      */
     protected function heatmapDailyFromDatabase(int $limit, ?string $sector = null): array
     {
-        $q = DB::table('instrument_snapshot as s')
+        $marketCapExpr = SnapshotQuery::marketCapExpr('s', 'cp');
+        $q = DB::table(DsaTables::name('instrument_snapshot').' as s')
+            ->leftJoin(DsaTables::name('company_profile').' as cp', function ($join) {
+                $join->whereRaw('UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))');
+            })
             ->select([
                 's.instrument_id',
                 's.symbol',
                 's.price',
                 's.open',
                 's.volume',
-                's.market_cap',
+                DB::raw("{$marketCapExpr} as market_cap"),
                 's.liquidity',
                 's.change_pct',
             ]);
 
         if ($sector !== null && $sector !== '') {
             $needle = mb_strtolower(trim($sector));
-            $q->join('company_profile as cp', function ($join) {
-                $join->whereRaw('UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))');
-            })
-                ->whereNotNull('cp.sector')
+            $q->whereNotNull('cp.sector')
                 ->where('cp.sector', '!=', '')
                 ->whereRaw('LOWER(cp.sector) LIKE ?', ['%'.$needle.'%']);
         }
@@ -406,7 +409,7 @@ class SnapshotService
 
             if (!empty($symbols)) {
                 $cpSub = $this->companyProfileByNormalizedSymbolSubquery();
-                $q = DB::table('instrument_snapshot as s')
+                $q = DB::table(DsaTables::name('instrument_snapshot').' as s')
                     ->whereIn('s.symbol', $symbols)
                     ->select([
                         's.symbol',
@@ -414,16 +417,18 @@ class SnapshotService
                         's.change_pct',
                         's.liquidity',
                         's.volume',
-                        's.market_cap',
                     ]);
 
                 if ($cpSub !== null) {
+                    $marketCapExpr = SnapshotQuery::marketCapExpr('s', 'cp');
                     $q->leftJoinSub($cpSub, 'cp', function ($join) {
                         $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
                     })
-                        ->addSelect(DB::raw('COALESCE(cp.company_name, s.symbol) as company_name'));
+                        ->addSelect(DB::raw('COALESCE(cp.company_name, s.symbol) as company_name'))
+                        ->addSelect(DB::raw("{$marketCapExpr} as market_cap"));
                 } else {
-                    $q->addSelect(DB::raw('s.symbol as company_name'));
+                    $q->addSelect(DB::raw('s.symbol as company_name'))
+                        ->addSelect(DB::raw('NULL as market_cap'));
                 }
 
                 $metricPicker = $this->topCompaniesMetricPicker($orderBy);
@@ -510,23 +515,32 @@ class SnapshotService
      */
     protected function instrumentSnapshotRankedBySymbolSubquery(string $orderBy): \Illuminate\Database\Query\Builder
     {
+        $needsProfile = ! SnapshotQuery::snapshotHasMarketCap();
         $orderColumnExpr = match ($orderBy) {
-            'market_cap' => 's.market_cap',
+            'market_cap' => SnapshotQuery::marketCapExpr('s', 'cp'),
             'liquidity' => 's.liquidity',
             'change_pct' => 's.change_pct',
             'volume' => 's.volume',
             'price' => 's.price',
-            default => 's.market_cap',
+            default => SnapshotQuery::marketCapExpr('s', 'cp'),
         };
 
-        return DB::table('instrument_snapshot as s')
-            ->select([
+        $q = DB::table(DsaTables::name('instrument_snapshot').' as s');
+        if ($needsProfile) {
+            $q->leftJoin(DsaTables::name('company_profile').' as cp', function ($join) {
+                $join->whereRaw('UPPER(TRIM(cp.symbol)) = UPPER(TRIM(s.symbol))');
+            });
+        }
+
+        $marketCapExpr = SnapshotQuery::marketCapExpr('s', 'cp');
+
+        return $q->select([
                 's.symbol',
                 's.price',
                 's.change_pct',
                 's.liquidity',
                 's.volume',
-                's.market_cap',
+                DB::raw("{$marketCapExpr} as market_cap"),
                 DB::raw("ROW_NUMBER() OVER (PARTITION BY UPPER(TRIM(s.symbol)) ORDER BY {$orderColumnExpr} DESC, s.updated_at DESC, s.instrument_id DESC) as rn"),
             ]);
     }
@@ -551,14 +565,15 @@ class SnapshotService
      */
     protected function companyProfileByNormalizedSymbolSubquery(): ?\Illuminate\Database\Query\Builder
     {
-        if (! Schema::hasTable('company_profile')) {
+        if (! Schema::hasTable(DsaTables::name('company_profile'))) {
             return null;
         }
 
-        return DB::table('company_profile')
+        return DB::table(DsaTables::name('company_profile'))
             ->select([
                 DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
                 DB::raw('MAX(company_name) as company_name'),
+                DB::raw('MAX(market_cap) as market_cap'),
             ])
             ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
     }
@@ -573,11 +588,11 @@ class SnapshotService
             return null;
         }
 
-        $q = DB::table('instrument_snapshot as s')
+        $q = DB::table(DsaTables::name('instrument_snapshot').' as s')
             ->whereRaw('UPPER(TRIM(s.symbol)) = ?', [$sym]);
 
-        if (Schema::hasTable('company_profile')) {
-            $cpSub = DB::table('company_profile')
+        if (Schema::hasTable(DsaTables::name('company_profile'))) {
+            $cpSub = DB::table(DsaTables::name('company_profile'))
                 ->select([
                     DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
                     DB::raw('MAX(company_name) as company_name'),
@@ -699,8 +714,8 @@ class SnapshotService
         $perList = max(5, min($minRows, 100));
         $fetchCap = min(500, max($perList * 8, 200));
 
-        if (Schema::hasTable('company_profile')) {
-            $cpSub = DB::table('company_profile')
+        if (Schema::hasTable(DsaTables::name('company_profile'))) {
+            $cpSub = DB::table(DsaTables::name('company_profile'))
                 ->select([
                     DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
                     DB::raw('MAX(company_name) as company_name'),
@@ -708,7 +723,7 @@ class SnapshotService
                 ])
                 ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
 
-            $rows = DB::table('instrument_snapshot as s')
+            $rows = DB::table(DsaTables::name('instrument_snapshot').' as s')
                 ->leftJoinSub($cpSub, 'cp', function ($join) {
                     $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
                 })
@@ -724,7 +739,7 @@ class SnapshotService
                     'cp.company_logo',
                 ]);
         } else {
-            $rows = DB::table('instrument_snapshot as s')
+            $rows = DB::table(DsaTables::name('instrument_snapshot').' as s')
                 ->orderByDesc('s.volume')
                 ->limit($fetchCap)
                 ->get([
@@ -1002,13 +1017,15 @@ class SnapshotService
             $placeholders = implode(',', array_fill(0, count($instrumentIds), '?'));
             $driver = DB::connection()->getDriverName();
             $cast = $driver === 'sqlite' ? 'CAST(d.close AS REAL)' : 'CAST(d.close AS DECIMAL(20,10))';
+            $dataTbl = DsaTables::name('instrument_data');
+            $periodTbl = DsaTables::name('instrument_periods');
             $sql = "
                 SELECT instrument_id, c_last, rn FROM (
                     SELECT p.instrument_id,
                         {$cast} AS c_last,
                         ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
-                    FROM instrument_data AS d
-                    INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+                    FROM {$dataTbl} AS d
+                    INNER JOIN {$periodTbl} AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
                     WHERE p.instrument_id IN ({$placeholders})
                 ) AS z
                 WHERE rn <= ?
@@ -1054,13 +1071,13 @@ class SnapshotService
     protected function queryTopSnapshotRowsFromSnapshotDemo(int $limit): Collection
     {
         $limit = max(1, $limit);
-        if (! Schema::hasTable('snapshot_demo')) {
+        if (! Schema::hasTable(DsaTables::name('instrument_snapshot'))) {
             return collect();
         }
 
         try {
-            if (Schema::hasTable('company_profile')) {
-                $cpSub = DB::table('company_profile')
+            if (Schema::hasTable(DsaTables::name('company_profile'))) {
+                $cpSub = DB::table(DsaTables::name('company_profile'))
                     ->select([
                         DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
                         DB::raw('MAX(company_name) as company_name'),
@@ -1068,8 +1085,8 @@ class SnapshotService
                     ])
                     ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
 
-                return DB::table('snapshot_demo as s')
-                    ->join('instruments as i', 'i.id', '=', 's.instrument_id')
+                return DB::table(DsaTables::name('instrument_snapshot').' as s')
+                    ->join(DsaTables::name('instruments').' as i', 'i.id', '=', 's.instrument_id')
                     ->leftJoinSub($cpSub, 'cp', function ($join) {
                         $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
                     })
@@ -1087,8 +1104,8 @@ class SnapshotService
                     ]);
             }
 
-            return DB::table('snapshot_demo as s')
-                ->join('instruments as i', 'i.id', '=', 's.instrument_id')
+            return DB::table(DsaTables::name('instrument_snapshot').' as s')
+                ->join(DsaTables::name('instruments').' as i', 'i.id', '=', 's.instrument_id')
                 ->orderByDesc('s.volume')
                 ->limit($limit)
                 ->get([
@@ -1115,12 +1132,12 @@ class SnapshotService
 
         $rows = collect();
         try {
-            if (! Schema::hasTable('instrument_snapshot')) {
-                return $this->queryTopSnapshotRowsFromSnapshotDemo($limit);
+            if (! Schema::hasTable(DsaTables::name('instrument_snapshot'))) {
+                return collect();
             }
 
-            if (Schema::hasTable('company_profile')) {
-                $cpSub = DB::table('company_profile')
+            if (Schema::hasTable(DsaTables::name('company_profile'))) {
+                $cpSub = DB::table(DsaTables::name('company_profile'))
                     ->select([
                         DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
                         DB::raw('MAX(company_name) as company_name'),
@@ -1128,7 +1145,7 @@ class SnapshotService
                     ])
                     ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
 
-                $rows = DB::table('instrument_snapshot as s')
+                $rows = DB::table(DsaTables::name('instrument_snapshot').' as s')
                     ->leftJoinSub($cpSub, 'cp', function ($join) {
                         $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
                     })
@@ -1145,7 +1162,7 @@ class SnapshotService
                         'cp.company_logo',
                     ]);
             } else {
-                $rows = DB::table('instrument_snapshot as s')
+                $rows = DB::table(DsaTables::name('instrument_snapshot').' as s')
                     ->orderByDesc('s.volume')
                     ->limit($limit)
                     ->get([
@@ -1180,8 +1197,8 @@ class SnapshotService
             return null;
         }
 
-        if (Schema::hasTable('company_profile')) {
-            $cpSub = DB::table('company_profile')
+        if (Schema::hasTable(DsaTables::name('company_profile'))) {
+            $cpSub = DB::table(DsaTables::name('company_profile'))
                 ->select([
                     DB::raw('UPPER(TRIM(symbol)) as symbol_key'),
                     DB::raw('MAX(company_name) as company_name'),
@@ -1189,7 +1206,7 @@ class SnapshotService
                 ])
                 ->groupBy(DB::raw('UPPER(TRIM(symbol))'));
 
-            $row = DB::table('instrument_snapshot as s')
+            $row = DB::table(DsaTables::name('instrument_snapshot').' as s')
                 ->leftJoinSub($cpSub, 'cp', function ($join) {
                     $join->whereRaw('cp.symbol_key = UPPER(TRIM(s.symbol))');
                 })
@@ -1205,7 +1222,7 @@ class SnapshotService
                     'cp.company_logo',
                 ]);
         } else {
-            $row = DB::table('instrument_snapshot as s')
+            $row = DB::table(DsaTables::name('instrument_snapshot').' as s')
                 ->whereRaw('UPPER(TRIM(s.symbol)) = ?', [$sym])
                 ->first([
                     's.instrument_id',
@@ -1488,6 +1505,8 @@ class SnapshotService
 
         try {
             $placeholders = implode(',', array_fill(0, count($instrumentIds), '?'));
+            $dataTbl = DsaTables::name('instrument_data');
+            $periodTbl = DsaTables::name('instrument_periods');
             $sql = "
                 SELECT instrument_id,
                     MAX(CASE WHEN rn = 1 THEN c_last END) AS last_close,
@@ -1496,8 +1515,8 @@ class SnapshotService
                     SELECT p.instrument_id,
                         CAST(d.close AS DECIMAL(20,10)) AS c_last,
                         ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
-                    FROM instrument_data AS d
-                    INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+                    FROM {$dataTbl} AS d
+                    INNER JOIN {$periodTbl} AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
                     WHERE p.instrument_id IN ({$placeholders})
                 ) AS z
                 WHERE rn <= 2
@@ -1514,8 +1533,8 @@ class SnapshotService
                         SELECT p.instrument_id,
                             CAST(d.close AS REAL) AS c_last,
                             ROW_NUMBER() OVER (PARTITION BY p.instrument_id ORDER BY d.timestamps DESC) AS rn
-                        FROM instrument_data AS d
-                        INNER JOIN instrument_periods AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
+                        FROM {$dataTbl} AS d
+                        INNER JOIN {$periodTbl} AS p ON p.id = d.instrument_period_id AND p.period = 'daily'
                         WHERE p.instrument_id IN ({$placeholders})
                     ) AS z
                     WHERE rn <= 2
@@ -1696,7 +1715,7 @@ class SnapshotService
             return $rank < $top;
         }
 
-        $targetLiquidity = DB::table('instrument_snapshot')
+        $targetLiquidity = DB::table(DsaTables::name('instrument_snapshot'))
             ->where('symbol', $symbol)
             ->value('liquidity');
 
@@ -1704,7 +1723,7 @@ class SnapshotService
             return false;
         }
 
-        $countHigher = DB::table('instrument_snapshot')
+        $countHigher = DB::table(DsaTables::name('instrument_snapshot'))
             ->where('liquidity', '>', $targetLiquidity)
             ->count();
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/src/hooks/useAuth";
+import { calcPositionUnrealizedPnl, formatOpenPnl } from "@/src/libs/tradingPnl";
 import type { PaperTradingSnapshot } from "./paperTradingTypes";
 
 const CMC = {
@@ -61,8 +62,17 @@ export default function ProfilePaperTradingPanel({ symbol, state }: Props) {
     );
   });
   const history = [...trades].reverse().slice(0, 24);
-  const uPnL = state?.unrealizedPnl ?? 0;
   const marketPrice = state?.marketPrice;
+  const unrealizedProfit =
+    marketPrice != null && position.side !== "flat"
+      ? calcPositionUnrealizedPnl(
+          position.side,
+          position.avgPrice,
+          position.qty,
+          position.leverage ?? 1,
+          marketPrice
+        )
+      : (state?.unrealizedPnl ?? 0);
 
   return (
     <div className={`rounded-xl ${CMC.card} p-4`}>
@@ -83,24 +93,25 @@ export default function ProfilePaperTradingPanel({ symbol, state }: Props) {
               <span className="font-semibold uppercase">{position.side}</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className={CMC.muted}>Qty</span>
+              <span className={CMC.muted}>Quantity</span>
               <span className="font-mono">{position.qty}</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className={CMC.muted}>Avg</span>
+              <span className={CMC.muted}>Average entry</span>
               <span className="font-mono">{position.avgPrice.toFixed(4)}</span>
             </div>
             {marketPrice != null && Number.isFinite(marketPrice) ? (
               <div className="flex justify-between gap-2">
-                <span className={CMC.muted}>Mkt</span>
+                <span className={CMC.muted}>Market price</span>
                 <span className="font-mono">{marketPrice.toFixed(4)}</span>
               </div>
             ) : null}
             <div className="flex justify-between gap-2">
-              <span className={CMC.muted}>uPnL</span>
-              <span className={`font-mono font-semibold ${uPnL >= 0 ? CMC.green : CMC.red}`}>
-                {uPnL >= 0 ? "+" : ""}
-                {uPnL.toFixed(4)}
+              <span className={CMC.muted}>Unrealized profit</span>
+              <span
+                className={`font-mono font-semibold ${unrealizedProfit >= 0 ? CMC.green : CMC.red}`}
+              >
+                {formatOpenPnl(unrealizedProfit)}
               </span>
             </div>
           </div>

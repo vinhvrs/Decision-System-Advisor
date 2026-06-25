@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminService } from "@/src/services/Admin.service";
 import { CornerNotice } from "@/src/components/admin/CornerNotice";
-import { SlidersHorizontal, Trash2, Plus, RefreshCw } from "lucide-react";
+import { SlidersHorizontal, Trash2, Plus, RefreshCw, Pencil, Check, X } from "lucide-react";
 
 type IndicatorRow = { id: string; name: string; slug: string; description?: string | null };
 
@@ -21,6 +21,26 @@ type ParamRow = {
 
 const VALUE_TYPES = ["string", "number", "boolean", "json"] as const;
 
+type EditDraft = {
+  param_value: string;
+  value_type: (typeof VALUE_TYPES)[number];
+  label: string;
+  description: string;
+  sort_order: string;
+  is_active: boolean;
+};
+
+function emptyEditDraft(): EditDraft {
+  return {
+    param_value: "",
+    value_type: "string",
+    label: "",
+    description: "",
+    sort_order: "0",
+    is_active: true,
+  };
+}
+
 export default function AdminIndicatorsPage() {
   const [catalog, setCatalog] = useState<IndicatorRow[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -28,6 +48,8 @@ export default function AdminIndicatorsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; variant: "success" | "error" | "info" } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft>(emptyEditDraft);
 
   const [form, setForm] = useState({
     param_key: "",
@@ -151,8 +173,51 @@ export default function AdminIndicatorsPage() {
     try {
       await AdminService.indicators.updateParameter(selectedId, p.id, { is_active: !p.is_active });
       await loadParams(selectedId);
+      setNotice({ variant: "success", message: "Parameter updated." });
     } catch {
       setNotice({ variant: "error", message: "Update failed." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startEdit = (p: ParamRow) => {
+    setEditingId(p.id);
+    setEditDraft({
+      param_value: p.param_value ?? "",
+      value_type: (VALUE_TYPES.includes(p.value_type as (typeof VALUE_TYPES)[number])
+        ? p.value_type
+        : "string") as (typeof VALUE_TYPES)[number],
+      label: p.label ?? "",
+      description: p.description ?? "",
+      sort_order: String(p.sort_order ?? 0),
+      is_active: p.is_active,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft(emptyEditDraft());
+  };
+
+  const onSaveEdit = async (p: ParamRow) => {
+    if (!selectedId) return;
+    setBusy(true);
+    try {
+      await AdminService.indicators.updateParameter(selectedId, p.id, {
+        param_value: editDraft.param_value.trim() === "" ? null : editDraft.param_value,
+        value_type: editDraft.value_type,
+        label: editDraft.label.trim() === "" ? null : editDraft.label.trim(),
+        description: editDraft.description.trim() === "" ? null : editDraft.description.trim(),
+        sort_order: Number.parseInt(editDraft.sort_order, 10) || 0,
+        is_active: editDraft.is_active,
+      });
+      cancelEdit();
+      await loadParams(selectedId);
+      setNotice({ variant: "success", message: "Parameter saved." });
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string } } };
+      setNotice({ variant: "error", message: ax.response?.data?.message || "Save failed." });
     } finally {
       setBusy(false);
     }
@@ -167,8 +232,9 @@ export default function AdminIndicatorsPage() {
             Indicator parameters
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-white/55">
-            Customize tunable inputs per technical indicator (periods, thresholds, feature flags). Downstream Python or
-            chart jobs can read these values from the API when you wire them in.
+            Tune periods and thresholds per indicator. Values are stored in MySQL and used by the Laravel API and
+            Python analysis engine (60s cache). Env vars in <code className="text-emerald-200/90">backend/.env</code>{" "}
+            are fallbacks only when a row is missing or inactive.
           </p>
         </div>
         <button
@@ -196,14 +262,21 @@ export default function AdminIndicatorsPage() {
       {loading ? (
         <p className="text-sm text-white/45">Loading…</p>
       ) : catalog.length === 0 ? (
-        <p className="text-sm text-amber-200/90">No rows in the indicators catalog yet. Seed the indicators table first.</p>
+        <p className="text-sm text-amber-200/90">
+          No rows in the indicators catalog yet. Run{" "}
+          <code className="rounded bg-black/40 px-1.5 py-0.5 text-xs">php artisan db:seed --class=IndicatorCatalogSeeder</code>{" "}
+          from <code className="rounded bg-black/40 px-1.5 py-0.5 text-xs">backend/</code>.
+        </p>
       ) : (
         <>
           <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-white/60">Indicator</label>
             <select
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => {
+                cancelEdit();
+                setSelectedId(e.target.value);
+              }}
               className="w-full max-w-xl rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
             >
               {catalog.map((c) => (
@@ -233,40 +306,153 @@ export default function AdminIndicatorsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {params.map((p) => (
-                    <tr key={p.id} className="border-b border-white/5">
+                  {params.map((p) => {
+                    const isEditing = editingId === p.id;
+                    return (
+                    <tr key={p.id} className="border-b border-white/5 align-top">
                       <td className="py-2 pr-2 font-mono text-xs text-emerald-200/95">{p.param_key}</td>
-                      <td className="max-w-[200px] truncate py-2 pr-2 text-xs text-white/80" title={p.param_value ?? ""}>
-                        {p.param_value ?? "—"}
+                      <td className="py-2 pr-2 text-xs text-white/80">
+                        {isEditing ? (
+                          <input
+                            value={editDraft.param_value}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, param_value: e.target.value }))}
+                            className="w-full min-w-[5rem] rounded border border-white/15 bg-black/40 px-2 py-1 font-mono text-white"
+                          />
+                        ) : (
+                          <span className="max-w-[200px] truncate block" title={p.param_value ?? ""}>
+                            {p.param_value ?? "—"}
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2 pr-2 text-xs text-white/60">{p.value_type}</td>
-                      <td className="py-2 pr-2 text-xs text-white/60">{p.label ?? "—"}</td>
-                      <td className="py-2 pr-2 text-xs tabular-nums text-white/60">{p.sort_order}</td>
+                      <td className="py-2 pr-2 text-xs text-white/60">
+                        {isEditing ? (
+                          <select
+                            value={editDraft.value_type}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({
+                                ...d,
+                                value_type: e.target.value as (typeof VALUE_TYPES)[number],
+                              }))
+                            }
+                            className="rounded border border-white/15 bg-black/40 px-2 py-1 text-white"
+                          >
+                            {VALUE_TYPES.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          p.value_type
+                        )}
+                      </td>
+                      <td className="py-2 pr-2 text-xs text-white/60">
+                        {isEditing ? (
+                          <input
+                            value={editDraft.label}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, label: e.target.value }))}
+                            className="w-full min-w-[5rem] rounded border border-white/15 bg-black/40 px-2 py-1 text-white"
+                          />
+                        ) : (
+                          p.label ?? "—"
+                        )}
+                      </td>
+                      <td className="py-2 pr-2 text-xs tabular-nums text-white/60">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={0}
+                            value={editDraft.sort_order}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, sort_order: e.target.value }))}
+                            className="w-16 rounded border border-white/15 bg-black/40 px-2 py-1 text-white"
+                          />
+                        ) : (
+                          p.sort_order
+                        )}
+                      </td>
                       <td className="py-2 pr-2">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void onToggleActive(p)}
-                          className={`rounded px-2 py-0.5 text-[11px] font-bold ${
-                            p.is_active ? "bg-emerald-500/20 text-emerald-200" : "bg-white/10 text-white/50"
-                          }`}
-                        >
-                          {p.is_active ? "On" : "Off"}
-                        </button>
+                        {isEditing ? (
+                          <label className="inline-flex items-center gap-1.5 text-[11px] text-white/70">
+                            <input
+                              type="checkbox"
+                              checked={editDraft.is_active}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, is_active: e.target.checked }))}
+                              className="rounded border-white/20"
+                            />
+                            Active
+                          </label>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy || isEditing}
+                            onClick={() => void onToggleActive(p)}
+                            className={`rounded px-2 py-0.5 text-[11px] font-bold ${
+                              p.is_active ? "bg-emerald-500/20 text-emerald-200" : "bg-white/10 text-white/50"
+                            }`}
+                          >
+                            {p.is_active ? "On" : "Off"}
+                          </button>
+                        )}
                       </td>
                       <td className="py-2 text-right">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void onDelete(p)}
-                          className="inline-flex items-center gap-1 rounded border border-red-500/30 px-2 py-1 text-[11px] text-red-200 hover:bg-red-500/10"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Delete
-                        </button>
+                        <div className="flex flex-wrap items-center justify-end gap-1">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void onSaveEdit(p)}
+                                className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/25"
+                              >
+                                <Check className="h-3 w-3" />
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={cancelEdit}
+                                className="inline-flex items-center gap-1 rounded border border-white/15 px-2 py-1 text-[11px] text-white/70 hover:bg-white/5"
+                              >
+                                <X className="h-3 w-3" />
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busy || editingId != null}
+                                onClick={() => startEdit(p)}
+                                className="inline-flex items-center gap-1 rounded border border-white/15 px-2 py-1 text-[11px] text-white/80 hover:bg-white/5 disabled:opacity-40"
+                              >
+                                <Pencil className="h-3 w-3" />
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy || editingId != null}
+                                onClick={() => void onDelete(p)}
+                                className="inline-flex items-center gap-1 rounded border border-red-500/30 px-2 py-1 text-[11px] text-red-200 hover:bg-red-500/10 disabled:opacity-40"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {isEditing ? (
+                          <textarea
+                            value={editDraft.description}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
+                            rows={2}
+                            placeholder="Description (optional)"
+                            className="mt-2 w-full min-w-[10rem] rounded border border-white/15 bg-black/40 px-2 py-1 text-[11px] text-white"
+                          />
+                        ) : null}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

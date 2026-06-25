@@ -2,6 +2,7 @@
 
 namespace Platform\Plugins\Trading\Src\Services;
 
+use App\Support\DsaTables;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -142,7 +143,7 @@ class NewsService
     private function symbolSearchTerms(string $symbol): array
     {
         $terms = [$symbol];
-        $profile = DB::table('company_profile')
+        $profile = DB::table(DsaTables::name('company_profile'))
             ->whereRaw('UPPER(TRIM(symbol)) = ?', [$symbol])
             ->first(['company_name']);
 

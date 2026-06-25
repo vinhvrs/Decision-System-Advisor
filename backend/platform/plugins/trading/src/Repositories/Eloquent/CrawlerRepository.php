@@ -2,6 +2,7 @@
 
 namespace Platform\Plugins\Trading\Src\Repositories\Eloquent;
 
+use App\Support\DsaTables;
 use Platform\Plugins\Trading\Src\Repositories\Interfaces\CrawlerInterface;
 use Platform\Plugins\Trading\Src\Models\CrawlerState;
 use Illuminate\Support\Carbon;
@@ -17,7 +18,7 @@ class CrawlerRepository implements CrawlerInterface
     public function getSymbolsChunk(string $source, int $chunkSize = 500, ?string $afterSymbol = null): Collection
     {
         // instruments is the canonical source (type, slug, exchange, …)
-        $q = DB::table('instruments')
+        $q = DB::table(DsaTables::name('instruments'))
             ->select('symbol')
             ->whereNotNull('symbol')
             ->where('symbol', '!=', '')
@@ -31,7 +32,7 @@ class CrawlerRepository implements CrawlerInterface
 
         // Rare: empty instruments → company_profile
         if ($symbols->isEmpty()) {
-            $q2 = DB::table('company_profile')
+            $q2 = DB::table(DsaTables::name('company_profile'))
                 ->select('symbol')
                 ->whereNotNull('symbol')
                 ->where('symbol', '!=', '')

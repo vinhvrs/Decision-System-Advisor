@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Stock Advisor Page",
-  description: "Get stock advice and insights from our expert advisors.",
+  title: "Decision Support Advisor",
+  description: "Market rankings, fundamentals, indicators, and news in one place.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { TradeSummaryStats } from "@/src/hooks/useTradeSummary";
+import { formatOpenPnl } from "@/src/libs/tradingPnl";
 
 interface TradingSummaryPanelProps {
   stats: TradeSummaryStats;
@@ -10,9 +11,7 @@ interface TradingSummaryPanelProps {
 }
 
 function formatProfit(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(4)}`;
+  return formatOpenPnl(n);
 }
 
 export default function TradingSummaryPanel({

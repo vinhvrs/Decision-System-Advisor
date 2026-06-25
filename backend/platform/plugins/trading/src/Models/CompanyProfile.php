@@ -1,11 +1,17 @@
 <?php
 namespace Platform\Plugins\Trading\Src\Models;
 
+use App\Support\UsesDsaTable;
 use Illuminate\Database\Eloquent\Model;
 
 class CompanyProfile extends Model
 {
-    protected $table = 'company_profile';
+    use UsesDsaTable;
+
+    protected static function dsaLogicalTable(): string
+    {
+        return 'company_profile';
+    }
     protected $primaryKey = 'instrument_id';
     protected $keyType = 'string';
     public $incrementing = false;

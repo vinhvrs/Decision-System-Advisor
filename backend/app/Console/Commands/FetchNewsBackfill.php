@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\DsaTables;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +32,7 @@ class FetchNewsBackfill extends Command
 
         $maxCalls = (int) $this->option('maxCalls');
 
-        $stocks = DB::table('company_profile')
+        $stocks = DB::table(DsaTables::name('company_profile'))
             ->orderByDesc('market_cap')
             ->limit(20)
             ->pluck('symbol');

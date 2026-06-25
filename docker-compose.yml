@@ -93,7 +93,7 @@ services:
       - TECH_UNIVERSE_YF_PERIOD=30d
       - FUNDAMENTAL_INGEST_ENABLED=1
       - MACROTRENDS_ENABLED=1
-      - DASHBOARD_USE_DEMO=1
+      # Table mode: set DEV_MODE in backend/.env (dev → *_demo tables, production → prod tables)
       # Thesis demo default in app/main.py is top_snapshot + 20; for full universe set SYMBOL_INGEST_MODE=all
       - SYMBOL_INGEST_MODE=top_snapshot
       - SYMBOL_INGEST_TOP_N=20

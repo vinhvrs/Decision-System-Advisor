@@ -20,15 +20,32 @@ import yfinance as yf
 from config.settings import settings
 from snapshot_build import _max_candles, _upsert_snapshot
 
+from app.config.dsa_tables import table as dsa_table
 from app.data_collect.collectors.stock_sync import (
-    SNAPSHOT_SYMBOL_TABLE,
-    ensure_snapshot_demo_table,
+    ensure_snapshot_symbol_table,
+    snapshot_symbol_table,
 )
 
 logger = logging.getLogger(__name__)
 
-INSTRUMENT_PERIOD_DEMO = "instrument_period_demo"
-INSTRUMENT_DATA_DEMO = "instrument_data_demo"
+
+def instrument_period_table() -> str:
+    return dsa_table("instrument_periods")
+
+
+def instrument_data_table() -> str:
+    return dsa_table("instrument_data")
+
+
+def snapshot_symbol_table_name() -> str:
+    return snapshot_symbol_table()
+
+
+# Backward-compatible aliases
+ensure_snapshot_demo_table = ensure_snapshot_symbol_table
+SNAPSHOT_SYMBOL_TABLE = snapshot_symbol_table_name()
+INSTRUMENT_PERIOD_DEMO = instrument_period_table()
+INSTRUMENT_DATA_DEMO = instrument_data_table()
 
 DEMO_SNAPSHOT_TABLES = (
     "snapshot_daily",

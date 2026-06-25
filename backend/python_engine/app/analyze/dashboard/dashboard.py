@@ -42,19 +42,21 @@ import redis
 
 from config.settings import settings
 
+from app.config.dsa_tables import table as dsa_table
+
 logger = logging.getLogger(__name__)
 
 
 def _ranking_snapshot_table() -> str:
-    return "snapshot_demo" if settings.DASHBOARD_USE_DEMO else "instrument_snapshot"
+    return dsa_table("instrument_snapshot")
 
 
 def _ohlc_data_table() -> str:
-    return "instrument_data_demo" if settings.DASHBOARD_USE_DEMO else "instrument_data"
+    return dsa_table("instrument_data")
 
 
 def _ohlc_period_table() -> str:
-    return "instrument_period_demo" if settings.DASHBOARD_USE_DEMO else "instrument_periods"
+    return dsa_table("instrument_periods")
 
 
 BEGINNER_STRONG_TRAIT_MIN_SCORE = 4
