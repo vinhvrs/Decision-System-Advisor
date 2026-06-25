@@ -17,3 +17,11 @@ export function formatCompactVolume(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 2 }).format(n);
 }
+
+/** Same fallback as company profile pages when ``logo_url`` / ``image`` is missing. */
+export function symbolLogoUrl(symbol: string, logoUrl?: string | null): string {
+  const trimmed = (logoUrl ?? "").trim();
+  if (trimmed) return trimmed;
+  const sym = symbol.trim().toUpperCase();
+  return `https://images.financialmodelingprep.com/symbol/${sym}.png`;
+}

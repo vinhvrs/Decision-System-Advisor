@@ -25,7 +25,7 @@ import type { HomeMarketViewVariant } from "@/src/app/(site)/HomeMarketView";
 import BeginnerRadarChart from "./BeginnerRadarChart";
 import BeginnerTestMarketExtras from "./BeginnerTestMarketExtras";
 import SelectDropdown from "@/src/sections/Dropdown";
-import { stripParentheticals } from "@/src/libs/displayString";
+import { stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 import { isDemoDevMode } from "@/src/libs/devMode";
 import { fearGreedFromBoardRows, fearGreedFromChangePct } from "@/src/libs/fearGreed";
 import { DEV_SYMBOL_SEED, type SymbolDevCompany } from "@/src/libs/symbolDevIdb";
@@ -633,11 +633,12 @@ const MiniSparkline = memo(function MiniSparkline({
 
 const RowAvatar = memo(function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | null }) {
   const [broken, setBroken] = useState(false);
-  if (logoUrl && !broken) {
+  const src = symbolLogoUrl(symbol, logoUrl);
+  if (!broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={logoUrl}
+        src={src}
         alt=""
         className="h-9 w-9 shrink-0 rounded-full object-cover"
         onError={() => setBroken(true)}
