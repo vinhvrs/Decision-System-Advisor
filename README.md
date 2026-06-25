@@ -4,6 +4,8 @@ Web-based investment advisory system: **Next.js** client, **Laravel** REST API, 
 
 This README is a **committee index**: key figures, short explanations, and how to run locally. Full prose and editable sources live under [`docs/`](docs/).
 
+**New to the project?** Follow the step-by-step guide: [`SETUP.md`](SETUP.md) (also available as plain text: [`SETUP.txt`](SETUP.txt)).
+
 ---
 
 ## Quick start (committee)
