@@ -18,11 +18,10 @@ The branch `fix/local-mac-stabilization` is the local-Mac stabilization branch b
 ### Requirements
 
 - Docker Desktop
-- Node.js 22+
-- npm
 - Git
 
-Apple Silicon and Intel Macs are both supported by the local Docker setup.
+No host installation of PHP, Composer, Python, Node.js or npm is required.
+Apple Silicon and Intel Macs are both supported by the Docker setup.
 
 ### 1. Configure environment files
 
@@ -33,7 +32,7 @@ cp frontend/.env.example frontend/.env.local
 
 Keep real API keys only in `backend/.env`. Do not commit them.
 
-### 2. Build and start backend services
+### 2. Build and start the complete Docker stack
 
 Use the backend env file for Compose interpolation so database credentials stay consistent:
 
@@ -43,6 +42,7 @@ docker compose --env-file backend/.env up -d --build
 
 Services:
 
+- Next.js frontend: http://localhost:3000
 - Laravel/Nginx API: http://localhost:1111
 - Python data engine: http://localhost:8000
 - MySQL host port: 3307
@@ -65,21 +65,25 @@ If the project needs seed/demo data:
 docker compose --env-file backend/.env exec app php artisan db:seed
 ```
 
-### 4. Start the frontend
+### 4. Open the frontend
 
-```bash
-cd frontend
-npm ci
-npm run dev
+The frontend is already running in Docker:
+
+```text
+http://localhost:3000
 ```
 
-Open http://localhost:3000.
+For live logs:
+
+```bash
+docker compose --env-file backend/.env logs -f frontend
+```
 
 ### Useful checks
 
 ```bash
 docker compose --env-file backend/.env ps
-docker compose --env-file backend/.env logs -f app nginx data-engine
+docker compose --env-file backend/.env logs -f frontend app nginx data-engine
 curl http://localhost:1111
 curl http://localhost:8000
 curl http://localhost:9200
@@ -96,7 +100,7 @@ docker compose --env-file backend/.env down -v
 
 - API keys are read from environment variables.
 - The Finnhub import endpoint no longer contains a hard-coded token.
-- If a key was ever committed publicly, rotate/revoke it at the provider; removing it from the current source does not remove it from Git history.
+- Sensitive `.env` files and the hard-coded Finnhub token were scrubbed from reachable branch/tag history with `git filter-repo`. Any credential that was ever public must still be rotated/revoked at its provider.
 - Do not commit `.env` files.
 
 ## Branch strategy

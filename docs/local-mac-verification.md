@@ -23,13 +23,7 @@ docker compose --env-file backend/.env exec app php artisan key:generate
 docker compose --env-file backend/.env exec app php artisan migrate
 ```
 
-Start frontend:
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
+The frontend is started by Docker Compose automatically.
 
 ## Expected endpoints
 
@@ -67,7 +61,7 @@ redis-cli -h 127.0.0.1 -p 6379 ping
 ## Logs to capture when something fails
 
 ```bash
-docker compose --env-file backend/.env logs --tail=300 app nginx
+docker compose --env-file backend/.env logs --tail=300 frontend app nginx
 docker compose --env-file backend/.env logs --tail=300 data-engine
 docker compose --env-file backend/.env logs --tail=300 db redis elasticsearch qdrant
 ```
