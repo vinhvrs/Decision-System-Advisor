@@ -13,18 +13,26 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  // Prefer accessToken, fallback to remember cookie for quick re-login
-  let token = localStorage.getItem("accessToken");
-  if (!token && typeof document !== "undefined") {
-    const match = document.cookie.match(/dsa_remember=([^;]+)/);
-    if (match) {
-      token = decodeURIComponent(match[1]);
-      localStorage.setItem("accessToken", token);
+  // Axios can also be imported from Server Components. Never touch browser
+  // storage unless this interceptor is executing in the browser.
+  let token: string | null = null;
+
+  if (typeof window !== "undefined") {
+    token = window.localStorage.getItem("accessToken");
+
+    if (!token) {
+      const match = window.document.cookie.match(/dsa_remember=([^;]+)/);
+      if (match) {
+        token = decodeURIComponent(match[1]);
+        window.localStorage.setItem("accessToken", token);
+      }
     }
   }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
