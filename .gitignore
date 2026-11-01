@@ -1,9 +1,12 @@
 *.log
 .DS_Store
+.env
+.env.local
 .env.backup
 .env.production
 .phpactor.json
 .phpunit.result.cache
+__pycache__/
 /.fleet
 /.idea
 /.nova
@@ -21,6 +24,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/backend/.env
+/backend/.env.local
 /backend/vendor
 /backend/node_modules
 ./backend/vendor

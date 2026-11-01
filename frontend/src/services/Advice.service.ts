@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import api from "../libs/api";
-import chatbot from "../libs/chatbot";
-import { stockMapper } from "../libs/mapper";
+import api from "@/src/libs/api";
+import chatbot from "@/src/libs/chatbot";
+import { stockMapper } from "@/src/libs/mapper";
 
 export const AdviceService = {
     handleChatbot: async (message: string) => {

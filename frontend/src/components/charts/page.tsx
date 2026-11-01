@@ -1,82 +1,128 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react-hooks/immutability */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { InstrumentService } from "@/src/services/Instrument.service";
-import SelectDropdown from "../../sections/Dropdown";
+import SelectDropdown from "@/src/sections/Dropdown";
 import LightChart from "./LightChart";
-import { Instrument } from "../../types/Instrument";
-import { InstrumentPeriod } from "../../types/InstrumentPeriod";
-import { createEcho } from "@/src/libs/echo";
+import { Instrument } from "@/src/types/Instrument";
 import { get, set } from "idb-keyval";
 import { IDB_KEYS } from "@/src/libs/idbKeys";
+import { SimpleSocket } from "@/src/libs/socket";
+import { CompanyService } from "@/src/services/Company.service";
 
+type TF = "daily" | "weekly" | "monthly" | "yearly";
 
-/* ============================================================
- * HELPERS
- * ============================================================ */
-function mapPeriodToTimeframe(period: string) {
-  switch (period) {
-    case "daily":
-      return "daily";
-    case "weekly":
-      return "weekly";
-    case "monthly":
-      return "monthly";
-    case "yearly":
-      return "yearly";
-    default:
-      return "daily";
-  }
+interface TradingChartProps {
+  defaultSymbol?: string;
+  isFixed?: boolean;
 }
 
-function normalizeCandles(
-  list: any[],
-  period: "daily" | "weekly" | "monthly" | "yearly"
-) {
+type InstrumentLike = Instrument & {
+  id: string | number;
+  symbol: string;
+  name?: string;
+  company_name?: string;
+};
+
+const FIXED_PERIODS: Array<{ id: TF; label: string }> = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+  { id: "yearly", label: "Yearly" },
+];
+
+const INDICATOR_OPTIONS = [
+  { id: "ema20", label: "EMA 20" },
+  { id: "ema50", label: "EMA 50" },
+  { id: "ema100", label: "EMA 100" },
+  { id: "sma20", label: "SMA 20" },
+  { id: "sma50", label: "SMA 50" },
+  { id: "macd", label: "MACD" },
+  { id: "rsi", label: "RSI" },
+  { id: "stochastic", label: "Stochastic" },
+  { id: "bollinger", label: "Bollinger Bands" },
+];
+
+function getInstrumentDisplayName(item: Partial<InstrumentLike> | null | undefined) {
+  if (!item) return "";
+  return item.name || item.company_name || item.symbol || "Unknown";
+}
+
+function normalizeInstrument(item: any, index = 0): InstrumentLike {
+  return {
+    ...item,
+    id: item?.id ?? item?._id ?? item?.symbol ?? `instrument-${index}`,
+    symbol: item?.symbol ?? "",
+    name: item?.name || item?.company_name || item?.symbol || "Unknown",
+    company_name: item?.company_name || item?.name || item?.symbol || "Unknown",
+  };
+}
+
+function normalizeInstrumentList(list: any[]): InstrumentLike[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item, index) => normalizeInstrument(item, index))
+    .filter((item) => !!item.symbol);
+}
+
+function normalizeCandles(list: any[], period: TF) {
   const uniqueMap = new Map<number, any>();
 
   list
-    .filter((d: any) => d.timestamp || d.timestamps)
+    .filter((d: any) => d.timestamp || d.timestamps || d.time)
     .forEach((d: any) => {
-      const ts = d.timestamp || d.timestamps;
+      const rawTs = d.timestamp || d.timestamps || d.time;
+      let date: Date;
 
-      // Ép UTC – rất quan trọng
-      const date = new Date(ts.replace(" ", "T") + "Z");
+      if (typeof rawTs === "number") {
+        date = new Date(rawTs < 10_000_000_000 ? rawTs * 1000 : rawTs);
+      } else {
+        const str = String(rawTs);
+        date = str.includes("T")
+          ? new Date(str)
+          : new Date(str.replace(" ", "T") + "Z");
+      }
 
-      // ===== BUCKET TIME THEO PERIOD =====
+      if (Number.isNaN(date.getTime())) return;
+
       if (period === "daily") {
         date.setUTCHours(0, 0, 0, 0);
-      }
-
-      if (period === "weekly") {
-        const day = date.getUTCDay() || 7; // CN = 7
-        date.setUTCDate(date.getUTCDate() - day + 1); // Monday
+      } else if (period === "weekly") {
+        const day = date.getUTCDay() || 7;
+        date.setUTCDate(date.getUTCDate() - day + 1);
         date.setUTCHours(0, 0, 0, 0);
-      }
-
-      if (period === "monthly") {
+      } else if (period === "monthly") {
         date.setUTCDate(1);
         date.setUTCHours(0, 0, 0, 0);
-      }
-
-      if (period === "yearly") {
+      } else if (period === "yearly") {
         date.setUTCMonth(0, 1);
         date.setUTCHours(0, 0, 0, 0);
       }
 
-      // const time = Math.floor(new Date(ts.replace(" ", "T")).getTime());
       const time = date.getTime();
 
+      const next = {
+        time,
+        open: Number(d.open),
+        high: Number(d.high),
+        low: Number(d.low),
+        close: Number(d.close),
+        volume: Number(d.volume || 0),
+      };
+
       if (!uniqueMap.has(time)) {
+        uniqueMap.set(time, next);
+      } else {
+        const prev = uniqueMap.get(time);
         uniqueMap.set(time, {
           time,
-          open: parseFloat(d.open),
-          high: parseFloat(d.high),
-          low: parseFloat(d.low),
-          close: parseFloat(d.close),
+          open: Number(prev.open),
+          high: Math.max(Number(prev.high), Number(next.high)),
+          low: Math.min(Number(prev.low), Number(next.low)),
+          close: Number(next.close),
+          volume: Number(prev.volume || 0) + Number(next.volume || 0),
         });
       }
     });
@@ -84,331 +130,322 @@ function normalizeCandles(
   return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
 }
 
+function mergeCandles(prev: any[], next: any[]) {
+  const map = new Map<number, any>();
 
-/* ============================================================
- * PAGE
- * ============================================================ */
-export default function InstrumentSelectionPage() {
-  /** --------------------------------------------------------
-   * FIXED DEFAULT AAPL
-   ---------------------------------------------------------*/
-  const AAPL_INSTRUMENT: Instrument = {
-    id: "d094f426-1e91-4f3f-8ca0-e043a3a5d5e5",
-    name: "Apple Inc.",
-    symbol: "AAPL",
-    type: "stock",
-    exchange: "NASDAQ",
-    slug: "apple-incaapl",
-  };
+  [...prev, ...next].forEach((c) => {
+    if (!c?.time) return;
+    map.set(Number(c.time), c);
+  });
 
-  const AAPL_PERIODS: InstrumentPeriod[] = [
-    { id: "67fa73bc-d17d-44f5-8fa0-f862b17c8334", instrument_id: AAPL_INSTRUMENT.id, period: "daily", type: "stock", prefix: "aapl" },
-    { id: "ae6c7526-fea5-446f-a47d-18dd931d100f", instrument_id: AAPL_INSTRUMENT.id, period: "weekly", type: "stock", prefix: "aapl" },
-    { id: "df543b05-4cd6-4eaf-9834-c97462d334d4", instrument_id: AAPL_INSTRUMENT.id, period: "monthly", type: "stock", prefix: "aapl" },
-    { id: "0bb0ef82-519c-4ca8-81c0-ae1cd923296c", instrument_id: AAPL_INSTRUMENT.id, period: "yearly", type: "stock", prefix: "aapl" },
-  ];
+  return Array.from(map.values()).sort((a, b) => a.time - b.time);
+}
 
-  /** --------------------------------------------------------
-   * STATES
-   ---------------------------------------------------------*/
-  const [instruments, setInstruments] = useState<Instrument[]>([]);
-  const [periods, setPeriods] = useState<InstrumentPeriod[]>(AAPL_PERIODS);
-
+export default function TradingChart({
+  defaultSymbol = "AAPL",
+  isFixed = false,
+}: TradingChartProps) {
+  const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
   const [candles, setCandles] = useState<any[]>([]);
-  const [candlePage, setCandlePage] = useState(1);
-
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
-  const echoRef = useRef<any>(null);
 
   const [selectedInstrument, setSelectedInstrument] =
-    useState<Instrument | null>(AAPL_INSTRUMENT);
+    useState<InstrumentLike | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
+  const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
-  const [selectedPeriod, setSelectedPeriod] =
-    useState<InstrumentPeriod | null>(AAPL_PERIODS[0]);
+  const [candlePage, setCandlePage] = useState(1);
+  const [hasMoreCandles, setHasMoreCandles] = useState(true);
+  const [loadingChart, setLoadingChart] = useState(true);
+  const [chartError, setChartError] = useState<string | null>(null);
 
-  const [selectedIndicator, setSelectedIndicator] =
-    useState<{ id: string; label: string } | null>(null);
+  const loadingMoreCandlesRef = useRef(false);
+  const candlePageRef = useRef(1);
+  const requestKeyRef = useRef(0);
 
-  const loadingMoreCandles = useRef(false);
-  const throttleRef = useRef(0);
+  const PAGE_SIZE = 1000;
 
-  /** --------------------------------------------------------
-   * FETCH CANDLE PAGE
-   ---------------------------------------------------------*/
-  async function loadCandlePage(page: number) {
-    try {
-      const raw = await InstrumentService.getInstrumentDataByPeriod(
-        selectedPeriod?.id || "",
-        1000,
-        page,
-        ["timestamp", "timestamps", "open", "high", "low", "close"]
+  const loadCandlePage = useCallback(
+    async ({
+      symbol,
+      periodType,
+      page,
+      replace,
+    }: {
+      symbol: string;
+      periodType: TF;
+      page: number;
+      replace: boolean;
+    }) => {
+      const requestKey = ++requestKeyRef.current;
+
+      const raw = await InstrumentService.getInstrumentData(
+        symbol,
+        periodType,
+        PAGE_SIZE,
+        page
       );
 
-      const formatted = normalizeCandles(raw, selectedPeriod?.period as any);
+      if (requestKey !== requestKeyRef.current) return [];
 
-      if (page === 1) {
+      const formatted = normalizeCandles(raw || [], periodType);
+
+      setHasMoreCandles((raw || []).length === PAGE_SIZE);
+      setCandlePage(page);
+      candlePageRef.current = page;
+
+      if (replace) {
         setCandles(formatted);
       } else {
-        setCandles((prev) => {
-          const map = new Map<number, any>();
-
-          // đưa prev vào trước
-          prev.forEach((c) => {
-            map.set(c.time, c);
-          });
-
-          // page mới (cũ hơn) override nếu trùng
-          formatted.forEach((c) => {
-            map.set(c.time, c);
-          });
-
-          return Array.from(map.values()).sort((a, b) => a.time - b.time);
-        });
-
+        setCandles((prev) => mergeCandles(prev, formatted));
       }
-    } catch (error) {
-      console.error("Candle load error:", error);
-    }
-  }
 
-  /** --------------------------------------------------------
-   * INIT LOAD
-   ---------------------------------------------------------*/
-  useEffect(() => {
-    loadCandlePage(1);
-  }, []);
+      return formatted;
+    },
+    []
+  );
 
-  /** --------------------------------------------------------
-   * LOAD MORE
-   ---------------------------------------------------------*/
-  function loadMoreCandles() {
-    const now = Date.now();
-    if (now - throttleRef.current < 300) return;
-    throttleRef.current = now;
-
-    if (loadingMoreCandles.current) return;
-    loadingMoreCandles.current = true;
-
-    const nextPage = candlePage + 1;
-    setCandlePage(nextPage);
-
-    loadCandlePage(nextPage).finally(() => {
-      loadingMoreCandles.current = false;
-    });
-  }
-
-  /** --------------------------------------------------------
-   * LOAD INSTRUMENTS
-   ---------------------------------------------------------*/
   useEffect(() => {
     const loadInstruments = async () => {
       try {
         const cached = await get(IDB_KEYS.INSTRUMENTS);
 
-        if (cached?.length) {
-          console.log("⚡ Instruments from IndexedDB");
-          setInstruments(cached);
+        if (Array.isArray(cached) && cached.length > 0) {
+          const normalizedCached = normalizeInstrumentList(cached);
 
-          const aapl = cached.find((i: Instrument) => i.symbol === "AAPL");
-          setSelectedInstrument(aapl || cached[0]);
+          setInstruments(normalizedCached);
+
+          const preferred =
+            normalizedCached.find((i) => i.symbol === defaultSymbol) ||
+            normalizedCached.find((i) => i.symbol === "AAPL") ||
+            normalizedCached[0] ||
+            null;
+
+          setSelectedInstrument(preferred);
           return;
         }
 
-        console.log("📡 Fetch instruments from API");
-        const res = await InstrumentService.getInstruments(
-          30000,
-          1,
-          ["id", "symbol", "name"]
-        );
+        const res = await CompanyService.getCompanies(30000, 1, [
+          "symbol",
+          "company_name",
+        ]);
 
-        setInstruments(res);
-        await set(IDB_KEYS.INSTRUMENTS, res);
+        const normalizedRes = normalizeInstrumentList(res || []);
 
-        const aapl = res.find((i: { symbol: string; }) => i.symbol === "AAPL");
-        setSelectedInstrument(aapl || res[0]);
+        setInstruments(normalizedRes);
+        await set(IDB_KEYS.INSTRUMENTS, normalizedRes);
+
+        const preferred =
+          normalizedRes.find((i) => i.symbol === defaultSymbol) ||
+          normalizedRes.find((i) => i.symbol === "AAPL") ||
+          normalizedRes[0] ||
+          null;
+
+        setSelectedInstrument(preferred);
       } catch (err) {
-        console.error("Instrument load error:", err);
+        console.error("Failed to load instruments:", err);
       }
     };
 
     loadInstruments();
-  }, []);
+  }, [defaultSymbol]);
 
-
-  /** --------------------------------------------------------
-   * CHANGE STOCK
-   ---------------------------------------------------------*/
   useEffect(() => {
-    if (!selectedInstrument) return;
+    if (!selectedInstrument?.symbol) return;
 
-    const loadPeriods = async () => {
-      const key = IDB_KEYS.PERIODS(selectedInstrument.id);
+    setLoadingChart(true);
+    setChartError(null);
 
-      try {
-        const cached = await get(key);
-
-        if (cached?.length) {
-          setPeriods(cached);
-
-          const daily =
-            cached.find((p: { period: string }) => p.period === "daily") ||
-            cached[0];
-
-          setSelectedPeriod(daily);
-          return;
-        }
-
-        const res = await InstrumentService.getPeriodsById(selectedInstrument.id);
-        setPeriods(res);
-        await set(key, res);
-
-        const daily =
-          res.find((p: { period: string }) => p.period === "daily") ||
-          res[0];
-
-        setSelectedPeriod(daily);
-      } catch (e) {
-        console.error("Period load error:", e);
-      }
-    };
-    loadPeriods();
-  }, [selectedInstrument?.id]);
-
-  /** --------------------------------------------------------
-   * RESET WHEN CHANGE PERIOD
-   ---------------------------------------------------------*/
-  function resetCandles() {
+    requestKeyRef.current += 1;
     setCandles([]);
     setRealtimeCandle(null);
+    setHasMoreCandles(true);
     setCandlePage(1);
-    setTimeout(() => loadCandlePage(1), 50);
-  }
+    candlePageRef.current = 1;
+    loadingMoreCandlesRef.current = false;
 
-  useEffect(() => {
-    if (!selectedPeriod) return;
-    resetCandles();
-  }, [selectedPeriod]);
-
-  /** --------------------------------------------------------
-  * REALTIME REVERB SUBSCRIBE (theo selectedInstrument + selectedPeriod)
-  ---------------------------------------------------------*/
-  useEffect(() => {
-    if (!selectedInstrument || !selectedPeriod) return;
-
-    const echo = createEcho();
-    if (!echo) return;
-
-    echoRef.current = echo;
-
-    const symbol = (
-      selectedPeriod.prefix ||
-      selectedInstrument.symbol
-    ).toLowerCase();
-
-    const timeframe = selectedPeriod.period; // ✅ LẤY TRỰC TIẾP
-
-    const channelName = `ohlc.${symbol}.${timeframe}`;
-    const pusher = echo.connector.pusher;
-
-    const onConnected = () => {
-      console.log("✅ Reverb connected");
-
-      echo.channel(channelName).listen(".candle", (e: any) => {
-        const candle = e?.candle ?? e;
-        setRealtimeCandle(candle);
+    loadCandlePage({
+      symbol: selectedInstrument.symbol,
+      periodType: selectedPeriod,
+      page: 1,
+      replace: true,
+    })
+      .then((formatted) => {
+        if (!formatted || formatted.length === 0) {
+          setChartError(`No candle data for ${selectedInstrument.symbol}`);
+        }
+      })
+      .catch((error) => {
+        console.error("Initial candle load error:", error);
+        setChartError("Failed to load candle data");
+      })
+      .finally(() => {
+        setLoadingChart(false);
       });
+  }, [selectedInstrument?.symbol, selectedPeriod, loadCandlePage]);
 
-      console.log("📡 Subscribed to", channelName);
-    };
+  const loadMoreCandles = useCallback(() => {
+    if (!selectedInstrument?.symbol) return;
+    if (loadingMoreCandlesRef.current) return;
+    if (!hasMoreCandles) return;
 
-    pusher.connection.bind("connected", onConnected);
+    loadingMoreCandlesRef.current = true;
+
+    const nextPage = candlePageRef.current + 1;
+
+    loadCandlePage({
+      symbol: selectedInstrument.symbol,
+      periodType: selectedPeriod,
+      page: nextPage,
+      replace: false,
+    }).finally(() => {
+      loadingMoreCandlesRef.current = false;
+    });
+  }, [selectedInstrument?.symbol, selectedPeriod, hasMoreCandles, loadCandlePage]);
+
+  useEffect(() => {
+    if (!selectedInstrument?.symbol) return;
+
+    const socket = new SimpleSocket((data) => {
+      if ((data as { type?: string }).type !== "quote") return;
+      if ((data as { symbol?: string }).symbol !== selectedInstrument.symbol) return;
+
+      const price = Number((data as { price: number }).price);
+      const ts = Number((data as { ts?: number }).ts || Date.now());
+
+      setRealtimeCandle({
+        symbol: selectedInstrument.symbol,
+        time: ts,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+      });
+    });
+
+    socket.connect();
+
+    const timer = setTimeout(() => {
+      socket.send({
+        type: "subscribe",
+        symbols: [selectedInstrument.symbol],
+      });
+    }, 500);
 
     return () => {
-      echo.leave(channelName);
-      pusher.connection.unbind("connected", onConnected);
+      clearTimeout(timer);
+      socket.disconnect();
+      setRealtimeCandle(null);
     };
-  }, [selectedInstrument?.id, selectedPeriod?.id]);
+  }, [selectedInstrument?.symbol]);
 
+  const onToggleIndicator = (item: { id: string; label: string }) => {
+    setSelectedIndicators((prev) =>
+      prev.includes(item.id)
+        ? prev.filter((id) => id !== item.id)
+        : [...prev, item.id]
+    );
+  };
 
-
-  /** --------------------------------------------------------
-   * UI
-   ---------------------------------------------------------*/
   return (
-    <main className="p-10 space-y-8 text-white">
-      <div className="flex gap-8 text-black">
-        <SelectDropdown
-          options={instruments.map((i) => ({
-            id: i.id,
-            label: `${i.symbol} - ${i.name}`,
-          }))}
-          selected={
-            selectedInstrument
-              ? {
-                id: selectedInstrument.id,
-                label: `${selectedInstrument.symbol} - ${selectedInstrument.name}`,
+    <div className="flex flex-col h-full w-full overflow-hidden bg-[#0B1220]">
+      {!isFixed && (
+        <div className="p-2 flex gap-4 border-b border-white/5 flex-none items-center">
+          <SelectDropdown
+            options={instruments.map((i) => ({
+              id: i.id,
+              label: `${i.symbol} - ${getInstrumentDisplayName(i)}`,
+            }))}
+            selected={
+              selectedInstrument
+                ? {
+                    id: selectedInstrument.id,
+                    label: `${selectedInstrument.symbol} - ${getInstrumentDisplayName(
+                      selectedInstrument
+                    )}`,
+                  }
+                : null
+            }
+            placeholder="Select instrument"
+            onSelect={(v) => {
+              const found = instruments.find((i) => String(i.id) === String(v.id));
+              setSelectedInstrument(found || null);
+            }}
+          />
+
+          <SelectDropdown
+            options={FIXED_PERIODS}
+            selected={{
+              id: selectedPeriod,
+              label:
+                FIXED_PERIODS.find((p) => p.id === selectedPeriod)?.label ||
+                selectedPeriod,
+            }}
+            placeholder="Select period"
+            onSelect={(v) => {
+              setSelectedPeriod(v.id as TF);
+            }}
+          />
+
+          <div className="flex items-center gap-2">
+            <SelectDropdown
+              options={INDICATOR_OPTIONS}
+              selected={
+                selectedIndicators.length > 0
+                  ? {
+                      id: "multi",
+                      label: `Indicators (${selectedIndicators.length})`,
+                    }
+                  : null
               }
-              : null
-          }
-          placeholder="Select instrument"
-          onSelect={(v) => {
-            const found = instruments.find((i) => i.id === v.id);
-            setSelectedInstrument(found || null);
-          }}
-        />
+              placeholder="Add Indicators"
+              onSelect={(v) =>
+                onToggleIndicator(v as { id: string; label: string })
+              }
+            />
 
-        <SelectDropdown
-          options={periods.map((p) => ({
-            id: p.id,
-            label: p.period,
-          }))}
-          selected={
-            selectedPeriod
-              ? { id: selectedPeriod.id, label: selectedPeriod.period }
-              : null
-          }
-          placeholder="Select period"
-          onSelect={(v) => {
-            const found = periods.find((p) => p.id === v.id);
-            setSelectedPeriod(found || null);
-          }}
-        />
+            {selectedIndicators.length > 0 && (
+              <button
+                onClick={() => setSelectedIndicators([])}
+                className="text-[11px] text-red-400 hover:text-red-300 transition-colors underline"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
-        <SelectDropdown
-          options={[
-            { id: "macd", label: "MACD" },
-            { id: "rsi", label: "RSI" },
-            { id: "stochastic", label: "Stochastic" },
-            { id: "bollinger", label: "Bollinger Bands" },
-          ]}
-          selected={
-            selectedIndicator
-              ? { id: selectedIndicator.id, label: selectedIndicator.label }
-              : null
-          }
-          placeholder="Indicator"
-          onSelect={(v) => {
-            const found = periods.find((p) => p.period === v.id);
-            setSelectedPeriod(found || null);
-          }}
-        />
-      </div>
+      <div className="flex-1 relative w-full h-full">
+        {isFixed && (
+          <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
+            {selectedInstrument?.symbol || defaultSymbol}
+          </div>
+        )}
 
-      <div className="mt-10 ">
-        {candles.length ? (
+        {loadingChart ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            Loading chart...
+          </div>
+        ) : chartError ? (
+          <div className="flex items-center justify-center h-full text-red-400/80 text-sm">
+            {chartError}
+          </div>
+        ) : candles.length ? (
           <LightChart
-            symbol={selectedInstrument?.symbol || "AAPL"}
+            symbol={selectedInstrument?.symbol || defaultSymbol}
             data={candles}
             realtimeCandle={realtimeCandle}
             onLoadMore={loadMoreCandles}
-            period={selectedPeriod?.period as any}
+            period={selectedPeriod}
+            indicators={selectedIndicators}
           />
         ) : (
-          <p className="text-gray-400 text-center py-10 text-lg">
-            Loading chart...
-          </p>
+          <div className="flex items-center justify-center h-full text-yellow-400 text-sm">
+            No candle data for {selectedInstrument?.symbol || defaultSymbol}
+          </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

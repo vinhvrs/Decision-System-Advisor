@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import api from "../libs/api";
-import { instrumentMapper, instrumentDataMapper, instrumentPeriodMapper } from "../libs/mapper";
+import api from "@/src/libs/api";
+import { instrumentMapper, instrumentDataMapper, instrumentPeriodMapper } from "@/src/libs/mapper";
 
 export const InstrumentService = {
     getInstruments: async (limit: number = 10, page: number = 1, select?: Array<string>) => {
@@ -84,9 +84,9 @@ export const InstrumentService = {
         }
     },
 
-    getInstrumentData: async () => {
+    getInstrumentData: async (symbol: string, period:string, limit: number = 500, page: number = 1) => {
         try {
-            const response = await api.get(`/instruments/data`);
+            const response = await api.get(`/instruments/data/${symbol}?${period}&per_page=${limit}&page=${page}`);
             const data = instrumentDataMapper(response.data.data);
             return data;
         } catch (error) {

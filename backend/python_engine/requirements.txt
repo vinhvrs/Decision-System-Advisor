@@ -1,0 +1,49 @@
+# ==========================================================
+# Web Framework & API
+# ==========================================================
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+
+# ==========================================================
+# AI & Embedding
+# ==========================================================
+sentence-transformers
+torch
+numpy
+
+# ==========================================================
+# Database & Search
+# ==========================================================
+qdrant-client
+elasticsearch
+pymysql
+sqlalchemy
+redis
+
+# ==========================================================
+# Data Processing & Finance
+# ==========================================================
+pandas
+pandas-ta
+beautifulsoup4
+feedparser
+yliveticker
+websocket-client
+yfinance
+newspaper3k
+lxml_html_clean
+
+# ==========================================================
+# Utilities & NLP
+# ==========================================================
+httpx
+python-dotenv
+python-Levenshtein
+loguru
+protobuf
+cryptography
+langchain-text-splitters
+apscheduler

@@ -9,6 +9,8 @@ use Platform\Plugins\Trading\Src\Repositories\Eloquent\StockRepository;
 use Platform\Plugins\Advisor\Src\Services\ResponseComposerService;
 use Platform\Plugins\Trading\Src\Services\AnalysistService;
 use Platform\Plugins\Trading\Src\Services\IndicatorAggregatorService;
+use Platform\Plugins\Advisor\Src\Services\EmbeddingService;
+use Platform\Plugins\Advisor\Src\Services\Context\QdrantRetriever;
 use Illuminate\Support\Facades\Log;
 
 class ChatBotService
@@ -20,6 +22,8 @@ class ChatBotService
         private readonly IndicatorAggregatorService $indicatorAggregatorService,
         private readonly AnalysistService $analysistService,
         private readonly ResponseComposerService $responseComposerService,
+        private readonly EmbeddingService $embeddingService,
+        private readonly QdrantRetriever $qdrantRetriever,
     ) {
     }
 
@@ -129,7 +133,6 @@ class ChatBotService
         $intent = $chat['debug']['intent'] ?? 'fallback';
         $entities = $chat['debug']['entities'] ?? [];
         $tickers = $entities['tickers'] ?? [];
-
         $analysisIntents = ['analysis_request', 'buy_decision', 'sell_decision'];
 
         // ✅ NOT analysis intent → return chat reply directly
@@ -282,29 +285,102 @@ class ChatBotService
     {
         $tickers = $entities['tickers'] ?? [];
         \Log::info('ChatBotService::replyNews', ['tickers' => $tickers]);
+
         if (empty($tickers)) {
             return [
                 'type' => 'chat',
+                'response' => ['message' => 'Which ticker or company should I search the news for?'],
+            ];
+        }
+
+        $symbol = strtoupper($tickers[0]);
+        $query = "latest news about {$symbol}";
+
+        // 1) embed -> vector
+        $embed = $this->embeddingService->embed($query);
+        $vector = $embed['vector'] ?? $embed ?? null;
+
+        if (!is_array($vector) || empty($vector)) {
+            return [
+                'type' => 'chat',
+                'response' => ['message' => 'Embedding service is not available at the moment.'],
+            ];
+        }
+
+        // 2) qdrant search (already returns result array)
+        $hits = $this->qdrantRetriever->search($vector, 5, $symbol);
+
+        if (empty($hits)) {
+            return [
+                'type' => 'news',
                 'response' => [
-                    'message' => 'Which ticker or company should I search the news for?',
+                    'summary' => "No relevant news found for {$symbol}.",
+                    'items' => [],
                 ],
             ];
         }
 
-        $articles = $this->knowledgeRepository->findByWords($tickers, 5);
+        // 3) collect chunk ids from qdrant (payload.chunk_id preferred)
+        $chunkIds = collect($hits)->map(function ($hit) {
+            $p = $hit['payload'] ?? [];
+            return $p['chunk_id'] ?? ($hit['id'] ?? null);
+        })->filter()->unique()->values()->all();
+
+        // 4) query DB: knowledge_chunks + knowledge
+        // ⚠️ adjust selected fields if your knowledge table uses url_slug instead of url
+        $rows = \DB::table('knowledge_chunks as kc')
+            ->leftJoin('knowledge as k', 'k.id', '=', 'kc.knowledge_id')
+            ->whereIn('kc.id', $chunkIds)
+            ->select([
+                'kc.id as chunk_id',
+                'kc.knowledge_id',
+                'kc.docs_id',
+                'kc.content as chunk_content',
+                'kc.source as chunk_source',
+                'k.topic as topic',
+                'k.url_slug as url_slug',
+                'k.published_at as published_at',
+                'k.created_at as created_at',
+            ])
+            ->get()
+            ->keyBy('chunk_id');
+
+        // 5) build items in qdrant order
+        $items = collect($hits)->map(function ($hit) use ($rows) {
+            $p = $hit['payload'] ?? [];
+            $chunkId = $p['chunk_id'] ?? ($hit['id'] ?? null);
+            $row = $chunkId ? ($rows[$chunkId] ?? null) : null;
+
+            $topic = $row?->topic ?? ($p['title'] ?? ($p['source'] ?? 'News'));
+
+            // best excerpt: chunk_content (DB) > payload.content (if ever added)
+            $content = $row?->chunk_content ?? ($p['content'] ?? null);
+
+            // best source: DB chunk_source > payload.source
+            $source = $row?->chunk_source ?? ($p['source'] ?? null);
+
+            // published_at may be null; fallback created_at
+            $publishedAt = $row?->published_at ?? $row?->created_at ?? ($p['published_at'] ?? null);
+
+            // if you want full URL later: build from url_slug
+            $url = $row?->url_slug ?? ($p['url'] ?? null);
+
+            return [
+                'id' => $chunkId,
+                'topic' => $topic,
+                'excerpt' => $content ? str($content)->limit(300)->toString() : null,
+                'published_at' => $publishedAt,
+                'source' => $source,
+                'url' => $url,
+                'score' => $hit['score'] ?? null,
+            ];
+        })->values();
 
         return [
             'type' => 'news',
             'response' => [
-                'summary' => 'Here are the latest updates about ' . implode(', ', $tickers) . '.',
-                'items' => collect($articles->items())->map(function ($item) {
-                    return [
-                        'id' => $item->id,
-                        'topic' => $item->topic,
-                        'excerpt' => str($item->content)->limit(300),
-                        'published_at' => $item->published_at,
-                    ];
-                })->values(),
+                'summary' => "Here are the most relevant updates about {$symbol}.",
+                'items' => $items,
             ],
         ];
     }
@@ -342,12 +418,18 @@ class ChatBotService
             if (isset($r['error'])) {
                 $messages[] = "{$r['symbol']}: {$r['error']}";
             } else {
-                $messages[] = "{$r['symbol']}:\n{$r['response']}";
+                // ✅ CHỈ LẤY MESSAGE (string)
+                $text = is_array($r['response'])
+                    ? ($r['response']['message'] ?? '')
+                    : $r['response'];
+
+                $messages[] = "{$r['symbol']}:\n{$text}";
             }
         }
 
         return implode("\n\n", $messages);
     }
+
 
     /* =========================================================
      | UTIL

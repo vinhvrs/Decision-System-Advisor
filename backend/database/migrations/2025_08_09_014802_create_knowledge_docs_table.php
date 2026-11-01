@@ -3,19 +3,31 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration{
-
+return new class extends Migration {
     public function up(): void
     {
-        Schema::create('knowledge_docs', function(Blueprint $table){
+        Schema::create('knowledge_docs', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('title');
-            $table->string('content');
+
+            $table->string('title', 500);
+            $table->longText('content')->nullable(); 
+            $table->string('image', 1000)->nullable(); 
+
             $table->enum('category', ['article', 'report', 'manual'])->default('article');
-            $table->string('source', 255)->nullable();
-            $table->string('author', 100)->nullable();
+            
+            $table->string('symbol', 50)->nullable()->index(); 
+
+            $table->string('source', 500)->unique();
+            $table->string('author', 500)->nullable(); 
             $table->string('language', 50)->default('en');
+            
+            $table->tinyInteger('is_processed')->default(0); 
+
             $table->timestamps();
+
+            // Các index phục vụ RAG và sort
+            $table->index(['category', 'is_processed'], 'idx_docs_category_processed');
+            $table->index('created_at');
         });
     }
 
@@ -23,5 +35,4 @@ return new class extends Migration{
     {
         Schema::dropIfExists('knowledge_docs');
     }
-
 };

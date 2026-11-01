@@ -51,7 +51,7 @@ export default function UserProfileDropdown({ user }: UserProfileDropdownProps) 
             localStorage.removeItem('user'); 
             
             // Tải lại trang hoặc chuyển hướng đến trang chủ/đăng nhập
-            window.location.href = '/auth'; // Tải lại để cập nhật Header
+            window.location.href = '/auth/login'; // Tải lại để cập nhật Header
 
         } catch (error) {
             console.error("Logout failed:", error);
@@ -99,7 +99,7 @@ export default function UserProfileDropdown({ user }: UserProfileDropdownProps) 
 
                     {/* Account Settings */}
                     <Link 
-                        href="/settings" 
+                        href="/profile" 
                         onClick={() => setIsOpen(false)} // Đóng menu khi click
                         className="flex items-center px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600"
                     >
