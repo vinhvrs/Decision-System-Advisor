@@ -7,6 +7,8 @@
 .phpactor.json
 .phpunit.result.cache
 __pycache__/
+.pytest_cache/
+.venv/
 /.fleet
 /.idea
 /.nova
@@ -28,7 +30,6 @@ Thumbs.db
 /backend/.env.local
 /backend/vendor
 /backend/node_modules
-./backend/vendor
 /backend/yahoo-consumer/node_modules
 /frontend/node_modules
 /frontend/public/build
@@ -37,5 +38,7 @@ Thumbs.db
 /frontend/.next
 /frontend/out
 /frontend/.vercel
+/backend/structure.txt
+/frontend/structure.txt
 *.sql
 *secret*

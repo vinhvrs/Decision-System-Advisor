@@ -7,7 +7,8 @@ use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentRepository;
 use Platform\Plugins\Trading\Src\Models\Instruments;
 use GuzzleHttp\Client;
 
-class InstrumentController extends Controller{
+class InstrumentController extends Controller
+{
     protected $instrumentRepository;
 
     protected $mapFinnHubToInstrument = [
@@ -29,11 +30,13 @@ class InstrumentController extends Controller{
         'XNMS' => 'NASDAQ Global Market',
     ];
 
-    public function __construct(InstrumentRepository $instrumentRepository) {
+    public function __construct(InstrumentRepository $instrumentRepository)
+    {
         $this->instrumentRepository = $instrumentRepository;
     }
 
-    public function mapFinnHubDataToInstrument(array $finnHubData): array {
+    public function mapFinnHubDataToInstrument(array $finnHubData): array
+    {
         $mappedData = [];
         foreach ($this->mapFinnHubToInstrument as $instrumentField => $finnHubField) {
             if (isset($finnHubData[$finnHubField])) {
@@ -41,42 +44,77 @@ class InstrumentController extends Controller{
             }
         }
 
-        // Map MIC to full exchange name if available
         if (isset($mappedData['exchange']) && isset($this->micMap[$mappedData['exchange']])) {
             $mappedData['exchange'] = $this->micMap[$mappedData['exchange']];
         }
-        
+
         foreach ($mappedData as $key => $value) {
             if (is_string($value)) {
                 $mappedData[$key] = trim($value);
             }
-            $mappedData['type'] = 'stock';
-            $mappedData['slug'] = strtolower(str_replace(' ', '-', ($mappedData['name'] . $mappedData['symbol'])));
-
         }
-        
+
+        $mappedData['type'] = 'stock';
+        if (isset($mappedData['name'], $mappedData['symbol'])) {
+            $mappedData['slug'] = strtolower(str_replace(' ', '-', $mappedData['name'] . $mappedData['symbol']));
+        }
+
         return $mappedData;
     }
 
-    public function fetchListStock() {
+    public function fetchListStock()
+    {
+        $token = config('services.finnhub.key');
+
+        if (!$token) {
+            return response()->json([
+                'error' => 'FINNHUB_API_KEY is not configured',
+            ], 503);
+        }
+
         try {
-            $url = "https://finnhub.io/api/v1/stock/symbol?exchange=US&token=REMOVED_SECRET";
-            $client = new Client();
-            $response = $client->get($url)->getBody()->getContents();
+            $client = new Client([
+                'timeout' => 30,
+            ]);
+
+            $response = $client->get('https://finnhub.io/api/v1/stock/symbol', [
+                'query' => [
+                    'exchange' => 'US',
+                    'token' => $token,
+                ],
+            ])->getBody()->getContents();
 
             $data = json_decode($response, true);
+
+            if (!is_array($data)) {
+                return response()->json([
+                    'error' => 'Finnhub returned an invalid response',
+                ], 502);
+            }
+
             $results = array_map([$this, 'mapFinnHubDataToInstrument'], $data);
+            $results = array_values(array_filter(
+                $results,
+                fn ($item) => !empty($item['symbol']) && !empty($item['name'])
+            ));
 
             $this->instrumentRepository->insert($results);
 
-            return response()->json(['message' => 'Stock list fetched and stored successfully', 'count' => count($results)]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch stock list', 'message' => $e->getMessage()], 500);
+            return response()->json([
+                'message' => 'Stock list fetched and stored successfully',
+                'count' => count($results),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'error' => 'Failed to fetch stock list',
+            ], 502);
         }
-       
     }
 
-    public function index(Request $request){
+    public function index(Request $request)
+    {
         $instruments = $this->instrumentRepository->findAll(
             $request->input('filter', []),
             $request->input('select', ['*']),
@@ -84,12 +122,10 @@ class InstrumentController extends Controller{
             $request->input('page', 1),
             $request->input('order_by', 'symbol')
         );
+
         return response()->json($instruments);
     }
 
-    /**
-     * Resolve one instrument by UUID id, case-insensitive symbol, or slug (single DB round-trip).
-     */
     public function show(string $slugOrIdOrSymbol)
     {
         $param = $slugOrIdOrSymbol;
@@ -111,8 +147,9 @@ class InstrumentController extends Controller{
 
         return response()->json(['data' => $instrument]);
     }
-    
-    public function store(Request $request){
+
+    public function store(Request $request)
+    {
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'symbol' => 'required|string|max:10|unique:instruments,symbol',
@@ -120,17 +157,20 @@ class InstrumentController extends Controller{
             'exchange' => 'required|string|max:50',
             'slug' => 'required|string|max:255'
         ]);
+
         $instrument = $this->instrumentRepository->create($data);
         return response()->json($instrument, 201);
     }
 
-    public function update(Request $request, $id){
+    public function update(Request $request, $id)
+    {
         $data = $request->only(['name', 'type', 'market']);
         $instrument = $this->instrumentRepository->update($id, $data);
         return response()->json($instrument);
     }
 
-    public function destroy($id){
+    public function destroy($id)
+    {
         $deleted = $this->instrumentRepository->delete($id);
         return response()->json(['deleted' => $deleted]);
     }

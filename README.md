@@ -1,61 +1,108 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Decision System Advisor (DSA)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Decision System Advisor is a full-stack market analysis and decision-support project.
 
-## About Laravel
+## Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Frontend:** Next.js 16, React 19, TypeScript, Lightweight Charts
+- **API:** Laravel 12 / PHP 8
+- **Data engine:** Python 3.11, FastAPI, pandas, yfinance
+- **Data:** MySQL, Redis
+- **Search / AI:** Elasticsearch, Qdrant, Sentence Transformers
+- **Local runtime:** Docker Compose
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Local development on macOS
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+The branch `fix/local-mac-stabilization` is the local-Mac stabilization branch based on the newest project snapshot (`05/05/2026`).
 
-## Learning Laravel
+### Requirements
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- Docker Desktop
+- Node.js 22+
+- npm
+- Git
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Apple Silicon and Intel Macs are both supported by the local Docker setup.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 1. Configure environment files
 
-## Laravel Sponsors
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Keep real API keys only in `backend/.env`. Do not commit them.
 
-### Premium Partners
+### 2. Build and start backend services
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Use the backend env file for Compose interpolation so database credentials stay consistent:
 
-## Contributing
+```bash
+docker compose --env-file backend/.env up -d --build
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Services:
 
-## Code of Conduct
+- Laravel/Nginx API: http://localhost:1111
+- Python data engine: http://localhost:8000
+- MySQL host port: 3307
+- Redis: 6379
+- Elasticsearch: 9200
+- Qdrant: 6333
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+All development ports are bound to `127.0.0.1` only.
 
-## Security Vulnerabilities
+### 3. Generate Laravel key and migrate
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+docker compose --env-file backend/.env exec app php artisan key:generate
+docker compose --env-file backend/.env exec app php artisan migrate
+```
 
-## License
+If the project needs seed/demo data:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+docker compose --env-file backend/.env exec app php artisan db:seed
+```
+
+### 4. Start the frontend
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open http://localhost:3000.
+
+### Useful checks
+
+```bash
+docker compose --env-file backend/.env ps
+docker compose --env-file backend/.env logs -f app nginx data-engine
+curl http://localhost:1111
+curl http://localhost:8000
+curl http://localhost:9200
+curl http://localhost:6333/healthz
+```
+
+### Reset local containers and data
+
+```bash
+docker compose --env-file backend/.env down -v
+```
+
+## Security notes
+
+- API keys are read from environment variables.
+- The Finnhub import endpoint no longer contains a hard-coded token.
+- If a key was ever committed publicly, rotate/revoke it at the provider; removing it from the current source does not remove it from Git history.
+- Do not commit `.env` files.
+
+## Branch strategy
+
+1. Stabilize and test this branch on macOS.
+2. Fix functional issues found during local testing here.
+3. Only after local verification, port the validated changes to `pi4-server` and apply Raspberry Pi-specific memory/ARM optimizations.
+
+The Pi branch is intentionally not modified during the local stabilization phase.
