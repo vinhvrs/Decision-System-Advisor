@@ -91,7 +91,7 @@ const C = {
 };
 
 /** Short list for the beginner board (API + UI). */
-const BOARD_LIMIT_PROD = 10;
+const BOARD_LIMIT_PROD = 40;
 /** Wider fetch in dev so the fixed demo tickers are likely present in the ranking payload. */
 const DEV_BOARD_FETCH_LIMIT = 200;
 
