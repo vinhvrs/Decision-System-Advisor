@@ -364,6 +364,14 @@ function averageClosesSeries(
 }
 
 /** Yahoo / python_engine ``quote`` messages: numeric price and changePercent. */
+function mergeBoardQuotes(rows: BeginnerBoardRow[], previous: BeginnerBoardRow[]): BeginnerBoardRow[] {
+  const lastQuotes = new Map(previous.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row]));
+  return rows.map((row) => {
+    const quote = lastQuotes.get(String(row.symbol).toUpperCase());
+    return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
+  });
+}
+
 function parseSocketQuoteNumber(v: unknown): number | null {
   if (v == null) return null;
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -1296,7 +1304,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               rows = rows.slice(0, BOARD_LIMIT_PROD);
             }
             if (cancelled) return;
-            setBoardRows(rows);
+            setBoardRows((prev) => mergeBoardQuotes(rows, prev));
             setBoardLegend(payload?.legend ?? null);
             setDashboardUpdatedAt(null);
           });
@@ -1336,7 +1344,6 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   /** Redis ``dashboard:daily`` snapshot on WS (5m server cadence) + live price / % from Yahoo quotes. */
   useEffect(() => {
-    if (!isRedisDaily) return;
     let cancelled = false;
 
     const sendBoardQuoteSubscriptions = () => {
@@ -1410,7 +1417,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       },
       () => {
         if (cancelled) return;
-        socket.send({ type: "subscribe_dashboard" });
+        if (isRedisDaily) socket.send({ type: "subscribe_dashboard" });
         window.setTimeout(() => sendBoardQuoteSubscriptions(), 200);
       },
     );
@@ -1422,7 +1429,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       cancelled = true;
       dashboardWsRef.current = null;
       try {
-        socket.send({ type: "unsubscribe_dashboard" });
+        if (isRedisDaily) socket.send({ type: "unsubscribe_dashboard" });
       } catch {
         /* ignore */
       }
@@ -1432,7 +1439,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   /** Re-subscribe Yahoo stream when board symbols or period change (e.g. after first HTTP load). */
   useEffect(() => {
-    if (!isRedisDaily || !dashboardBoardSymKey) return;
+    if (!dashboardBoardSymKey) return;
     const syms = [
       ...new Set(boardRowsRef.current.map((r) => String(r.symbol || "").toUpperCase()).filter(Boolean)),
     ];
@@ -1441,7 +1448,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       dashboardWsRef.current?.send({ type: "subscribe", symbols: syms, period: periodToApiSlug(period) });
     }, 80);
     return () => window.clearTimeout(t);
-  }, [isRedisDaily, dashboardBoardSymKey, period]);
+  }, [dashboardBoardSymKey, period]);
 
   useEffect(() => {
     if (!boardSparklineSymKey) {
