@@ -255,20 +255,6 @@ async function ensureDevBoardRowsComplete(partial: BeginnerBoardRow[]): Promise<
       bySym.set(seed.symbol.toUpperCase(), filled[i] ?? syntheticDevBoardRow(seed));
     });
   }
-  const symbolsNeedingPrice = DEV_SYMBOL_SEED.filter((seed) => {
-    const row = bySym.get(seed.symbol.toUpperCase());
-    return !row || devBoardRowIsThin(row);
-  }).map((seed) => seed.symbol.toUpperCase());
-  if (symbolsNeedingPrice.length > 0) {
-    const fallbackPrices = await BeginnerService.getRealtimeQuoteFallback(symbolsNeedingPrice);
-    for (const sym of symbolsNeedingPrice) {
-      const price = fallbackPrices[sym];
-      if (!price) continue;
-      const seed = DEV_SYMBOL_SEED.find((item) => item.symbol.toUpperCase() === sym);
-      if (!seed) continue;
-      bySym.set(sym, { ...(bySym.get(sym) ?? syntheticDevBoardRow(seed)), price });
-    }
-  }
   return DEV_SYMBOL_SEED.map((seed) => {
     const sym = seed.symbol.toUpperCase();
     const row = bySym.get(sym) ?? syntheticDevBoardRow(seed);

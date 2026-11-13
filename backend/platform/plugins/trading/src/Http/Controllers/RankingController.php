@@ -7,8 +7,6 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Platform\Plugins\Trading\Src\Repositories\Eloquent\InstrumentDataRepository;
 use Platform\Plugins\Trading\Src\Services\SnapshotService;
-use Platform\Plugins\Trading\Src\Services\PriceQuoteService;
-use Illuminate\Support\Facades\Cache;
 
 class RankingController extends Controller
 {
@@ -283,31 +281,6 @@ class RankingController extends Controller
     /**
      * Top symbols by snapshot volume (cached server-side ~3h). For “most active” side lists.
      */
-    /** Current-price fallback for Investing-board names that have no stored snapshot yet. */
-    public function realtimeQuotes(Request $request, PriceQuoteService $quotes)
-    {
-        $allowed = ['AMD', 'ADBE', 'CRM', 'CSCO', 'ASML', 'INTU', 'QCOM', 'NOW', 'PANW', 'SNOW'];
-        $requested = array_unique(array_map(
-            static fn ($symbol) => strtoupper(trim((string) $symbol)),
-            (array) $request->query('symbols', [])
-        ));
-        $symbols = array_values(array_intersect($requested, $allowed));
-        if (count($symbols) > 10) {
-            $symbols = array_slice($symbols, 0, 10);
-        }
-
-        $data = [];
-        foreach ($symbols as $symbol) {
-            $data[$symbol] = Cache::remember(
-                'investing_quote_fallback:'.$symbol,
-                now()->addSeconds(30),
-                fn () => $quotes->getCurrentPrice($symbol)
-            );
-        }
-
-        return response()->json(['data' => $data, 'source' => 'Yahoo Finance chart snapshot']);
-    }
-
     public function topByVolume(Request $request)
     {
         $limit = min($this->limit($request, 20), 100);

@@ -210,23 +210,6 @@ async function getCachedOrFetch<T>(
 }
 
 export const BeginnerService = {
-  async getRealtimeQuoteFallback(symbols: string[]): Promise<Record<string, number>> {
-    if (!symbols.length) return {};
-    try {
-      const res = await api.get("/rankings/realtime-quotes", { params: { symbols } });
-      const raw = res.data?.data;
-      if (!raw || typeof raw !== "object") return {};
-      return Object.fromEntries(
-        Object.entries(raw).flatMap(([symbol, value]) => {
-          const price = Number(value);
-          return Number.isFinite(price) && price > 0 ? [[symbol.toUpperCase(), price]] : [];
-        })
-      );
-    } catch {
-      return {};
-    }
-  },
-
   async getOverview(symbol: string): Promise<BeginnerOverview | null> {
     try {
       const res = await api.get(`/rankings/beginner/${encodeURIComponent(symbol)}`);
