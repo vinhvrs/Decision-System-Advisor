@@ -1273,7 +1273,15 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             if (cancelled) return;
             const built = await buildRedisDailyBoardState(payload);
             if (cancelled || !built) return;
-            setBoardRows(built.rows);
+            setBoardRows((prev) => {
+              const lastQuotes = new Map(
+                prev.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row])
+              );
+              return built.rows.map((row) => {
+                const quote = lastQuotes.get(String(row.symbol).toUpperCase());
+                return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
+              });
+            });
             setBoardLegend(built.legend);
             setDashboardUpdatedAt(built.updatedAt);
           })
