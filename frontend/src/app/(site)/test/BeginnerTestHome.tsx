@@ -944,7 +944,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs phone:grid-cols-3">
         <div>
           <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Price</p>
-          <p className="mt-0.5 font-mono font-medium tabular-nums">{formatUsd(r.price)}</p>
+          <p className="mt-0.5 font-mono font-medium tabular-nums">{formatUsd(r.price)}{r.quote_stale && <span className="ml-1 text-[10px] text-amber-400">stale</span>}</p>
         </div>
         <div>
           <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>{periodLabel}</p>
@@ -1125,6 +1125,7 @@ function BoardSortHeader({
 
 type BeginnerTestHomeProps = {
   dataSource?: HomeMarketViewVariant;
+  presentation?: "home" | "investing";
 };
 
 export default function BeginnerTestHome({ dataSource = "beginner-board" }: BeginnerTestHomeProps) {
@@ -1385,7 +1386,15 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           invalidateDashboardDailyCache();
           const built = await buildRedisDailyBoardState(msg.payload as BeginnerBoardPayload);
           if (cancelled || !built) return;
-          setBoardRows(built.rows);
+          setBoardRows((prev) => {
+            const lastQuotes = new Map(
+              prev.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row])
+            );
+            return built.rows.map((row) => {
+              const quote = lastQuotes.get(String(row.symbol).toUpperCase());
+              return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
+            });
+          });
           setBoardLegend(built.legend);
           setDashboardUpdatedAt(built.updatedAt);
           setBoardLoading(false);

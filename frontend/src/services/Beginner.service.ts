@@ -40,6 +40,8 @@ export type BeginnerBoardRow = {
   market_cap?: number | null;
   people_watching: number;
   price: number;
+  quote_stale?: boolean;
+  quote_ts?: number;
   candle_move_abs_pct: number;
   /** Same daily snapshot % as dashboard (open→close that day). */
   change_pct_snapshot: number;
