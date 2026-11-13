@@ -8,6 +8,7 @@ Route::prefix('rankings')->group(function () {
     Route::get('dashboard-daily', [RankingController::class, 'dashboardDaily']);
     Route::get('beginner-board', [RankingController::class, 'beginnerBoard']);
     Route::get('top-by-volume', [RankingController::class, 'topByVolume']);
+    Route::get('realtime-quotes', [RankingController::class, 'realtimeQuotes']);
     Route::get('beginner-page/{symbol}', [RankingController::class, 'beginnerPage'])
         ->where('symbol', '[A-Za-z0-9.\-]+');
     Route::get('beginner/{symbol}', [RankingController::class, 'beginnerOverview'])
