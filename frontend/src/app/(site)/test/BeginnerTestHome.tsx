@@ -850,7 +850,11 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
           </div>
         </Link>
       </td>
-      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">{formatUsd(r.price)}</td>
+      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">
+        <span title={r.quote_stale && r.quote_ts ? `Last quote: ${new Date(r.quote_ts).toLocaleString()}` : undefined}>
+          {formatUsd(r.price)}{r.quote_stale && <span className="ml-1 text-[10px] text-amber-400">stale</span>}
+        </span>
+      </td>
       <td className="px-3 py-2.5 text-right">
         {sparklinesLoading ? (
           <span className={`text-xs ${C.muted}`}>…</span>
@@ -1342,13 +1346,20 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           symbol?: string;
           price?: unknown;
           change?: unknown;
+          quote_ts?: number;
+          quote_stale?: boolean;
           payload?: BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] };
         };
 
-        if (msg.type === "quote" && msg.symbol) {
+        if ((msg.type === "quote" || msg.type === "initial_quote") && msg.symbol) {
           const sym = String(msg.symbol).toUpperCase();
           const price = parseSocketQuoteNumber(msg.price);
           const chg = parseSocketQuoteNumber(msg.change);
+          const quoteTs = Number(msg.quote_ts ?? msg.ts);
+          const isInitial = msg.type === "initial_quote";
+          const quoteAge = Date.now() - quoteTs;
+          if (isInitial && (!Number.isFinite(quoteAge) || quoteAge < 0 || quoteAge > 24 * 60 * 60 * 1000)) return;
+          if (!isInitial && (!Number.isFinite(quoteAge) || quoteAge < -60_000 || quoteAge > 90_000)) return;
           setBoardRows((prev) => {
             let touched = false;
             const next = prev.map((r) => {
@@ -1356,7 +1367,9 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               touched = true;
               const row = { ...r };
               if (price != null && price > 0) row.price = price;
-              if (chg != null && period === "daily") {
+              row.quote_stale = isInitial && (msg.quote_stale === true || quoteAge > 90_000);
+              row.quote_ts = quoteTs;
+              if (!isInitial && chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
                 row.day_bias = chg > 0 ? "buy" : chg < 0 ? "sell" : "flat";

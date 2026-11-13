@@ -5,6 +5,8 @@ export type BeginnerOverview = {
   company_name: string;
   logo_url?: string | null;
   price: number;
+  quote_stale?: boolean;
+  quote_ts?: number;
   day_open: number;
   volume: number;
   liquidity: number;

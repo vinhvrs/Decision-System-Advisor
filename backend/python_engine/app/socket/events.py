@@ -94,6 +94,7 @@ class ConnectionManager:
         self._lock = threading.Lock()
         # Store current period candle (open, high, low, close, volume, time) per symbol for gap-free socket
         self._current_candle_cache: Dict[str, Dict[str, Any]] = {}
+        self._last_quotes: Dict[str, Dict[str, Any]] = {}
         self._overview_lock = threading.Lock()
         self._market_overview: Dict[str, Any] = _empty_market_overview()
         self._last_overview_broadcast_mono: float = 0.0
@@ -225,6 +226,17 @@ class ConnectionManager:
                 }
                 if candle:
                     payload["current_candle"] = candle
+                with self._lock:
+                    latest = self._last_quotes.get(symbol.upper())
+                if latest:
+                    age_ms = int(time.time() * 1000) - int(latest.get("ts") or 0)
+                    if 0 <= age_ms <= 24 * 60 * 60 * 1000:
+                        payload.update({
+                            "price": latest.get("price"),
+                            "change": latest.get("change"),
+                            "quote_ts": latest.get("ts"),
+                            "quote_stale": age_ms > 90_000,
+                        })
                 await websocket.send_text(json.dumps(payload))
         except Exception as e:
             print(f"Initial send error: {e}")
@@ -334,6 +346,8 @@ class ConnectionManager:
                 "volume": int(msg.get("volume") or msg.get("dayVolume") or 0),
                 "ts": int(time.time() * 1000),
             }
+            with self._lock:
+                self._last_quotes[payload["symbol"]] = payload
             if self.loop and self.loop.is_running():
                 asyncio.run_coroutine_threadsafe(self._broadcast(payload), self.loop)
 
