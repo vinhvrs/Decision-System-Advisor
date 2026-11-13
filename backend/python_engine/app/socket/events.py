@@ -41,6 +41,12 @@ DASHBOARD_YAHOO_MAP: Dict[str, tuple] = {
 
 DASHBOARD_YAHOO_SYMBOLS: Set[str] = set(DASHBOARD_YAHOO_MAP.keys())
 
+# Investing board stocks without historical rows in the curated market universe.
+# They are still valid Yahoo quote symbols and must not be dropped at subscribe time.
+INVESTING_BOARD_YAHOO_SYMBOLS: Set[str] = {
+    "AMD", "ADBE", "CRM", "CSCO", "ASML", "INTU", "QCOM", "NOW", "PANW", "SNOW",
+}
+
 
 def _empty_market_overview() -> Dict[str, Any]:
     return {
@@ -142,7 +148,9 @@ class ConnectionManager:
         await asyncio.gather(*(self._send_safe(ws, text) for ws in targets))
 
     def update_subscription(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
-        new_symbols = {s.upper() for s in symbols if s}
+        from app.config.market_universe import BY_SYMBOL
+        allowed = set(BY_SYMBOL) | DASHBOARD_YAHOO_SYMBOLS | INVESTING_BOARD_YAHOO_SYMBOLS
+        new_symbols = {s.upper() for s in symbols if isinstance(s, str) and s.upper() in allowed}
         with self._lock:
             self.active_connections[websocket] = new_symbols
 
