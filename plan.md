@@ -61,6 +61,12 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [x] Watchlist Dashboard local stance calculation now honors eligibility and uses Bullish/Bearish/Neutral/Not Rated presentation.
 - [ ] Search remaining public presentation components for local score-to-stance mappings before declaring BUG-001 closed across the product.
 
+### Profile/watchlist consistency gate
+- [x] Replace profile-local sessionStorage watch state with the real backend watchlist hook.
+- [x] All profile watchlist controls now reflect the same source as Watchlist Dashboard.
+- [x] Remove nonfunctional Markets chips and rename derived bar-volume metrics to their actual meaning.
+- [ ] Browser QA add/remove flow for signed-in and signed-out states before release.
+
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
 - [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
