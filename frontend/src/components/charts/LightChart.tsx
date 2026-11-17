@@ -768,7 +768,7 @@ export default function LightChart({
     const el = containerRef.current;
     const ro =
       el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-    el && ro?.observe(el);
+    if (el) ro?.observe(el);
 
     return () => {
       window.clearTimeout(afterChart);
@@ -1026,6 +1026,7 @@ export default function LightChart({
     const handleWindowResize = () => syncChartSize();
     window.addEventListener("resize", handleWindowResize);
     requestAnimationFrame(() => syncChartSize());
+    const displayMap = displayMapRef.current;
 
     return () => {
       chart.unsubscribeCrosshairMove(crosshairMove);
@@ -1037,7 +1038,7 @@ export default function LightChart({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", handleWindowResize);
       indicatorSeriesRef.current = [];
-      displayMapRef.current.clear();
+      displayMap.clear();
       try {
         seriesMarkersRef.current?.detach?.();
       } catch {}
@@ -1259,7 +1260,6 @@ export default function LightChart({
     latestBarTime,
     marketContext.time,
     chartBarTimes,
-    realtimeCandle,
     period,
   ]);
 
