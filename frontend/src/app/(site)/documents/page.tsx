@@ -880,9 +880,12 @@ export default function DocumentsPage() {
   }, []);
 
   useEffect(() => {
-    applyHash();
+    const frame = window.requestAnimationFrame(applyHash);
     window.addEventListener("hashchange", applyHash);
-    return () => window.removeEventListener("hashchange", applyHash);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("hashchange", applyHash);
+    };
   }, [applyHash]);
 
   const goLibrary = () => {
