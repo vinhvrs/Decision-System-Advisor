@@ -213,7 +213,7 @@ export function InstrumentScreenerDashboard() {
             </div>
           ) : null}
 
-          <div className="max-h-[calc(100vh-var(--dsa-header-height)-230px)] overflow-auto">
+          <div className="max-h-[calc(100vh_-_var(--dsa-header-height)_-_230px)] overflow-auto">
             <table className="w-full min-w-[1100px] border-collapse text-xs">
               <thead className="sticky top-0 z-10 bg-[var(--dsa-surface-2)] text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
                 <tr>
