@@ -228,6 +228,7 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
     ] as const;
     const formalScoresComplete =
       !!formal &&
+      formal.analysis_eligible !== false &&
       Number.isFinite(Number(formal.strong_count)) &&
       formalScoreKeys.every((key) => Number.isFinite(Number(formal.scores?.[key])));
 
