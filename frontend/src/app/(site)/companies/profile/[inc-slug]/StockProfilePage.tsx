@@ -462,22 +462,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
     };
   }, [symbol, selectedPeriod]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
-        <Loader2 className="animate-spin mb-4" size={40} />
-        <span className="uppercase tracking-[0.3em] text-sm animate-pulse">
-          Loading market data…
-        </span>
-      </div>
-    );
-  }
-
-  const changeLabel =
-    selectedPeriod === "daily"
-      ? "24h vs previous daily close"
-      : `Change vs previous ${selectedPeriod} bar`;
-
   const toggleWatchlist = useCallback(async () => {
     if (!symbol || watchlistLoading || watchlistBusy) return;
 
@@ -508,6 +492,24 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const timer = window.setTimeout(() => setWatchlistNotice(null), 3000);
     return () => window.clearTimeout(timer);
   }, [watchlistNotice]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
+        <Loader2 className="animate-spin mb-4" size={40} />
+        <span className="uppercase tracking-[0.3em] text-sm animate-pulse">
+          Loading market data…
+        </span>
+      </div>
+    );
+  }
+
+  const changeLabel =
+    selectedPeriod === "daily"
+      ? "24h vs previous daily close"
+      : `Change vs previous ${selectedPeriod} bar`;
+
+
 
   const shareProfile = () => {
     if (typeof window === "undefined") return;
