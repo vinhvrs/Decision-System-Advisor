@@ -1,9 +1,10 @@
 /** Helpers for `knowledge_docs` rows returned by `/news` APIs. */
 
-export function normalizeNewsListResponse(data: unknown): any[] {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {
-    return (data as { data: any[] }).data;
+export function normalizeNewsListResponse<T = unknown>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    const nested = (data as { data?: unknown }).data;
+    if (Array.isArray(nested)) return nested as T[];
   }
   return [];
 }
