@@ -47,6 +47,14 @@ export type BeginnerBoardRow = {
   change_pct_snapshot: number;
   /** Derived from change_pct_snapshot for UI (not advice). */
   day_bias?: "buy" | "sell" | "flat";
+  /**
+   * Explicit analytic eligibility. False means the row may still be displayed,
+   * but must not be converted into Buy/Sell conviction or a numeric Str score.
+   */
+  analysis_eligible?: boolean;
+  /** Provenance/quality state for user-facing trust handling. */
+  data_state?: "ok" | "missing" | "partial" | "synthetic" | "stale";
+  analysis_reason?: string | null;
   /** Pre-serialized daily closes (e.g. Redis ``dashboard:daily``), oldest → newest. */
   chart?: number[];
   /** When set, advisory upside uses ((target − price) / price)×100 (12m consensus style). */
