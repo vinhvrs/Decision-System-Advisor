@@ -6,6 +6,7 @@ export type News = {
     author?: string | null;
     source?: string | null;
     published_at: string | Date;
+    created_at?: string | Date | null;
     image?: string | null;
     category?: string | null;
     symbol?: string | null;
