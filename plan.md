@@ -67,6 +67,13 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [x] Remove nonfunctional Markets chips and rename derived bar-volume metrics to their actual meaning.
 - [ ] Browser QA add/remove flow for signed-in and signed-out states before release.
 
+### Profile radar / placeholder gate
+- [x] Remove Holders tab until an actual holdings source exists.
+- [x] Eligibility-gate dashboard/formal radar rows, including cached rows.
+- [x] Withhold daily mood when change input is unavailable.
+- [x] Correct profile radar copy to the actual visible axes and current ranking pool.
+- [ ] Locate every no-symbol use of the legacy metadata heuristic before deciding whether to remove it entirely.
+
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
 - [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
