@@ -8,6 +8,12 @@ import Card from "@/src/sections/Card";
 import { useWatchlist } from "@/src/hooks/useWatchlist";
 import { usePositions } from "@/src/hooks/usePositions";
 import { BeginnerService, type BeginnerBoardRow } from "@/src/services/Beginner.service";
+import {
+  type ResearchBiasKey,
+  isBeginnerRowEligibleForBias,
+  researchBiasFromRow,
+  researchBiasLabel,
+} from "@/src/libs/researchBias";
 
 function fmtUsd(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -24,58 +30,9 @@ function fmtSignedPct(n: number | null | undefined): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
-type ResearchBias =
-  | "Strong Bullish"
-  | "Bullish"
-  | "Neutral"
-  | "Bearish"
-  | "Strong Bearish"
-  | "Not Rated";
-
-function rowIsEligible(r: BeginnerBoardRow): boolean {
-  if (r.analysis_eligible === false) return false;
-  if (r.data_state === "missing" || r.data_state === "partial" || r.data_state === "synthetic") return false;
-
-  const values = [
-    r.scores?.reputation,
-    r.scores?.price_period,
-    r.scores?.candle_change,
-    r.scores?.volume,
-    r.scores?.liquidity,
-    r.scores?.people_care,
-  ].map(Number);
-
-  return (
-    values.every((v) => Number.isFinite(v) && v >= 1 && v <= 5) &&
-    Number.isFinite(Number(r.strong_count))
-  );
-}
-
-function biasFromIndicators(r: BeginnerBoardRow): ResearchBias {
-  if (!rowIsEligible(r)) return "Not Rated";
-
-  const parts = [
-    r.scores.reputation,
-    r.scores.price_period,
-    r.scores.candle_change,
-    r.scores.volume,
-    r.scores.liquidity,
-    r.scores.people_care,
-  ].map(Number);
-  const avg = parts.reduce((a, b) => a + b, 0) / parts.length;
-  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
-  const tilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
-
-  if (tilt >= 2.2) return "Strong Bullish";
-  if (tilt >= 0.8) return "Bullish";
-  if (tilt <= -2.2) return "Strong Bearish";
-  if (tilt <= -0.8) return "Bearish";
-  return "Neutral";
-}
-
-function biasTone(stance: ResearchBias): string {
-  if (stance === "Strong Bullish" || stance === "Bullish") return "text-[var(--dsa-positive)]";
-  if (stance === "Strong Bearish" || stance === "Bearish") return "text-[var(--dsa-negative)]";
+function biasTone(bias: ResearchBiasKey): string {
+  if (bias === "strong_buy" || bias === "buy") return "text-[var(--dsa-positive)]";
+  if (bias === "strong_sell" || bias === "sell") return "text-[var(--dsa-negative)]";
   return "text-[var(--dsa-text-muted)]";
 }
 
@@ -219,7 +176,7 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
             </thead>
             <tbody>
               {wlRows.map((r, idx) => {
-                const eligible = rowIsEligible(r);
+                const eligible = isBeginnerRowEligibleForBias(r);
                 const hasChange = !r.missing_fields?.includes("change_pct") && Number.isFinite(Number(r.change_pct_snapshot));
                 const pct = hasChange ? Number(r.change_pct_snapshot) : null;
                 const Icon = pct != null && pct > 0 ? ArrowUpRight : pct != null && pct < 0 ? ArrowDownRight : Minus;
@@ -229,7 +186,8 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
                     : pct != null && pct < 0
                       ? "text-[var(--dsa-negative)]"
                       : "text-[var(--dsa-text-muted)]";
-                const stance = biasFromIndicators(r);
+                const stanceKey = researchBiasFromRow(r);
+                const stance = researchBiasLabel(stanceKey);
                 const sym = String(r.symbol || "").toUpperCase();
                 const hasProfit = profitBySymbol.has(sym);
                 const profit = profitBySymbol.get(sym) ?? 0;
@@ -265,7 +223,7 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
                     </td>
                     <td className="px-2 py-2 text-center">
                       <span
-                        className={`rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold ${biasTone(stance)}`}
+                        className={`rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold ${biasTone(stanceKey)}`}
                         title={stance === "Not Rated" ? r.analysis_reason ?? "Insufficient validated inputs" : undefined}
                       >
                         {stance}
