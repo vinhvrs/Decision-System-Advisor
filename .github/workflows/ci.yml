@@ -78,8 +78,10 @@ jobs:
           php-version: "8.4"
           coverage: none
 
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Install Composer dependencies from a clean vendor directory
+        run: |
+          rm -rf vendor
+          composer install --no-interaction --prefer-dist --no-progress
 
       - name: Prepare test environment
         run: |
