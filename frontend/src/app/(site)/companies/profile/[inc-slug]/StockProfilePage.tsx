@@ -30,6 +30,7 @@ import FundamentalRadar from "./FundamentalRadar";
 import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service";
+import { useWatchlist } from "@/src/hooks/useWatchlist";
 import { SimpleSocket } from "@/src/libs/socket";
 import { stripParentheticals } from "@/src/libs/displayString";
 import {
@@ -259,8 +260,18 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
-  const [watchlisted, setWatchlisted] = useState(false);
+  const [watchlistBusy, setWatchlistBusy] = useState(false);
+  const [watchlistNotice, setWatchlistNotice] = useState<string | null>(null);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
+
+  const {
+    loading: watchlistLoading,
+    error: watchlistError,
+    add: addToWatchlist,
+    remove: removeFromWatchlist,
+    isInWatchlist,
+  } = useWatchlist();
+  const watchlisted = isInWatchlist(symbol);
 
   const candleRequestIdRef = useRef(0);
 
@@ -319,15 +330,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "fundamentals") setMainTab("fundamentals");
     else setMainTab("chart");
-  }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      setWatchlisted(sessionStorage.getItem(`dsa-watch-${symbol}`) === "1");
-    } catch {
-      /* ignore */
-    }
   }, [symbol]);
 
   useEffect(() => {
@@ -476,17 +478,36 @@ export function StockProfilePage({ slug }: { slug: string }) {
       ? "24h vs previous daily close"
       : `Change vs previous ${selectedPeriod} bar`;
 
-  const toggleWatchlist = () => {
-    const next = !watchlisted;
-    setWatchlisted(next);
-    if (typeof window !== "undefined" && symbol) {
-      try {
-        sessionStorage.setItem(`dsa-watch-${symbol}`, next ? "1" : "0");
-      } catch {
-        /* ignore */
+  const toggleWatchlist = useCallback(async () => {
+    if (!symbol || watchlistLoading || watchlistBusy) return;
+
+    setWatchlistBusy(true);
+    setWatchlistNotice(null);
+    try {
+      if (watchlisted) {
+        const ok = await removeFromWatchlist(symbol);
+        setWatchlistNotice(ok ? "Removed from watchlist" : "Could not remove from watchlist");
+      } else {
+        const result = await addToWatchlist(symbol);
+        setWatchlistNotice(result.ok ? "Added to watchlist" : result.message ?? "Could not add to watchlist");
       }
+    } finally {
+      setWatchlistBusy(false);
     }
-  };
+  }, [
+    symbol,
+    watchlistLoading,
+    watchlistBusy,
+    watchlisted,
+    removeFromWatchlist,
+    addToWatchlist,
+  ]);
+
+  useEffect(() => {
+    if (!watchlistNotice) return;
+    const timer = window.setTimeout(() => setWatchlistNotice(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [watchlistNotice]);
 
   const shareProfile = () => {
     if (typeof window === "undefined") return;
@@ -594,10 +615,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={toggleWatchlist}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-[#f0b90b]"
+                        onClick={() => void toggleWatchlist()}
+                        disabled={watchlistLoading || watchlistBusy}
+                        className="rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-muted)] transition hover:bg-[var(--dsa-surface-2)] hover:text-[var(--dsa-warning)] disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
-                        title="Watchlist"
+                        title={watchlistError ?? (watchlisted ? "Remove from watchlist" : "Add to watchlist")}
                       >
                         <Star className={`h-4 w-4 ${watchlisted ? "fill-[#f0b90b] text-[#f0b90b]" : ""}`} />
                       </button>
@@ -755,14 +777,26 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <div className="flex shrink-0 items-center gap-2 px-1 sm:px-0">
                 <button
                   type="button"
-                  onClick={toggleWatchlist}
-                  className="dsa-button-primary px-3 text-xs"
+                  onClick={() => void toggleWatchlist()}
+                  disabled={watchlistLoading || watchlistBusy}
+                  className={watchlisted ? "dsa-button-primary px-3 text-xs disabled:opacity-50" : "dsa-button-secondary px-3 text-xs disabled:opacity-50"}
                 >
-                  {watchlisted ? "Watching" : "Track symbol"}
+                  {watchlistLoading ? "Loading watchlist…" : watchlistBusy ? "Updating…" : watchlisted ? "Watching" : "Add watchlist"}
                 </button>
 
               </div>
             </div>
+            {(watchlistNotice || watchlistError) && (
+              <p
+                className={`mb-3 px-1 text-[10px] ${
+                  watchlistNotice?.toLowerCase().includes("could not") || watchlistError
+                    ? "text-[var(--dsa-negative)]"
+                    : "text-[var(--dsa-text-muted)]"
+                }`}
+              >
+                {watchlistNotice ?? watchlistError}
+              </p>
+            )}
 
             {mainTab === "chart" && (
               <div className="space-y-4">
@@ -791,19 +825,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "markets" && (
-              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
-                <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
-                  <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
-                  <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
+              <section className={`overflow-hidden rounded-[var(--dsa-radius-md)] ${CMC.card}`}>
+                <div className={`border-b ${CMC.line} px-4 py-3`}>
+                  <p className="dsa-section-label">Listing context</p>
+                  <h2 className="mt-1 text-base font-semibold text-white">
+                    {stripParentheticals(details?.company_name) || symbol}
+                  </h2>
+                  <p className={`mt-1 text-xs ${CMC.muted}`}>
+                    Primary listing plus metrics derived from the latest loaded candle. No multi-venue depth is inferred.
+                  </p>
                 </div>
-                <h2 className="px-4 pt-4 text-lg font-bold text-white">
-                  {stripParentheticals(details?.company_name) || symbol}{" "}
-                  <span className={CMC.muted}>markets</span>
-                </h2>
-                <p className={`px-4 pb-3 text-xs ${CMC.muted}`}>
-                  Primary listing for this equity. Depth and multi-venue breakdown can be added when your data source
-                  supports it.
-                </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[520px] text-left text-sm">
                     <thead>
@@ -812,8 +843,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Venue</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Symbol</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Price</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Volume (est.)</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Vol %</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Last-bar $ vol.</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Bar vol / mkt cap</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -827,7 +858,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <td className="px-4 py-3 font-mono tabular-nums text-white">{formatUsdStat(volUsdEst)}</td>
                         <td className="px-4 py-3">
                           <span
-                            className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${
+                            className={`rounded-[var(--dsa-radius-sm)] px-2 py-0.5 font-mono text-xs font-semibold ${
                               volToMktPct != null ? "bg-[#16c784]/15 text-[#16c784]" : `${CMC.muted} bg-[#2b3139]`
                             }`}
                           >
@@ -1031,10 +1062,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </div>
                 <button
                   type="button"
-                  onClick={toggleWatchlist}
-                  className={watchlisted ? "dsa-button-primary min-h-0 px-2.5 py-1 text-[11px]" : "dsa-button-secondary min-h-0 px-2.5 py-1 text-[11px]"}
+                  onClick={() => void toggleWatchlist()}
+                  disabled={watchlistLoading || watchlistBusy}
+                  className={watchlisted ? "dsa-button-primary min-h-0 px-2.5 py-1 text-[11px] disabled:opacity-50" : "dsa-button-secondary min-h-0 px-2.5 py-1 text-[11px] disabled:opacity-50"}
                 >
-                  {watchlisted ? "Watching" : "Add watchlist"}
+                  {watchlistLoading ? "Loading…" : watchlistBusy ? "Updating…" : watchlisted ? "Watching" : "Add watchlist"}
                 </button>
               </div>
 
