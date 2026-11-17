@@ -1,14 +1,18 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Decision Support Advisor",
-  description: "Market rankings, fundamentals, indicators, and news in one place.",
+  title: {
+    default: "DSA | Market Research & Decision Support",
+    template: "%s | DSA",
+  },
+  description:
+    "Market research, rankings, fundamentals, indicators, news, and transparent data context in one workspace.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-[#0B1220] text-[#E5E7EB]" suppressHydrationWarning>
+      <body className="dsa-shell" suppressHydrationWarning>
         {children}
       </body>
     </html>
