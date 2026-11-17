@@ -424,40 +424,40 @@ export default function TradingChart({
     candlePageRef.current = 1;
     loadingMoreCandlesRef.current = false;
 
-    const resetFrame = window.requestAnimationFrame(() => {
+    const startFrame = window.requestAnimationFrame(() => {
       setLoadingChart(true);
       setChartError(null);
       setCandles([]);
       setRealtimeCandle(null);
       setHasMoreCandles(true);
       setCandlePage(1);
-    });
 
-    loadCandlePage({
-      symbol: selectedSymbol,
-      periodType: selectedPeriod,
-      page: 1,
-      replace: true,
-    })
-      .then((formatted) => {
-        if (cancelled) return;
-        if (!formatted || formatted.length === 0) {
-          setChartError(`No candle data for ${selectedSymbol}`);
-        }
+      void loadCandlePage({
+        symbol: selectedSymbol,
+        periodType: selectedPeriod,
+        page: 1,
+        replace: true,
       })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("Initial candle load error:", error);
-        setChartError("Failed to load candle data");
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingChart(false);
-      });
+        .then((formatted) => {
+          if (cancelled) return;
+          if (!formatted || formatted.length === 0) {
+            setChartError(`No candle data for ${selectedSymbol}`);
+          }
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error("Initial candle load error:", error);
+          setChartError("Failed to load candle data");
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingChart(false);
+        });
+    });
 
     return () => {
       cancelled = true;
       requestKeyRef.current += 1;
-      window.cancelAnimationFrame(resetFrame);
+      window.cancelAnimationFrame(startFrame);
     };
   }, [selectedSymbol, selectedPeriod, loadCandlePage]);
 
