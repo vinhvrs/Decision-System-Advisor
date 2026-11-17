@@ -71,6 +71,7 @@ function periodChangeForRow(row: BeginnerBoardRow, closes: number[], period: Per
     }
     return null;
   }
+  if (row.missing_fields?.includes("change_pct")) return null;
   if (Number.isFinite(row.change_pct_snapshot)) return row.change_pct_snapshot;
   if (closes.length >= 2) {
     return pctChange(closes[closes.length - 2]!, closes[closes.length - 1]!);
@@ -1456,13 +1457,17 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               if (String(r.symbol).toUpperCase() !== sym) return r;
               touched = true;
               const row = { ...r };
-              if (price != null && price > 0) row.price = price;
+              if (price != null && price > 0) {
+                row.price = price;
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
+              }
               row.quote_stale = isInitial && (msg.quote_stale === true || quoteAge > 90_000);
               row.quote_ts = quoteTs;
               if (!isInitial && chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
                 row.day_bias = chg > 0 ? "buy" : chg < 0 ? "sell" : "flat";
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "change_pct");
               }
               return row;
             });
@@ -1594,15 +1599,16 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       sumC = 0,
       sumW = 0;
     for (const r of boardRows) {
-      if (Number.isFinite(r.price)) {
+      const missing = new Set(r.missing_fields ?? []);
+      if (!missing.has("price") && Number.isFinite(r.price) && r.price > 0) {
         sumP += r.price;
         np++;
       }
-      if (Number.isFinite(r.liquidity)) {
+      if (!missing.has("liquidity") && Number.isFinite(r.liquidity)) {
         sumL += r.liquidity;
         nl++;
       }
-      if (Number.isFinite(r.volume)) {
+      if (!missing.has("volume") && Number.isFinite(r.volume)) {
         sumV += r.volume;
         nv++;
       }
@@ -1709,7 +1715,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [boardRows, tableSort, rowSparklines, rowPeriodChanges, period]);
 
   const fearGreed = useMemo(() => {
-    if (period === "daily") return fearGreedFromBoardRows(boardRows);
+    if (period === "daily") {
+      return fearGreedFromBoardRows(
+        boardRows.filter((row) => !row.missing_fields?.includes("change_pct"))
+      );
+    }
     return fearGreedFromChangePct(boardAggregates?.avgChangePct);
   }, [boardRows, period, boardAggregates?.avgChangePct]);
 
@@ -2187,7 +2197,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             <div className="pointer-events-none">
               <BeginnerRadarChart
                 data={hoverRadarRow.radar}
-                fearGreed={fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol] ?? undefined)}
+                fearGreed={
+                  Number.isFinite(rowPeriodChanges[hoverRadarRow.symbol])
+                    ? fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol]!)
+                    : null
+                }
               />
             </div>
           </Link>,
