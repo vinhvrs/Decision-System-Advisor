@@ -18,13 +18,16 @@ class DataPeriods extends Command
     protected $signature = 'data:periods';
     protected $description = 'Incremental DAILY from Yahoo + chained aggregation: daily->weekly->monthly->yearly (low transfer).';
 
-    private array $symbols = [
-             'AAPL',
-             'MSFT', 'GOOGL', 'AMZN', 'TSLA',
-             'BRK-B', 'NVDA', 'META', 'UNH', 'JNJ',
-             'V', 'PG', 'JPM', 'HD', 'MA',
-    ];
-
+    /**
+     * Historical persistence must follow the same stock universe that can appear
+     * in the live dashboard. The old hard-coded 15-symbol list left later
+     * realtime symbols without persisted candles.
+     *
+     * Optional env controls:
+     * - DATA_PERIODS_SYMBOLS=AAPL,MSFT,...  explicit universe override
+     * - DATA_PERIODS_SYMBOL_LIMIT=100       snapshot/all-stock safety cap
+     */
+    private const DEFAULT_SYMBOL_LIMIT = 100;
 
     // Backfill window for incremental rebuild (tune as needed)
     private int $dailyBackfillDays = 20;
@@ -44,9 +47,14 @@ class DataPeriods extends Command
     {
         Log::info('[Schedule] DataPeriods started', ['db' => DB::connection()->getDatabaseName()]);
 
-        $instruments = Instruments::query()
-            ->whereIn('symbol', $this->symbols)
-            ->get();
+        $instruments = $this->targetInstruments();
+
+        Log::info('[Schedule] DataPeriods target universe', [
+            'count' => $instruments->count(),
+            'symbols' => $instruments->pluck('symbol')->map(
+                fn ($symbol) => strtoupper((string) $symbol)
+            )->values()->all(),
+        ]);
 
         foreach ($instruments as $instrument) {
             $symbol = strtoupper((string) $instrument->symbol);
@@ -92,6 +100,62 @@ class DataPeriods extends Command
 
         Log::info('[Schedule] DataPeriods finished');
         return self::SUCCESS;
+    }
+
+    /**
+     * Resolve the historical-persistence universe from the live snapshot first.
+     * This keeps persisted candles aligned with symbols that can actually appear
+     * in Market View. If snapshot is empty, fall back to stock instruments.
+     */
+    private function targetInstruments()
+    {
+        $limit = max(
+            1,
+            min(
+                500,
+                (int) env('DATA_PERIODS_SYMBOL_LIMIT', self::DEFAULT_SYMBOL_LIMIT)
+            )
+        );
+
+        $explicit = collect(explode(',', (string) env('DATA_PERIODS_SYMBOLS', '')))
+            ->map(fn ($symbol) => strtoupper(trim((string) $symbol)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($explicit->isNotEmpty()) {
+            return Instruments::query()
+                ->where('type', 'stock')
+                ->whereIn(DB::raw('UPPER(symbol)'), $explicit->all())
+                ->orderBy('symbol')
+                ->get();
+        }
+
+        $snapshotSymbols = DB::table(DsaTables::name('instrument_snapshot'))
+            ->whereNotNull('symbol')
+            ->where('symbol', '<>', '')
+            ->orderByDesc('volume')
+            ->limit($limit)
+            ->pluck('symbol')
+            ->map(fn ($symbol) => strtoupper(trim((string) $symbol)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $query = Instruments::query()
+            ->where('type', 'stock');
+
+        if ($snapshotSymbols->isNotEmpty()) {
+            return $query
+                ->whereIn(DB::raw('UPPER(symbol)'), $snapshotSymbols->all())
+                ->orderBy('symbol')
+                ->get();
+        }
+
+        return $query
+            ->orderBy('symbol')
+            ->limit($limit)
+            ->get();
     }
 
     // ---------- periods ----------
@@ -257,7 +321,7 @@ class DataPeriods extends Command
         foreach ($windows as [$wStart, $wEnd]) {
 
             try {
-                $response = Http::retry(1, 500)
+                $response = Http::retry(3, 1000)
                     ->connectTimeout(5)
                     ->timeout(10)
                     ->get(
@@ -383,13 +447,22 @@ class DataPeriods extends Command
 
     private function refreshWeeklyFromDaily(string $symbol, string $dailyId, string $weeklyId, ?string $latestWeeklyTs): void
     {
-        // start range: if null -> from first daily record; else backfill weeks
-        $start = Carbon::parse($latestWeeklyTs);
-        //? Carbon::parse($latestWeeklyTs)->copy()->subWeeks($this->weeklyBackfillWeeks)->startOfWeek(Carbon::MONDAY)->startOfDay()
-        //: $this->getFirstTimestampOrNull($dailyId)?->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+        // First build starts from the first persisted daily bar. Later runs only
+        // rebuild a bounded backfill window so corrections can propagate.
+        $start = $latestWeeklyTs
+            ? Carbon::parse($latestWeeklyTs)
+                ->copy()
+                ->subWeeks($this->weeklyBackfillWeeks)
+                ->startOfWeek(Carbon::MONDAY)
+                ->startOfDay()
+            : $this->getFirstTimestampOrNull($dailyId)
+                ?->copy()
+                ->startOfWeek(Carbon::MONDAY)
+                ->startOfDay();
 
-        if (!$start)
+        if (!$start) {
             return;
+        }
 
         $rows = InstrumentData::query()
             ->where('instrument_period_id', '=', $dailyId)
@@ -441,12 +514,20 @@ class DataPeriods extends Command
 
     private function refreshMonthlyFromWeekly(string $symbol, string $weeklyId, string $monthlyId, ?string $latestMonthlyTs): void
     {
-        $start = Carbon::parse($latestMonthlyTs);
-        // ? Carbon::parse($latestMonthlyTs)->copy()->subMonths($this->monthlyBackfillMonths)->startOfMonth()->startOfDay()
-        // : $this->getFirstTimestampOrNull($weeklyId)?->copy()->startOfMonth()->startOfDay();
+        $start = $latestMonthlyTs
+            ? Carbon::parse($latestMonthlyTs)
+                ->copy()
+                ->subMonths($this->monthlyBackfillMonths)
+                ->startOfMonth()
+                ->startOfDay()
+            : $this->getFirstTimestampOrNull($weeklyId)
+                ?->copy()
+                ->startOfMonth()
+                ->startOfDay();
 
-        if (!$start)
+        if (!$start) {
             return;
+        }
 
         $rows = InstrumentData::where('instrument_period_id', $weeklyId)
             ->where('timestamps', '>=', $start->format('Y-m-d'))
@@ -497,12 +578,20 @@ class DataPeriods extends Command
 
     private function refreshYearlyFromMonthly(string $symbol, string $monthlyId, string $yearlyId, ?string $latestYearlyTs): void
     {
-        $start = Carbon::parse($latestYearlyTs);
-        // ? Carbon::parse($latestYearlyTs)->copy()->subYears($this->yearlyBackfillYears)->startOfYear()->startOfDay()
-        // : $this->getFirstTimestampOrNull($monthlyId)?->copy()->startOfYear()->startOfDay();
+        $start = $latestYearlyTs
+            ? Carbon::parse($latestYearlyTs)
+                ->copy()
+                ->subYears($this->yearlyBackfillYears)
+                ->startOfYear()
+                ->startOfDay()
+            : $this->getFirstTimestampOrNull($monthlyId)
+                ?->copy()
+                ->startOfYear()
+                ->startOfDay();
 
-        if (!$start)
+        if (!$start) {
             return;
+        }
 
         $rows = InstrumentData::where('instrument_period_id', $monthlyId)
             ->where('timestamps', '>=', $start->format('Y-m-d'))
