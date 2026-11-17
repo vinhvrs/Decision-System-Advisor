@@ -42,12 +42,7 @@ export default function Header() {
 
   useEffect(() => {
     const q = searchQuery.trim();
-    if (q.length < MIN_SEARCH_LENGTH) {
-      setSearchResults([]);
-      setSearchSuggestions([]);
-      setSearchLoading(false);
-      return;
-    }
+    if (q.length < MIN_SEARCH_LENGTH) return;
     const t = setTimeout(() => {
       setSearchLoading(true);
       ElasticService.searchCompanies(q, 10)
@@ -157,7 +152,16 @@ export default function Header() {
               aria-label="Search company name or ticker"
               placeholder="Search ticker or company"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSearchQuery(value);
+                if (value.trim().length < MIN_SEARCH_LENGTH) {
+                  setSearchResults([]);
+                  setSearchSuggestions([]);
+                  setSearchLoading(false);
+                  setSearchOpen(false);
+                }
+              }}
               onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && searchQuery.trim().length >= 2) {
