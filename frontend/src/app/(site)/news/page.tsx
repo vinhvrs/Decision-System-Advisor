@@ -58,7 +58,8 @@ function NewsListPageContent() {
 
   const fetchPage = async (targetPage: number, mode: "replace" | "append") => {
     try {
-      mode === "replace" ? setIsLoading(true) : setIsLoadingMore(true);
+      if (mode === "replace") setIsLoading(true);
+      else setIsLoadingMore(true);
       const res = await newsService.getAllNews({ page: targetPage, per_page: 15 });
       const batch = res.data || [];
       if (mode === "replace") {
