@@ -162,13 +162,7 @@ export default function BeginnerTestMarketExtras({
   const [heatmapLoading, setHeatmapLoading] = useState(true);
 
   useEffect(() => {
-    if (!dashboardDailyMode) return;
-    setVolumeLoading(false);
-  }, [dashboardDailyMode]);
-
-  useEffect(() => {
     let cancelled = false;
-    setNewsLoading(true);
     newsService
       .getAllNews({ per_page: 10, page: 1 })
       .then((res) => {
@@ -188,7 +182,7 @@ export default function BeginnerTestMarketExtras({
   useEffect(() => {
     if (dashboardDailyMode) return;
     let cancelled = false;
-    setVolumeLoading(true);
+    const loadingFrame = window.requestAnimationFrame(() => setVolumeLoading(true));
     BeginnerService.getTopByVolume(MARKET_MOVERS_LIST_LIMIT)
       .then((payload) => {
         if (cancelled) return;
@@ -208,13 +202,14 @@ export default function BeginnerTestMarketExtras({
       });
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(loadingFrame);
     };
   }, [dashboardDailyMode]);
 
   useEffect(() => {
     if (dashboardDailyMode) return;
     let cancelled = false;
-    setHeatmapLoading(true);
+    const loadingFrame = window.requestAnimationFrame(() => setHeatmapLoading(true));
 
     fetchHeatmapRowsFromApi()
       .then((rows) => {
@@ -229,6 +224,7 @@ export default function BeginnerTestMarketExtras({
 
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(loadingFrame);
     };
   }, [dashboardDailyMode, dashboardUpdatedAt]);
 
