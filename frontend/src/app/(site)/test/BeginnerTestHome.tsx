@@ -190,6 +190,7 @@ function syntheticDevBoardRow(seed: SymbolDevCompany): BeginnerBoardRow {
     analysis_eligible: false,
     data_state: "synthetic",
     analysis_reason: "No validated ranking/radar inputs are available for this symbol.",
+    missing_fields: ["price", "volume", "liquidity", "change_pct"],
   };
 }
 
@@ -253,6 +254,7 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
       analysis_reason: formalScoresComplete
         ? null
         : "Ranking/radar inputs are incomplete; conviction is intentionally withheld.",
+      missing_fields: formal?.missing_fields ?? [],
     };
   } catch {
     return null;
