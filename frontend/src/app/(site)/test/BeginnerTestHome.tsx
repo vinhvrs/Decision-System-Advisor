@@ -186,6 +186,9 @@ function syntheticDevBoardRow(seed: SymbolDevCompany): BeginnerBoardRow {
     candle_move_abs_pct: 0,
     change_pct_snapshot: 0,
     day_bias: "flat",
+    analysis_eligible: false,
+    data_state: "synthetic",
+    analysis_reason: "No validated ranking/radar inputs are available for this symbol.",
   };
 }
 
@@ -215,6 +218,18 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
     const strong = Number.isFinite(Number(formal?.strong_count))
       ? Number(formal!.strong_count)
       : 0;
+    const formalScoreKeys = [
+      "reputation",
+      "price_period",
+      "candle_change",
+      "volume",
+      "liquidity",
+      "people_care",
+    ] as const;
+    const formalScoresComplete =
+      !!formal &&
+      Number.isFinite(Number(formal.strong_count)) &&
+      formalScoreKeys.every((key) => Number.isFinite(Number(formal.scores?.[key])));
 
     return {
       rank: 0,
@@ -231,6 +246,11 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
       candle_move_abs_pct: Math.abs(chg),
       change_pct_snapshot: Math.round(chg * 100) / 100,
       day_bias: bias,
+      analysis_eligible: formalScoresComplete,
+      data_state: formalScoresComplete ? "ok" : "partial",
+      analysis_reason: formalScoresComplete
+        ? null
+        : "Ranking/radar inputs are incomplete; conviction is intentionally withheld.",
     };
   } catch {
     return null;
@@ -380,7 +400,7 @@ function parseSocketQuoteNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell";
+type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" | "unrated";
 
 function radarScoresAverage(r: BeginnerBoardRow): number {
   const s = r.scores;
@@ -391,8 +411,35 @@ function radarScoresAverage(r: BeginnerBoardRow): number {
   return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
 
-/** Five-tier stance from Python-engine indicators only (Str + radar averages). */
+function isRowEligibleForConviction(r: BeginnerBoardRow): boolean {
+  if (r.analysis_eligible === false) return false;
+  if (r.data_state === "missing" || r.data_state === "partial" || r.data_state === "synthetic") {
+    return false;
+  }
+  const s = r.scores;
+  const scoreValues = [
+    s?.reputation,
+    s?.price_period,
+    s?.candle_change,
+    s?.volume,
+    s?.liquidity,
+    s?.people_care,
+  ].map((value) => Number(value));
+  const strong = Number(r.strong_count);
+  return (
+    scoreValues.length === 6 &&
+    scoreValues.every((value) => Number.isFinite(value) && value >= 1 && value <= 5) &&
+    Number.isFinite(strong) &&
+    strong >= 0 &&
+    strong <= 5 &&
+    Array.isArray(r.radar) &&
+    r.radar.length >= 5
+  );
+}
+
+/** Five-tier stance from validated Python-engine indicators only (Str + radar averages). */
 function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
+  if (!isRowEligibleForConviction(r)) return "unrated";
   const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
   const avg = radarScoresAverage(r);
   const indicatorTilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
@@ -415,8 +462,10 @@ function convictionSortOrder(c: Conviction5): number {
       return 1;
     case "strong_sell":
       return 0;
+    case "unrated":
+      return -1;
     default:
-      return 2;
+      return -1;
   }
 }
 
@@ -432,8 +481,10 @@ function convictionLabel(c: Conviction5): string {
       return "Sell";
     case "strong_sell":
       return "Strong Sell";
+    case "unrated":
+      return "Not Rated";
     default:
-      return "Hold";
+      return "Not Rated";
   }
 }
 
@@ -449,8 +500,10 @@ function convictionInvestingTitle(c: Conviction5): string {
       return "Sell — trim / underweight as indicators weaken. Not investment advice.";
     case "strong_sell":
       return "Strong Sell — reduce materially / defensive underweight (indicator signal). Not investment advice.";
+    case "unrated":
+      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
     default:
-      return "";
+      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
   }
 }
 
@@ -466,8 +519,10 @@ function convictionBorderClass(c: Conviction5): string {
       return "border-l-[3px] border-l-[#ea3943]";
     case "strong_sell":
       return "border-l-[3px] border-l-[#c82a35]";
+    case "unrated":
+      return "border-l-[3px] border-l-[#5e6673]";
     default:
-      return "border-l-[3px] border-l-transparent";
+      return "border-l-[3px] border-l-[#5e6673]";
   }
 }
 
@@ -483,6 +538,8 @@ function convictionBadgeClass(c: Conviction5): string {
       return "bg-[#ea3943]/12 text-[#ea3943]";
     case "strong_sell":
       return "bg-[#ea3943]/22 text-[#ff7a82]";
+    case "unrated":
+      return `${C.muted} bg-white/[0.06]`;
     default:
       return `${C.muted} bg-white/[0.06]`;
   }
@@ -881,8 +938,16 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         </span>
       </td>
       <td className="px-3 py-2.5 text-center font-mono tabular-nums">
-        <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-        <span className={C.muted}>/5</span>
+        {isRowEligibleForConviction(r) ? (
+          <>
+            <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+            <span className={C.muted}>/5</span>
+          </>
+        ) : (
+          <span className={C.muted} title={r.analysis_reason ?? "Insufficient validated inputs"}>
+            —
+          </span>
+        )}
       </td>
       <td className="px-2 py-2.5 text-center lg:px-3">
         <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
@@ -976,8 +1041,16 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
               {convictionLabel(conviction)}
             </span>
             <span className="font-mono tabular-nums">
-              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-              <span className={C.muted}>/5</span>
+              {isRowEligibleForConviction(r) ? (
+                <>
+                  <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+                  <span className={C.muted}>/5</span>
+                </>
+              ) : (
+                <span className={C.muted} title={r.analysis_reason ?? "Insufficient validated inputs"}>
+                  —
+                </span>
+              )}
             </span>
           </div>
         </div>
