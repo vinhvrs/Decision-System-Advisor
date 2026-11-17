@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Newspaper, Activity, LayoutGrid, ExternalLink } from "lucide-react";
 import HeatmapTreemapSvg from "@/src/components/analyze/HeatmapTreemapSvg";
 import newsService from "@/src/services/News.service";
+import type { News } from "@/src/types/News";
 import { BeginnerService, type BeginnerBoardRow, type TopByVolumeRow } from "@/src/services/Beginner.service";
 import { stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 import { MARKET_MOVERS_LIST_LIMIT } from "@/src/libs/marketViewConstants";
@@ -18,13 +19,6 @@ const C = {
   line: "border-[#2b3139]",
   green: "text-[#16c784]",
   red: "text-[#ea3943]",
-};
-
-type NewsRow = {
-  id?: string;
-  title?: string;
-  published_at?: string;
-  source?: string;
 };
 
 const UI_LOCALE = "en-US";
@@ -42,7 +36,7 @@ const updatedAtFormatter = new Intl.DateTimeFormat(UI_LOCALE, {
   timeZone: UI_TIMEZONE,
 });
 
-function formatNewsDate(iso?: string): string {
+function formatNewsDate(iso?: string | Date | null): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
@@ -152,7 +146,7 @@ export default function BeginnerTestMarketExtras({
   boardLoading = false,
   dashboardUpdatedAt = null,
 }: BeginnerTestMarketExtrasProps) {
-  const [news, setNews] = useState<NewsRow[]>([]);
+  const [news, setNews] = useState<News[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [volumeGainers, setVolumeGainers] = useState<TopByVolumeRow[]>([]);
   const [volumeLosers, setVolumeLosers] = useState<TopByVolumeRow[]>([]);
