@@ -13,4 +13,4 @@ export type News = {
     is_processed?: number | boolean;
 };
 
-export interface NewsApi extends News {}
+export type NewsApi = News;
