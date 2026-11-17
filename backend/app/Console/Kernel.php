@@ -24,8 +24,11 @@ class Kernel extends ConsoleKernel
     {
         Log::info('schedule() invoked in Console Kernel.');
 
+        // Historical OHLC persistence is separate from realtime quotes.
+        // Running the Yahoo daily-history job every 15 seconds can throttle later
+        // symbols in the universe and leave them realtime-only.
         $schedule->command('data:periods')
-            ->everyFifteenSeconds()
+            ->everyFifteenMinutes()
             ->evenInMaintenanceMode()
             ->withoutOverlapping()
             ->runInBackground()
