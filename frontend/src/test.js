@@ -1,5 +1,5 @@
 // tick-test.js
-const axios = require("axios");
+import axios from "axios";
 
 setInterval(() => {
   axios.post("http://localhost:1111/api/market/tick", {
@@ -8,7 +8,7 @@ setInterval(() => {
     time: Date.now(),
   }).then(() => {
     console.log("✅ Tick sent");
-  }).catch(err => {
+  }).catch((err) => {
     console.error("❌ Error", err.message);
   });
 }, 3000);
