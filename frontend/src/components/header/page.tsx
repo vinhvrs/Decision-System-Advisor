@@ -143,8 +143,8 @@ export default function Header() {
       className={[
         "sticky top-0 z-50 overflow-visible border-b transition-colors",
         isScrolled
-          ? "border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-1)]/98"
-          : "border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]/96",
+          ? "border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-1)]"
+          : "border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]",
       ].join(" ")}
     >
       <div className="mx-auto flex h-[var(--dsa-header-height)] max-w-[1600px] items-center justify-between gap-2 overflow-visible px-3 phone:px-4 tablet:gap-3 laptop:px-5">
