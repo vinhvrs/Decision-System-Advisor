@@ -11,12 +11,12 @@ final class DsaTables
 {
     public static function devMode(): string
     {
-        return strtolower(trim((string) config('dsa.dev_mode', 'dev')));
+        return strtolower(trim((string) config('dsa.dev_mode', 'production')));
     }
 
     public static function useDemo(): bool
     {
-        return (bool) config('dsa.use_demo_tables', true);
+        return (bool) config('dsa.use_demo_tables', false);
     }
 
     public static function name(string $logical): string
