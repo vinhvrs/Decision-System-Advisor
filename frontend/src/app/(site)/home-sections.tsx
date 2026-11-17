@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Card from "@/src/sections/Card";
 
 const skeleton = (className: string) => () => (
-  <div className={`animate-pulse rounded-2xl bg-white/5 ${className}`} aria-hidden />
+  <div className={`animate-pulse rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] ${className}`} aria-hidden />
 );
 
 const DashboardCharts = dynamic(() => import("@/src/components/dashboard/DashboardCharts"), {
