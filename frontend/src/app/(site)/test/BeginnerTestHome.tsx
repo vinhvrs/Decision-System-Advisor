@@ -1429,6 +1429,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           price?: unknown;
           change?: unknown;
           quote_ts?: number;
+          ts?: number;
           quote_stale?: boolean;
           payload?: BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] };
         };
