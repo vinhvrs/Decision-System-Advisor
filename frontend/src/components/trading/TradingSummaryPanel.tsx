@@ -10,73 +10,56 @@ interface TradingSummaryPanelProps {
   onRefresh?: () => void;
 }
 
-function formatProfit(n: number): string {
-  return formatOpenPnl(n);
-}
-
 export default function TradingSummaryPanel({
-  stats,
-  loading = false,
-  error = null,
-  onRefresh,
+  stats, loading = false, error = null, onRefresh,
 }: TradingSummaryPanelProps) {
-  const totalColor =
-    stats.totalProfit >= 0 ? "text-emerald-300" : stats.totalProfit < 0 ? "text-rose-300" : "text-slate-200";
+  const totalTone = stats.totalProfit > 0
+    ? "text-[var(--dsa-positive)]"
+    : stats.totalProfit < 0
+      ? "text-[var(--dsa-negative)]"
+      : "text-[var(--dsa-text)]";
 
   return (
-    <div className="rounded-lg border border-slate-700/60 bg-slate-900/70 backdrop-blur px-4 py-3 text-slate-100 text-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-semibold">Trade summary</span>
+    <section className="dsa-panel overflow-hidden text-xs">
+      <header className="flex items-center justify-between border-b border-[var(--dsa-border)] px-3 py-2">
+        <div>
+          <p className="text-xs font-semibold text-white">Trade summary</p>
+          <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">Paper/open-ticket P&amp;L context</p>
+        </div>
         {onRefresh ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="text-[10px] text-slate-400 hover:text-slate-200"
-          >
+          <button type="button" onClick={onRefresh} className="text-[10px] text-[var(--dsa-text-muted)] hover:text-white">
             Refresh
           </button>
         ) : null}
-      </div>
+      </header>
 
-      {loading && (
-        <p className="text-xs text-slate-400 animate-pulse">Updating summary…</p>
-      )}
+      <div className="p-3">
+        {loading ? <p className="mb-2 animate-pulse text-[10px] text-[var(--dsa-text-muted)]">Updating…</p> : null}
+        {error && error !== "401" ? <p className="mb-2 text-[10px] text-[var(--dsa-negative)]">{error}</p> : null}
 
-      {error && error !== "401" && (
-        <p className="mb-2 text-xs text-rose-400">{error}</p>
-      )}
+        <p className="dsa-section-label">Total P/L</p>
+        <p className={`mt-1 font-mono text-xl font-semibold tabular-nums ${totalTone}`}>
+          {formatOpenPnl(stats.totalProfit)}
+        </p>
+        <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">
+          Realized {formatOpenPnl(stats.realizedProfit)} · Open {formatOpenPnl(stats.unrealizedProfit)}
+        </p>
 
-      <div className="space-y-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">Total profit</p>
-          <p className={`mt-0.5 font-mono text-xl font-semibold tabular-nums ${totalColor}`}>
-            {formatProfit(stats.totalProfit)}
-          </p>
-          <p className="mt-1 text-[10px] text-slate-500">
-            Realized {formatProfit(stats.realizedProfit)} · Open{" "}
-            {formatProfit(stats.unrealizedProfit)}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 border-t border-slate-700/60 pt-3">
-          <div className="rounded-md bg-slate-800/50 px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">Buy trades</p>
-            <p className="mt-0.5 font-mono text-lg font-semibold tabular-nums text-emerald-300/90">
-              {stats.buyTrades}
-            </p>
+        <div className="mt-3 grid grid-cols-2 border-t border-[var(--dsa-border)]">
+          <div className="border-r border-[var(--dsa-border)] py-2 pr-2">
+            <p className="text-[9px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">Buy tickets</p>
+            <p className="mt-0.5 font-mono text-base font-semibold tabular-nums text-[var(--dsa-positive)]">{stats.buyTrades}</p>
           </div>
-          <div className="rounded-md bg-slate-800/50 px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">Sell trades</p>
-            <p className="mt-0.5 font-mono text-lg font-semibold tabular-nums text-rose-300/90">
-              {stats.sellTrades}
-            </p>
+          <div className="py-2 pl-2">
+            <p className="text-[9px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">Sell tickets</p>
+            <p className="mt-0.5 font-mono text-base font-semibold tabular-nums text-[var(--dsa-negative)]">{stats.sellTrades}</p>
           </div>
         </div>
-      </div>
 
-      <p className="mt-2 text-[10px] text-slate-500">
-        Counts include open and closed tickets. Total profit is realized plus open P/L.
-      </p>
-    </div>
+        <p className="mt-2 text-[9px] leading-relaxed text-[var(--dsa-text-muted)]">
+          Buy/Sell here are executed ticket directions, not research-bias labels. Counts include open and closed tickets.
+        </p>
+      </div>
+    </section>
   );
 }
