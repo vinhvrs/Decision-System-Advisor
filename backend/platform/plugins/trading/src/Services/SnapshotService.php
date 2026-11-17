@@ -905,7 +905,7 @@ class SnapshotService
                 'legend' => [
                     'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).',
                     'tie_break' => 'Pool = top symbols by snapshot volume in the database. Redis dashboard:daily was empty.',
-                    'buy_sell' => 'Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.',
+                    'buy_sell' => 'Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It is descriptive research context, not investment advice.',
                 ],
                 'updated_at' => now()->utc()->toIso8601String(),
                 'source' => 'laravel:database_fallback',
@@ -987,7 +987,7 @@ class SnapshotService
             'legend' => [
                 'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).',
                 'tie_break' => 'Pool = top symbols by snapshot volume from the database (Redis dashboard:daily was empty). Tie-break: liquidity → volume → watchlist saves → symbol.',
-                'buy_sell' => 'Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.',
+                'buy_sell' => 'Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It is descriptive research context, not investment advice.',
             ],
             'updated_at' => now()->utc()->toIso8601String(),
             'source' => 'laravel:database_fallback',
@@ -1064,9 +1064,9 @@ class SnapshotService
     protected function beginnerDashboardBiasSuggestion(string $bias): string
     {
         return match ($bias) {
-            'buy' => 'Snapshot up day — informational only, not advice.',
-            'sell' => 'Snapshot down day — informational only, not advice.',
-            default => 'Flat snapshot — no directional bias from open/close.',
+            'buy' => 'Bullish session bias — snapshot is positive; descriptive only, not investment advice.',
+            'sell' => 'Bearish session bias — snapshot is negative; descriptive only, not investment advice.',
+            default => 'Neutral session bias — snapshot is flat; descriptive only, not investment advice.',
         };
     }
 
@@ -1498,7 +1498,7 @@ class SnapshotService
                 'legend' => [
                     'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted). Higher rank = more strong traits.',
                     'tie_break' => 'The board pool is the top symbols by snapshot volume (cached up to 3 hours). If two rows tie on strong traits, we order by liquidity, then volume, then watchlist saves.',
-                    'buy_sell' => 'Green “Buy” / red “Sell” uses the same daily snapshot % change as our dashboard (up vs down). It is not financial advice.',
+                    'buy_sell' => 'Green “Bullish” / red “Bearish” uses the same daily snapshot % change as our dashboard. It describes session direction, not a trade instruction.',
                 ],
             ];
         }
@@ -1535,7 +1535,7 @@ class SnapshotService
             'legend' => [
                 'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted). Higher rank = more strong traits.',
                 'tie_break' => 'The board pool is the top symbols by snapshot volume (cached up to 3 hours). If two rows tie on strong traits, we order by liquidity, then volume, then watchlist saves.',
-                'buy_sell' => 'Green “Buy” / red “Sell” uses the same daily snapshot % change as our dashboard (up vs down). It is not financial advice.',
+                'buy_sell' => 'Green “Bullish” / red “Bearish” uses the same daily snapshot % change as our dashboard. It describes session direction, not a trade instruction.',
             ],
         ];
     }
