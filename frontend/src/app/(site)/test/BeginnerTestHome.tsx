@@ -1227,7 +1227,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   const dashboardWsRef = useRef<SimpleSocket | null>(null);
 
   useEffect(() => {
-    setRowSparklines({});
+    const frame = window.requestAnimationFrame(() => setRowSparklines({}));
+    return () => window.cancelAnimationFrame(frame);
   }, [period]);
 
   useEffect(() => {
@@ -1269,7 +1270,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [isRedisDaily, boardRows.length]);
 
   useEffect(() => {
-    setPortalReady(true);
+    const frame = window.requestAnimationFrame(() => setPortalReady(true));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -1520,9 +1522,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   useEffect(() => {
     if (!boardSparklineSymKey) {
-      setRowSparklines({});
-      setSparklinesLoading(false);
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setRowSparklines({});
+        setSparklinesLoading(false);
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
     let cancelled = false;
 
