@@ -8,15 +8,7 @@ import newsService from "@/src/services/newsService";
 import { newsSourceLabel } from "@/src/libs/newsArticle";
 import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
 import { stripParentheticals } from "@/src/libs/displayString";
-
-type SearchNewsItem = {
-  id?: string;
-  title?: string;
-  content?: string;
-  source?: string;
-  author?: string;
-  published_at?: string;
-};
+import type { News } from "@/src/types/News";
 
 function normalizeText(v: string): string {
   return v.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
@@ -71,7 +63,7 @@ function SearchResults() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [demoTop, setDemoTop] = useState<ElasticCompanyHit[]>([]);
-  const [newsResults, setNewsResults] = useState<SearchNewsItem[]>([]);
+  const [newsResults, setNewsResults] = useState<News[]>([]);
 
   useEffect(() => {
     ElasticService.getDemoTopSymbols(20)
@@ -106,7 +98,7 @@ function SearchResults() {
 
           const newsRows = Array.isArray(newsRes?.data) ? newsRes.data : [];
           const rankedNews = newsRows
-            .map((n: SearchNewsItem) => ({
+            .map((n: News) => ({
               row: n,
               score: fuzzyNewsScore(query, String(n?.title ?? ""), String(n?.content ?? "")),
             }))
