@@ -4,13 +4,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   FileText,
-  Download,
   ExternalLink,
   Search,
-  Filter,
-  FileCode,
-  FileBarChart,
-  BookOpen,
   Sigma,
   Calculator,
   Shield,
@@ -45,7 +40,7 @@ function parseHash(): { main: MainView; tab: DocTab } {
 /** Mathematical formulas — serif display, not code */
 function MathPanel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-800/80 bg-gradient-to-b from-[#141a26] to-[#0d1018] px-5 py-5 font-serif text-[15px] leading-relaxed text-gray-100 shadow-inner">
+    <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-5 py-5 font-serif text-[15px] leading-relaxed text-[var(--dsa-text)]">
       <div className="space-y-3.5">{children}</div>
     </div>
   );
@@ -243,7 +238,7 @@ function RankingCalculationsContent() {
           <code className="rounded bg-gray-800 px-1">change_pct_snapshot</code> / Laravel beginner radar). The Next.js app
           computes the strip from this value with{" "}
           <code className="rounded bg-gray-800 px-1">fearGreedFromChangePct</code> so it always matches the documented
-          mapping. If r is missing or non-finite, use F = 50 (Neutral).
+          mapping. If r is missing or non-finite, the research surface treats sentiment as unavailable rather than presenting a measured Neutral reading.
         </p>
         <MathPanel>
           <M>
@@ -256,8 +251,7 @@ function RankingCalculationsContent() {
           </M>
           <M className="text-sm text-gray-400">
             If <em>r</em>
-            <sub>i</sub> is missing, set <em>F</em>
-            <sub>i</sub> = 50 (Neutral).
+            <sub>i</sub> is missing, do not present a measured sentiment value; show an unavailable / Not Rated state.
           </M>
         </MathPanel>
       </section>
@@ -300,7 +294,7 @@ function RankingCalculationsContent() {
             refreshed at most every 3 hours).
           </li>
           <li>
-            Six integers 1–5 per row: <strong className="text-gray-300">Signal</strong> (watchlist tier),{" "}
+            Six integers 1–5 per row: <strong className="text-gray-300">Signal</strong> (analysis confidence when available; watchlist tier fallback),{" "}
             <strong className="text-gray-300">Price</strong>, <strong className="text-gray-300">Change</strong>,{" "}
             <strong className="text-gray-300">Volume</strong>, <strong className="text-gray-300">Liquidity</strong>,{" "}
             <strong className="text-gray-300">Watchers</strong> (quintiles within the pool, except Signal).
@@ -384,7 +378,7 @@ function RankingCalculationsContent() {
       <section>
         <h3 className="mb-3 text-lg font-semibold text-white">12. Beginner overview — reputation copy (same W buckets)</h3>
         <p className="mb-2 text-sm text-gray-400">Tier name and human-readable label for overview API (W as above):</p>
-        <div className="rounded-xl border border-gray-800/80 bg-gradient-to-b from-[#141a26] to-[#0d1018] px-5 py-5 font-serif text-[15px] leading-relaxed text-gray-100 shadow-inner">
+        <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-5 py-5 font-serif text-[15px] leading-relaxed text-[var(--dsa-text)]">
           <dl className="space-y-2 text-center">
             <div>
               <dt className="font-medium text-indigo-300">high</dt>
@@ -434,17 +428,20 @@ function RankingCalculationsContent() {
       </section>
 
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-white">14. Buy / Sell / Flat badge (beginner table)</h3>
+        <h3 className="mb-3 text-lg font-semibold text-white">14. Session direction badge</h3>
         <MathPanel>
-          <M>Badge from snapshot Δ<sub>%</sub>:</M>
+          <M>Descriptive session bias from snapshot Δ<sub>%</sub>:</M>
           <M>
-            Δ<sub>%</sub> &gt; 0 &nbsp;⇒&nbsp; Buy
+            Δ<sub>%</sub> &gt; 0 &nbsp;⇒&nbsp; Bullish
           </M>
           <M>
-            Δ<sub>%</sub> &lt; 0 &nbsp;⇒&nbsp; Sell
+            Δ<sub>%</sub> &lt; 0 &nbsp;⇒&nbsp; Bearish
           </M>
           <M>
-            Δ<sub>%</sub> = 0 &nbsp;⇒&nbsp; Flat
+            Δ<sub>%</sub> = 0 &nbsp;⇒&nbsp; Neutral
+          </M>
+          <M className="text-sm text-gray-400">
+            Missing / ineligible inputs &nbsp;⇒&nbsp; Not Rated. These labels describe research direction, not trade instructions.
           </M>
         </MathPanel>
       </section>
@@ -859,8 +856,7 @@ function PrivacyPoliciesContent() {
       </section>
 
       <p className="border-t border-gray-800 pt-6 text-xs text-gray-600">
-        Last updated: March 2026. Replace or extend this section with counsel-approved policies before production launch if
-        needed.
+        This page is a product transparency summary and is not a substitute for a formal legal policy or professional legal advice.
       </p>
     </article>
   );
@@ -906,65 +902,35 @@ export default function DocumentsPage() {
   const documents = [
     {
       id: 1,
-      title: "Market Analysis Report - Q1 2024",
-      description: "Comprehensive analysis of stock market trends and liquidity rankings for the first quarter.",
-      category: "Report",
-      type: "PDF",
-      size: "2.4 MB",
-      updatedAt: "2 hours ago",
-      icon: <FileBarChart className="text-blue-400" size={28} />,
-    },
-    {
-      id: 2,
-      title: "Algorithmic Strategy Guide",
-      description: "A detailed guide on how to implement technical indicators in automated trading strategies.",
-      category: "Technical",
-      type: "DOCX",
-      size: "1.8 MB",
-      updatedAt: "1 day ago",
-      icon: <FileCode className="text-purple-400" size={28} />,
-    },
-    {
-      id: 3,
-      title: "Trading Terms & Conditions",
-      description: "Official documentation regarding platform usage, data privacy, and trading regulations.",
-      category: "Legal",
-      type: "PDF",
-      size: "850 KB",
-      updatedAt: "Mar 12, 2024",
-      icon: <BookOpen className="text-orange-400" size={28} />,
-    },
-    {
-      id: 4,
-      title: "Indicator Calculation Formula",
-      description: "Mathematical breakdowns of RSI, MACD, moving averages, and custom platform metrics.",
-      category: "Math",
+      title: "Ranking & snapshot methodology",
+      description: "How snapshot fields, eligibility, quintiles, session bias, Fear & Greed, and ranking order are computed.",
+      category: "Methodology",
       type: "Web",
       size: "On-site",
-      updatedAt: "Live",
-      icon: <Sigma className="text-green-400" size={28} />,
-      href: "/documents#formula",
-    },
-    {
-      id: 5,
-      title: "Ranking & snapshot definitions",
-      description: "How liquidity, quintiles, Fear & Greed, and board sort order are computed.",
-      category: "Math",
-      type: "Web",
-      size: "On-site",
-      updatedAt: "Live",
-      icon: <Calculator className="text-cyan-400" size={28} />,
+      updatedAt: "On-site reference",
+      icon: <Calculator className="text-cyan-400" size={24} />,
       href: "/documents#ranking",
     },
     {
-      id: 6,
-      title: "Privacy & policies",
-      description: "Data handling, cookies, and terms of use summary.",
-      category: "Legal",
+      id: 2,
+      title: "Indicator calculations",
+      description: "Reference formulas and implementation notes for moving averages, oscillators, and exposed indicators.",
+      category: "Methodology",
       type: "Web",
       size: "On-site",
-      updatedAt: "Live",
-      icon: <Shield className="text-emerald-400" size={28} />,
+      updatedAt: "On-site reference",
+      icon: <Sigma className="text-green-400" size={24} />,
+      href: "/documents#formula",
+    },
+    {
+      id: 3,
+      title: "Privacy & policies",
+      description: "Current on-site summary of data handling, cookies, account information, and usage boundaries.",
+      category: "Policy",
+      type: "Web",
+      size: "On-site",
+      updatedAt: "On-site reference",
+      icon: <Shield className="text-emerald-400" size={24} />,
       href: "/documents#privacy",
     },
   ];
@@ -972,16 +938,16 @@ export default function DocumentsPage() {
   const filteredDocs = documents.filter((doc) => doc.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const tabBtn = (active: boolean) =>
-    `rounded-lg px-4 py-2 text-sm font-medium transition-colors border ${
+    `rounded-[var(--dsa-radius-sm)] border px-3 py-1.5 text-xs font-semibold transition-colors ${
       active
-        ? "border-indigo-500 bg-indigo-600 text-white"
-        : "border-transparent bg-[#161a21] text-gray-400 hover:border-gray-700 hover:text-white"
+        ? "border-[rgba(76,141,255,0.45)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+        : "border-transparent bg-transparent text-[var(--dsa-text-muted)] hover:border-[var(--dsa-border)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
     }`;
 
   return (
-    <div className="min-h-screen bg-[#0b0e14] px-6 py-16 text-gray-200">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-wrap items-center gap-2 border-b border-gray-800 pb-4">
+    <div className="-mx-3 -my-4 min-h-screen bg-[var(--dsa-bg)] px-3 py-4 text-[var(--dsa-text)] phone:-mx-4 phone:px-4 tablet:-mx-5 tablet:px-5 laptop:-mx-6 laptop:px-6">
+      <div className="dsa-page">
+        <div className="mb-5 flex flex-wrap items-center gap-1 border-b border-[var(--dsa-border)] pb-2">
           <button type="button" onClick={goLibrary} className={tabBtn(mainView === "library")}>
             Documents library
           </button>
@@ -1019,10 +985,11 @@ export default function DocumentsPage() {
 
         {mainView === "library" && (
           <>
-            <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
-                <h1 className="mb-3 text-4xl font-bold text-white">Resource Center</h1>
-                <p className="text-gray-400">
+                <p className="dsa-section-label">Methodology & policy</p>
+                <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white tablet:text-2xl">Documents</h1>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[var(--dsa-text-secondary)]">
                   Access our latest market reports, technical guides, and legal documents. Open{" "}
                   <button
                     type="button"
@@ -1057,31 +1024,13 @@ export default function DocumentsPage() {
                   placeholder="Search documents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full rounded-xl border border-gray-800 bg-[#161a21] py-3 pl-12 pr-4 text-white outline-none transition-all focus:ring-2 focus:ring-indigo-500/50"
+                  className="dsa-control h-9 w-full py-2 pl-10 pr-3 text-sm outline-none"
                 />
-                <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-500" />
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--dsa-text-muted)]" />
               </div>
             </div>
 
-            <div className="no-scrollbar mb-10 flex items-center gap-3 overflow-x-auto pb-2">
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
-              >
-                <Filter size={16} /> All Files
-              </button>
-              {["Reports", "Technical", "Legal", "Guides"].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className="rounded-lg border border-gray-800 bg-[#161a21] px-4 py-2 text-sm font-medium text-gray-400 transition-all hover:border-gray-600 hover:text-white"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <div id="library" className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="library" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredDocs.map((doc) => {
                 const CardInner = (
                   <>
@@ -1089,33 +1038,12 @@ export default function DocumentsPage() {
                       <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 transition-all group-hover:border-indigo-500/20 group-hover:bg-indigo-500/10">
                         {doc.icon}
                       </div>
-                      <div className="flex gap-2">
-                        {"href" in doc && doc.href ? (
-                          <span
-                            className="rounded-lg p-2 text-indigo-400"
-                            title="Opens on this site — use the card link"
-                          >
-                            <ExternalLink size={18} aria-hidden />
-                          </span>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-white/5 hover:text-white"
-                              title="Preview"
-                            >
-                              <ExternalLink size={18} />
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-lg p-2 text-indigo-400 transition-colors hover:bg-indigo-500/10 hover:text-indigo-300"
-                              title="Download"
-                            >
-                              <Download size={18} />
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <span
+                        className="rounded-[var(--dsa-radius-sm)] p-1.5 text-[#8ab4ff]"
+                        title="Open on-site reference"
+                      >
+                        <ExternalLink size={16} aria-hidden />
+                      </span>
                     </div>
 
                     <h3 className="mb-2 text-lg font-bold text-white transition-colors group-hover:text-indigo-400">
@@ -1131,13 +1059,13 @@ export default function DocumentsPage() {
                         </span>
                         <span>{doc.size}</span>
                       </div>
-                      <span className="text-[11px] font-medium italic text-gray-600">Updated {doc.updatedAt}</span>
+                      <span className="text-[11px] font-medium text-[var(--dsa-text-muted)]">{doc.updatedAt}</span>
                     </div>
                   </>
                 );
 
                 const wrapClass =
-                  "group rounded-2xl border border-gray-800/50 bg-[#161a21] p-6 shadow-xl transition-all hover:border-indigo-500/40";
+                  "group rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-4 transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]";
 
                 return "href" in doc && doc.href ? (
                   <Link key={doc.id} href={doc.href} className={`${wrapClass} block`}>
@@ -1152,7 +1080,7 @@ export default function DocumentsPage() {
             </div>
 
             {filteredDocs.length === 0 && (
-              <div className="rounded-3xl border border-dashed border-gray-800 bg-[#161a21] py-20 text-center">
+              <div className="rounded-[var(--dsa-radius-md)] border border-dashed border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] py-14 text-center">
                 <FileText size={48} className="mx-auto mb-4 text-gray-700" />
                 <h3 className="text-xl font-semibold text-white">No documents found</h3>
                 <p className="mt-2 text-gray-500">Try adjusting your search or filters.</p>
