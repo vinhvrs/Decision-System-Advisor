@@ -4,11 +4,9 @@ import Header from "@/src/components/header/page";
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <header className="mb-0 sticky top-0 z-50 overflow-visible">
-        <Header />
-      </header>
+      <Header />
 
-      <main className="min-w-0 overflow-x-hidden px-4 py-6 phone:px-5 tablet:px-6 tablet:py-8 laptop:py-10">
+      <main className="min-w-0 overflow-x-clip px-3 py-4 phone:px-4 tablet:px-5 tablet:py-5 laptop:px-6">
         {children}
       </main>
 
