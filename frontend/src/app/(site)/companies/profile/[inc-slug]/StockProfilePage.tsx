@@ -619,7 +619,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         disabled={watchlistLoading || watchlistBusy}
                         className="rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-muted)] transition hover:bg-[var(--dsa-surface-2)] hover:text-[var(--dsa-warning)] disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
-                        title={watchlistError ?? (watchlisted ? "Remove from watchlist" : "Add to watchlist")}
+                        title={watchlistError ? "Watchlist status unavailable" : watchlisted ? "Remove from watchlist" : "Add to watchlist"}
                       >
                         <Star className={`h-4 w-4 ${watchlisted ? "fill-[#f0b90b] text-[#f0b90b]" : ""}`} />
                       </button>
@@ -786,15 +786,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
               </div>
             </div>
-            {(watchlistNotice || watchlistError) && (
+            {watchlistNotice && (
               <p
                 className={`mb-3 px-1 text-[10px] ${
-                  watchlistNotice?.toLowerCase().includes("could not") || watchlistError
+                  watchlistNotice.toLowerCase().includes("could not") ||
+                  watchlistNotice.toLowerCase().includes("sign in")
                     ? "text-[var(--dsa-negative)]"
                     : "text-[var(--dsa-text-muted)]"
                 }`}
               >
-                {watchlistNotice ?? watchlistError}
+                {watchlistNotice}
               </p>
             )}
 
