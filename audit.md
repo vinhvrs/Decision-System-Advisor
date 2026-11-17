@@ -53,6 +53,10 @@ Scope: aitemple.tech public surfaces + GitHub `vinhvrs/Decision-System-Advisor` 
 - **BUG-001 cross-route bypass:** `WatchlistDashboardTable` independently recomputed conviction from radar/Str, ignored `analysis_eligible`, and still rendered Strong Buy/Buy/Hold/Sell/Strong Sell. Fixed on `work/p1-3-secondary-ui-20261118`: ineligible rows now show **Not Rated**, Str is withheld, placeholder zero price/liquidity is not displayed as real data, and the canonical Bullish/Bearish terminology is used.
 - This confirms the release gate must search all presentation surfaces for local scoring/stance reimplementations before BUG-001 can be considered fully closed.
 
+## Profile trust follow-up
+- **P1 confirmed:** company profile watchlist controls were local-only `sessionStorage` flags and did not mutate the backend watchlist used by Watchlist Dashboard. Fixed on P1.5 by routing all profile controls through `useWatchlist()`.
+- **P2 confirmed:** Markets displayed static `ALL / Primary` chips that looked interactive but were not controls. Removed. Derived metrics are now labeled as **Last-bar $ volume** and **Bar volume / market cap** rather than ambiguous venue-volume terms.
+
 ## Research terminology standard
 - User-facing directional labels: **Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish / Not Rated**.
 - Internal compatibility enums such as `BUY/SELL/HOLD` or `buy/sell/flat` may remain in APIs/storage when required, but should not be shown raw to end users.
