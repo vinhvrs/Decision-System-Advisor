@@ -49,6 +49,10 @@ Scope: aitemple.tech public surfaces + GitHub `vinhvrs/Decision-System-Advisor` 
 | UX-013 | P3 | Finviz | Advanced heatmaps, screener presets and compact institutional-style dashboards. | Feature-gated until feed coverage sufficient. |
 | UX-014 | P3 | Fiscal.ai | Polished research notes, explainable AI summaries with source citations. | Never auto-assert unsupported predictions. |
 
+## P0 follow-up discovered during P1.3
+- **BUG-001 cross-route bypass:** `WatchlistDashboardTable` independently recomputed conviction from radar/Str, ignored `analysis_eligible`, and still rendered Strong Buy/Buy/Hold/Sell/Strong Sell. Fixed on `work/p1-3-secondary-ui-20261118`: ineligible rows now show **Not Rated**, Str is withheld, placeholder zero price/liquidity is not displayed as real data, and the canonical Bullish/Bearish terminology is used.
+- This confirms the release gate must search all presentation surfaces for local scoring/stance reimplementations before BUG-001 can be considered fully closed.
+
 ## Research terminology standard
 - User-facing directional labels: **Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish / Not Rated**.
 - Internal compatibility enums such as `BUY/SELL/HOLD` or `buy/sell/flat` may remain in APIs/storage when required, but should not be shown raw to end users.
