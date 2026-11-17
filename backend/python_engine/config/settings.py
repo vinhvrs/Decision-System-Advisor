@@ -127,12 +127,21 @@ class Settings:
 
         # When true: ranking pool + OHLC for Python dashboard Redis payloads use
         # ``snapshot_demo`` / ``instrument_data_demo`` / ``instrument_period_demo``.
-        self.DEV_MODE = _e("DEV_MODE", "dev").strip().lower()
-        self.USE_DEMO_TABLES = self.DEV_MODE not in ("production", "prod")
-        if _e("DASHBOARD_USE_DEMO", "").strip().lower() in ("1", "true", "yes", "on"):
+        # Fail closed: a missing DEV_MODE must never silently select demo market tables.
+        self.DEV_MODE = _e("DEV_MODE", "production").strip().lower()
+        is_production = self.DEV_MODE in ("production", "prod")
+        self.USE_DEMO_TABLES = not is_production
+
+        demo_override = _e("DASHBOARD_USE_DEMO", "").strip().lower()
+        if not is_production and demo_override in ("1", "true", "yes", "on"):
             self.USE_DEMO_TABLES = True
-        elif _e("DASHBOARD_USE_DEMO", "").strip().lower() in ("0", "false", "no", "off"):
+        elif demo_override in ("0", "false", "no", "off"):
             self.USE_DEMO_TABLES = False
+
+        # Production is authoritative: no environment override may re-enable demo tables.
+        if is_production:
+            self.USE_DEMO_TABLES = False
+
         self.DASHBOARD_USE_DEMO = self.USE_DEMO_TABLES
         self.DEMO_SYNC_YF_PERIOD = _e("DEMO_SYNC_YF_PERIOD", "7d").strip() or "7d"
         # Yahoo → demo tables before each Redis warm-up (slow; can block hourly refresh). Off by default:

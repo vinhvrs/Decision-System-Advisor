@@ -7,10 +7,10 @@
  */
 return [
 
-    'dev_mode' => env('DEV_MODE', 'dev'),
+    'dev_mode' => env('DEV_MODE', 'production'),
 
     'use_demo_tables' => ! in_array(
-        strtolower(trim((string) env('DEV_MODE', 'dev'))),
+        strtolower(trim((string) env('DEV_MODE', 'production'))),
         ['production', 'prod'],
         true
     ),

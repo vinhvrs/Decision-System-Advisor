@@ -71,6 +71,7 @@ function periodChangeForRow(row: BeginnerBoardRow, closes: number[], period: Per
     }
     return null;
   }
+  if (row.missing_fields?.includes("change_pct")) return null;
   if (Number.isFinite(row.change_pct_snapshot)) return row.change_pct_snapshot;
   if (closes.length >= 2) {
     return pctChange(closes[closes.length - 2]!, closes[closes.length - 1]!);
@@ -186,6 +187,10 @@ function syntheticDevBoardRow(seed: SymbolDevCompany): BeginnerBoardRow {
     candle_move_abs_pct: 0,
     change_pct_snapshot: 0,
     day_bias: "flat",
+    analysis_eligible: false,
+    data_state: "synthetic",
+    analysis_reason: "No validated ranking/radar inputs are available for this symbol.",
+    missing_fields: ["price", "volume", "liquidity", "change_pct"],
   };
 }
 
@@ -215,6 +220,19 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
     const strong = Number.isFinite(Number(formal?.strong_count))
       ? Number(formal!.strong_count)
       : 0;
+    const formalScoreKeys = [
+      "reputation",
+      "price_period",
+      "candle_change",
+      "volume",
+      "liquidity",
+      "people_care",
+    ] as const;
+    const formalScoresComplete =
+      !!formal &&
+      formal.analysis_eligible !== false &&
+      Number.isFinite(Number(formal.strong_count)) &&
+      formalScoreKeys.every((key) => Number.isFinite(Number(formal.scores?.[key])));
 
     return {
       rank: 0,
@@ -231,6 +249,12 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
       candle_move_abs_pct: Math.abs(chg),
       change_pct_snapshot: Math.round(chg * 100) / 100,
       day_bias: bias,
+      analysis_eligible: formalScoresComplete,
+      data_state: formalScoresComplete ? "ok" : "partial",
+      analysis_reason: formalScoresComplete
+        ? null
+        : "Ranking/radar inputs are incomplete; conviction is intentionally withheld.",
+      missing_fields: formal?.missing_fields ?? [],
     };
   } catch {
     return null;
@@ -380,7 +404,7 @@ function parseSocketQuoteNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell";
+type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" | "unrated";
 
 function radarScoresAverage(r: BeginnerBoardRow): number {
   const s = r.scores;
@@ -391,8 +415,35 @@ function radarScoresAverage(r: BeginnerBoardRow): number {
   return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
 
-/** Five-tier stance from Python-engine indicators only (Str + radar averages). */
+function isRowEligibleForConviction(r: BeginnerBoardRow): boolean {
+  if (r.analysis_eligible === false) return false;
+  if (r.data_state === "missing" || r.data_state === "partial" || r.data_state === "synthetic") {
+    return false;
+  }
+  const s = r.scores;
+  const scoreValues = [
+    s?.reputation,
+    s?.price_period,
+    s?.candle_change,
+    s?.volume,
+    s?.liquidity,
+    s?.people_care,
+  ].map((value) => Number(value));
+  const strong = Number(r.strong_count);
+  return (
+    scoreValues.length === 6 &&
+    scoreValues.every((value) => Number.isFinite(value) && value >= 1 && value <= 5) &&
+    Number.isFinite(strong) &&
+    strong >= 0 &&
+    strong <= 5 &&
+    Array.isArray(r.radar) &&
+    r.radar.length >= 5
+  );
+}
+
+/** Five-tier stance from validated Python-engine indicators only (Str + radar averages). */
 function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
+  if (!isRowEligibleForConviction(r)) return "unrated";
   const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
   const avg = radarScoresAverage(r);
   const indicatorTilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
@@ -415,42 +466,48 @@ function convictionSortOrder(c: Conviction5): number {
       return 1;
     case "strong_sell":
       return 0;
+    case "unrated":
+      return -1;
     default:
-      return 2;
+      return -1;
   }
 }
 
 function convictionLabel(c: Conviction5): string {
   switch (c) {
     case "strong_buy":
-      return "Strong Buy";
+      return "Strong Bullish";
     case "buy":
-      return "Buy";
+      return "Bullish";
     case "hold":
-      return "Hold";
+      return "Neutral";
     case "sell":
-      return "Sell";
+      return "Bearish";
     case "strong_sell":
-      return "Strong Sell";
+      return "Strong Bearish";
+    case "unrated":
+      return "Not Rated";
     default:
-      return "Hold";
+      return "Not Rated";
   }
 }
 
 function convictionInvestingTitle(c: Conviction5): string {
   switch (c) {
     case "strong_buy":
-      return "Strong Buy — overweight / accumulate (indicator signal: Str + radar). Not investment advice.";
+      return "Strong Bullish — the multi-factor indicator composite has a materially positive tilt. Research signal, not investment advice.";
     case "buy":
-      return "Buy — modest overweight / add on dips (indicator signal). Not investment advice.";
+      return "Bullish — the multi-factor indicator composite has a positive tilt. Research signal, not investment advice.";
     case "hold":
-      return "Hold — neutral / marketweight while indicators are mixed. Not investment advice.";
+      return "Neutral — the multi-factor indicator composite is balanced or mixed. Research signal, not investment advice.";
     case "sell":
-      return "Sell — trim / underweight as indicators weaken. Not investment advice.";
+      return "Bearish — the multi-factor indicator composite has a negative tilt. Research signal, not investment advice.";
     case "strong_sell":
-      return "Strong Sell — reduce materially / defensive underweight (indicator signal). Not investment advice.";
+      return "Strong Bearish — the multi-factor indicator composite has a materially negative tilt. Research signal, not investment advice.";
+    case "unrated":
+      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
     default:
-      return "";
+      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
   }
 }
 
@@ -466,8 +523,10 @@ function convictionBorderClass(c: Conviction5): string {
       return "border-l-[3px] border-l-[#ea3943]";
     case "strong_sell":
       return "border-l-[3px] border-l-[#c82a35]";
+    case "unrated":
+      return "border-l-[3px] border-l-[#5e6673]";
     default:
-      return "border-l-[3px] border-l-transparent";
+      return "border-l-[3px] border-l-[#5e6673]";
   }
 }
 
@@ -483,6 +542,8 @@ function convictionBadgeClass(c: Conviction5): string {
       return "bg-[#ea3943]/12 text-[#ea3943]";
     case "strong_sell":
       return "bg-[#ea3943]/22 text-[#ff7a82]";
+    case "unrated":
+      return `${C.muted} bg-white/[0.06]`;
     default:
       return `${C.muted} bg-white/[0.06]`;
   }
@@ -493,28 +554,15 @@ function _clamp(n: number, lo: number, hi: number): number {
 }
 
 /**
- * Implied 12m consensus-style uplift (%) when real analyst target is absent — from radar + Str only.
- */
-function impliedConsensusUpliftPctWhenNoTarget(r: BeginnerBoardRow): number {
-  const avg = radarScoresAverage(r);
-  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
-  const raw = 5 + (avg - 2.5) * 4 + (st / 5) * 14;
-  return _clamp(raw, 3, 32);
-}
-
-/**
- * Advisory upside: ((Target − Current) / Current) × 100. Uses API target when present; else synthetic target from radar.
+ * Consensus upside: ((analyst target − current price) / current price) × 100.
+ * Missing analyst targets stay missing; DSA does not synthesize a target from radar scores.
  */
 function upsideAdvisoryPct(r: BeginnerBoardRow): number {
   const price = Number(r.price);
   if (!Number.isFinite(price) || price <= 0) return Number.NaN;
   const tgt = r.analyst_consensus_target_price;
-  if (typeof tgt === "number" && Number.isFinite(tgt) && tgt > 0) {
-    return ((tgt - price) / price) * 100;
-  }
-  const uplift = impliedConsensusUpliftPctWhenNoTarget(r);
-  const syntheticTarget = price * (1 + uplift / 100);
-  return ((syntheticTarget - price) / price) * 100;
+  if (typeof tgt !== "number" || !Number.isFinite(tgt) || tgt <= 0) return Number.NaN;
+  return ((tgt - price) / price) * 100;
 }
 
 /**
@@ -559,11 +607,11 @@ function upsideTooltipLines(r: BeginnerBoardRow, closes: number[]): string {
     Number.isFinite(r.analyst_consensus_target_price) &&
     r.analyst_consensus_target_price > 0;
   const advNote = hasRealTarget
-    ? "Uplift vs analyst consensus target."
-    : "Uplift vs model-based target (no consensus on file).";
+    ? "Upside vs analyst consensus target."
+    : "Analyst consensus target unavailable; no synthetic target is generated.";
   const lines = [
     advNote,
-    Number.isFinite(adv) ? `Advisory uplift: ${adv.toFixed(2)}%` : "Advisory uplift: —",
+    Number.isFinite(adv) ? `Consensus upside: ${adv.toFixed(2)}%` : "Consensus upside: —",
     Number.isFinite(tech) ? `Technical room to highs: ${tech.toFixed(2)}%` : "Technical room: —",
     Number.isFinite(down) ? `Downside to support (approx.): ${down.toFixed(2)}%` : "Downside: —",
     Number.isFinite(ratio)
@@ -881,8 +929,16 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         </span>
       </td>
       <td className="px-3 py-2.5 text-center font-mono tabular-nums">
-        <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-        <span className={C.muted}>/5</span>
+        {isRowEligibleForConviction(r) ? (
+          <>
+            <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+            <span className={C.muted}>/5</span>
+          </>
+        ) : (
+          <span className={C.muted} title={r.analysis_reason ?? "Insufficient validated inputs"}>
+            —
+          </span>
+        )}
       </td>
       <td className="px-2 py-2.5 text-center lg:px-3">
         <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
@@ -976,8 +1032,16 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
               {convictionLabel(conviction)}
             </span>
             <span className="font-mono tabular-nums">
-              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-              <span className={C.muted}>/5</span>
+              {isRowEligibleForConviction(r) ? (
+                <>
+                  <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+                  <span className={C.muted}>/5</span>
+                </>
+              ) : (
+                <span className={C.muted} title={r.analysis_reason ?? "Insufficient validated inputs"}>
+                  —
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -1382,13 +1446,17 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               if (String(r.symbol).toUpperCase() !== sym) return r;
               touched = true;
               const row = { ...r };
-              if (price != null && price > 0) row.price = price;
+              if (price != null && price > 0) {
+                row.price = price;
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
+              }
               row.quote_stale = isInitial && (msg.quote_stale === true || quoteAge > 90_000);
               row.quote_ts = quoteTs;
               if (!isInitial && chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
                 row.day_bias = chg > 0 ? "buy" : chg < 0 ? "sell" : "flat";
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "change_pct");
               }
               return row;
             });
@@ -1520,15 +1588,16 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       sumC = 0,
       sumW = 0;
     for (const r of boardRows) {
-      if (Number.isFinite(r.price)) {
+      const missing = new Set(r.missing_fields ?? []);
+      if (!missing.has("price") && Number.isFinite(r.price) && r.price > 0) {
         sumP += r.price;
         np++;
       }
-      if (Number.isFinite(r.liquidity)) {
+      if (!missing.has("liquidity") && Number.isFinite(r.liquidity)) {
         sumL += r.liquidity;
         nl++;
       }
-      if (Number.isFinite(r.volume)) {
+      if (!missing.has("volume") && Number.isFinite(r.volume)) {
         sumV += r.volume;
         nv++;
       }
@@ -1635,7 +1704,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [boardRows, tableSort, rowSparklines, rowPeriodChanges, period]);
 
   const fearGreed = useMemo(() => {
-    if (period === "daily") return fearGreedFromBoardRows(boardRows);
+    if (period === "daily") {
+      return fearGreedFromBoardRows(
+        boardRows.filter((row) => !row.missing_fields?.includes("change_pct"))
+      );
+    }
     return fearGreedFromChangePct(boardAggregates?.avgChangePct);
   }, [boardRows, period, boardAggregates?.avgChangePct]);
 
@@ -1756,15 +1829,15 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           <span
             className="inline-flex items-center gap-1.5 rounded-full border border-[#16c784]/35 bg-[#16c784]/10 px-3 py-1 text-[11px] font-semibold text-[#16c784]"
           >
-            Buy
+            Bullish
           </span>
           <span
             className="inline-flex items-center gap-1.5 rounded-full border border-[#ea3943]/35 bg-[#ea3943]/10 px-3 py-1 text-[11px] font-semibold text-[#ea3943]"
           >
-            Sell
+            Bearish
           </span>
           <span className={`rounded-full border ${C.line} px-3 py-1 text-[11px] ${C.muted}`}>
-            Green / red = snapshot day up or down
+            Green / red = positive / negative session bias
           </span>
           <span className={`rounded-full border border-[#3861fb]/30 bg-[#3861fb]/10 px-3 py-1 text-[11px] font-medium text-[#7b9cff]`}>
             Hover a row for radar
@@ -2113,7 +2186,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             <div className="pointer-events-none">
               <BeginnerRadarChart
                 data={hoverRadarRow.radar}
-                fearGreed={fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol] ?? undefined)}
+                fearGreed={
+                  Number.isFinite(rowPeriodChanges[hoverRadarRow.symbol])
+                    ? fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol]!)
+                    : null
+                }
               />
             </div>
           </Link>,

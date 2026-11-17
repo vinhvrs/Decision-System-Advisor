@@ -19,7 +19,7 @@ TABLES: dict[str, tuple[str, str]] = {
 
 
 def dev_mode() -> str:
-    return os.environ.get("DEV_MODE", "dev").strip().lower()
+    return os.environ.get("DEV_MODE", "production").strip().lower()
 
 
 def use_demo_tables() -> bool:
@@ -29,11 +29,12 @@ def use_demo_tables() -> bool:
     if mode in ("dev", "demo", "local"):
         return True
     legacy = os.environ.get("DASHBOARD_USE_DEMO", "").strip().lower()
-    if legacy in ("1", "true", "yes", "on"):
-        return True
     if legacy in ("0", "false", "no", "off"):
         return False
-    return mode != "production"
+    if legacy in ("1", "true", "yes", "on"):
+        return True
+    # Unknown/missing modes fail closed to production tables.
+    return False
 
 
 def table(logical: str) -> str:

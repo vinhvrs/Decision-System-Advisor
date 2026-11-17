@@ -905,7 +905,7 @@ class SnapshotService
                 'legend' => [
                     'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).',
                     'tie_break' => 'Pool = top symbols by snapshot volume in the database. Redis dashboard:daily was empty.',
-                    'buy_sell' => 'Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.',
+                    'buy_sell' => 'Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It is descriptive research context, not investment advice.',
                 ],
                 'updated_at' => now()->utc()->toIso8601String(),
                 'source' => 'laravel:database_fallback',
@@ -927,6 +927,11 @@ class SnapshotService
         $ranked = $this->buildBeginnerRankingRowsFromSnapshotRows($snapRows);
 
         usort($ranked, function (array $a, array $b): int {
+            $eligibleA = ! empty($a['analysis_eligible']) ? 1 : 0;
+            $eligibleB = ! empty($b['analysis_eligible']) ? 1 : 0;
+            if ($eligibleA !== $eligibleB) {
+                return $eligibleB <=> $eligibleA;
+            }
             if ($a['strong_count'] !== $b['strong_count']) {
                 return $b['strong_count'] <=> $a['strong_count'];
             }
@@ -982,7 +987,7 @@ class SnapshotService
             'legend' => [
                 'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).',
                 'tie_break' => 'Pool = top symbols by snapshot volume from the database (Redis dashboard:daily was empty). Tie-break: liquidity → volume → watchlist saves → symbol.',
-                'buy_sell' => 'Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.',
+                'buy_sell' => 'Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It is descriptive research context, not investment advice.',
             ],
             'updated_at' => now()->utc()->toIso8601String(),
             'source' => 'laravel:database_fallback',
@@ -1059,9 +1064,9 @@ class SnapshotService
     protected function beginnerDashboardBiasSuggestion(string $bias): string
     {
         return match ($bias) {
-            'buy' => 'Snapshot up day — informational only, not advice.',
-            'sell' => 'Snapshot down day — informational only, not advice.',
-            default => 'Flat snapshot — no directional bias from open/close.',
+            'buy' => 'Bullish session bias — snapshot is positive; descriptive only, not investment advice.',
+            'sell' => 'Bearish session bias — snapshot is negative; descriptive only, not investment advice.',
+            default => 'Neutral session bias — snapshot is flat; descriptive only, not investment advice.',
         };
     }
 
@@ -1268,14 +1273,41 @@ class SnapshotService
 
         $confidenceBySymbol = $this->analysisConfidenceBySymbols($symbols->all());
 
+        $numericOrNull = static function ($value): ?float {
+            if (! is_numeric($value)) {
+                return null;
+            }
+            $number = (float) $value;
+
+            return is_finite($number) ? $number : null;
+        };
+
         $bySymbol = [];
         foreach ($rows as $r) {
             $sym = strtoupper(trim((string) $r->symbol));
             $people = (int) ($watchCounts[$sym] ?? 0);
             $iid = (string) $r->instrument_id;
-            $chg = abs((float) $r->change_pct);
+            $price = $numericOrNull($r->price ?? null);
+            $volume = $numericOrNull($r->volume ?? null);
+            $liquidity = $numericOrNull($r->liquidity ?? null);
+            $changePct = $numericOrNull($r->change_pct ?? null);
+
+            $missingFields = [];
+            if ($price === null || $price <= 0) {
+                $missingFields[] = 'price';
+            }
+            if ($volume === null || $volume < 0) {
+                $missingFields[] = 'volume';
+            }
+            if ($liquidity === null || $liquidity < 0) {
+                $missingFields[] = 'liquidity';
+            }
+            if ($changePct === null) {
+                $missingFields[] = 'change_pct';
+            }
+
             // Keep the Change spoke aligned with the displayed 24H % column.
-            $candleMove = $chg;
+            $candleMove = $changePct === null ? null : abs($changePct);
 
             $logo = isset($r->company_logo) && $r->company_logo !== null && trim((string) $r->company_logo) !== ''
                 ? trim((string) $r->company_logo)
@@ -1285,25 +1317,36 @@ class SnapshotService
                 'instrument_id' => $iid,
                 'company_name' => (string) $r->company_name,
                 'logo_url' => $logo,
-                'price' => (float) $r->price,
-                'volume' => (float) $r->volume,
-                'liquidity' => (float) $r->liquidity,
-                'change_pct' => (float) $r->change_pct,
+                // Keep legacy numeric fields for existing consumers, but never use a missing value in ranking math.
+                'price' => $price ?? 0.0,
+                'volume' => $volume ?? 0.0,
+                'liquidity' => $liquidity ?? 0.0,
+                'change_pct' => $changePct ?? 0.0,
+                'price_for_score' => $price,
+                'volume_for_score' => $volume,
+                'liquidity_for_score' => $liquidity,
+                'change_pct_for_score' => $changePct,
                 'people_watching' => $people,
-                'candle_move_abs_pct' => round($candleMove, 4),
+                'candle_move_abs_pct' => $candleMove,
+                'analysis_eligible' => $missingFields === [],
+                'data_state' => $missingFields === [] ? 'ok' : 'partial',
+                'analysis_reason' => $missingFields === []
+                    ? null
+                    : 'Required market inputs are missing; conviction is intentionally withheld.',
+                'missing_fields' => $missingFields,
             ];
         }
 
         $priceScores = $this->quintileScoresBySymbol(collect($bySymbol)->mapWithKeys(
-            fn ($d, $sym) => [$sym => $d['price']]
+            fn ($d, $sym) => [$sym => $d['price_for_score']]
         )->all());
 
         $volScores = $this->quintileScoresBySymbol(collect($bySymbol)->mapWithKeys(
-            fn ($d, $sym) => [$sym => $d['volume']]
+            fn ($d, $sym) => [$sym => $d['volume_for_score']]
         )->all());
 
         $liqScores = $this->quintileScoresBySymbol(collect($bySymbol)->mapWithKeys(
-            fn ($d, $sym) => [$sym => $d['liquidity']]
+            fn ($d, $sym) => [$sym => $d['liquidity_for_score']]
         )->all());
 
         $peopleScores = $this->quintileScoresBySymbol(collect($bySymbol)->mapWithKeys(
@@ -1332,16 +1375,24 @@ class SnapshotService
                 'analysis_confidence' => $conf,
             ];
 
-            $strongCount = $this->beginnerStrongCountFive($scores);
+            $scoreInputsComplete =
+                array_key_exists($sym, $priceScores) &&
+                array_key_exists($sym, $candleScores) &&
+                array_key_exists($sym, $volScores) &&
+                array_key_exists($sym, $liqScores) &&
+                array_key_exists($sym, $peopleScores);
+            $analysisEligible = (bool) $d['analysis_eligible'] && $scoreInputsComplete;
 
-            $radar = [
+            $strongCount = $analysisEligible ? $this->beginnerStrongCountFive($scores) : 0;
+
+            $radar = $analysisEligible ? [
                 ['subject' => 'Signal', 'value' => $scores['reputation']],
                 ['subject' => 'Price', 'value' => $scores['price_period']],
                 ['subject' => 'Change', 'value' => $scores['candle_change']],
                 ['subject' => 'Volume', 'value' => $scores['volume']],
                 ['subject' => 'Liquidity', 'value' => $scores['liquidity']],
                 ['subject' => 'Watchers', 'value' => $scores['people_care']],
-            ];
+            ] : [];
 
             $chg = round((float) $d['change_pct'], 2);
 
@@ -1359,6 +1410,12 @@ class SnapshotService
                 'candle_move_abs_pct' => $d['candle_move_abs_pct'],
                 'change_pct_snapshot' => $chg,
                 'day_bias' => $chg > 0 ? 'buy' : ($chg < 0 ? 'sell' : 'flat'),
+                'analysis_eligible' => $analysisEligible,
+                'data_state' => $analysisEligible ? 'ok' : 'partial',
+                'analysis_reason' => $analysisEligible
+                    ? null
+                    : ($d['analysis_reason'] ?? 'Required ranking inputs are incomplete; conviction is intentionally withheld.'),
+                'missing_fields' => $d['missing_fields'] ?? [],
             ];
         }
 
@@ -1397,6 +1454,10 @@ class SnapshotService
                     'radar' => $row['radar'],
                     'scores' => $row['scores'],
                     'strong_count' => $row['strong_count'],
+                    'analysis_eligible' => $row['analysis_eligible'] ?? true,
+                    'data_state' => $row['data_state'] ?? 'ok',
+                    'analysis_reason' => $row['analysis_reason'] ?? null,
+                    'missing_fields' => $row['missing_fields'] ?? [],
                     'change_pct_snapshot' => $chg,
                     'fear_greed' => $this->beginnerFearGreedFromChangePct($chg),
                     'pool_limit' => $poolLimit,
@@ -1437,7 +1498,7 @@ class SnapshotService
                 'legend' => [
                     'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted). Higher rank = more strong traits.',
                     'tie_break' => 'The board pool is the top symbols by snapshot volume (cached up to 3 hours). If two rows tie on strong traits, we order by liquidity, then volume, then watchlist saves.',
-                    'buy_sell' => 'Green “Buy” / red “Sell” uses the same daily snapshot % change as our dashboard (up vs down). It is not financial advice.',
+                    'buy_sell' => 'Green “Bullish” / red “Bearish” uses the same daily snapshot % change as our dashboard. It describes session direction, not a trade instruction.',
                 ],
             ];
         }
@@ -1445,6 +1506,11 @@ class SnapshotService
         $ranked = $this->buildBeginnerRankingRowsFromSnapshotRows($rows);
 
         usort($ranked, function (array $a, array $b): int {
+            $eligibleA = ! empty($a['analysis_eligible']) ? 1 : 0;
+            $eligibleB = ! empty($b['analysis_eligible']) ? 1 : 0;
+            if ($eligibleA !== $eligibleB) {
+                return $eligibleB <=> $eligibleA;
+            }
             if ($a['strong_count'] !== $b['strong_count']) {
                 return $b['strong_count'] <=> $a['strong_count'];
             }
@@ -1469,7 +1535,7 @@ class SnapshotService
             'legend' => [
                 'strong_rule' => 'Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted). Higher rank = more strong traits.',
                 'tie_break' => 'The board pool is the top symbols by snapshot volume (cached up to 3 hours). If two rows tie on strong traits, we order by liquidity, then volume, then watchlist saves.',
-                'buy_sell' => 'Green “Buy” / red “Sell” uses the same daily snapshot % change as our dashboard (up vs down). It is not financial advice.',
+                'buy_sell' => 'Green “Bullish” / red “Bearish” uses the same daily snapshot % change as our dashboard. It describes session direction, not a trade instruction.',
             ],
         ];
     }
