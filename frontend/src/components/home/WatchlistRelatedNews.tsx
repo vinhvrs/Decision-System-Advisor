@@ -1,5 +1,4 @@
 /* eslint-disable @next/next/no-img-element */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -13,19 +12,20 @@ import {
   pickNewsThumbImage,
   resolveNewsHref,
 } from "@/src/libs/newsArticle";
+import type { News } from "@/src/types/News";
 
 const MAX_SYMBOLS = 18;
 const PER_SYMBOL = 12;
 const DISPLAY_CAP = 12;
 
-function publishedMs(item: any): number {
+function publishedMs(item: News): number {
   const raw = item?.published_at || item?.created_at;
   if (!raw) return 0;
   const t = new Date(raw).getTime();
   return Number.isFinite(t) ? t : 0;
 }
 
-function formatRelativeDate(dateString: string) {
+function formatRelativeDate(dateString: string | Date) {
   const now = new Date();
   const publishedDate = new Date(dateString);
   const diffInMs = now.getTime() - publishedDate.getTime();
@@ -47,7 +47,7 @@ function formatRelativeDate(dateString: string) {
 
 export default function WatchlistRelatedNews() {
   const { items: watchlist, loading: watchlistLoading } = useWatchlist();
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<Array<News & { _watchSymbols: string[] }>>([]);
   const [loadedSymbolKey, setLoadedSymbolKey] = useState("");
 
   const symbols = useMemo(
@@ -69,7 +69,7 @@ export default function WatchlistRelatedNews() {
     (async () => {
       const byId = new Map<
         string,
-        { item: any; symbols: Set<string>; ts: number }
+        { item: News; symbols: Set<string>; ts: number }
       >();
 
       const results = await Promise.allSettled(
