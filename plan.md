@@ -35,6 +35,12 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [ ] C5 Rebuild accurate README/methodology/install/deploy docs, including source licensing boundaries.
 **Exit:** data lineage and age visible and truthful; all published documents checked, no indefinite loading.
 
+### Terminology gate — before UI polish
+- [x] Replace user-facing Buy/Hold/Sell conviction labels on Rankings/Market View with Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish / Not Rated.
+- [x] Keep internal enum compatibility where required; presentation layer maps to research terminology.
+- [x] Remove advisory language such as overweight/accumulate/trim from composite signal tooltips.
+- [ ] Audit remaining public pages for raw BUY/SELL/HOLD strings and convert presentation only.
+
 ### Phase 3 — UI foundation (P1)
 - [ ] D1 Audit existing CSS/components/route shells in **verified live source**, define design tokens (typography, spacing, color, border, radius, elevation, density and responsive).
 - [ ] D2 Create component system: page header, symbol header, toolbar, card/section, table, chart frame, status, tooltip, empty state, modal.
