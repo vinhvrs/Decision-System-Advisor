@@ -266,18 +266,16 @@ export default function TradingChart({
 
   const canTrade = !isChecking && readHasTradingSession();
 
-  const activeSymbol = (
-    lockSymbol ||
-    selectedInstrument?.symbol ||
-    defaultSymbol
-  ).toUpperCase();
+  const selectedSymbol = selectedInstrument?.symbol?.toUpperCase() ?? "";
+  const activeSymbol = (lockSymbol || selectedSymbol || defaultSymbol).toUpperCase();
+  const realtimeClose = realtimeCandle?.close;
 
   const currentPriceBySymbol = useMemo(
     () =>
-      activeSymbol && realtimeCandle?.close != null
-        ? { [activeSymbol]: Number(realtimeCandle.close) }
+      activeSymbol && realtimeClose != null
+        ? { [activeSymbol]: Number(realtimeClose) }
         : undefined,
-    [activeSymbol, realtimeCandle?.close]
+    [activeSymbol, realtimeClose]
   );
 
   const {
@@ -305,11 +303,16 @@ export default function TradingChart({
 
   useEffect(() => {
     if (!lockSymbol) return;
-    setSelectedInstrument(normalizeInstrument({ symbol: lockSymbol.toUpperCase() }));
+    const frame = window.requestAnimationFrame(() => {
+      setSelectedInstrument(normalizeInstrument({ symbol: lockSymbol.toUpperCase() }));
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [lockSymbol]);
 
   useEffect(() => {
-    if (controlledPeriod) setSelectedPeriod(controlledPeriod);
+    if (!controlledPeriod) return;
+    const frame = window.requestAnimationFrame(() => setSelectedPeriod(controlledPeriod));
+    return () => window.cancelAnimationFrame(frame);
   }, [controlledPeriod]);
 
   const loadingMoreCandlesRef = useRef(false);
@@ -414,41 +417,52 @@ export default function TradingChart({
   }, [defaultSymbol, lockSymbol]);
 
   useEffect(() => {
-    if (!selectedInstrument?.symbol) return;
+    if (!selectedSymbol) return;
 
-    setLoadingChart(true);
-    setChartError(null);
-
+    let cancelled = false;
     requestKeyRef.current += 1;
-    setCandles([]);
-    setRealtimeCandle(null);
-    setHasMoreCandles(true);
-    setCandlePage(1);
     candlePageRef.current = 1;
     loadingMoreCandlesRef.current = false;
 
+    const resetFrame = window.requestAnimationFrame(() => {
+      setLoadingChart(true);
+      setChartError(null);
+      setCandles([]);
+      setRealtimeCandle(null);
+      setHasMoreCandles(true);
+      setCandlePage(1);
+    });
+
     loadCandlePage({
-      symbol: selectedInstrument.symbol,
+      symbol: selectedSymbol,
       periodType: selectedPeriod,
       page: 1,
       replace: true,
     })
       .then((formatted) => {
+        if (cancelled) return;
         if (!formatted || formatted.length === 0) {
-          setChartError(`No candle data for ${selectedInstrument.symbol}`);
+          setChartError(`No candle data for ${selectedSymbol}`);
         }
       })
       .catch((error) => {
+        if (cancelled) return;
         console.error("Initial candle load error:", error);
         setChartError("Failed to load candle data");
       })
       .finally(() => {
-        setLoadingChart(false);
+        if (!cancelled) setLoadingChart(false);
       });
-  }, [selectedInstrument?.symbol, selectedPeriod, loadCandlePage]);
+
+    return () => {
+      cancelled = true;
+      requestKeyRef.current += 1;
+      window.cancelAnimationFrame(resetFrame);
+    };
+  }, [selectedSymbol, selectedPeriod, loadCandlePage]);
 
   const loadMoreCandles = useCallback(() => {
-    if (!selectedInstrument?.symbol) return;
+    if (!selectedSymbol) return;
     if (loadingMoreCandlesRef.current) return;
     if (!hasMoreCandles) return;
 
@@ -457,17 +471,17 @@ export default function TradingChart({
     const nextPage = candlePageRef.current + 1;
 
     loadCandlePage({
-      symbol: selectedInstrument.symbol,
+      symbol: selectedSymbol,
       periodType: selectedPeriod,
       page: nextPage,
       replace: false,
     }).finally(() => {
       loadingMoreCandlesRef.current = false;
     });
-  }, [selectedInstrument?.symbol, selectedPeriod, hasMoreCandles, loadCandlePage]);
+  }, [selectedSymbol, selectedPeriod, hasMoreCandles, loadCandlePage]);
 
   useEffect(() => {
-    if (!selectedInstrument?.symbol) return;
+    if (!selectedSymbol) return;
 
     currentCandleFromDBRef.current = null;
 
@@ -476,7 +490,7 @@ export default function TradingChart({
       const sym = msg.symbol;
 
       if (msg.type === "initial_quote") {
-        if (sym !== selectedInstrument.symbol) return;
+        if (sym !== selectedSymbol) return;
         if (msg.current_candle) {
           currentCandleFromDBRef.current = msg.current_candle;
           setRealtimeCandle(msg.current_candle);
@@ -485,7 +499,7 @@ export default function TradingChart({
       }
 
       if (msg.type !== "quote") return;
-      if (sym !== selectedInstrument.symbol) return;
+      if (sym !== selectedSymbol) return;
 
       const price = Number((data as { price: number }).price);
       const volume = Number((data as { volume?: number }).volume) || undefined;
@@ -508,7 +522,7 @@ export default function TradingChart({
           previousRealtime: prev,
           latestHistorical,
           currentCandleFromDB: currentCandleFromDBRef.current,
-          symbol: selectedInstrument.symbol,
+          symbol: selectedSymbol,
         });
       });
     });
@@ -518,7 +532,7 @@ export default function TradingChart({
     const timer = setTimeout(() => {
       socket.send({
         type: "subscribe",
-        symbols: [selectedInstrument.symbol],
+        symbols: [selectedSymbol],
         period: selectedPeriod,
       });
     }, 500);
@@ -529,7 +543,7 @@ export default function TradingChart({
       setRealtimeCandle(null);
       currentCandleFromDBRef.current = null;
     };
-  }, [selectedInstrument?.symbol, selectedPeriod]);
+  }, [selectedSymbol, selectedPeriod]);
 
   const onToggleIndicator = (item: { id: string; label: string }) => {
     setSelectedIndicators((prev) => {
