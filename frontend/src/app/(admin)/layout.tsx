@@ -46,29 +46,33 @@ export default function AdminLayout({
   useEffect(() => {
     if (pathname === "/admin/auth") return;
 
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
-      localStorage.removeItem("user");
-      router.replace("/admin/auth");
-      return;
-    }
+    const timer = window.setTimeout(() => {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        localStorage.removeItem("user");
+        router.replace("/admin/auth");
+        return;
+      }
 
-    const u = localStorage.getItem("user");
-    if (u) {
-      try {
-        const parsed = JSON.parse(u);
-        setUser(parsed);
-        const role = parsed?.role;
-        if (role !== "admin" && role !== "staff") {
-          alert("Forbidden. Admin or staff role required.");
-          router.replace("/auth/login");
+      const u = localStorage.getItem("user");
+      if (u) {
+        try {
+          const parsed = JSON.parse(u) as { name?: string; role?: string };
+          setUser(parsed);
+          const role = parsed.role;
+          if (role !== "admin" && role !== "staff") {
+            alert("Forbidden. Admin or staff role required.");
+            router.replace("/auth/login");
+          }
+        } catch {
+          router.replace("/admin/auth");
         }
-      } catch {
+      } else {
         router.replace("/admin/auth");
       }
-    } else {
-      router.replace("/admin/auth");
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [router, pathname]);
 
   useEffect(() => {
