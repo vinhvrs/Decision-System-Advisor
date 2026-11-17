@@ -27,14 +27,17 @@ export default function ChatbotSelectPage() {
   const [selected, setSelected] = useState<ChatbotScopeId | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(CHATBOT_SCOPE_STORAGE_KEY);
-      if (raw && CHATBOT_SCOPE_OPTIONS.some((o) => o.id === raw)) {
-        setSelected(raw as ChatbotScopeId);
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem(CHATBOT_SCOPE_STORAGE_KEY);
+        if (raw && CHATBOT_SCOPE_OPTIONS.some((o) => o.id === raw)) {
+          setSelected(raw as ChatbotScopeId);
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const persist = (id: ChatbotScopeId) => {
