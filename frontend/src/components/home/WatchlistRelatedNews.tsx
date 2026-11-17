@@ -1,5 +1,4 @@
 /* eslint-disable @next/next/no-img-element */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -13,19 +12,20 @@ import {
   pickNewsThumbImage,
   resolveNewsHref,
 } from "@/src/libs/newsArticle";
+import type { News } from "@/src/types/News";
 
 const MAX_SYMBOLS = 18;
 const PER_SYMBOL = 12;
 const DISPLAY_CAP = 12;
 
-function publishedMs(item: any): number {
+function publishedMs(item: News): number {
   const raw = item?.published_at || item?.created_at;
   if (!raw) return 0;
   const t = new Date(raw).getTime();
   return Number.isFinite(t) ? t : 0;
 }
 
-function formatRelativeDate(dateString: string) {
+function formatRelativeDate(dateString: string | Date) {
   const now = new Date();
   const publishedDate = new Date(dateString);
   const diffInMs = now.getTime() - publishedDate.getTime();
@@ -47,8 +47,8 @@ function formatRelativeDate(dateString: string) {
 
 export default function WatchlistRelatedNews() {
   const { items: watchlist, loading: watchlistLoading } = useWatchlist();
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<Array<News & { _watchSymbols: string[] }>>([]);
+  const [loadedSymbolKey, setLoadedSymbolKey] = useState("");
 
   const symbols = useMemo(
     () =>
@@ -59,22 +59,17 @@ export default function WatchlistRelatedNews() {
     [watchlist]
   );
 
-  useEffect(() => {
-    if (watchlistLoading) return;
+  const symbolKey = symbols.join(",");
 
-    if (symbols.length === 0) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    if (watchlistLoading || symbols.length === 0) return;
 
     let cancelled = false;
 
     (async () => {
-      setLoading(true);
       const byId = new Map<
         string,
-        { item: any; symbols: Set<string>; ts: number }
+        { item: News; symbols: Set<string>; ts: number }
       >();
 
       const results = await Promise.allSettled(
@@ -104,43 +99,45 @@ export default function WatchlistRelatedNews() {
       const merged = [...byId.values()]
         .sort((a, b) => b.ts - a.ts)
         .slice(0, DISPLAY_CAP)
-        .map(({ item, symbols }) => ({
+        .map(({ item, symbols: matchedSymbols }) => ({
           ...item,
-          _watchSymbols: [...symbols].sort(),
+          _watchSymbols: [...matchedSymbols].sort(),
         }));
 
       if (!cancelled) {
         setRows(merged);
-        setLoading(false);
+        setLoadedSymbolKey(symbolKey);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [watchlistLoading, symbols]);
+  }, [watchlistLoading, symbols, symbolKey]);
 
-  if (watchlistLoading || loading) {
-    return (
-      <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
-        <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div
-              key={i}
-              className="h-48 rounded-xl bg-white/5 animate-pulse border border-white/5"
-            />
-          ))}
-        </div>
-      </Card>
-    );
-  }
+  const loading = watchlistLoading || (symbols.length > 0 && loadedSymbolKey !== symbolKey);
 
-  if (symbols.length === 0) {
+  if (!watchlistLoading && symbols.length === 0) {
     return (
       <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
         <p className="text-sm text-white/60">
           Add symbols to your watchlist to see related market news here.
         </p>
+      </Card>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
+        <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              className="h-40 animate-pulse rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]"
+            />
+          ))}
+        </div>
       </Card>
     );
   }

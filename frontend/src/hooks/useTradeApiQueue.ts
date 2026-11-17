@@ -25,8 +25,11 @@ export function useTradeApiQueue(options: {
 }) {
   const queueRef = useRef<QueuedAction[]>([]);
   const optionsRef = useRef(options);
-  optionsRef.current = options;
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const inflightCreatesRef = useRef<Set<string>>(new Set());
 

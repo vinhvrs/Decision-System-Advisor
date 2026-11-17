@@ -92,7 +92,7 @@ async function fallbackCompanies(query: string): Promise<{ from: "bot"; text: st
   return [{ from: "bot", text: ["Company search (Elastic API)", "", ...lines].join("\n") }];
 }
 
-async function fallbackIndicator(_query: string): Promise<{ from: "bot"; text: string }[]> {
+async function fallbackIndicator(): Promise<{ from: "bot"; text: string }[]> {
   const advices = await AdviceService.getAdvices(12, 1);
   if (!advices?.length) {
     return [{ from: "bot", text: "No watchlist / stock rows from /stocks API." }];
@@ -111,7 +111,7 @@ async function fallbackIndicator(_query: string): Promise<{ from: "bot"; text: s
   ];
 }
 
-async function fallbackStrategy(_query: string): Promise<{ from: "bot"; text: string }[]> {
+async function fallbackStrategy(): Promise<{ from: "bot"; text: string }[]> {
   const { gainers, losers, updated_note } = await CompanyService.topVolumeMovers(5);
   const lines: string[] = ["Volume movers (rankings API)"];
   if (updated_note) lines.push(`Note: ${updated_note}`, "");
@@ -153,7 +153,7 @@ async function fallbackAnalyze(query: string): Promise<{ from: "bot"; text: stri
       /* use indicator-style fallback */
     }
   }
-  return fallbackIndicator(query);
+  return fallbackIndicator();
 }
 
 export async function runScopeApiFallback(
@@ -166,10 +166,10 @@ export async function runScopeApiFallback(
     case "companies":
       return fallbackCompanies(query);
     case "analysis":
-      return fallbackStrategy(query);
+      return fallbackStrategy();
     case "indicator":
     case "strategy":
-      return fallbackIndicator(query);
+      return fallbackIndicator();
     case "analyze":
       return fallbackAnalyze(query);
     default:

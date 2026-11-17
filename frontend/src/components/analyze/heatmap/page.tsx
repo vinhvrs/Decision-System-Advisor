@@ -27,7 +27,6 @@ export default function HeatmapPage({ maxTiles = HEATMAP_DISPLAY_TILE_MAX }: Hea
   const data = useMemo(() => mergeHeatmapRows(raw).slice(0, maxTiles), [raw, maxTiles]);
 
   useEffect(() => {
-    setLoading(true);
     heatmapService
       .getHeatmapData({ limit: FETCH_LIMIT, sector: HEATMAP_SECTOR_TECHNOLOGY })
       .then((rows) => {
@@ -55,7 +54,7 @@ export default function HeatmapPage({ maxTiles = HEATMAP_DISPLAY_TILE_MAX }: Hea
       <div className="relative aspect-square w-full overflow-hidden rounded-lg">
         {loadError && (
           <p className="absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm text-white/50">
-            Could not load heatmap. Check rankings sync / API.
+            Heatmap data is currently unavailable.
           </p>
         )}
         {!loadError && loading && (

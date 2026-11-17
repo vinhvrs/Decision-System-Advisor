@@ -20,11 +20,11 @@ function NewsListPageContent() {
   const [hasMore, setHasMore] = useState(true);
 
   // --- Logic hiển thị thời gian ---
-  const formatDisplayDate = (dateString: string) => {
-    if (!dateString) return "Just now";
+  const formatDisplayDate = (dateString: string | Date) => {
+    if (!dateString) return "Time unavailable";
     const now = new Date();
-    const publishedDate = new Date(dateString);
-    if (Number.isNaN(publishedDate.getTime())) return "Just now";
+    const publishedDate = dateString instanceof Date ? dateString : new Date(dateString);
+    if (Number.isNaN(publishedDate.getTime())) return "Time unavailable";
     const diffInMs = now.getTime() - publishedDate.getTime();
     if (diffInMs <= 0) return "Just now";
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
@@ -58,7 +58,8 @@ function NewsListPageContent() {
 
   const fetchPage = async (targetPage: number, mode: "replace" | "append") => {
     try {
-      mode === "replace" ? setIsLoading(true) : setIsLoadingMore(true);
+      if (mode === "replace") setIsLoading(true);
+      else setIsLoadingMore(true);
       const res = await newsService.getAllNews({ page: targetPage, per_page: 15 });
       const batch = res.data || [];
       if (mode === "replace") {
@@ -87,23 +88,23 @@ function NewsListPageContent() {
   }, [selectedNewsId, items]);
 
   return (
-    <main className="flex h-[calc(100vh-56px)] phone:h-[calc(100vh-64px)] w-full overflow-hidden bg-[#0B1220] text-white font-sans">
+    <main className="-mx-3 -my-4 flex h-[calc(100vh_-_var(--dsa-header-height))] w-[calc(100%_+_1.5rem)] overflow-hidden bg-[var(--dsa-bg)] font-sans text-white phone:-mx-4 phone:w-[calc(100%_+_2rem)] tablet:-mx-5 tablet:w-[calc(100%_+_2.5rem)] laptop:-mx-6 laptop:w-[calc(100%_+_3rem)]">
       
       {/* Cột danh sách bên trái */}
-      <section className="flex h-full w-full flex-col border-r border-white/10 tablet:w-[340px] laptop:w-[400px] pc:w-[450px]">
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <Newspaper size={18} className="text-blue-400" />
+      <section className="flex h-full w-full flex-col border-r border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] tablet:w-[340px] laptop:w-[400px] pc:w-[450px]">
+        <div className="flex items-center justify-between border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-2.5">
+          <h1 className="flex items-center gap-2 text-sm font-semibold">
+            <Newspaper size={16} className="text-[#8ab4ff]" />
             Full feed
           </h1>
-          <div className="text-[10px] uppercase tracking-widest text-white/40">Real-time</div>
+          <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--dsa-text-muted)]">Latest feed</div>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {isLoading ? (
-            <div className="p-10 text-center text-white/20 animate-pulse">Loading feed...</div>
+            <div className="p-10 text-center text-xs text-[var(--dsa-text-muted)] animate-pulse">Loading feed…</div>
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-[var(--dsa-border)]">
               {items.map((item) => {
                 const { imageUrl } = parseContent(item.content || "");
                 const thumb = imageUrl || pickNewsThumbImage(item as any);
@@ -114,8 +115,8 @@ function NewsListPageContent() {
                   <div
                     key={item.id}
                     onClick={() => setSelectedNews(item)}
-                    className={`flex gap-4 cursor-pointer p-4 transition-all hover:bg-white/5 ${
-                      selectedNews?.id === item.id ? "bg-blue-500/10 border-l-4 border-blue-500" : "border-l-4 border-transparent"
+                    className={`flex cursor-pointer gap-3 border-l-2 px-3 py-3 transition-colors hover:bg-[var(--dsa-surface-2)] ${
+                      selectedNews?.id === item.id ? "border-l-[#4c8dff] bg-[var(--dsa-accent-soft)]" : "border-l-transparent"
                     }`}
                   >
                     <div className="flex-1">
@@ -124,18 +125,18 @@ function NewsListPageContent() {
                           <Clock size={12} />
                           {timeLabel}
                         </div>
-                        <span className="text-blue-400/80 font-medium">
+                        <span className="font-medium text-[#8ab4ff]">
                           • {(item as any).author?.split?.(",")?.[0]?.trim() || "News"}
                         </span>
                       </div>
                       <h2 className={`text-sm font-semibold leading-snug line-clamp-2 ${
-                        selectedNews?.id === item.id ? "text-blue-400" : "text-white/90"
+                        selectedNews?.id === item.id ? "text-[#a9c7ff]" : "text-white/90"
                       }`}>
                         {item.title}
                       </h2>
                     </div>
                     {thumb && (
-                      <div className="relative h-14 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-white/5 bg-white/5">
+                      <div className="relative h-14 w-16 flex-shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                         <img src={thumb} alt="thumb" className="h-full w-full object-cover" />
                       </div>
                     )}
@@ -143,7 +144,7 @@ function NewsListPageContent() {
                 );
               })}
               {hasMore && (
-                <button onClick={() => fetchPage(page + 1, "append")} className="w-full p-6 text-xs font-bold text-white/40 hover:text-white transition-colors">
+                <button onClick={() => fetchPage(page + 1, "append")} className="w-full p-4 text-xs font-medium text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-white">
                   {isLoadingMore ? "Processing..." : "Load more news"}
                 </button>
               )}
@@ -153,30 +154,30 @@ function NewsListPageContent() {
       </section>
 
       {/* Cột nội dung bên phải */}
-      <section className="hidden h-full flex-1 flex-col bg-[#0b1220] tablet:flex">
+      <section className="hidden h-full flex-1 flex-col bg-[var(--dsa-bg)] tablet:flex">
         {selectedNews ? (
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-end p-4 border-b border-white/5 bg-[#0B1220]">
+            <div className="flex items-center justify-end border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-2">
                <button onClick={() => setSelectedNews(null)} className="text-white/40 hover:text-white transition-colors"><X size={24} /></button>
             </div>
             
-            <article className="flex-1 overflow-y-auto p-4 tablet:p-6 laptop:p-8 pc:p-12 custom-scrollbar bg-[#0B1220]">
+            <article className="custom-scrollbar flex-1 overflow-y-auto bg-[var(--dsa-bg)] p-4 tablet:p-6 laptop:p-8 pc:p-10">
               <div className="max-w-3xl mx-auto">
                 {(() => {
                   const { imageUrl, body } = parseContent(selectedNews.content || "");
                   return (
                     <>
                       <div className="mb-6 flex items-center gap-4">
-                        <span className="rounded-lg bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-400 border border-blue-500/20">
+                        <span className="rounded-[var(--dsa-radius-sm)] border border-[rgba(76,141,255,0.28)] bg-[var(--dsa-accent-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#a9c7ff]">
                           {selectedNews.author?.split(',')[0] || "Market News"}
                         </span>
                         <span className="flex items-center gap-1.5 text-xs text-white/40">
                           <Calendar size={14} />
-                          {new Date(selectedNews.published_at).toLocaleString('en-GB')}
+                          {formatDisplayDate(selectedNews.published_at)}
                         </span>
                       </div>
 
-                      <h1 className="text-xl phone:text-2xl tablet:text-3xl laptop:text-4xl font-black leading-tight mb-6 tablet:mb-8 text-white">{selectedNews.title}</h1>
+                      <h1 className="mb-5 text-xl font-semibold leading-tight tracking-[-0.02em] text-white phone:text-2xl tablet:text-3xl">{selectedNews.title}</h1>
 
                       {selectedNews.source && (
                         <p className="mb-6 text-sm text-white/60">
@@ -193,7 +194,7 @@ function NewsListPageContent() {
                       )}
 
                       {imageUrl && (
-                        <div className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 shadow-2xl">
+                        <div className="relative mb-8 overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]">
                           <img 
                             src={imageUrl} 
                             alt="feature" 
@@ -203,7 +204,7 @@ function NewsListPageContent() {
                         </div>
                       )}
 
-                      <div className="prose prose-invert max-w-none text-white/80 leading-relaxed text-lg pb-20">
+                      <div className="prose prose-invert max-w-none pb-16 text-[15px] leading-relaxed text-[var(--dsa-text-secondary)]">
                         {body?.split('\n').map((para, idx) => (
                           para.trim() && <p key={idx} className="mb-6">{para}</p>
                         ))}
@@ -214,14 +215,14 @@ function NewsListPageContent() {
 
                 <div className="mt-12 mb-8 pt-8 border-t border-white/5">
                   <p className="text-[11px] text-white/20 italic tracking-wider uppercase">
-                    © 2026 Decision Stock Advisor · Institutional Grade Analysis
+                    DSA · Source-linked market news
                   </p>
                 </div>
               </div>
             </article>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-white/5 bg-[#0B1220]">
+          <div className="flex h-full items-center justify-center bg-[var(--dsa-bg)] text-white/10">
             <div className="text-center">
                 <Newspaper size={100} strokeWidth={0.5} className="mx-auto mb-4" />
                 <p className="text-sm font-medium tracking-widest uppercase">Select an article to read</p>
@@ -244,7 +245,7 @@ export default function NewsListPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex h-[calc(100vh-4rem)] items-center justify-center bg-[#0B1220] text-white/40">
+        <main className="flex h-[calc(100vh_-_var(--dsa-header-height))] items-center justify-center bg-[var(--dsa-bg)] text-[var(--dsa-text-muted)]">
           Loading news…
         </main>
       }

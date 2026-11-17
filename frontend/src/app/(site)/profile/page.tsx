@@ -63,14 +63,17 @@ export default function ProfilePage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    syncAccessTokenFromCookie();
-    if (!readIsLoggedIn()) {
-      router.replace("/auth/login");
-      return;
-    }
-    setUser(readStoredUser());
-    setReady(true);
+    const hydrate = () => {
+      syncAccessTokenFromCookie();
+      if (!readIsLoggedIn()) {
+        router.replace("/auth/login");
+        return;
+      }
+      setUser(readStoredUser());
+      setReady(true);
+    };
 
+    const initialHydration = window.setTimeout(hydrate, 0);
     const onAuth = () => {
       if (!readIsLoggedIn()) {
         router.replace("/auth/login");
@@ -79,7 +82,10 @@ export default function ProfilePage() {
       setUser(readStoredUser());
     };
     window.addEventListener("auth-changed", onAuth);
-    return () => window.removeEventListener("auth-changed", onAuth);
+    return () => {
+      window.clearTimeout(initialHydration);
+      window.removeEventListener("auth-changed", onAuth);
+    };
   }, [router]);
 
   const displayName = useMemo(() => {

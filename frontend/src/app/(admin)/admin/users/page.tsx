@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AdminService } from "@/src/services/Admin.service";
 import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
-import { Loader2, ChevronDown } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 type User = { id: string; name: string; email: string; username?: string; role: string };
 

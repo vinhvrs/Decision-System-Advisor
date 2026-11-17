@@ -160,8 +160,6 @@ export const AdviceService = {
     const analysts = Math.max(num_analysts_eps || 0, num_analysts_revenue || 0);
 
     const rec = recommendation?.toUpperCase() || 'HOLD';
-    const emoji = rec === 'BUY' ? '🟢' : rec === 'SELL' ? '🔴' : '🟡';
-
     let tone = '';
     const reasoning = [];
 

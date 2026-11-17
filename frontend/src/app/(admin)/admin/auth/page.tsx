@@ -35,15 +35,19 @@ export default function AdminAuthPage() {
     try {
       await AuthService.loginAdmin({ email, password, remember });
       router.replace("/admin");
-    } catch (err: any) {
-      if (err?.message === "FORBIDDEN") {
+    } catch (err: unknown) {
+      const error = err as {
+        message?: string;
+        response?: { data?: { message?: string }; status?: number };
+      };
+      if (error.message === "FORBIDDEN") {
         alert("Forbidden. Admin or staff role required.");
         router.replace("/auth/login");
         return;
       }
       const errorMessage =
-        err?.response?.data?.message ||
-        (err?.response?.status === 429
+        error.response?.data?.message ||
+        (error.response?.status === 429
           ? "Too many attempts. Please try again later."
           : "Login failed. Please check your email and password.");
       setError(errorMessage);

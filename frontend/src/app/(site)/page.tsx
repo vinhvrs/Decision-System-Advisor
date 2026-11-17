@@ -3,14 +3,14 @@ import HomeHeroBanner from "./HomeHeroBanner";
 import HomeMarketView from "./HomeMarketView";
 
 export const metadata: Metadata = {
-  title: "Beginner market view | DSA",
+  title: "Market overview",
   description:
-    "Dashboard-style view: ranked symbols, radar scores, snapshot price and change, volume, liquidity, and watchlist interest — explained in plain language.",
+    "Market research workspace with ranked symbols, multi-factor signals, price action, liquidity, and explicit data eligibility.",
 };
 
 export default function HomePage() {
   return (
-    <div className="-mx-4 min-w-0 phone:-mx-5 tablet:-mx-6">
+    <div className="-mx-3 min-w-0 phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
       <HomeHeroBanner />
       <HomeMarketView variant="dashboard-daily" />
     </div>

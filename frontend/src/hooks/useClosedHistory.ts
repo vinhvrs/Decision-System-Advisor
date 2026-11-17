@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { TradingServices } from "@/src/services/Trading.service";
-import type { Tickets, PaginatedTickets } from "@/src/types/Tickets";
+import type { Tickets } from "@/src/types/Tickets";
 
 const PAGE_SIZE = 15;
 

@@ -14,9 +14,6 @@ export const errorBtnPrimary =
 export const errorBtnGhost =
   "rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/10";
 
-const btnPrimary = errorBtnPrimary;
-const btnGhost = errorBtnGhost;
-
 export function ErrorFallback({ code, title, description, actions }: ErrorFallbackProps) {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center px-4 py-16 text-center">

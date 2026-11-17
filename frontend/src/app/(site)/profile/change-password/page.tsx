@@ -15,12 +15,15 @@ export default function ChangePasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
-    syncAccessTokenFromCookie();
-    if (!readIsLoggedIn()) {
-      router.replace("/auth/login");
-      return;
-    }
-    setReady(true);
+    const timer = window.setTimeout(() => {
+      syncAccessTokenFromCookie();
+      if (!readIsLoggedIn()) {
+        router.replace("/auth/login");
+        return;
+      }
+      setReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [router]);
 
   if (!ready) {

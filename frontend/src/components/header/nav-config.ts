@@ -1,14 +1,14 @@
-/** Static nav metadata — defined once so it is not recreated on every Header render. */
+/** Static research-workspace navigation metadata. */
 export const SITE_NAV_LINKS = [
-  { label: "News", href: "/news" },
+  { label: "Markets", href: "/" },
   { label: "Screener", href: "/screener" },
-  { label: "Investing", href: "/investing" },
+  { label: "Research", href: "/investing" },
   { label: "Indicators", href: "/indicators" },
+  { label: "News", href: "/news" },
   { label: "Documents", href: "/documents" },
-  { label: "Contact", href: "/contact" },
 ] as const;
 
-/** Paths that should highlight a nav item (e.g. legacy routes merged into one tab). */
+/** Paths that should highlight a nav item (e.g. legacy routes merged into one workspace). */
 export const SITE_NAV_ACTIVE_ALIASES: Record<string, string[]> = {
   "/screener": ["/screener", "/instrument"],
   "/investing": ["/investing", "/trading"],

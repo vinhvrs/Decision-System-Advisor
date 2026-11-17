@@ -79,16 +79,16 @@ function periodChangeForRow(row: BeginnerBoardRow, closes: number[], period: Per
   return null;
 }
 
-/** CMC-like palette */
+/** Shared research-terminal palette. */
 const C = {
-  page: "bg-[#0b0e11]",
-  surface: "bg-[#171a1f]",
-  card: "bg-[#1e2329] border border-[#2b3139]",
-  text: "text-[#eaecef]",
-  muted: "text-[#848e9c]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
-  line: "border-[#2b3139]",
+  page: "bg-[var(--dsa-bg)]",
+  surface: "bg-[var(--dsa-surface-1)]",
+  card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
+  text: "text-[var(--dsa-text)]",
+  muted: "text-[var(--dsa-text-muted)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
+  line: "border-[var(--dsa-border)]",
 };
 
 /** Short list for the beginner board (API + UI). */
@@ -888,7 +888,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
       onMouseEnter={(e) => onRowEnter(symUp, e)}
       onMouseMove={onRowMove}
       onMouseLeave={onRowLeave}
-      className={`cursor-default border-b border-[#2b3139]/80 transition hover:bg-white/[0.04] ${
+      className={`cursor-default border-b border-[var(--dsa-border)]/80 transition hover:bg-white/[0.04] ${
         stripe ? "bg-white/[0.015]" : ""
       } ${convictionBorderClass(conviction)}`}
     >
@@ -947,7 +947,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         {formatUsd(r.liquidity)}
       </td>
       <td className="px-2 py-2.5 text-right font-mono tabular-nums lg:px-3">{r.people_watching}</td>
-      <td className="border-l border-[#2b3139]/60 px-1 py-1.5 align-middle">
+      <td className="border-l border-[var(--dsa-border)]/60 px-1 py-1.5 align-middle">
         {sparklinesLoading ? (
           <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
         ) : (
@@ -980,7 +980,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
   const conviction = convictionFromRow(r);
   return (
     <div
-      className={`rounded-xl border border-[#2b3139]/80 p-3 transition ${
+      className={`rounded-xl border border-[var(--dsa-border)]/80 p-3 transition ${
         stripe ? "bg-white/[0.02]" : ""
       } ${convictionBorderClass(conviction)}`}
     >
@@ -1227,7 +1227,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   const dashboardWsRef = useRef<SimpleSocket | null>(null);
 
   useEffect(() => {
-    setRowSparklines({});
+    const frame = window.requestAnimationFrame(() => setRowSparklines({}));
+    return () => window.cancelAnimationFrame(frame);
   }, [period]);
 
   useEffect(() => {
@@ -1269,7 +1270,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [isRedisDaily, boardRows.length]);
 
   useEffect(() => {
-    setPortalReady(true);
+    const frame = window.requestAnimationFrame(() => setPortalReady(true));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -1427,6 +1429,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           price?: unknown;
           change?: unknown;
           quote_ts?: number;
+          ts?: number;
           quote_stale?: boolean;
           payload?: BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] };
         };
@@ -1520,9 +1523,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   useEffect(() => {
     if (!boardSparklineSymKey) {
-      setRowSparklines({});
-      setSparklinesLoading(false);
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setRowSparklines({});
+        setSparklinesLoading(false);
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
     let cancelled = false;
 
@@ -1717,7 +1722,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   return (
     <div className={`min-h-screen ${C.page} ${C.text} font-sans antialiased`}>
       {/* Top strip — CMC-style compact header */}
-      <header className={`sticky top-0 z-40 border-b ${C.line} ${C.surface}/95 backdrop-blur-md`}>
+      <header className={`sticky top-[var(--dsa-header-height)] z-30 border-b ${C.line} ${C.surface}`}>
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
           <h1 className="min-w-0 text-sm font-semibold tracking-tight text-white sm:text-base">
             Market view
@@ -1740,7 +1745,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
             >
               <Home className="h-3.5 w-3.5 shrink-0" />
-              Investing site
+              Research workspace
             </Link>
           </div>
         </div>
@@ -1750,7 +1755,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         {/* Stat widgets — stack on small screens, grid on medium, optional horizontal scroll on very wide */}
         <section className="mb-4 grid grid-cols-1 gap-3 phone:grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-3 xl:grid-cols-5 xl:gap-3">
           <div
-            className={`relative min-w-0 overflow-hidden rounded-2xl ${C.card} p-4 xl:min-w-[200px] xl:shrink-0 2xl:min-w-[220px]`}
+            className={`relative min-w-0 overflow-hidden rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[200px] xl:shrink-0 2xl:min-w-[220px]`}
           >
             <div className="pointer-events-none absolute inset-x-0 bottom-0 top-8 opacity-[0.35]">
               <MiniSparkline values={boardAvgSparkline} netChangePct={boardAggregates?.avgChangePct ?? null} />
@@ -1776,7 +1781,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[180px] xl:shrink-0 2xl:min-w-[200px]`}>
+          <div className={`min-w-0 rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[180px] xl:shrink-0 2xl:min-w-[200px]`}>
             <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg Vol $</p>
             {!headerStatsReady ? (
               <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
@@ -1789,7 +1794,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[160px] xl:shrink-0`}>
+          <div className={`min-w-0 rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[160px] xl:shrink-0`}>
             <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg volume</p>
             {!headerStatsReady ? (
               <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
@@ -1803,13 +1808,13 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[180px] xl:shrink-0`}>
+          <div className={`min-w-0 rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[180px] xl:shrink-0`}>
             <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Board Vol $ (sum)</p>
             <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{formatUsd(boardLiquiditySum)}</p>
             <p className={`mt-1 text-[11px] ${C.muted}`}>Sum of price × volume for rows on this list (not market cap)</p>
           </div>
 
-          <div className={`relative flex min-w-0 flex-row items-center gap-3 overflow-hidden rounded-2xl ${C.card} p-3 xl:min-w-[220px] xl:flex-1 xl:shrink-0 2xl:min-w-[260px]`}>
+          <div className={`relative flex min-w-0 flex-row items-center gap-3 overflow-hidden rounded-[var(--dsa-radius-md)] ${C.card} p-3 xl:min-w-[220px] xl:flex-1 xl:shrink-0 2xl:min-w-[260px]`}>
             <div className="shrink-0">
               <FearGreedGauge value={fearGreed.value} />
             </div>
@@ -1861,7 +1866,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         )}
 
         {/* Main ranking + radar */}
-        <section className={`rounded-2xl ${C.card} overflow-hidden`}>
+        <section className={`rounded-[var(--dsa-radius-md)] ${C.card} overflow-hidden`}>
           <div className={`flex flex-col gap-2 border-b ${C.line} px-3 py-3 phone:px-4 sm:flex-row sm:items-center sm:justify-between`}>
             <div className="flex min-w-0 items-center gap-2">
               <Trophy className="h-5 w-5 shrink-0 text-[#f0b90b]" />
@@ -1904,7 +1909,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                 ))}
               </div>
 
-              <div className="hidden overflow-x-auto rounded-lg border border-[#2b3139]/80 tablet:block [-webkit-overflow-scrolling:touch]">
+              <div className="hidden overflow-x-auto rounded-lg border border-[var(--dsa-border)]/80 tablet:block [-webkit-overflow-scrolling:touch]">
                 <table className="w-full min-w-[700px] text-left text-sm laptop:min-w-[800px]">
                   <thead>
                     <tr className={`sticky top-0 z-10 ${C.surface} text-[11px] font-semibold uppercase tracking-wide ${C.muted}`}>
@@ -2049,7 +2054,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
         {/* Detail cards — same content, CMC-style tiles */}
         <div className="mt-6 grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
-          <div className={`rounded-2xl ${C.card} p-4`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
             <div className="flex items-center gap-2">
               <Heart className="h-4 w-4 text-pink-400" />
               <h3 className="text-sm font-semibold">Watchlist saves (list)</h3>
@@ -2062,7 +2067,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-[#16c784]" />
               <h3 className="text-sm font-semibold">Avg move (list)</h3>
@@ -2083,7 +2088,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4 tablet:col-span-2 laptop:col-span-1`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4 tablet:col-span-2 laptop:col-span-1`}>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-amber-400" />
               <h3 className="text-sm font-semibold">Avg close trajectory</h3>
@@ -2114,7 +2119,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
             <div className="flex items-center gap-2">
               <Droplets className="h-4 w-4 text-cyan-400" />
               <h3 className="text-sm font-semibold">Avg liquidity & volume</h3>
@@ -2131,7 +2136,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4 tablet:col-span-2`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4 tablet:col-span-2`}>
             <div className="flex items-start gap-2">
               <Users className="mt-0.5 h-4 w-4 text-[#3861fb]" />
               <div>
@@ -2167,7 +2172,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             role="link"
             aria-label={`Open ${hoverRadarRow.symbol} company profile`}
             style={{ top: radarPopover.top, left: radarPopover.left }}
-            className={`fixed z-[200] block w-[min(340px,calc(100vw-24px))] cursor-pointer overflow-visible rounded-xl border border-[#2b3139] bg-[#1e2329] p-3 shadow-2xl shadow-black/70 no-underline outline-none transition-colors pointer-events-auto hover:border-[#3861fb]/45 hover:bg-[#23272e] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50`}
+            className={`fixed z-[200] block w-[min(340px,calc(100vw-24px))] cursor-pointer overflow-visible rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-3 shadow-2xl shadow-black/70 no-underline outline-none transition-colors pointer-events-auto hover:border-[#3861fb]/45 hover:bg-[#23272e] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50`}
             onMouseEnter={cancelRadarHide}
             onMouseLeave={scheduleRadarHide}
           >
