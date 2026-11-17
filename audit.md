@@ -28,6 +28,7 @@ Scope: aitemple.tech public surfaces + GitHub `vinhvrs/Decision-System-Advisor` 
 | BUG-012 | P2 | VERIFY | Charts/screener/data tables | Responsive overflow, clipped chart labels, tooltip/hovers, skeleton layout shifts, zoom/pan retention, mobile touch not yet tested. | Screenshot and interaction QA at 390/768/1024/1440px; no clipping, unintended resets, inaccessible controls. |
 | BUG-013 | P2 | VERIFY | App runtime, crawlability | CSR-only page text, console/API errors, loading/hydration, LCP and route-to-route loading need measurement. | Automated accessibility/performance/route smoke results saved; critical content SSR/prerendered where appropriate. |
 | BUG-014 | P2 | VERIFY | Documents/navigation/footer | Dead links, misleading navigational items, stale links and public downloads require systematic crawl. | No broken user-facing destinations in tested public routes. |
+| BUG-015 | P0 | CONFIRMED-SOURCE | backend runtime / Composer | Dockerfile is PHP 8.2 and composer.json allowed ^8.2 while composer.lock/vendor platform check require PHP >=8.4. Fresh install fails on PHP 8.2/8.3. | Runtime, Dockerfile, composer constraint, lock file and deployed PHP version agree; clean composer install + tests pass on the declared version before release. |
 
 ## Improvement opportunities (not automatically defects)
 
