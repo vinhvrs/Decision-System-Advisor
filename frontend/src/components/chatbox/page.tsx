@@ -22,7 +22,30 @@ const TYPEAHEAD_MIN_LEN = 2;
 const TYPEAHEAD_DEBOUNCE_MS = 280;
 
 const WELCOME_TEXT =
-  "Auto: send empty (or type a ticker / company name) for top mixed BUY/SELL picks vs single-name analysis. Other focuses add context to your question.";
+  "Auto: send empty (or type a ticker / company name) for mixed Bullish/Bearish research views vs single-name analysis. Other focuses add context to your question.";
+
+function researchBiasLabel(value: unknown): string {
+  const normalized = String(value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  switch (normalized) {
+    case "STRONG_BUY":
+    case "STRONG_BULLISH":
+      return "Strong Bullish";
+    case "BUY":
+    case "BULLISH":
+      return "Bullish";
+    case "SELL":
+    case "BEARISH":
+      return "Bearish";
+    case "STRONG_SELL":
+    case "STRONG_BEARISH":
+      return "Strong Bearish";
+    case "HOLD":
+    case "NEUTRAL":
+      return "Neutral";
+    default:
+      return value == null || String(value).trim() === "" ? "Not Rated" : String(value);
+  }
+}
 
 function chatbotWsUrl(): string {
   const override = (process.env.NEXT_PUBLIC_CHATBOT_WS || "").trim();
@@ -77,7 +100,7 @@ function payloadToBotMessages(payload: any): { from: "bot"; text: string }[] {
         ? result.response.warnings.map((w: string) => `• ${w}`).join("\n")
         : "• None";
       const text = [
-        `${result.symbol} — ${result.response.recommendation}`,
+        `${result.symbol} — ${researchBiasLabel(result.response.recommendation)}`,
         "",
         highlights,
         "",
@@ -402,7 +425,7 @@ export default function ChatBox() {
 
     const userLabel =
       isAuto && !raw
-        ? "Top BUY/SELL picks (Auto)"
+        ? "Bullish/Bearish research views (Auto)"
         : !isAuto && !raw && scope === "news"
           ? "Latest headlines"
           : !isAuto && !raw && scope === "companies"
