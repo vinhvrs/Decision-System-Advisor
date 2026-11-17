@@ -18,6 +18,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [ ] P0.3 Determine canonical repo / branch; if live code is not committed, import under controlled branch only after checking secrets and binary data. Write repeatable staging and rollback runbook.
 - [ ] P0.4 Inventory every live route and take desktop/tablet/mobile screenshots, collect console/network errors, Lighthouse/accessibility and performance baseline.
 - [ ] P0.5 Audit runtime demo data, especially `frontend/src/app/(site)/market-overview/page.tsx`; confirm whether file exists in live build.
+- [~] P0.6 Align declared PHP runtime with dependency lock. Repository baseline candidate is updated to PHP 8.4; deployed Raspberry Pi PHP version still requires verification.
 **Exit:** verified mapping of live route → actual source and deployment, clean baseline, backups, reproducible QA. **BLOCK** later code changes until achieved.
 
 ### Phase 1 — Trust and data correctness (P0)
@@ -82,6 +83,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
 - 2026-11-18: P1 UI foundation started on isolated child branch: neutral design tokens, compact global shell, Market View/Investing/Indicators/News/Documents/Screener cleanup, and CI workflow added. No deployment performed.
 - 2026-11-18: Data Health / Market Analytics source gap reconfirmed in selected baseline candidate; do not recreate or overwrite those live modules until production source parity is established.
 - 2026-11-18: plan created from public-site content audit plus confirmed dated repository inspection; intentionally no deployment performed.
