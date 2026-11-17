@@ -87,7 +87,7 @@ function NewsListPageContent() {
   }, [selectedNewsId, items]);
 
   return (
-    <main className="-mx-3 -my-4 flex h-[calc(100vh-var(--dsa-header-height))] w-[calc(100%+1.5rem)] overflow-hidden bg-[var(--dsa-bg)] font-sans text-white phone:-mx-4 phone:w-[calc(100%+2rem)] tablet:-mx-5 tablet:w-[calc(100%+2.5rem)] laptop:-mx-6 laptop:w-[calc(100%+3rem)]">
+    <main className="-mx-3 -my-4 flex h-[calc(100vh_-_var(--dsa-header-height))] w-[calc(100%_+_1.5rem)] overflow-hidden bg-[var(--dsa-bg)] font-sans text-white phone:-mx-4 phone:w-[calc(100%_+_2rem)] tablet:-mx-5 tablet:w-[calc(100%_+_2.5rem)] laptop:-mx-6 laptop:w-[calc(100%_+_3rem)]">
       
       {/* Cột danh sách bên trái */}
       <section className="flex h-full w-full flex-col border-r border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] tablet:w-[340px] laptop:w-[400px] pc:w-[450px]">
@@ -244,7 +244,7 @@ export default function NewsListPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex h-[calc(100vh-var(--dsa-header-height))] items-center justify-center bg-[var(--dsa-bg)] text-[var(--dsa-text-muted)]">
+        <main className="flex h-[calc(100vh_-_var(--dsa-header-height))] items-center justify-center bg-[var(--dsa-bg)] text-[var(--dsa-text-muted)]">
           Loading news…
         </main>
       }
