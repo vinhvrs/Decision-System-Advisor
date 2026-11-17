@@ -28,7 +28,7 @@ const FundamentalRadar = memo(({ details }: { details: any }) => {
     { subject: 'Dividend', value: 45 },
     { subject: 'Liquidity', value: 98 },
     { subject: 'Sentiment', value: 92 },
-  ], [details?.instrument_id]);
+  ], [details?.industry, details?.full_time_employees]);
 
   return <div className="h-[280px] w-full"><RadarChartClient data={chartData} /></div>;
 });
