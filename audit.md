@@ -48,6 +48,12 @@ Scope: aitemple.tech public surfaces + GitHub `vinhvrs/Decision-System-Advisor` 
 | UX-013 | P3 | Finviz | Advanced heatmaps, screener presets and compact institutional-style dashboards. | Feature-gated until feed coverage sufficient. |
 | UX-014 | P3 | Fiscal.ai | Polished research notes, explainable AI summaries with source citations. | Never auto-assert unsupported predictions. |
 
+## Research terminology standard
+- User-facing directional labels: **Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish / Not Rated**.
+- Internal compatibility enums such as `BUY/SELL/HOLD` or `buy/sell/flat` may remain in APIs/storage when required, but should not be shown raw to end users.
+- Directional labels describe research/model bias, not an instruction to trade.
+- Missing/ineligible data must display **Not Rated**, never Bearish/Strong Bearish by default.
+
 ## Cross-cutting gates
 1. SOURCE GATE: establish GitHub/main-to-live parity, Raspberry Pi host checkout, deployed hash, backups and authoritative deploy pipeline.
 2. DATA GATE: preserve calculations, periods, datasets and licensing rules; golden dataset compare before/after at exact numeric precision where possible.
