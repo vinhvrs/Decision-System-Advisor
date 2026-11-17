@@ -210,10 +210,6 @@ function computeProfileScore(d: any): number {
   return Math.round((filled / keys.length) * 100);
 }
 
-function sentimentStorageKey(sym: string) {
-  return `dsa-profile-sentiment-${sym}`;
-}
-
 function StatTile({
   label,
   value,
@@ -264,8 +260,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlisted, setWatchlisted] = useState(false);
-  const [sentimentBull, setSentimentBull] = useState(42);
-  const [sentimentBear, setSentimentBear] = useState(8);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -320,9 +314,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const hasRecentSidebarNews =
     latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
-  const sentimentTotal = sentimentBull + sentimentBear;
-  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -338,33 +329,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
       /* ignore */
     }
   }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
-      if (!raw) return;
-      const j = JSON.parse(raw) as { bull?: number; bear?: number };
-      if (typeof j.bull === "number" && typeof j.bear === "number" && j.bull + j.bear > 0) {
-        setSentimentBull(j.bull);
-        setSentimentBear(j.bear);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      sessionStorage.setItem(
-        sentimentStorageKey(symbol),
-        JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [symbol, sentimentBull, sentimentBear]);
 
   useEffect(() => {
     let cancelled = false;
@@ -501,7 +465,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
       <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
         <Loader2 className="animate-spin mb-4" size={40} />
         <span className="uppercase tracking-[0.3em] text-sm animate-pulse">
-          Syncing Market Data...
+          Loading market data…
         </span>
       </div>
     );
@@ -536,9 +500,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
       }
     })();
   };
-
-  const voteBullish = () => setSentimentBull((b) => b + 1);
-  const voteBearish = () => setSentimentBear((b) => b + 1);
 
   const chartBlock = (
     <div className={`overflow-hidden rounded-xl ${CMC.card}`}>
@@ -679,8 +640,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </div>
 
                 <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${realtimeCandle?.close != null ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"}`} />
+                  {realtimeCandle?.close != null ? "Realtime quote received" : "Using loaded candle data"}
                 </p>
               </div>
             </div>
@@ -725,17 +686,17 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
             <div className={`rounded-xl ${CMC.card} p-4`}>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile score</span>
+                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile coverage</span>
                 <span className="text-xs font-bold text-[#f0b90b]">{profileScore}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#2b3139]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#c99400] to-[#f0b90b]"
+                  className="h-full rounded-full bg-[var(--dsa-warning)]"
                   style={{ width: `${profileScore}%` }}
                 />
               </div>
               <p className={`mt-2 text-[10px] leading-relaxed ${CMC.muted}`}>
-                How complete this company record is (name, sector, financials, description, etc.).
+                Coverage of available company fields (name, sector, financials, description, etc.); not an investment score.
               </p>
             </div>
 
@@ -797,12 +758,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 >
                   {watchlisted ? "Watching" : "Track symbol"}
                 </button>
-                <span
-                  className={`hidden rounded-lg border px-3 py-2 text-[11px] font-semibold sm:inline ${CMC.line} ${CMC.muted}`}
-                  title="Advanced layout and alerts (coming soon)"
-                >
-                  Pro view
-                </span>
+
               </div>
             </div>
 
@@ -1063,50 +1019,46 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </main>
 
           <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-white line-clamp-1">
+            <section className="dsa-panel p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="dsa-section-label">Data context</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-white">
                     {stripParentheticals(details?.company_name) || symbol}
                   </p>
-                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} votes on this device</p>
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 rounded-lg bg-[#3861fb] px-3 py-1.5 text-[11px] font-bold text-white"
-                  title="Coming soon"
+                  onClick={toggleWatchlist}
+                  className={watchlisted ? "dsa-button-primary min-h-0 px-2.5 py-1 text-[11px]" : "dsa-button-secondary min-h-0 px-2.5 py-1 text-[11px]"}
                 >
-                  + Follow
+                  {watchlisted ? "Watching" : "Add watchlist"}
                 </button>
               </div>
-              <p className={`mt-3 text-xs font-semibold ${CMC.muted}`}>Community sentiment</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
-                <div
-                  className="h-full rounded-full bg-[#16c784] transition-all duration-300"
-                  style={{ width: `${bullishPct}%` }}
-                />
-              </div>
-              <div className="mt-1 flex justify-between text-[11px] font-semibold">
-                <span className={CMC.green}>{bullishPct}% Bullish</span>
-                <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={voteBullish}
-                  className={`rounded-xl border-2 border-[#16c784]/50 py-2.5 text-xs font-bold ${CMC.green} transition hover:bg-[#16c784]/10`}
-                >
-                  Bullish
-                </button>
-                <button
-                  type="button"
-                  onClick={voteBearish}
-                  className={`rounded-xl border-2 border-[#ea3943]/50 py-2.5 text-xs font-bold ${CMC.red} transition hover:bg-[#ea3943]/10`}
-                >
-                  Bearish
-                </button>
-              </div>
-            </div>
+
+              <dl className="mt-3 divide-y divide-[var(--dsa-border)] border-y border-[var(--dsa-border)]">
+                <div className="flex items-center justify-between gap-3 py-2 text-xs">
+                  <dt className="text-[var(--dsa-text-muted)]">Price state</dt>
+                  <dd className="font-medium text-[var(--dsa-text-secondary)]">
+                    {realtimeCandle?.close != null ? "Realtime quote received" : candles.length ? "Latest loaded candle" : "Unavailable"}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2 text-xs">
+                  <dt className="text-[var(--dsa-text-muted)]">Profile coverage</dt>
+                  <dd className="font-mono font-semibold tabular-nums text-white">{profileScore}%</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2 text-xs">
+                  <dt className="text-[var(--dsa-text-muted)]">News context</dt>
+                  <dd className="font-medium text-[var(--dsa-text-secondary)]">
+                    {sidebarNews.length === 0 ? "No headlines" : hasRecentSidebarNews ? "Recent headlines" : "Archived headlines"}
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="mt-3 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+                No community sentiment is inferred from local interactions. Directional research labels are only shown where a validated source or model provides them.
+              </p>
+            </section>
 
             <div className={`rounded-xl ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
               <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
