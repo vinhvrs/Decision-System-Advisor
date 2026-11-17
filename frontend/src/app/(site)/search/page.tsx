@@ -81,53 +81,57 @@ function SearchResults() {
 
   useEffect(() => {
     const query = debouncedQ.trim();
-    if (query.length < 2) {
-      setResults([]);
-      setSuggestions([]);
-      setTotal(0);
-      setNewsResults([]);
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    setLoading(true);
-    Promise.all([
-      ElasticService.searchCompanies(query, 50),
-      newsService.getAllNews({ page: 1, per_page: 120 }),
-    ])
-      .then(([companyRes, newsRes]) => {
-        if (cancelled) return;
-        setResults(companyRes.items);
-        setTotal(companyRes.total);
-        setSuggestions(companyRes.suggestions ?? []);
 
-        const newsRows = Array.isArray(newsRes?.data) ? newsRes.data : [];
-        const rankedNews = newsRows
-          .map((n: SearchNewsItem) => ({
-            row: n,
-            score: fuzzyNewsScore(query, String(n?.title ?? ""), String(n?.content ?? "")),
-          }))
-          .filter((x) => x.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 8)
-          .map((x) => x.row);
-        setNewsResults(rankedNews);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setResults([]);
-          setTotal(0);
-          setSuggestions([]);
-          setNewsResults([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const timer = window.setTimeout(() => {
+      if (query.length < 2) {
+        setResults([]);
+        setSuggestions([]);
+        setTotal(0);
+        setNewsResults([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      Promise.all([
+        ElasticService.searchCompanies(query, 50),
+        newsService.getAllNews({ page: 1, per_page: 120 }),
+      ])
+        .then(([companyRes, newsRes]) => {
+          if (cancelled) return;
+          setResults(companyRes.items);
+          setTotal(companyRes.total);
+          setSuggestions(companyRes.suggestions ?? []);
+
+          const newsRows = Array.isArray(newsRes?.data) ? newsRes.data : [];
+          const rankedNews = newsRows
+            .map((n: SearchNewsItem) => ({
+              row: n,
+              score: fuzzyNewsScore(query, String(n?.title ?? ""), String(n?.content ?? "")),
+            }))
+            .filter((x) => x.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 8)
+            .map((x) => x.row);
+          setNewsResults(rankedNews);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setResults([]);
+            setTotal(0);
+            setSuggestions([]);
+            setNewsResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [debouncedQ]);
 
