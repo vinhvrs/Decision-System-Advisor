@@ -1,5 +1,6 @@
 import api from "@/src/libs/api";
 import { normalizeNewsListResponse } from "@/src/libs/newsArticle";
+import type { News } from "@/src/types/News";
 
 class NewsService {
     // Fetch all news with pagination
@@ -7,7 +8,7 @@ class NewsService {
         try {
             const response = await api.get("/news", { params, timeout: 25_000 });
             const paginated = response.data;
-            const rows = normalizeNewsListResponse(paginated?.data ?? paginated);
+            const rows = normalizeNewsListResponse<News>(paginated?.data ?? paginated);
             return {
                 data: rows,
                 pagination: {
