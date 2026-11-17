@@ -51,6 +51,11 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [ ] D6 Test responsiveness and accessibility at 390, 768, 1024 and 1440 pixels; snapshot visual regressions.
 **Exit:** visually coherent shell and components without changing backend calculations.
 
+### Canonical research-bias invariant
+- [x] Extract eligibility + multi-factor tilt thresholds into `frontend/src/libs/researchBias.ts`.
+- [x] Market View and Watchlist Dashboard consume the same helper; valid-row weights/thresholds are unchanged.
+- [ ] Any future user-facing stance component must consume the canonical helper or a documented backend-provided stance, not reimplement the formula locally.
+
 ### P0 cross-route regression sweep
 - [x] Market View / Rankings eligibility gate.
 - [x] Watchlist Dashboard local stance calculation now honors eligibility and uses Bullish/Bearish/Neutral/Not Rated presentation.

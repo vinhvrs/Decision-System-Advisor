@@ -25,6 +25,7 @@ DSA presents directional output as **market/research bias**, not trade instructi
 ## Target architecture / UI
 - Shared app shell: navigation/sidebar or compact top navigation, global symbol chooser, breadcrumbs, workspace state and data health indicator.
 - Shared components: table, chart, price/percent formatter, source/timestamp provenance strip, status, eligibility badge, glossary, error/empty/skeleton, timezone helper.
+- Canonical research-bias helper: one eligibility gate and one validated multi-factor tilt implementation shared by every frontend surface; presentation labels are Bullish/Bearish/Neutral/Not Rated.
 - Canonical data contract: `value | null`, typed missingness, `observed_at`, `retrieved_at`, `source`, `delay`, `eligibility`, `sample_count`, `calendar` where applicable; actual field names set after source audit.
 - No unsolicited models, score formulas, market entitlements, alternative data or derived returns inserted during UI refactor.
 - Public methodology + per-module source data documentation; carefully checked download inventory.

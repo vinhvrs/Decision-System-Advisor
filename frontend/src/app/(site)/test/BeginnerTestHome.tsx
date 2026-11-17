@@ -28,6 +28,14 @@ import SelectDropdown from "@/src/sections/Dropdown";
 import { stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 import { isDemoDevMode } from "@/src/libs/devMode";
 import { fearGreedFromBoardRows, fearGreedFromChangePct } from "@/src/libs/fearGreed";
+import {
+  type ResearchBiasKey,
+  isBeginnerRowEligibleForBias as isRowEligibleForConviction,
+  researchBiasFromRow as convictionFromRow,
+  researchBiasSortOrder as convictionSortOrder,
+  researchBiasLabel as convictionLabel,
+  researchBiasTitle as convictionInvestingTitle,
+} from "@/src/libs/researchBias";
 import { DEV_SYMBOL_SEED, type SymbolDevCompany } from "@/src/libs/symbolDevIdb";
 import {
   Heart,
@@ -404,112 +412,7 @@ function parseSocketQuoteNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" | "unrated";
-
-function radarScoresAverage(r: BeginnerBoardRow): number {
-  const s = r.scores;
-  const parts = [s.reputation, s.price_period, s.candle_change, s.volume, s.liquidity, s.people_care]
-    .map((x) => Number(x))
-    .filter((x) => Number.isFinite(x));
-  if (!parts.length) return 3;
-  return parts.reduce((a, b) => a + b, 0) / parts.length;
-}
-
-function isRowEligibleForConviction(r: BeginnerBoardRow): boolean {
-  if (r.analysis_eligible === false) return false;
-  if (r.data_state === "missing" || r.data_state === "partial" || r.data_state === "synthetic") {
-    return false;
-  }
-  const s = r.scores;
-  const scoreValues = [
-    s?.reputation,
-    s?.price_period,
-    s?.candle_change,
-    s?.volume,
-    s?.liquidity,
-    s?.people_care,
-  ].map((value) => Number(value));
-  const strong = Number(r.strong_count);
-  return (
-    scoreValues.length === 6 &&
-    scoreValues.every((value) => Number.isFinite(value) && value >= 1 && value <= 5) &&
-    Number.isFinite(strong) &&
-    strong >= 0 &&
-    strong <= 5 &&
-    Array.isArray(r.radar) &&
-    r.radar.length >= 5
-  );
-}
-
-/** Five-tier stance from validated Python-engine indicators only (Str + radar averages). */
-function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
-  if (!isRowEligibleForConviction(r)) return "unrated";
-  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
-  const avg = radarScoresAverage(r);
-  const indicatorTilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
-  if (indicatorTilt >= 2.2) return "strong_buy";
-  if (indicatorTilt >= 0.8) return "buy";
-  if (indicatorTilt <= -2.2) return "strong_sell";
-  if (indicatorTilt <= -0.8) return "sell";
-  return "hold";
-}
-
-function convictionSortOrder(c: Conviction5): number {
-  switch (c) {
-    case "strong_buy":
-      return 4;
-    case "buy":
-      return 3;
-    case "hold":
-      return 2;
-    case "sell":
-      return 1;
-    case "strong_sell":
-      return 0;
-    case "unrated":
-      return -1;
-    default:
-      return -1;
-  }
-}
-
-function convictionLabel(c: Conviction5): string {
-  switch (c) {
-    case "strong_buy":
-      return "Strong Bullish";
-    case "buy":
-      return "Bullish";
-    case "hold":
-      return "Neutral";
-    case "sell":
-      return "Bearish";
-    case "strong_sell":
-      return "Strong Bearish";
-    case "unrated":
-      return "Not Rated";
-    default:
-      return "Not Rated";
-  }
-}
-
-function convictionInvestingTitle(c: Conviction5): string {
-  switch (c) {
-    case "strong_buy":
-      return "Strong Bullish — the multi-factor indicator composite has a materially positive tilt. Research signal, not investment advice.";
-    case "buy":
-      return "Bullish — the multi-factor indicator composite has a positive tilt. Research signal, not investment advice.";
-    case "hold":
-      return "Neutral — the multi-factor indicator composite is balanced or mixed. Research signal, not investment advice.";
-    case "sell":
-      return "Bearish — the multi-factor indicator composite has a negative tilt. Research signal, not investment advice.";
-    case "strong_sell":
-      return "Strong Bearish — the multi-factor indicator composite has a materially negative tilt. Research signal, not investment advice.";
-    case "unrated":
-      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
-    default:
-      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
-  }
-}
+type Conviction5 = ResearchBiasKey;
 
 function convictionBorderClass(c: Conviction5): string {
   switch (c) {
