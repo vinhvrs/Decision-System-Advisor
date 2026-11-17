@@ -6,7 +6,7 @@ Key: ``dashboard`` (Redis DB from ``REDIS_DB`` in ``python_engine/.env``).
 Each ranking row includes:
   - name / symbol — company display name and ticker
   - change — daily snapshot % change (open→close)
-  - bias / suggestion — buy | sell | flat + short copy (informational, not advice)
+  - bias / suggestion — internal buy | sell | flat states rendered as Bullish | Bearish | Neutral research context
   - str — count of “strong” radar attributes (scores ≥ 4 on five spokes, same as Laravel beginner board)
   - liquidity, care (watchlist saves)
   - chart — recent daily close prices for sparkline-style UI
@@ -199,10 +199,10 @@ def parse_analysis_confidence(raw: Optional[str]) -> Optional[float]:
 
 def bias_suggestion(bias: str) -> str:
     if bias == "buy":
-        return "Snapshot up day — informational only, not advice."
+        return "Bullish session bias — snapshot is positive; descriptive only, not investment advice."
     if bias == "sell":
-        return "Snapshot down day — informational only, not advice."
-    return "Flat snapshot — no directional bias from open/close."
+        return "Bearish session bias — snapshot is negative; descriptive only, not investment advice."
+    return "Neutral session bias — snapshot is flat; descriptive only, not investment advice."
 
 
 def beginner_vs_prev_close_abs_pct(
@@ -640,7 +640,7 @@ def compute_dashboard(limit: int = 20) -> Dict[str, Any]:
             "legend": {
                 "strong_rule": "Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).",
                 "tie_break": "Pool = top symbols by snapshot volume. Tie-break: liquidity → volume → watchlist saves.",
-                "buy_sell": "Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.",
+                "buy_sell": "Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It describes direction, not a trade instruction.",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -758,7 +758,7 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
             "legend": {
                 "strong_rule": "Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).",
                 "tie_break": "Sorted by Str (strong trait count) descending, then liquidity, volume, watchlist saves, then symbol. Pool = top N symbols by snapshot volume.",
-                "buy_sell": "Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.",
+                "buy_sell": "Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It describes direction, not a trade instruction.",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "source": "python_engine:warm_up",
