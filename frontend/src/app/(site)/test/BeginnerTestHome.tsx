@@ -1740,7 +1740,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
             >
               <Home className="h-3.5 w-3.5 shrink-0" />
-              Investing site
+              Research workspace
             </Link>
           </div>
         </div>
