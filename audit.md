@@ -57,6 +57,11 @@ Scope: aitemple.tech public surfaces + GitHub `vinhvrs/Decision-System-Advisor` 
 - **P1 confirmed:** company profile watchlist controls were local-only `sessionStorage` flags and did not mutate the backend watchlist used by Watchlist Dashboard. Fixed on P1.5 by routing all profile controls through `useWatchlist()`.
 - **P2 confirmed:** Markets displayed static `ALL / Primary` chips that looked interactive but were not controls. Removed. Derived metrics are now labeled as **Last-bar $ volume** and **Bar volume / market cap** rather than ambiguous venue-volume terms.
 
+## Profile radar / placeholder follow-up
+- **P1 confirmed:** public company profile exposed a Holders tab without a holdings feed; it only instructed developers to connect one. Removed from navigation until a real source exists.
+- **P0/P1 hardening:** company profile radar now rejects ineligible dashboard/formal rows, including stale cached rows. Fear & Greed is withheld when change data is missing.
+- The metadata-only 0–100 fallback remains only for calls without a symbol and is explicitly labeled **heuristic profile-only illustration — not a market signal or ranking score**.
+
 ## Research terminology standard
 - User-facing directional labels: **Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish / Not Rated**.
 - Internal compatibility enums such as `BUY/SELL/HOLD` or `buy/sell/flat` may remain in APIs/storage when required, but should not be shown raw to end users.
