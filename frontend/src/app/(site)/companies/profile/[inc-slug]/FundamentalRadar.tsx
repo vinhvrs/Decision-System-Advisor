@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 
 import BeginnerRadarChart from "@/src/app/(site)/test/BeginnerRadarChart";
 import { fearGreedFromChangePct } from "@/src/libs/fearGreed";
+import { isBeginnerRowEligibleForBias } from "@/src/libs/researchBias";
 import {
   BeginnerService,
   readCachedDashboardRadarRow,
@@ -157,6 +158,26 @@ export type FundamentalRadarProps = {
   details?: any;
 };
 
+function formalRadarIsEligible(payload: BeginnerFormalRadarPayload | null): boolean {
+  if (!payload) return false;
+  if (payload.analysis_eligible === false) return false;
+  if (
+    payload.data_state === "missing" ||
+    payload.data_state === "partial" ||
+    payload.data_state === "synthetic"
+  ) {
+    return false;
+  }
+  return Array.isArray(payload.radar) && payload.radar.length >= 5;
+}
+
+function hasUsableChange(
+  payload: { change_pct_snapshot?: number; missing_fields?: string[] } | null | undefined
+): boolean {
+  if (!payload || payload.missing_fields?.includes("change_pct")) return false;
+  return Number.isFinite(Number(payload.change_pct_snapshot));
+}
+
 const FundamentalRadar = memo(
   ({
     symbol,
@@ -179,7 +200,8 @@ const FundamentalRadar = memo(
           setDashboardRow(null);
           return;
         }
-        setDashboardRow(readCachedDashboardRadarRow(sym));
+        const cached = readCachedDashboardRadarRow(sym);
+        setDashboardRow(cached && isBeginnerRowEligibleForBias(cached) ? cached : null);
         setLoading(true);
       }, 0);
 
@@ -198,7 +220,7 @@ const FundamentalRadar = memo(
               ? payload.rows
               : (payload as (typeof payload & { ranking_board?: BeginnerBoardRow[] }) | null)?.ranking_board ?? [];
           const row = rows.find((r) => String(r.symbol || "").trim().toUpperCase() === sym);
-          if (row?.radar?.length) setDashboardRow(row);
+          setDashboardRow(row && isBeginnerRowEligibleForBias(row) ? row : null);
         })
         .catch(() => {
           /* keep cached/formal fallback */
@@ -223,11 +245,15 @@ const FundamentalRadar = memo(
     }, [details]);
 
     if (symbol?.trim()) {
-      if (dashboardRow?.radar?.length) {
+      if (dashboardRow && isBeginnerRowEligibleForBias(dashboardRow)) {
         return (
           <BeginnerRadarChart
             data={dashboardRow.radar}
-            fearGreed={showFearGreed ? fearGreedFromChangePct(dashboardRow.change_pct_snapshot) : null}
+            fearGreed={
+              showFearGreed && hasUsableChange(dashboardRow)
+                ? fearGreedFromChangePct(dashboardRow.change_pct_snapshot)
+                : null
+            }
             variant={compact ? "compact" : "default"}
           />
         );
@@ -240,11 +266,15 @@ const FundamentalRadar = memo(
           </p>
         );
       }
-      if (formal?.radar?.length) {
+      if (formalRadarIsEligible(formal)) {
         return (
           <BeginnerRadarChart
-            data={formal.radar}
-            fearGreed={showFearGreed ? fearGreedFromChangePct(formal.change_pct_snapshot) : null}
+            data={formal!.radar}
+            fearGreed={
+              showFearGreed && hasUsableChange(formal)
+                ? fearGreedFromChangePct(formal!.change_pct_snapshot)
+                : null
+            }
             variant={compact ? "compact" : "default"}
           />
         );
@@ -261,7 +291,8 @@ const FundamentalRadar = memo(
         <div className="w-full">
           {!compact ? (
             <p className="mb-2 text-[10px] leading-snug text-gray-500">
-              Snapshot view without live symbol data. Open any company profile for the full radar.
+              Heuristic profile-only illustration from company metadata. It is not a market signal, ranking score, or
+              substitute for the eligible symbol radar.
             </p>
           ) : null}
           <div className={compact ? "h-[200px] w-full" : "h-[280px] w-full"}>

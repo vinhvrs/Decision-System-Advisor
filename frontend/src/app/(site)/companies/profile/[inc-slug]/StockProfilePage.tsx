@@ -41,7 +41,7 @@ import {
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
-type ProfileMainTab = "chart" | "markets" | "news" | "holders" | "fundamentals" | "about";
+type ProfileMainTab = "chart" | "markets" | "news" | "fundamentals" | "about";
 
 const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -242,7 +242,6 @@ const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "chart", label: "Chart" },
   { id: "markets", label: "Markets" },
   { id: "news", label: "News" },
-  { id: "holders", label: "Holders" },
   { id: "fundamentals", label: "Fundamentals" },
   { id: "about", label: "About" },
 ];
@@ -941,17 +940,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </section>
             )}
 
-            {mainTab === "holders" && (
-              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center`}>
-                <Layers className="mx-auto mb-3 h-10 w-10 text-[#3861fb] opacity-60" />
-                <h2 className="text-lg font-bold text-white">Holder distribution</h2>
-                <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
-                  Blockchain-style holder lists do not apply to this equity profile. Connect a cap-table or institutional
-                  holdings feed to show concentration and top holders here.
-                </p>
-              </section>
-            )}
-
             {mainTab === "fundamentals" && (
               <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                 <h2 className="mb-1 text-lg font-bold text-white">Fundamentals (SEC)</h2>
@@ -987,7 +975,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       },
                       { label: "IPO", value: formatDate(details?.ipo_date) },
                     ].map((x) => (
-                      <div key={x.label} className="rounded-lg bg-black/25 px-3 py-2.5">
+                      <div key={x.label} className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2.5">
                         <p className={`text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>{x.label}</p>
                         <p className="mt-0.5 text-sm font-medium text-white">{x.value}</p>
                       </div>
@@ -1007,13 +995,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </section>
 
                 <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
-                  <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-white">
-                    <Activity className="h-4 w-4 text-[#3861fb]" />
-                    Signal radar
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
+                    <Activity className="h-4 w-4 text-[#8ab4ff]" />
+                    Multi-factor radar
                   </h3>
                   <p className={`mb-3 text-[11px] leading-snug ${CMC.muted}`}>
-                    Five drivers — momentum, price action, volume, liquidity, and community interest — plus a daily mood
-                    strip. Scores are relative to large-cap peers for context.
+                    Eligible ranking context across Signal, Change, Volume, Liquidity, and Watchers. Scores are relative
+                    to the current ranking pool; Price remains available in the underlying six-axis payload but is hidden
+                    from this five-driver chart. Daily mood is shown only when change data is available.
                   </p>
                   <FundamentalRadar symbol={symbol} />
                 </section>
