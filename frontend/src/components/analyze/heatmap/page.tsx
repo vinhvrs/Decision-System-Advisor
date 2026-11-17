@@ -50,21 +50,32 @@ export default function HeatmapPage({ maxTiles = HEATMAP_DISPLAY_TILE_MAX }: Hea
   );
 
   return (
-    <div className="flex w-full flex-col">
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg">
+    <section className="dsa-panel flex w-full flex-col overflow-hidden">
+      <header className="flex items-center justify-between gap-3 border-b border-[var(--dsa-border)] px-3 py-2">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-white">Technology heatmap</p>
+          <p className="mt-0.5 truncate text-[10px] text-[var(--dsa-text-muted)]">
+            Tile area reflects liquidity; color reflects session change.
+          </p>
+        </div>
+        {!loading && !loadError ? (
+          <span className="shrink-0 font-mono text-[10px] text-[var(--dsa-text-muted)]">{data.length} symbols</span>
+        ) : null}
+      </header>
+      <div className="relative aspect-square w-full overflow-hidden">
         {loadError && (
-          <p className="absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm text-white/50">
+          <p className="absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-xs text-[var(--dsa-text-muted)]">
             Heatmap data is currently unavailable.
           </p>
         )}
         {!loadError && loading && (
-          <p className="absolute inset-0 z-10 flex items-center justify-center text-sm text-white/40">
+          <p className="absolute inset-0 z-10 flex items-center justify-center text-xs text-[var(--dsa-text-muted)]">
             Loading heatmap…
           </p>
         )}
         {!loadError && !loading && !data.length && raw.length > 0 && (
-          <p className="absolute inset-0 z-10 flex items-center justify-center text-sm text-white/40">
-            No heatmap rows returned.
+          <p className="absolute inset-0 z-10 flex items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+            No eligible heatmap rows are available.
           </p>
         )}
         {!loadError && !loading && data.length > 0 && (
@@ -77,6 +88,6 @@ export default function HeatmapPage({ maxTiles = HEATMAP_DISPLAY_TILE_MAX }: Hea
           />
         )}
       </div>
-    </div>
+    </section>
   );
 }

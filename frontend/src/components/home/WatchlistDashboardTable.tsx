@@ -24,19 +24,59 @@ function fmtSignedPct(n: number | null | undefined): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
-function biasFromIndicators(r: BeginnerBoardRow): "Strong Buy" | "Buy" | "Hold" | "Sell" | "Strong Sell" {
-  const s = r.scores;
-  const parts = [s.reputation, s.price_period, s.candle_change, s.volume, s.liquidity, s.people_care]
-    .map(Number)
-    .filter((v) => Number.isFinite(v));
-  const avg = parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : 3;
+type ResearchBias =
+  | "Strong Bullish"
+  | "Bullish"
+  | "Neutral"
+  | "Bearish"
+  | "Strong Bearish"
+  | "Not Rated";
+
+function rowIsEligible(r: BeginnerBoardRow): boolean {
+  if (r.analysis_eligible === false) return false;
+  if (r.data_state === "missing" || r.data_state === "partial" || r.data_state === "synthetic") return false;
+
+  const values = [
+    r.scores?.reputation,
+    r.scores?.price_period,
+    r.scores?.candle_change,
+    r.scores?.volume,
+    r.scores?.liquidity,
+    r.scores?.people_care,
+  ].map(Number);
+
+  return (
+    values.every((v) => Number.isFinite(v) && v >= 1 && v <= 5) &&
+    Number.isFinite(Number(r.strong_count))
+  );
+}
+
+function biasFromIndicators(r: BeginnerBoardRow): ResearchBias {
+  if (!rowIsEligible(r)) return "Not Rated";
+
+  const parts = [
+    r.scores.reputation,
+    r.scores.price_period,
+    r.scores.candle_change,
+    r.scores.volume,
+    r.scores.liquidity,
+    r.scores.people_care,
+  ].map(Number);
+  const avg = parts.reduce((a, b) => a + b, 0) / parts.length;
   const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
   const tilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
-  if (tilt >= 2.2) return "Strong Buy";
-  if (tilt >= 0.8) return "Buy";
-  if (tilt <= -2.2) return "Strong Sell";
-  if (tilt <= -0.8) return "Sell";
-  return "Hold";
+
+  if (tilt >= 2.2) return "Strong Bullish";
+  if (tilt >= 0.8) return "Bullish";
+  if (tilt <= -2.2) return "Strong Bearish";
+  if (tilt <= -0.8) return "Bearish";
+  return "Neutral";
+}
+
+function biasTone(stance: ResearchBias): string {
+  if (stance === "Strong Bullish" || stance === "Bullish") return "text-[var(--dsa-positive)]";
+  if (stance === "Strong Bearish" || stance === "Bearish") return "text-[var(--dsa-negative)]";
+  return "text-[var(--dsa-text-muted)]";
 }
 
 function MiniTrend({ values }: { values?: number[] }) {
@@ -148,18 +188,22 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
   );
 
   return (
-    <Card title="Watchlist Dashboard" className={clsx("min-w-0", className)}>
+    <Card
+      title="Watchlist"
+      subtitle="Validated ranking context for symbols you track."
+      className={clsx("min-w-0", className)}
+    >
       {watchlistLoading || loading ? (
-        <div className="text-sm text-white/60">Loading watchlist dashboard…</div>
+        <div className="text-xs text-[var(--dsa-text-muted)]">Loading watchlist dashboard…</div>
       ) : watchSymbols.size === 0 ? (
-        <div className="text-sm text-white/60">Add symbols to your watchlist to see your personalized dashboard.</div>
+        <div className="text-xs text-[var(--dsa-text-muted)]">Add symbols to your watchlist to see your personalized dashboard.</div>
       ) : wlRows.length === 0 ? (
-        <div className="text-sm text-white/60">No dashboard rows matched your watchlist symbols yet.</div>
+        <div className="text-xs text-[var(--dsa-text-muted)]">No dashboard rows matched your watchlist symbols yet.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-sm">
-            <thead>
-              <tr className="text-[11px] uppercase tracking-wide text-white/50">
+          <table className="w-full min-w-[1000px] border-collapse text-xs">
+            <thead className="sticky top-0 z-10 bg-[var(--dsa-surface-2)]">
+              <tr className="text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
                 <th className="px-2 py-2 text-left">#</th>
                 <th className="px-2 py-2 text-left">Name</th>
                 <th className="px-2 py-2 text-right">Price</th>
@@ -175,26 +219,44 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
             </thead>
             <tbody>
               {wlRows.map((r, idx) => {
-                const pct = Number(r.change_pct_snapshot);
-                const Icon = pct > 0 ? ArrowUpRight : pct < 0 ? ArrowDownRight : Minus;
-                const pctCls = pct > 0 ? "text-[#16c784]" : pct < 0 ? "text-[#ea3943]" : "text-white/60";
+                const eligible = rowIsEligible(r);
+                const hasChange = !r.missing_fields?.includes("change_pct") && Number.isFinite(Number(r.change_pct_snapshot));
+                const pct = hasChange ? Number(r.change_pct_snapshot) : null;
+                const Icon = pct != null && pct > 0 ? ArrowUpRight : pct != null && pct < 0 ? ArrowDownRight : Minus;
+                const pctCls =
+                  pct != null && pct > 0
+                    ? "text-[var(--dsa-positive)]"
+                    : pct != null && pct < 0
+                      ? "text-[var(--dsa-negative)]"
+                      : "text-[var(--dsa-text-muted)]";
                 const stance = biasFromIndicators(r);
                 const sym = String(r.symbol || "").toUpperCase();
+                const hasProfit = profitBySymbol.has(sym);
                 const profit = profitBySymbol.get(sym) ?? 0;
-                const profitCls = profit > 0 ? "text-[#16c784]" : profit < 0 ? "text-[#ea3943]" : "text-white/60";
+                const profitCls =
+                  profit > 0
+                    ? "text-[var(--dsa-positive)]"
+                    : profit < 0
+                      ? "text-[var(--dsa-negative)]"
+                      : "text-[var(--dsa-text-muted)]";
                 const openTickets = openTicketsForSymbol(sym);
                 const hasOpen = openTickets.length > 0;
                 const busy = endingSymbol === sym;
                 return (
-                  <tr key={r.symbol} className={`border-t border-white/10 ${idx % 2 ? "bg-white/[0.02]" : ""}`}>
-                    <td className="px-2 py-2 text-white/60">{idx + 1}</td>
+                  <tr
+                    key={r.symbol}
+                    className={`border-t border-[var(--dsa-border)] hover:bg-[var(--dsa-surface-2)] ${idx % 2 ? "bg-white/[0.012]" : ""}`}
+                  >
+                    <td className="px-2 py-2 text-[var(--dsa-text-muted)]">{idx + 1}</td>
                     <td className="px-2 py-2">
-                      <Link href={`/companies/profile/${r.symbol.toLowerCase()}`} className="hover:text-blue-300">
+                      <Link href={`/companies/profile/${r.symbol.toLowerCase()}`} className="hover:text-[#8ab4ff]">
                         <div className="font-medium text-white">{r.company_name}</div>
-                        <div className="text-xs text-white/50">{r.symbol}</div>
+                        <div className="text-[10px] text-[var(--dsa-text-muted)]">{r.symbol}</div>
                       </Link>
                     </td>
-                    <td className="px-2 py-2 text-right font-mono">{fmtUsd(r.price)}</td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums">
+                      {fmtUsd(r.missing_fields?.includes("price") ? null : r.price)}
+                    </td>
                     <td className={`px-2 py-2 text-right font-mono ${pctCls}`}>
                       <span className="inline-flex items-center gap-0.5">
                         <Icon className="h-3.5 w-3.5" />
@@ -202,16 +264,22 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
                       </span>
                     </td>
                     <td className="px-2 py-2 text-center">
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">{stance}</span>
+                      <span
+                        className={`rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold ${biasTone(stance)}`}
+                        title={stance === "Not Rated" ? r.analysis_reason ?? "Insufficient validated inputs" : undefined}
+                      >
+                        {stance}
+                      </span>
                     </td>
-                    <td className="px-2 py-2 text-center font-mono text-[#7b9cff]">
-                      {r.strong_count}/5
+                    <td className="px-2 py-2 text-center font-mono tabular-nums text-[#8ab4ff]">
+                      {eligible ? `${r.strong_count}/5` : "—"}
                     </td>
                     <td className={`px-2 py-2 text-right font-mono ${profitCls}`}>
-                      {profit >= 0 ? "+" : ""}
-                      {profit.toFixed(2)}
+                      {hasProfit ? `${profit >= 0 ? "+" : ""}${profit.toFixed(2)}` : "—"}
                     </td>
-                    <td className="px-2 py-2 text-right font-mono">{fmtUsd(r.liquidity)}</td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums">
+                      {fmtUsd(r.missing_fields?.includes("liquidity") ? null : r.liquidity)}
+                    </td>
                     <td className="px-2 py-2 text-right font-mono">{Number.isFinite(r.people_watching) ? r.people_watching : "—"}</td>
                     <td className="px-2 py-2 text-center">
                       <MiniTrend values={r.chart} />
@@ -225,8 +293,8 @@ export default function WatchlistDashboardTable({ className }: WatchlistDashboar
                         className={clsx(
                           "rounded px-2.5 py-1 text-xs font-medium transition-colors",
                           hasOpen && !busy
-                            ? "bg-white/15 text-white hover:bg-rose-500/80 hover:text-white"
-                            : "bg-white/5 text-white/40 cursor-not-allowed"
+                            ? "border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] text-white hover:border-[var(--dsa-negative)] hover:text-[var(--dsa-negative)]"
+                            : "cursor-not-allowed border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] text-[var(--dsa-text-muted)] opacity-60"
                         )}
                       >
                         {busy ? "Ending…" : "End order"}

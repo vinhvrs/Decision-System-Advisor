@@ -60,7 +60,7 @@ export default function PositionsPanel({
 
   if (loading && positions.length === 0 && !historyExpanded) {
     return (
-      <div className="rounded-lg border border-slate-700/60 bg-slate-900/70 px-3 py-2 text-slate-400 text-xs">
+      <div className="dsa-panel px-3 py-2 text-xs text-[var(--dsa-text-muted)]">
         Loading positions...
       </div>
     );
@@ -74,7 +74,7 @@ export default function PositionsPanel({
           ? "Sign in to sync positions."
           : error;
     return (
-      <div className="rounded-lg border border-slate-700/60 bg-slate-900/70 px-3 py-2 text-slate-400 text-xs">
+      <div className="dsa-panel px-3 py-2 text-xs text-[var(--dsa-text-muted)]">
         {message}
       </div>
     );
@@ -82,18 +82,18 @@ export default function PositionsPanel({
 
   return (
     <div className="rounded-lg border border-slate-700/60 bg-slate-900/70 backdrop-blur px-4 py-3 text-slate-100 text-sm">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-semibold">Open Positions</span>
+      <div className="flex items-center justify-between border-b border-[var(--dsa-border)] px-3 py-2">
+        <span className="text-xs font-semibold">Open positions</span>
         <button
           onClick={refetch}
-          className="text-slate-400 hover:text-slate-200 text-[10px]"
+          className="text-[10px] text-[var(--dsa-text-muted)] hover:text-white"
         >
           Refresh
         </button>
       </div>
-      <div className="space-y-2 max-h-[280px] overflow-y-auto">
+      <div className="max-h-[280px] overflow-y-auto px-3">
         {positions.length === 0 ? (
-          <div className="text-slate-400 py-2">No open positions</div>
+          <div className="py-3 text-[var(--dsa-text-muted)]">No open positions.</div>
         ) : (
           positions.map((p) => (
             <PositionRow
@@ -110,10 +110,10 @@ export default function PositionsPanel({
         )}
       </div>
 
-      <div className="mt-3 pt-2 border-t border-slate-700/60">
+      <div className="border-t border-[var(--dsa-border)] px-3 py-2">
         <button
           onClick={() => setHistoryExpanded((e) => !e)}
-          className="text-slate-400 hover:text-slate-200 text-[10px] w-full text-left flex items-center justify-between"
+          className="flex w-full items-center justify-between text-left text-[10px] text-[var(--dsa-text-muted)] hover:text-white"
         >
           <span>History (closed)</span>
           <span>{historyExpanded ? "▼" : "▶"}</span>
@@ -122,26 +122,26 @@ export default function PositionsPanel({
           <div
             ref={historyScrollRef}
             onScroll={handleHistoryScroll}
-            className="mt-2 space-y-2 max-h-40 overflow-y-auto"
+            className="mt-2 max-h-40 overflow-y-auto"
           >
             {historyLoading && history.length === 0 ? (
-              <div className="text-slate-400 py-2">Loading history...</div>
+              <div className="py-2 text-[var(--dsa-text-muted)]">Loading history…</div>
             ) : historyError ? (
-              <div className="text-rose-400 py-2">{historyError}</div>
+              <div className="py-2 text-[var(--dsa-negative)]">{historyError}</div>
             ) : history.length === 0 ? (
-              <div className="text-slate-400 py-2">No closed positions</div>
+              <div className="py-2 text-[var(--dsa-text-muted)]">No closed positions.</div>
             ) : (
               <>
                 {history.map((t) => (
                   <HistoryRow key={t.id} ticket={t} />
                 ))}
                 {historyLoadingMore && (
-                  <div className="text-slate-400 py-1 text-center">Loading...</div>
+                  <div className="py-1 text-center text-[var(--dsa-text-muted)]">Loading…</div>
                 )}
                 {historyHasMore && !historyLoadingMore && (
                   <button
                     onClick={loadMoreHistory}
-                    className="text-slate-400 hover:text-slate-200 text-[10px] w-full py-1"
+                    className="w-full py-1 text-[10px] text-[var(--dsa-text-muted)] hover:text-white"
                   >
                     Load more
                   </button>
@@ -160,19 +160,19 @@ function HistoryRow({ ticket }: { ticket: Tickets }) {
   const pnlColor =
     profitNum != null && Number.isFinite(profitNum)
       ? profitNum >= 0
-        ? "text-emerald-300"
-        : "text-rose-300"
-      : "text-slate-300";
+        ? "text-[var(--dsa-positive)]"
+        : "text-[var(--dsa-negative)]"
+      : "text-[var(--dsa-text-secondary)]";
   const dateStr = ticket.close || ticket.updated_at || ticket.created_at;
   const shortDate = dateStr ? new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" }) : "";
 
   return (
-    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-slate-700/40 last:border-0">
+    <div className="flex items-center justify-between gap-2 border-b border-[var(--dsa-border)] py-2 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="font-medium truncate">
           {ticket.symbol} {ticket.type}
         </div>
-        <div className="text-slate-400 text-[10px]">
+        <div className="text-[10px] text-[var(--dsa-text-muted)]">
           {ticket.volume}×{ticket.leverage} @ {Number(ticket.price).toFixed(4)} · {shortDate}
         </div>
       </div>
@@ -208,17 +208,17 @@ function PositionRow({
   const pnlColor =
     profit != null
       ? profit >= 0
-        ? "text-emerald-300"
-        : "text-rose-300"
-      : "text-slate-300";
+        ? "text-[var(--dsa-positive)]"
+        : "text-[var(--dsa-negative)]"
+      : "text-[var(--dsa-text-secondary)]";
 
   return (
-    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-slate-700/40 last:border-0">
+    <div className="flex items-center justify-between gap-2 border-b border-[var(--dsa-border)] py-2 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="font-medium truncate">
           {position.symbol} {position.type}
         </div>
-        <div className="text-slate-400 text-[10px]">
+        <div className="text-[10px] text-[var(--dsa-text-muted)]">
           {position.volume}×{position.leverage} @ {openPrice.toFixed(4)}
           {displayPrice !== openPrice && (
             <> → {displayPrice.toFixed(4)}</>
@@ -231,7 +231,7 @@ function PositionRow({
         )}
         <button
           onClick={handleClose}
-          className="rounded bg-slate-700 hover:bg-slate-600 px-2 py-0.5 font-medium hover:bg-slate-600"
+          className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] px-2 py-0.5 text-[10px] font-medium text-[var(--dsa-text-secondary)] hover:border-[var(--dsa-negative)] hover:text-[var(--dsa-negative)]"
         >
           Close
         </button>

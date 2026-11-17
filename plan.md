@@ -51,6 +51,11 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [ ] D6 Test responsiveness and accessibility at 390, 768, 1024 and 1440 pixels; snapshot visual regressions.
 **Exit:** visually coherent shell and components without changing backend calculations.
 
+### P0 cross-route regression sweep
+- [x] Market View / Rankings eligibility gate.
+- [x] Watchlist Dashboard local stance calculation now honors eligibility and uses Bullish/Bearish/Neutral/Not Rated presentation.
+- [ ] Search remaining public presentation components for local score-to-stance mappings before declaring BUG-001 closed across the product.
+
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
 - [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
@@ -83,6 +88,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Watchlist Dashboard bypass of ranking eligibility found during P1.3 and fixed; cross-route stance sweep remains a release gate.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
 - 2026-11-18: P1 UI foundation started on isolated child branch: neutral design tokens, compact global shell, Market View/Investing/Indicators/News/Documents/Screener cleanup, and CI workflow added. No deployment performed.
 - 2026-11-18: Data Health / Market Analytics source gap reconfirmed in selected baseline candidate; do not recreate or overwrite those live modules until production source parity is established.
