@@ -20,10 +20,10 @@ function NewsListPageContent() {
   const [hasMore, setHasMore] = useState(true);
 
   // --- Logic hiển thị thời gian ---
-  const formatDisplayDate = (dateString: string) => {
+  const formatDisplayDate = (dateString: string | Date) => {
     if (!dateString) return "Time unavailable";
     const now = new Date();
-    const publishedDate = new Date(dateString);
+    const publishedDate = dateString instanceof Date ? dateString : new Date(dateString);
     if (Number.isNaN(publishedDate.getTime())) return "Time unavailable";
     const diffInMs = now.getTime() - publishedDate.getTime();
     if (diffInMs <= 0) return "Just now";
