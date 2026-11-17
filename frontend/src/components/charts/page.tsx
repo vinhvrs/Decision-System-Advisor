@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -257,7 +256,7 @@ export default function TradingChart({
   const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
   const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
-  const [candlePage, setCandlePage] = useState(1);
+  const [, setCandlePage] = useState(1);
   const [hasMoreCandles, setHasMoreCandles] = useState(true);
   const [loadingChart, setLoadingChart] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
