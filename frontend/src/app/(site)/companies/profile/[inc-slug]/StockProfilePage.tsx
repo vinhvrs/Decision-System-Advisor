@@ -176,17 +176,17 @@ function formatUsdStat(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-/** Dark theme surface tokens for company profile */
+/** Shared research-terminal surface tokens for company profile. */
 const CMC = {
-  bg: "bg-[#0b0e11]",
-  card: "bg-[#1e2329] border border-[#2b3139]",
-  text: "text-[#eaecef]",
-  muted: "text-[#848e9c]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
-  line: "border-[#2b3139]",
-  tabActive: "border-[#3861fb] text-white",
-  tabIdle: "border-transparent text-[#848e9c] hover:text-[#eaecef]",
+  bg: "bg-[var(--dsa-bg)]",
+  card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
+  text: "text-[var(--dsa-text)]",
+  muted: "text-[var(--dsa-text-muted)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
+  line: "border-[var(--dsa-border)]",
+  tabActive: "border-[var(--dsa-accent)] text-white",
+  tabIdle: "border-transparent text-[var(--dsa-text-muted)] hover:text-white",
 };
 
 function computeProfileScore(d: any): number {
@@ -210,10 +210,6 @@ function computeProfileScore(d: any): number {
   return Math.round((filled / keys.length) * 100);
 }
 
-function sentimentStorageKey(sym: string) {
-  return `dsa-profile-sentiment-${sym}`;
-}
-
 function StatTile({
   label,
   value,
@@ -226,7 +222,7 @@ function StatTile({
   sub?: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-xl border ${CMC.line} bg-[#0d1621]/90 p-3`}>
+    <div className={`rounded-[var(--dsa-radius-md)] border ${CMC.line} bg-[var(--dsa-surface-2)] p-3`}>
       <div className="mb-1 flex items-center gap-1">
         <span className={`text-[11px] font-medium leading-tight ${CMC.muted}`}>{label}</span>
         {hintTitle ? (
@@ -264,8 +260,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlisted, setWatchlisted] = useState(false);
-  const [sentimentBull, setSentimentBull] = useState(42);
-  const [sentimentBear, setSentimentBear] = useState(8);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -320,9 +314,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const hasRecentSidebarNews =
     latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
-  const sentimentTotal = sentimentBull + sentimentBear;
-  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -338,33 +329,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
       /* ignore */
     }
   }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
-      if (!raw) return;
-      const j = JSON.parse(raw) as { bull?: number; bear?: number };
-      if (typeof j.bull === "number" && typeof j.bear === "number" && j.bull + j.bear > 0) {
-        setSentimentBull(j.bull);
-        setSentimentBear(j.bear);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      sessionStorage.setItem(
-        sentimentStorageKey(symbol),
-        JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [symbol, sentimentBull, sentimentBear]);
 
   useEffect(() => {
     let cancelled = false;
@@ -501,7 +465,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
       <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
         <Loader2 className="animate-spin mb-4" size={40} />
         <span className="uppercase tracking-[0.3em] text-sm animate-pulse">
-          Syncing Market Data...
+          Loading market data…
         </span>
       </div>
     );
@@ -537,17 +501,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
     })();
   };
 
-  const voteBullish = () => setSentimentBull((b) => b + 1);
-  const voteBearish = () => setSentimentBear((b) => b + 1);
-
   const chartBlock = (
-    <div className={`overflow-hidden rounded-xl ${CMC.card}`}>
+    <div className={`overflow-hidden rounded-[var(--dsa-radius-md)] ${CMC.card}`}>
       <div
         className={`flex flex-col gap-3 border-b ${CMC.line} px-3 py-3 sm:flex-row sm:items-center sm:justify-between`}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md bg-white/[0.08] px-2 py-1 text-[11px] font-semibold text-white">Price</span>
-          <span className={`rounded-md px-2 py-1 text-[11px] font-medium ${CMC.muted}`}>Market cap</span>
+        <div className="min-w-0">
+          <p className="dsa-section-label">Price chart</p>
+          <p className={`mt-0.5 truncate text-[10px] ${CMC.muted}`}>
+            {symbol} · loaded history with realtime quote overlay when available
+          </p>
         </div>
         <SelectDropdown
           className="w-[140px]"
@@ -603,16 +566,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </div>
           <Link
             href="/investing"
-            className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
+            className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-xs"
           >
-            Investing site
+            Research workspace
           </Link>
         </nav>
 
-        {/* Three-column shell — left stats | center tabs | right community */}
+        {/* Three-column shell — company facts | research workspace | data/news context */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
-          <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+          <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:order-1 xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex gap-3">
                 <img
                   src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
@@ -679,8 +642,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </div>
 
                 <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${realtimeCandle?.close != null ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"}`} />
+                  {realtimeCandle?.close != null ? "Realtime quote received" : "Using loaded candle data"}
                 </p>
               </div>
             </div>
@@ -723,19 +686,19 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <StatTile label="IPO" value={formatDate(details?.ipo_date)} />
             </div>
 
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile score</span>
+                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile coverage</span>
                 <span className="text-xs font-bold text-[#f0b90b]">{profileScore}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#2b3139]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#c99400] to-[#f0b90b]"
+                  className="h-full rounded-full bg-[var(--dsa-warning)]"
                   style={{ width: `${profileScore}%` }}
                 />
               </div>
               <p className={`mt-2 text-[10px] leading-relaxed ${CMC.muted}`}>
-                How complete this company record is (name, sector, financials, description, etc.).
+                Coverage of available company fields (name, sector, financials, description, etc.); not an investment score.
               </p>
             </div>
 
@@ -747,7 +710,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   href={details.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-[#2b3139] bg-[#2b3139]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
+                  className="flex items-center justify-center gap-2 rounded-[var(--dsa-radius-md)] border border-[#2b3139] bg-[#2b3139]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
                 >
                   <Globe className="h-4 w-4" />
                   Website
@@ -755,14 +718,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
               ) : null}
               <Link
                 href="/search"
-                className={`flex items-center justify-center gap-2 rounded-xl border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
+                className={`flex items-center justify-center gap-2 rounded-[var(--dsa-radius-md)] border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
               >
                 <Building2 className="h-4 w-4" />
                 More companies
               </Link>
             </div>
 
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${CMC.muted}`}>Listing</p>
               <div className="flex items-center gap-2 text-sm">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-[#3861fb]" />
@@ -774,7 +737,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </aside>
 
           <main className="order-1 min-w-0 xl:order-2">
-            <div className={`mb-3 flex flex-col gap-3 rounded-xl ${CMC.card} px-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4`}>
+            <div className={`mb-3 flex flex-col gap-2 border-b ${CMC.line} bg-[var(--dsa-surface-1)] px-1 py-1 sm:flex-row sm:items-center sm:justify-between`}>
               <div className="no-scrollbar flex gap-0 overflow-x-auto border-b border-transparent sm:border-0">
                 {MAIN_TABS.map((t) => (
                   <button
@@ -793,23 +756,18 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={toggleWatchlist}
-                  className="rounded-lg bg-[#3861fb] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#3861fb]/20 transition hover:bg-[#2f56e0]"
+                  className="dsa-button-primary px-3 text-xs"
                 >
                   {watchlisted ? "Watching" : "Track symbol"}
                 </button>
-                <span
-                  className={`hidden rounded-lg border px-3 py-2 text-[11px] font-semibold sm:inline ${CMC.line} ${CMC.muted}`}
-                  title="Advanced layout and alerts (coming soon)"
-                >
-                  Pro view
-                </span>
+
               </div>
             </div>
 
             {mainTab === "chart" && (
               <div className="space-y-4">
                 {chartBlock}
-                <details className={`rounded-xl ${CMC.card} p-4`}>
+                <details className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
                   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#7b9cff]">
                     <Info className="h-4 w-4" />
                     How chart stats are read
@@ -833,7 +791,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "markets" && (
-              <section className={`rounded-xl ${CMC.card} overflow-hidden`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
                   <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
                   <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
@@ -894,7 +852,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </span>
                 </div>
                 {news.length === 0 ? (
-                  <p className={`rounded-xl ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
+                  <p className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
                     No news items for this symbol yet.
                   </p>
                 ) : (
@@ -902,7 +860,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     const { kind, href } = resolveNewsHref(item);
                     const label = newsSourceLabel(item);
                     const thumb = pickNewsThumbImage(item);
-                    const cardClass = `block rounded-xl ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
+                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
                     const inner = (
                       <>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
@@ -950,7 +908,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "holders" && (
-              <section className={`rounded-xl ${CMC.card} p-8 text-center`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center`}>
                 <Layers className="mx-auto mb-3 h-10 w-10 text-[#3861fb] opacity-60" />
                 <h2 className="text-lg font-bold text-white">Holder distribution</h2>
                 <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
@@ -961,7 +919,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "fundamentals" && (
-              <section className={`rounded-xl ${CMC.card} p-5`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                 <h2 className="mb-1 text-lg font-bold text-white">Fundamentals (SEC)</h2>
                 <p className={`mb-4 text-xs ${CMC.muted}`}>
                   Long-term financial quality and growth derived from SEC XBRL. Technical columns (price, stance, trend,
@@ -973,7 +931,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
             {mainTab === "about" && (
               <div className="space-y-4">
-                <section className={`rounded-xl ${CMC.card} p-5`}>
+                <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                   <div className="mb-3 flex items-center gap-2">
                     <Info className="h-5 w-5 text-[#3861fb]" />
                     <h2 className="text-base font-bold text-white">
@@ -1014,7 +972,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   ) : null}
                 </section>
 
-                <section className={`rounded-xl ${CMC.card} p-5`}>
+                <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                   <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-white">
                     <Activity className="h-4 w-4 text-[#3861fb]" />
                     Signal radar
@@ -1026,7 +984,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <FundamentalRadar symbol={symbol} />
                 </section>
 
-                <section className={`rounded-xl ${CMC.card} p-5`}>
+                <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-white">
                       <Layers className="h-4 w-4 text-[#3861fb]" />
@@ -1041,7 +999,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <Link
                         key={comp.instrument_id || comp.symbol || idx}
                         href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
-                        className="flex flex-col items-center rounded-xl border border-[#2b3139] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
+                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[#2b3139] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
                       >
                         <div className="mb-2 h-9 w-9 rounded-lg bg-white p-1">
                           <img
@@ -1062,53 +1020,49 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
           </main>
 
-          <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-white line-clamp-1">
+          <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
+            <section className="dsa-panel p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="dsa-section-label">Data context</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-white">
                     {stripParentheticals(details?.company_name) || symbol}
                   </p>
-                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} votes on this device</p>
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 rounded-lg bg-[#3861fb] px-3 py-1.5 text-[11px] font-bold text-white"
-                  title="Coming soon"
+                  onClick={toggleWatchlist}
+                  className={watchlisted ? "dsa-button-primary min-h-0 px-2.5 py-1 text-[11px]" : "dsa-button-secondary min-h-0 px-2.5 py-1 text-[11px]"}
                 >
-                  + Follow
+                  {watchlisted ? "Watching" : "Add watchlist"}
                 </button>
               </div>
-              <p className={`mt-3 text-xs font-semibold ${CMC.muted}`}>Community sentiment</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
-                <div
-                  className="h-full rounded-full bg-[#16c784] transition-all duration-300"
-                  style={{ width: `${bullishPct}%` }}
-                />
-              </div>
-              <div className="mt-1 flex justify-between text-[11px] font-semibold">
-                <span className={CMC.green}>{bullishPct}% Bullish</span>
-                <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={voteBullish}
-                  className={`rounded-xl border-2 border-[#16c784]/50 py-2.5 text-xs font-bold ${CMC.green} transition hover:bg-[#16c784]/10`}
-                >
-                  Bullish
-                </button>
-                <button
-                  type="button"
-                  onClick={voteBearish}
-                  className={`rounded-xl border-2 border-[#ea3943]/50 py-2.5 text-xs font-bold ${CMC.red} transition hover:bg-[#ea3943]/10`}
-                >
-                  Bearish
-                </button>
-              </div>
-            </div>
 
-            <div className={`rounded-xl ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
+              <dl className="mt-3 divide-y divide-[var(--dsa-border)] border-y border-[var(--dsa-border)]">
+                <div className="flex items-center justify-between gap-3 py-2 text-xs">
+                  <dt className="text-[var(--dsa-text-muted)]">Price state</dt>
+                  <dd className="font-medium text-[var(--dsa-text-secondary)]">
+                    {realtimeCandle?.close != null ? "Realtime quote received" : candles.length ? "Latest loaded candle" : "Unavailable"}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2 text-xs">
+                  <dt className="text-[var(--dsa-text-muted)]">Profile coverage</dt>
+                  <dd className="font-mono font-semibold tabular-nums text-white">{profileScore}%</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2 text-xs">
+                  <dt className="text-[var(--dsa-text-muted)]">News context</dt>
+                  <dd className="font-medium text-[var(--dsa-text-secondary)]">
+                    {sidebarNews.length === 0 ? "No headlines" : hasRecentSidebarNews ? "Recent headlines" : "Archived headlines"}
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="mt-3 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+                No community sentiment is inferred from local interactions. Directional research labels are only shown where a validated source or model provides them.
+              </p>
+            </section>
+
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
               <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
                 <div className="min-w-0">
                   <span className="block text-xs font-bold text-white">Latest</span>
