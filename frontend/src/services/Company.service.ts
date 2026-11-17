@@ -3,6 +3,7 @@ import api from "@/src/libs/api";
 import { isDemoDevMode } from "@/src/libs/devMode";
 import { normalizeNewsListResponse } from "@/src/libs/newsArticle";
 import { getSymbolDevRows, type SymbolDevCompany } from "@/src/libs/symbolDevIdb";
+import type { News } from "@/src/types/News";
 
 function pickCompanyFields(row: SymbolDevCompany, select?: string[]) {
     const base: Record<string, unknown> = {
@@ -76,7 +77,7 @@ export const CompanyService = {
         const body = res.data ?? {};
         return {
             profile: body.profile ?? null,
-            news: normalizeNewsListResponse(body.news ?? []),
+            news: normalizeNewsListResponse<News>(body.news ?? []),
             similar: Array.isArray(body.similar) ? body.similar : [],
         };
     },
@@ -85,7 +86,7 @@ export const CompanyService = {
         const res = await api.get(`/news/symbol/${encodeURIComponent(ticker)}`, {
             params: { limit },
         });
-        return normalizeNewsListResponse(res.data);
+        return normalizeNewsListResponse<News>(res.data);
     },
 
     async getSimilarCompanies(ticker: string) {
