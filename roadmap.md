@@ -19,6 +19,9 @@ Updated: 2026-11-18
 | Finviz | Scan-friendly tables and heatmaps, clear conditional formatting, efficient filters | Color noise, fake market breadth, overcompression on mobile |
 | Fiscal.ai | Source provenance, methodology, measured score confidence, professional research tone | Opaque AI conclusions, marketing claims unsupported by coverage |
 
+## Research language
+DSA presents directional output as **market/research bias**, not trade instructions. Canonical display vocabulary is **Strong Bullish, Bullish, Neutral, Bearish, Strong Bearish, Not Rated**. Raw `BUY/SELL/HOLD` values are implementation details when retained for backward compatibility. Analyst consensus targets must be sourced; no synthetic target is generated when consensus is unavailable.
+
 ## Target architecture / UI
 - Shared app shell: navigation/sidebar or compact top navigation, global symbol chooser, breadcrumbs, workspace state and data health indicator.
 - Shared components: table, chart, price/percent formatter, source/timestamp provenance strip, status, eligibility badge, glossary, error/empty/skeleton, timezone helper.
