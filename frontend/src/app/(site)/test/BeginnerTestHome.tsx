@@ -474,15 +474,15 @@ function convictionSortOrder(c: Conviction5): number {
 function convictionLabel(c: Conviction5): string {
   switch (c) {
     case "strong_buy":
-      return "Strong Buy";
+      return "Strong Bullish";
     case "buy":
-      return "Buy";
+      return "Bullish";
     case "hold":
-      return "Hold";
+      return "Neutral";
     case "sell":
-      return "Sell";
+      return "Bearish";
     case "strong_sell":
-      return "Strong Sell";
+      return "Strong Bearish";
     case "unrated":
       return "Not Rated";
     default:
@@ -493,15 +493,15 @@ function convictionLabel(c: Conviction5): string {
 function convictionInvestingTitle(c: Conviction5): string {
   switch (c) {
     case "strong_buy":
-      return "Strong Buy — overweight / accumulate (indicator signal: Str + radar). Not investment advice.";
+      return "Strong Bullish — the multi-factor indicator composite has a materially positive tilt. Research signal, not investment advice.";
     case "buy":
-      return "Buy — modest overweight / add on dips (indicator signal). Not investment advice.";
+      return "Bullish — the multi-factor indicator composite has a positive tilt. Research signal, not investment advice.";
     case "hold":
-      return "Hold — neutral / marketweight while indicators are mixed. Not investment advice.";
+      return "Neutral — the multi-factor indicator composite is balanced or mixed. Research signal, not investment advice.";
     case "sell":
-      return "Sell — trim / underweight as indicators weaken. Not investment advice.";
+      return "Bearish — the multi-factor indicator composite has a negative tilt. Research signal, not investment advice.";
     case "strong_sell":
-      return "Strong Sell — reduce materially / defensive underweight (indicator signal). Not investment advice.";
+      return "Strong Bearish — the multi-factor indicator composite has a materially negative tilt. Research signal, not investment advice.";
     case "unrated":
       return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
     default:
@@ -552,28 +552,15 @@ function _clamp(n: number, lo: number, hi: number): number {
 }
 
 /**
- * Implied 12m consensus-style uplift (%) when real analyst target is absent — from radar + Str only.
- */
-function impliedConsensusUpliftPctWhenNoTarget(r: BeginnerBoardRow): number {
-  const avg = radarScoresAverage(r);
-  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
-  const raw = 5 + (avg - 2.5) * 4 + (st / 5) * 14;
-  return _clamp(raw, 3, 32);
-}
-
-/**
- * Advisory upside: ((Target − Current) / Current) × 100. Uses API target when present; else synthetic target from radar.
+ * Consensus upside: ((analyst target − current price) / current price) × 100.
+ * Missing analyst targets stay missing; DSA does not synthesize a target from radar scores.
  */
 function upsideAdvisoryPct(r: BeginnerBoardRow): number {
   const price = Number(r.price);
   if (!Number.isFinite(price) || price <= 0) return Number.NaN;
   const tgt = r.analyst_consensus_target_price;
-  if (typeof tgt === "number" && Number.isFinite(tgt) && tgt > 0) {
-    return ((tgt - price) / price) * 100;
-  }
-  const uplift = impliedConsensusUpliftPctWhenNoTarget(r);
-  const syntheticTarget = price * (1 + uplift / 100);
-  return ((syntheticTarget - price) / price) * 100;
+  if (typeof tgt !== "number" || !Number.isFinite(tgt) || tgt <= 0) return Number.NaN;
+  return ((tgt - price) / price) * 100;
 }
 
 /**
@@ -618,11 +605,11 @@ function upsideTooltipLines(r: BeginnerBoardRow, closes: number[]): string {
     Number.isFinite(r.analyst_consensus_target_price) &&
     r.analyst_consensus_target_price > 0;
   const advNote = hasRealTarget
-    ? "Uplift vs analyst consensus target."
-    : "Uplift vs model-based target (no consensus on file).";
+    ? "Upside vs analyst consensus target."
+    : "Analyst consensus target unavailable; no synthetic target is generated.";
   const lines = [
     advNote,
-    Number.isFinite(adv) ? `Advisory uplift: ${adv.toFixed(2)}%` : "Advisory uplift: —",
+    Number.isFinite(adv) ? `Consensus upside: ${adv.toFixed(2)}%` : "Consensus upside: —",
     Number.isFinite(tech) ? `Technical room to highs: ${tech.toFixed(2)}%` : "Technical room: —",
     Number.isFinite(down) ? `Downside to support (approx.): ${down.toFixed(2)}%` : "Downside: —",
     Number.isFinite(ratio)
@@ -1840,15 +1827,15 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           <span
             className="inline-flex items-center gap-1.5 rounded-full border border-[#16c784]/35 bg-[#16c784]/10 px-3 py-1 text-[11px] font-semibold text-[#16c784]"
           >
-            Buy
+            Bullish
           </span>
           <span
             className="inline-flex items-center gap-1.5 rounded-full border border-[#ea3943]/35 bg-[#ea3943]/10 px-3 py-1 text-[11px] font-semibold text-[#ea3943]"
           >
-            Sell
+            Bearish
           </span>
           <span className={`rounded-full border ${C.line} px-3 py-1 text-[11px] ${C.muted}`}>
-            Green / red = snapshot day up or down
+            Green / red = positive / negative session bias
           </span>
           <span className={`rounded-full border border-[#3861fb]/30 bg-[#3861fb]/10 px-3 py-1 text-[11px] font-medium text-[#7b9cff]`}>
             Hover a row for radar
