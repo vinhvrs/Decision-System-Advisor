@@ -957,6 +957,12 @@ class SnapshotService
             $iid = $iidBySymbol[$sym] ?? '';
             $row['instrument_id'] = $iid;
             $chart = $closesByIid[$iid] ?? [];
+            $persistedHistoryPoints = count($chart);
+            $row['history_points'] = $persistedHistoryPoints;
+            $row['history_state'] = $persistedHistoryPoints >= 2
+                ? 'ok'
+                : ($persistedHistoryPoints === 1 ? 'short' : 'missing');
+
             $price = (float) $row['price'];
             if ($price > 0 && (count($chart) === 0 || abs(end($chart) - round($price, 4)) > 1e-9)) {
                 $chart[] = round($price, 4);
@@ -979,6 +985,14 @@ class SnapshotService
             fn ($r) => isset($r['chart']) && is_array($r['chart']) ? count($r['chart']) : 0,
             $ranked
         );
+        $historyMissing = count(array_filter(
+            $ranked,
+            fn ($r) => ($r['history_state'] ?? null) === 'missing'
+        ));
+        $historyShort = count(array_filter(
+            $ranked,
+            fn ($r) => ($r['history_state'] ?? null) === 'short'
+        ));
 
         return [
             'axes' => $this->beginnerRadarAxisLabels(),
@@ -999,6 +1013,9 @@ class SnapshotService
                 'api_rows_returned' => count($ranked),
                 'chart_length_min' => $chartLens !== [] ? min($chartLens) : 0,
                 'chart_length_max' => $chartLens !== [] ? max($chartLens) : 0,
+                'history_missing_count' => $historyMissing,
+                'history_short_count' => $historyShort,
+                'history_ok_count' => count($ranked) - $historyMissing - $historyShort,
                 'validation_ok' => true,
             ],
         ];
