@@ -649,7 +649,7 @@ export default function TradingChart({
         <button
           type="button"
           onClick={() => setSelectedIndicators([])}
-          className="px-2 text-[11px] font-medium text-red-300 underline hover:text-red-200"
+          className="rounded-[var(--dsa-radius-sm)] px-2 py-1 text-[11px] font-medium text-[var(--dsa-negative)] hover:bg-[rgba(231,91,100,0.1)]"
         >
           Clear All
         </button>
@@ -659,12 +659,12 @@ export default function TradingChart({
 
   const shellClass = embed
     ? "flex h-full min-h-0 w-full flex-col overflow-hidden"
-    : "flex flex-col h-full w-full overflow-hidden bg-[#0B1220]";
+    : "flex h-full w-full flex-col overflow-hidden bg-[var(--dsa-bg)]";
 
   return (
     <div className={shellClass}>
       {!isFixed && !hideToolbar && !lockSymbol && (
-        <div className="p-2 flex flex-wrap gap-2 tablet:gap-4 border-b border-white/5 flex-none items-center">
+        <div className="flex flex-none flex-wrap items-center gap-2 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-2 py-1.5">
           <SelectDropdown
             searchable
             maxRender={200}
@@ -724,7 +724,7 @@ export default function TradingChart({
             {selectedIndicators.length > 0 && (
               <button
                 onClick={() => setSelectedIndicators([])}
-                className="text-[11px] text-red-400 hover:text-red-300 transition-colors underline"
+                className="rounded-[var(--dsa-radius-sm)] px-2 py-1 text-[11px] text-[var(--dsa-negative)] transition-colors hover:bg-[rgba(231,91,100,0.1)]"
               >
                 Clear All
               </button>
@@ -733,10 +733,10 @@ export default function TradingChart({
         </div>
       )}
 
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-3 laptop:flex-row laptop:gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-2 laptop:flex-row laptop:gap-3">
         <div className="relative min-h-[240px] min-w-0 flex-1 phone:min-h-[280px]">
           {isFixed && (
-            <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
+            <div className="absolute left-2 top-2 z-10 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1 font-mono text-[10px] font-semibold uppercase text-white">
               {selectedInstrument?.symbol || defaultSymbol}
             </div>
           )}
@@ -745,11 +745,11 @@ export default function TradingChart({
           </div>
 
           {loadingChart ? (
-            <div className="flex h-full items-center justify-center text-gray-400">
-              Loading chart...
+            <div className="flex h-full items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+              Loading persisted price history…
             </div>
           ) : chartError ? (
-            <div className="flex h-full items-center justify-center text-red-400/80 text-sm">
+            <div className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--dsa-negative)]">
               {chartError}
             </div>
           ) : candles.length ? (
@@ -768,8 +768,13 @@ export default function TradingChart({
               />
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-yellow-400 text-sm">
-              No candle data for {selectedInstrument?.symbol || defaultSymbol}
+            <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center">
+              <span className="text-xs font-medium text-[var(--dsa-text-secondary)]">
+                History unavailable for {selectedInstrument?.symbol || defaultSymbol}
+              </span>
+              <span className="text-[10px] text-[var(--dsa-text-muted)]">
+                No persisted candle series is available for this timeframe.
+              </span>
             </div>
           )}
         </div>
