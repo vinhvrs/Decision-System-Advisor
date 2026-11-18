@@ -30,6 +30,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] T6 Make Python `DSATurbo` the single scheduled OHLC writer. Laravel `data:periods` is retained only for explicit legacy/manual diagnostics because its raw Yahoo/timestamp convention differs from DSATurbo; `data:coverage` now flags duplicate rows per trading date before any cleanup.
 - [x] T7 Remove production demo-universe leakage from Redis board normalization; dev seed/filter helpers are now fail-closed outside explicit dev mode.
 - [~] T8 Align realtime universe with persisted universe: remove missing `market_universe` dependency, resolve stock whitelist from DB, bootstrap top 40 quotes, and preserve live change/bias through Redis board refresh. Runtime/CI verification remains.
+- [x] T9 Protect canonical OHLC aggregation: scheduled coverage uses distinct trading dates, and weekly/monthly/yearly rebuild from persisted daily history rather than the latest incremental fetch window; duplicate trading dates block aggregate rewrite instead of being silently chosen.
 **Exit:** no invalid Buy/Sell states, zero-as-missing, quote-only masquerading as history, demo rows in production, or misleading live status. Compare legitimate scoring outputs unchanged.
 
 ### Phase 2 — Data provenance and content integrity (P1)
