@@ -23,24 +23,24 @@ const LegacyRadarChartClient = dynamic(
         return (
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart cx="50%" cy="50%" outerRadius="78%" data={data}>
-              <PolarGrid stroke="#374151" />
-              <PolarAngleAxis dataKey="subject" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} />
+              <PolarGrid stroke="#202b37" />
+              <PolarAngleAxis dataKey="subject" tick={{ fill: "#a7b2c0", fontSize: 10 }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
               <Tooltip
                 formatter={(v) => [`${v ?? "—"} / 100`, "Score"]}
                 contentStyle={{
-                  backgroundColor: "#111827",
-                  border: "1px solid #374151",
-                  borderRadius: "10px",
-                  color: "#e5e7eb",
+                  backgroundColor: "#0e141b",
+                  border: "1px solid #2c3947",
+                  borderRadius: "6px",
+                  color: "#e6edf5",
                 }}
               />
               <Radar
                 name="Score"
                 dataKey="value"
-                stroke="#3b82f6"
-                fill="#3b82f6"
-                fillOpacity={0.45}
+                stroke="#4c8dff"
+                fill="#4c8dff"
+                fillOpacity={0.24}
                 isAnimationActive={false}
               />
             </RadarChart>
@@ -235,7 +235,7 @@ const FundamentalRadar = memo(
 
       if (loading) {
         return (
-          <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
+          <p className={`text-center text-[var(--dsa-text-muted)] ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
             Loading radar…
           </p>
         );
@@ -250,7 +250,7 @@ const FundamentalRadar = memo(
         );
       }
       return (
-        <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
+        <p className={`text-center text-[var(--dsa-text-muted)] ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
           Radar unavailable for this symbol yet.
         </p>
       );
@@ -260,7 +260,7 @@ const FundamentalRadar = memo(
       return (
         <div className="w-full">
           {!compact ? (
-            <p className="mb-2 text-[10px] leading-snug text-gray-500">
+            <p className="mb-2 text-[10px] leading-snug text-[var(--dsa-text-muted)]">
               Snapshot view without live symbol data. Open any company profile for the full radar.
             </p>
           ) : null}
@@ -272,7 +272,7 @@ const FundamentalRadar = memo(
     }
 
     return (
-      <p className={`text-center text-gray-500 ${compact ? "text-[10px]" : "text-sm"}`}>No data for radar yet.</p>
+      <p className={`text-center text-[var(--dsa-text-muted)] ${compact ? "text-[10px]" : "text-sm"}`}>No data for radar yet.</p>
     );
   }
 );
