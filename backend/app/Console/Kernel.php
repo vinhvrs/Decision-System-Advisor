@@ -28,15 +28,10 @@ class Kernel extends ConsoleKernel
     {
         Log::info('schedule() invoked in Console Kernel.');
 
-        // Historical OHLC persistence is separate from realtime quotes.
-        // Running the Yahoo daily-history job every 15 seconds can throttle later
-        // symbols in the universe and leave them realtime-only.
-        $schedule->command('data:periods')
-            ->everyFifteenMinutes()
-            ->evenInMaintenanceMode()
-            ->withoutOverlapping()
-            ->runInBackground()
-            ->onOneServer();
+        // Canonical OHLC persistence runs in python_engine stock_job (DSATurbo).
+        // Do not schedule data:periods here: it uses a different Yahoo/timestamp
+        // convention and can create duplicate daily bars alongside DSATurbo.
+        // data:periods remains registered for explicit legacy/manual diagnostics only.
 
         $schedule->command('liquidity:rebuild')
             ->everyFiveMinutes()
