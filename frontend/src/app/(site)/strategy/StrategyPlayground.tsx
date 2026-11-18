@@ -393,6 +393,7 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
         <div className="min-w-0 space-y-3 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
           <div className="h-[380px] w-full">
             <IndicatorLightChart
+              viewKey="strategy-synthetic-v1"
               height={380}
               bars={bars}
               overlays={lightModel.overlays}
