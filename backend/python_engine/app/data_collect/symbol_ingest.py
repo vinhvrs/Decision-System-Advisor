@@ -24,7 +24,7 @@ def normalize_symbol_ingest_mode(mode: str) -> str:
 
 
 def ingest_params_from_env() -> Tuple[str, int]:
-    mode = normalize_symbol_ingest_mode(os.environ.get("SYMBOL_INGEST_MODE", MODE_ALL))
+    mode = normalize_symbol_ingest_mode(os.environ.get("SYMBOL_INGEST_MODE", MODE_TOP_SNAPSHOT))
     n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "40")))
     return mode, n
 
