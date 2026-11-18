@@ -1,8 +1,8 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
 import newsService from "@/src/services/newsService";
 import { newsSourceLabel } from "@/src/libs/newsArticle";
@@ -38,20 +38,62 @@ function fuzzyNewsScore(query: string, title: string, content: string): number {
   if (t.includes(q)) score += 14;
   if (c.includes(q)) score += 8;
 
-  const qWords = words(q);
-  for (const w of qWords) {
+  for (const w of words(q)) {
     if (w.length < 2) continue;
     if (t.includes(w)) score += 4;
     else if (c.includes(w)) score += 2;
     else if (isSubsequence(w, t) || isSubsequence(w, c)) score += 1;
   }
+
   return score;
 }
 
-function teaser(content: string, maxLen = 100): string {
+function teaser(content: string, maxLen = 120): string {
   const firstLine = (content || "").replace(/\s+/g, " ").trim();
-  if (!firstLine) return "Short market brief available.";
-  return firstLine.length > maxLen ? `${firstLine.slice(0, maxLen).trimEnd()}...` : firstLine;
+  if (!firstLine) return "Summary unavailable.";
+  return firstLine.length > maxLen ? `${firstLine.slice(0, maxLen).trimEnd()}…` : firstLine;
+}
+
+function formatNewsDate(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function SymbolCatalog({ rows }: { rows: ElasticCompanyHit[] }) {
+  return (
+    <aside className="dsa-panel self-start overflow-hidden lg:sticky lg:top-[calc(var(--dsa-header-height)_+_12px)]">
+      <div className="border-b border-[var(--dsa-border)] px-3 py-2">
+        <p className="dsa-section-label">Browse symbols</p>
+        <p className="mt-1 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+          Alphabetical company catalog from the search index. This is not a popularity ranking.
+        </p>
+      </div>
+      <ul className="max-h-[min(70vh,560px)] overflow-y-auto py-1">
+        {rows.length === 0 ? (
+          <li className="px-3 py-4 text-xs text-[var(--dsa-text-muted)]">Symbol catalog unavailable.</li>
+        ) : (
+          rows.map((hit, idx) => {
+            const symbol = hit.source?.symbol?.toUpperCase() || "—";
+            const name = stripParentheticals(hit.source?.company_name) || "Company name unavailable";
+            return (
+              <li key={hit.id ?? `${symbol}-${idx}`}>
+                <Link
+                  href={`/companies/profile/${symbol.toLowerCase()}`}
+                  className="grid grid-cols-[1.5rem_4.5rem_minmax(0,1fr)] items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--dsa-surface-2)]"
+                >
+                  <span className="text-right font-mono text-[10px] text-[var(--dsa-text-muted)]">{idx + 1}</span>
+                  <span className="font-mono font-semibold text-[#8ab4ff]">{symbol}</span>
+                  <span className="truncate text-[10px] text-[var(--dsa-text-secondary)]">{name}</span>
+                </Link>
+              </li>
+            );
+          })
+        )}
+      </ul>
+    </aside>
+  );
 }
 
 function SearchResults() {
@@ -62,13 +104,13 @@ function SearchResults() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [demoTop, setDemoTop] = useState<ElasticCompanyHit[]>([]);
+  const [browseRows, setBrowseRows] = useState<ElasticCompanyHit[]>([]);
   const [newsResults, setNewsResults] = useState<News[]>([]);
 
   useEffect(() => {
-    ElasticService.getDemoTopSymbols(20)
-      .then(({ items }) => setDemoTop(items))
-      .catch(() => setDemoTop([]));
+    ElasticService.browseSymbols(30)
+      .then(({ items }) => setBrowseRows(items))
+      .catch(() => setBrowseRows([]));
   }, []);
 
   useEffect(() => {
@@ -129,151 +171,154 @@ function SearchResults() {
 
   const searchPending = q.trim() !== debouncedQ.trim();
 
-  const demoColumn = (
-    <aside className="rounded-xl border border-white/10 bg-white/[0.03] p-4 lg:sticky lg:top-20 lg:self-start">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Popular symbols</h2>
-      <p className="mt-1 text-[11px] leading-snug text-white/45">
-        Frequently viewed tickers. Select one to open its company profile.
-      </p>
-      <ul className="mt-3 max-h-[min(70vh,520px)] space-y-1 overflow-y-auto text-sm">
-        {demoTop.length === 0 ? (
-          <li className="text-white/40">This list is temporarily unavailable.</li>
-        ) : (
-          demoTop.map((hit, idx) => {
-            const symbol = hit.source?.symbol ?? "—";
-            return (
-              <li key={hit.id ?? `${symbol}-${idx}`}>
-                <Link
-                  href={`/companies/profile/${symbol.toLowerCase()}`}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-white/80 hover:bg-white/5"
-                >
-                  <span className="w-6 text-[10px] text-white/30">{idx + 1}</span>
-                  <span className="font-mono font-semibold text-indigo-300">{symbol}</span>
-                </Link>
-              </li>
-            );
-          })
-        )}
-      </ul>
-    </aside>
-  );
-
   if (q.trim().length < 2) {
     return (
-      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-12 lg:grid-cols-[1fr_260px]">
-        <div className="text-center lg:text-left">
-          <h1 className="text-xl font-semibold text-white">Search companies</h1>
-          <p className="mt-2 text-sm text-white/55">
-            Enter at least <strong className="text-white/80">two characters</strong> in the search box (or add{" "}
-            <code className="rounded bg-white/10 px-1 text-xs">?q=</code> to the address bar). We match company names and
-            descriptions and show spelling suggestions for longer queries.
+      <div className="dsa-page grid gap-4 px-3 py-5 phone:px-4 tablet:px-5 lg:grid-cols-[minmax(0,1fr)_300px] laptop:px-6">
+        <section className="dsa-panel p-4">
+          <p className="dsa-section-label">Company search</p>
+          <h1 className="mt-1 text-lg font-semibold text-white">Find a company or ticker</h1>
+          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--dsa-text-secondary)]">
+            Enter at least two characters in the global search box. Results come from the indexed company catalog and can include spelling suggestions for longer queries.
           </p>
-        </div>
-        {demoColumn}
-      </div>
-    );
-  }
-
-  if (searchPending || loading) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-        <p className="mt-4 text-white/50">Searching…</p>
+          <div className="mt-4 border-t border-[var(--dsa-border)] pt-3 text-[10px] text-[var(--dsa-text-muted)]">
+            Search matches company names, tickers, sectors, industries, and indexed descriptions. Search ranking is not an investment ranking.
+          </div>
+        </section>
+        <SymbolCatalog rows={browseRows} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-8 px-4 py-8 lg:grid-cols-[1fr_260px]">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold text-white">
-          Results for &quot;{q}&quot;
-        </h1>
-        <p className="mt-1 text-sm text-white/50">
-          {total} {total === 1 ? "company" : "companies"} found
-        </p>
-
-        {suggestions.length > 0 && (
-          <div className="mt-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/80">Did you mean</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {suggestions.map((s) => (
-                <Link
-                  key={s}
-                  href={`/search?q=${encodeURIComponent(s)}`}
-                  className="rounded-lg bg-indigo-500/20 px-3 py-1.5 text-sm text-indigo-200 hover:bg-indigo-500/30"
-                >
-                  {s}
-                </Link>
-              ))}
-            </div>
+    <div className="dsa-page grid gap-4 px-3 py-5 phone:px-4 tablet:px-5 lg:grid-cols-[minmax(0,1fr)_300px] laptop:px-6">
+      <main className="min-w-0">
+        <div className="mb-3 flex flex-col gap-2 tablet:flex-row tablet:items-end tablet:justify-between">
+          <div>
+            <p className="dsa-section-label">Search</p>
+            <h1 className="mt-1 text-lg font-semibold text-white">Results for “{q}”</h1>
+            <p className="mt-1 text-xs text-[var(--dsa-text-muted)]">
+              {searchPending || loading ? "Searching…" : `${total} ${total === 1 ? "company" : "companies"} found`}
+            </p>
           </div>
-        )}
+        </div>
 
-        {results.length === 0 ? (
-          <p className="py-8 text-white/50">No results. Try a suggestion above or a shorter prefix.</p>
+        {searchPending || loading ? (
+          <div className="dsa-panel flex h-28 items-center justify-center gap-2 text-xs text-[var(--dsa-text-muted)]">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#4c8dff] border-t-transparent" />
+            Searching indexed companies and recent news…
+          </div>
         ) : (
-          <ul className="mt-6 space-y-1">
-            {results.map((hit, idx) => {
-              const symbol = hit.source?.symbol ?? "—";
-              const name = stripParentheticals(hit.source?.company_name) || "—";
-              return (
-                <li key={hit.id ?? `${symbol}-${idx}`}>
-                  <Link
-                    href={`/companies/profile/${symbol.toLowerCase()}`}
-                    className="flex items-center gap-4 rounded-xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-white/10 hover:bg-white/10"
-                  >
-                    <span className="w-8 text-sm text-slate-400">#{idx + 1}</span>
-                    <span className="w-20 shrink-0 font-semibold uppercase text-white">{symbol}</span>
-                    <span className="flex-1 truncate text-white/80">{name}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <section className="mt-8">
-          <h2 className="text-base font-semibold text-white">Related news</h2>
-          <p className="mt-1 text-xs text-white/45">Headlines that mention your search terms. Open an item for the full story.</p>
-          {newsResults.length === 0 ? (
-            <p className="py-4 text-sm text-white/50">No related news found for this keyword.</p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {newsResults.map((n, idx) => {
-                const href = n.id ? `/news?n=${encodeURIComponent(String(n.id))}` : "/news";
-                const title = String(n.title || "Untitled");
-                const meta = newsSourceLabel({ source: n.source, author: n.author });
-                const ts = n.published_at ? new Date(n.published_at).toISOString().slice(0, 10) : "—";
-                const desc = teaser(String(n.content ?? ""));
-                const baseClass =
-                  "block rounded-xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-white/10 hover:bg-white/10";
-                return (
-                  <li key={`${n.id ?? title}-${idx}`}>
-                    <Link href={href} className={baseClass}>
-                      <p className="text-sm font-medium text-white">{title}</p>
-                      <p className="mt-1 text-xs text-white/45">{meta} · {ts}</p>
-                      <p className="mt-2 text-sm text-white/70">{desc}</p>
+          <>
+            {suggestions.length > 0 ? (
+              <section className="dsa-panel mb-3 p-3">
+                <p className="dsa-section-label">Suggestions</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {suggestions.map((suggestion) => (
+                    <Link
+                      key={suggestion}
+                      href={`/search?q=${encodeURIComponent(suggestion)}`}
+                      className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1 text-xs text-[#a9c7ff] hover:border-[#4c8dff]"
+                    >
+                      {suggestion}
                     </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      </div>
-      {demoColumn}
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="dsa-panel overflow-hidden">
+              <div className="grid grid-cols-[2rem_5rem_minmax(0,1fr)] gap-2 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+                <span>#</span>
+                <span>Symbol</span>
+                <span>Company</span>
+              </div>
+              {results.length === 0 ? (
+                <p className="px-3 py-8 text-center text-xs text-[var(--dsa-text-muted)]">
+                  No indexed companies matched this query.
+                </p>
+              ) : (
+                <ul>
+                  {results.map((hit, idx) => {
+                    const symbol = hit.source?.symbol?.toUpperCase() || "—";
+                    const name = stripParentheticals(hit.source?.company_name) || "Company name unavailable";
+                    return (
+                      <li key={hit.id ?? `${symbol}-${idx}`} className="border-t border-[var(--dsa-border)] first:border-t-0">
+                        <Link
+                          href={`/companies/profile/${symbol.toLowerCase()}`}
+                          className="grid grid-cols-[2rem_5rem_minmax(0,1fr)] items-center gap-2 px-3 py-2.5 text-xs transition-colors hover:bg-[var(--dsa-surface-2)]"
+                        >
+                          <span className="font-mono text-[10px] text-[var(--dsa-text-muted)]">{idx + 1}</span>
+                          <span className="font-mono font-semibold text-[#8ab4ff]">{symbol}</span>
+                          <span className="truncate text-[var(--dsa-text-secondary)]">{name}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="mt-4">
+              <div className="mb-2">
+                <p className="dsa-section-label">Related news</p>
+                <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">
+                  Recent indexed headlines ranked locally by text relevance to the search terms.
+                </p>
+              </div>
+
+              {newsResults.length === 0 ? (
+                <div className="dsa-panel px-3 py-5 text-xs text-[var(--dsa-text-muted)]">
+                  No related news found for this keyword.
+                </div>
+              ) : (
+                <div className="dsa-panel overflow-hidden">
+                  {newsResults.map((n, idx) => {
+                    const href = n.id ? `/news?n=${encodeURIComponent(String(n.id))}` : "/news";
+                    const title = String(n.title || "Untitled");
+                    const meta = newsSourceLabel({ source: n.source, author: n.author });
+                    return (
+                      <Link
+                        key={`${n.id ?? title}-${idx}`}
+                        href={href}
+                        className="block border-t border-[var(--dsa-border)] px-3 py-3 first:border-t-0 hover:bg-[var(--dsa-surface-2)]"
+                      >
+                        <p className="text-xs font-semibold text-white">{title}</p>
+                        <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">
+                          {meta} · {formatNewsDate(n.published_at)}
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-[var(--dsa-text-secondary)]">
+                          {teaser(String(n.content ?? ""))}
+                        </p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+
+      <SymbolCatalog rows={browseRows} />
     </div>
   );
 }
 
 export default function SearchPage() {
   return (
-    <div className="min-h-screen bg-[#0B1220]">
+    <div className="-mx-3 min-h-screen bg-[var(--dsa-bg)] phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
+      <header className="border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-3 phone:px-4 tablet:px-5 laptop:px-6">
+        <div className="dsa-page">
+          <p className="dsa-section-label">Discovery</p>
+          <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">
+            Company catalog, ticker search, and related news context.
+          </p>
+        </div>
+      </header>
       <Suspense
         fallback={
-          <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+          <div className="dsa-page flex h-32 items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+            Loading search…
           </div>
         }
       >

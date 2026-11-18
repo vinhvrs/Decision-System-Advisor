@@ -83,17 +83,16 @@ class ElasticController extends Controller
     }
 
     /**
-     * GET /elastic/demo/top-symbols?limit=20 — stable demo list (symbol ASC) for UI onboarding.
+     * GET /elastic/symbols?limit=20 — alphabetical company catalog from Elasticsearch.
      */
-    public function demoTopSymbols(Request $request): JsonResponse
+    public function browseSymbols(Request $request): JsonResponse
     {
         try {
-            // Allow larger limits for client-side caches (e.g. chat IndexedDB seed); capped for cluster safety.
             $limit = min(2000, max(1, (int) $request->query('limit', 20)));
             $ttl = (int) config('performance.elastic_get_ttl', 120);
-            $cacheKey = 'elastic.demo_top_symbols.v1:'.$limit;
+            $cacheKey = 'elastic.symbol_catalog.v1:'.$limit;
             $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($limit) {
-                return $this->companySearchService->demoTopSymbols($limit);
+                return $this->companySearchService->browseSymbols($limit);
             });
 
             return response()->json([
@@ -103,10 +102,16 @@ class ElasticController extends Controller
         } catch (Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load demo symbols.',
+                'message' => 'Failed to load symbol catalog.',
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /** @deprecated Compatibility alias for older clients. */
+    public function demoTopSymbols(Request $request): JsonResponse
+    {
+        return $this->browseSymbols($request);
     }
 
     public function searchCompanies(Request $request): JsonResponse

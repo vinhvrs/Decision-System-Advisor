@@ -77,30 +77,32 @@ class ElasticCompanySearchService
     }
 
     /**
-     * Demo list: first N companies by symbol (for empty query / onboarding UI).
+     * Alphabetical company-symbol catalog for empty-query browsing/onboarding.
      */
-    public function demoTopSymbols(int $limit = 20): array
+    public function browseSymbols(int $limit = 20): array
     {
         $client = $this->elasticClientService->client();
         $index = config('elasticsearch.indices.company_profiles');
-        $limit = max(1, min(50, $limit));
+        $limit = max(1, min(2000, $limit));
 
-        try {
-            $response = $client->search([
-                'index' => $index,
-                'body' => [
-                    'size' => $limit,
-                    'query' => ['match_all' => (object) []],
-                    'sort' => [
-                        ['symbol' => ['order' => 'asc']],
-                    ],
+        $response = $client->search([
+            'index' => $index,
+            'body' => [
+                'size' => $limit,
+                'query' => ['match_all' => (object) []],
+                'sort' => [
+                    ['symbol' => ['order' => 'asc']],
                 ],
-            ]);
+            ],
+        ]);
 
-            return $this->formatSearchResponse($this->toArray($response));
-        } catch (Throwable $e) {
-            throw $e;
-        }
+        return $this->formatSearchResponse($this->toArray($response));
+    }
+
+    /** @deprecated Use browseSymbols(). */
+    public function demoTopSymbols(int $limit = 20): array
+    {
+        return $this->browseSymbols($limit);
     }
 
     /**

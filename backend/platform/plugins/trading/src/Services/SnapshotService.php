@@ -417,6 +417,7 @@ class SnapshotService
                         's.change_pct',
                         's.liquidity',
                         's.volume',
+                        's.updated_at',
                     ]);
 
                 if ($cpSub !== null) {
@@ -445,6 +446,13 @@ class SnapshotService
                     }
 
                     $row = $rows->get($key);
+                    $missingFields = [];
+                    foreach (['price', 'change_pct', 'liquidity', 'volume', 'market_cap'] as $field) {
+                        if ($row->{$field} === null) {
+                            $missingFields[] = $field;
+                        }
+                    }
+
                     $result[] = [
                         'company_name' => $row->company_name,
                         'symbol' => strtoupper((string) $row->symbol),
@@ -453,6 +461,8 @@ class SnapshotService
                         'liquidity' => (float) ($row->liquidity ?? 0),
                         'volume' => (float) ($row->volume ?? 0),
                         'market_cap' => (float) ($row->market_cap ?? 0),
+                        'updated_at' => $row->updated_at ?? null,
+                        'missing_fields' => $missingFields,
                     ];
                 }
 
@@ -481,6 +491,7 @@ class SnapshotService
                     't.liquidity',
                     't.volume',
                     't.market_cap',
+                    't.updated_at',
                 ]);
         } else {
             $outer->select([
@@ -491,6 +502,7 @@ class SnapshotService
                 't.liquidity',
                 't.volume',
                 't.market_cap',
+                't.updated_at',
             ]);
         }
 
@@ -498,15 +510,26 @@ class SnapshotService
             ->orderByDesc("t.$orderBy")
             ->limit($limit)
             ->get()
-            ->map(fn ($row) => [
-                'company_name' => $row->company_name,
-                'symbol' => strtoupper((string) $row->symbol),
-                'price' => (float) ($row->price ?? 0),
-                'change_pct' => (float) ($row->change_pct ?? 0),
-                'liquidity' => (float) ($row->liquidity ?? 0),
-                'volume' => (float) ($row->volume ?? 0),
-                'market_cap' => (float) ($row->market_cap ?? 0),
-            ])
+            ->map(function ($row) {
+                $missingFields = [];
+                foreach (['price', 'change_pct', 'liquidity', 'volume', 'market_cap'] as $field) {
+                    if ($row->{$field} === null) {
+                        $missingFields[] = $field;
+                    }
+                }
+
+                return [
+                    'company_name' => $row->company_name,
+                    'symbol' => strtoupper((string) $row->symbol),
+                    'price' => (float) ($row->price ?? 0),
+                    'change_pct' => (float) ($row->change_pct ?? 0),
+                    'liquidity' => (float) ($row->liquidity ?? 0),
+                    'volume' => (float) ($row->volume ?? 0),
+                    'market_cap' => (float) ($row->market_cap ?? 0),
+                    'updated_at' => $row->updated_at ?? null,
+                    'missing_fields' => $missingFields,
+                ];
+            })
             ->toArray();
     }
 
@@ -540,6 +563,7 @@ class SnapshotService
                 's.change_pct',
                 's.liquidity',
                 's.volume',
+                's.updated_at',
                 DB::raw("{$marketCapExpr} as market_cap"),
                 DB::raw("ROW_NUMBER() OVER (PARTITION BY UPPER(TRIM(s.symbol)) ORDER BY {$orderColumnExpr} DESC, s.updated_at DESC, s.instrument_id DESC) as rn"),
             ]);

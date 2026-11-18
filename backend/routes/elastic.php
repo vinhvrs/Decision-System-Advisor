@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('elastic')->group(function () {
     Route::get('/health', [ElasticController::class, 'health']);
     Route::get('/search', [ElasticController::class, 'search']);
-    Route::get('/demo/top-symbols', [ElasticController::class, 'demoTopSymbols']);
+    Route::get('/symbols', [ElasticController::class, 'browseSymbols']);
+    Route::get('/demo/top-symbols', [ElasticController::class, 'demoTopSymbols']); // deprecated alias
 
     Route::get('/companies', [ElasticController::class, 'searchCompanies']);
     Route::get('/companies/symbol/{symbol}', [ElasticController::class, 'companyBySymbol']);
