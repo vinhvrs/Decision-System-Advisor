@@ -58,7 +58,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
-- [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
+- [~] M2 Ranking eligibility is gated; Screener and Watchlist tables now use dense numeric layouts, Bullish/Bearish/Not Rated terminology and history eligibility. Heatmap/filter work remains.
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
