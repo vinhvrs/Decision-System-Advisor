@@ -47,7 +47,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] D1 Shared design tokens are implemented in the repository baseline candidate; **live-source parity is still unverified**, so this cannot be marked complete.
 - [~] D2 Shared shell/control/panel/button/navigation classes added. Symbol header, chart frame, status/tooltip/empty-state primitives remain.
 - [~] D3 Global header/search/navigation compacted and active-state styling standardized; saved views/context persistence remain.
-- [~] D4 Screener numeric density/alignment and research hierarchy implemented; broader tables/charts still need migration.
+- [~] D4 Screener numeric density/alignment and research hierarchy implemented; Market View KPIs now use flat metric strips with compact research terminology (Bias / Strength / Watchers / Room to high). Broader charts still need migration.
 - [ ] D5 Review terms/locales; choose a single primary UI language plus explicit translation support.
 - [ ] D6 Test responsiveness and accessibility at 390, 768, 1024 and 1440 pixels; snapshot visual regressions.
 **Exit:** visually coherent shell and components without changing backend calculations.
@@ -84,6 +84,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Market View density pass: five large KPI cards/gauge replaced by a flat metric strip; legend pills compacted; ranking terminology standardized to Multi-factor research ranking, Bias, Strength, Watchers and Room to high.
 - 2026-11-18: Market View provenance strip added on isolated branch: research snapshot timestamp, realtime-quote coverage, persisted-history coverage, and analysis eligibility are displayed independently.
 - 2026-11-18: P1.2 company profile trust cleanup started: explicit persisted-history coverage, no seeded local community sentiment, no heuristic fallback radar, and chart model output labeled as research bias.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
