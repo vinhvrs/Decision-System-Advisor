@@ -37,3 +37,31 @@ def choose_history_fetch_plan(
 
     period = str(history_period or "7d").strip() or "7d"
     return HistoryFetchPlan(mode="incremental", period=period)
+
+
+def prioritize_by_history_coverage(
+    instruments: list[dict],
+    coverage_by_instrument_id: dict[str, int],
+    *,
+    preserve_input_order: bool = False,
+) -> list[dict]:
+    """
+    Put the least-covered symbols first so rate limits/interrupted scheduled runs
+    cannot permanently starve the same tail of the universe.
+
+    Explicit/manual symbol requests preserve caller order.
+    """
+    items = list(instruments)
+    if preserve_input_order or len(items) <= 1:
+        return items
+
+    def _key(item: dict):
+        instrument_id = str(item.get("id") or "")
+        symbol = str(item.get("symbol") or "").strip().upper()
+        try:
+            coverage = max(0, int(coverage_by_instrument_id.get(instrument_id, 0)))
+        except (TypeError, ValueError):
+            coverage = 0
+        return (coverage, symbol)
+
+    return sorted(items, key=_key)
