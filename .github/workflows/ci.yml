@@ -91,6 +91,7 @@ jobs:
           symfony/routing
           --with-all-dependencies
           --no-install
+          --no-scripts
           --no-interaction
           --no-progress
 
