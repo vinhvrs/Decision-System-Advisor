@@ -131,9 +131,9 @@ function normalizeSymbolFromSlug(slug: string) {
 }
 
 function formatDate(dateStr?: string | null) {
-  if (!dateStr) return "N/A";
+  if (!dateStr) return "—";
   const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
+  if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -804,7 +804,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <ShieldCheck className="h-4 w-4 shrink-0 text-[#8ab4ff]" />
                 <span className="text-white">{details?.exchange || "—"}</span>
                 <span className={CMC.muted}>·</span>
-                <span className={`truncate ${CMC.muted}`}>{details?.industry || "Industry N/A"}</span>
+                <span className={`truncate ${CMC.muted}`}>{details?.industry || "Industry unavailable"}</span>
               </div>
             </div>
           </aside>
@@ -908,7 +908,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             {mainTab === "news" && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-lg font-bold text-white">
+                  <h2 className="text-sm font-semibold text-white">
                     {symbol} <span className={CMC.muted}>news</span>
                   </h2>
                   <span className={`rounded-md border ${CMC.line} px-2 py-1 text-[10px] font-bold uppercase ${CMC.muted}`}>
@@ -924,18 +924,18 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     const { kind, href } = resolveNewsHref(item);
                     const label = newsSourceLabel(item);
                     const thumb = pickNewsThumbImage(item);
-                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition hover:border-[rgba(76,141,255,0.45)]`;
+                    const cardClass = `block rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]`;
                     const inner = (
                       <>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                          <span className="rounded border border-[rgba(76,141,255,0.20)] bg-[#3978df]/10 px-2 py-0.5 font-bold uppercase text-[#8ab4ff]">
+                          <span className="rounded-[var(--dsa-radius-sm)] border border-[rgba(76,141,255,0.20)] bg-[var(--dsa-accent-soft)] px-1.5 py-0.5 font-semibold uppercase text-[#8ab4ff]">
                             {label}
                           </span>
                           <span className={CMC.muted}>{formatDate(item.published_at)}</span>
                         </div>
                         <div className="flex gap-3">
                           {thumb ? (
-                            <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[var(--dsa-border)] bg-black/30">
+                            <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                               <img src={thumb} alt="" className="h-full w-full object-cover" />
                             </div>
                           ) : null}
@@ -1017,9 +1017,9 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       },
                       { label: "IPO", value: formatDate(details?.ipo_date) },
                     ].map((x) => (
-                      <div key={x.label} className="rounded-lg bg-black/25 px-3 py-2.5">
-                        <p className={`text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>{x.label}</p>
-                        <p className="mt-0.5 text-sm font-medium text-white">{x.value}</p>
+                      <div key={x.label} className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">{x.label}</p>
+                        <p className="mt-0.5 text-xs font-medium text-white">{x.value}</p>
                       </div>
                     ))}
                   </div>
@@ -1062,7 +1062,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <Link
                         key={comp.instrument_id || comp.symbol || idx}
                         href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
-                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-black/20 p-3 text-center transition hover:border-[rgba(76,141,255,0.45)]"
+                        className="flex flex-col items-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-2.5 text-center transition-colors hover:border-[var(--dsa-border-strong)]"
                       >
                         <div className="mb-2 h-9 w-9 rounded-lg bg-white p-1">
                           <img
@@ -1126,7 +1126,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </div>
             </section>
 
-            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
+            <div className="flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]">
               <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
                 <div className="min-w-0">
                   <span className="block text-xs font-bold text-white">Latest</span>
@@ -1137,7 +1137,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={() => setMainTab("news")}
-                  className="shrink-0 rounded-md border border-[rgba(76,141,255,0.30)] px-2 py-1 text-[10px] font-bold text-[#8ab4ff] transition hover:bg-[#3978df]/10"
+                  className="shrink-0 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] px-2 py-1 text-[10px] font-semibold text-[#8ab4ff] transition-colors hover:bg-[var(--dsa-surface-2)]"
                 >
                   View all
                 </button>
@@ -1149,14 +1149,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   const thumb = pickNewsThumbImage(item);
                   const itemSymbol = String(item?.symbol || symbol).trim().toUpperCase();
                   const content = (
-                    <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[rgba(76,141,255,0.45)] hover:bg-[#111b2a]`}>
+                    <div className="group rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-2.5 transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]">
                       <div className="flex gap-3">
                         {thumb ? (
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[var(--dsa-border)] bg-black/30">
+                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                             <img src={thumb} alt="" className="h-full w-full object-cover" />
                           </div>
                         ) : (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3978df]/15 text-[#8ab4ff]">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-accent-soft)] text-[#8ab4ff]">
                             <Newspaper className="h-4 w-4" aria-hidden />
                           </div>
                         )}
@@ -1192,7 +1192,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   );
                 })}
                 {sidebarNews.length === 0 ? (
-                  <div className={`rounded-lg border ${CMC.line} bg-[#0d1621]/70 px-4 py-8 text-center`}>
+                  <div className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-4 py-8 text-center">
                     <Newspaper className="mx-auto mb-3 h-5 w-5 text-[#8ab4ff]" aria-hidden />
                     <p className={`text-xs ${CMC.muted}`}>No headlines for {symbol} yet.</p>
                   </div>
