@@ -62,6 +62,13 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] M6 Instrument detail/history: persisted-history coverage is explicit; fake local community sentiment and heuristic fallback radar removed; chart research-bias terminology aligned; profile watch state now uses the canonical server API and realtime status requires an actual quote. Remaining source/as-of provenance and responsive visual QA are pending.
 **Exit:** each module has before/after captures, smoke/visual/functional tests; no console or blocking API errors.
 
+### Security dependency gate — active before release
+- [x] Resolve safe npm runtime patches within declared dependency ranges; critical/high runtime audit now passes without forcing Tailwind 4.
+- [x] Resolve Laravel/Guzzle/Symfony/CommonMark production security updates within existing major constraints.
+- [x] Commit generated `package-lock.json` and `composer.lock` from package-manager resolvers, not manual lock editing.
+- [x] Make `npm audit --omit=dev --audit-level=high` and `composer audit --locked --no-dev` blocking CI gates.
+- [~] Remaining npm advisories are confined to dev/build tooling chains and are reported non-blocking; migrate them only with a dedicated, tested tooling upgrade.
+
 ### Phase 5 — Polish, performance, security and release (P2)
 - [ ] R1 Accessibility and Core Web Vitals review, load-test primary pages, check chart/table CPU & memory.
 - [ ] R2 Check CDN caching, SSR/CSR, route discovery/SEO, broken links, secure/error-safe client messaging.
@@ -85,6 +92,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Controlled dependency security lock refresh completed: Next 16.4.6, Laravel 12.73.0 and patched runtime transitive packages; runtime npm and Composer audits are blocking CI gates while remaining dev-tool advisories stay non-blocking pending a dedicated tooling migration.
 - 2026-11-18: Exhaustive branch-tree scan confirmed Data Health / Market Analytics source is absent from every stored historical/production-candidate Git branch; live Pi source recovery is an explicit P0 release blocker.
 - 2026-11-18: Market View density pass: five large KPI cards/gauge replaced by a flat metric strip; legend pills compacted; ranking terminology standardized to Multi-factor research ranking, Bias, Strength, Watchers and Room to high.
 - 2026-11-18: Market View provenance strip added on isolated branch: research snapshot timestamp, realtime-quote coverage, persisted-history coverage, and analysis eligibility are displayed independently.
