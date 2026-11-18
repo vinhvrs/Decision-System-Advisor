@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Activity, FlaskConical } from "lucide-react";
 import IndicatorsTab from "@/src/app/(site)/indicators/IndicatorsTab";
 import StrategyTab from "@/src/app/(site)/strategy/StrategyTab";
 
@@ -27,9 +28,25 @@ function IndicatorsPageTabs() {
   );
 
   return (
-    <div className="-mx-3 min-h-screen bg-[var(--dsa-bg)] phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
-      <div className="sticky top-[var(--dsa-header-height)] z-30 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]">
-        <div className="dsa-page flex gap-1 px-3 py-2 phone:px-4 tablet:px-5 laptop:px-6">
+    <div className="dsa-page space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
+            {tab === "indicators" ? (
+              <Activity className="h-4 w-4 text-[#8ab4ff]" />
+            ) : (
+              <FlaskConical className="h-4 w-4 text-[#8ab4ff]" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="dsa-section-label">Technical research</p>
+            <h1 className="truncate text-sm font-semibold text-white">
+              {tab === "indicators" ? "Indicator laboratory" : "Strategy laboratory"}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
           {(
             [
               { id: "indicators" as const, label: "Indicators" },
@@ -41,26 +58,28 @@ function IndicatorsPageTabs() {
               type="button"
               onClick={() => setTab(item.id)}
               className={[
-                "rounded-[var(--dsa-radius-sm)] border px-3 py-1.5 text-xs font-semibold transition-colors",
+                "min-h-7 rounded-[var(--dsa-radius-sm)] border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.05em] transition-colors",
                 tab === item.id
                   ? "border-[rgba(76,141,255,0.45)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
-                  : "border-transparent bg-transparent text-[var(--dsa-text-muted)] hover:border-[var(--dsa-border)] hover:bg-[var(--dsa-surface-2)] hover:text-white",
+                  : "border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white",
               ].join(" ")}
             >
               {item.label}
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      {tab === "indicators" ? <IndicatorsTab embedded /> : <StrategyTab embedded />}
+      <section className="dsa-terminal-panel min-w-0 overflow-hidden">
+        {tab === "indicators" ? <IndicatorsTab embedded /> : <StrategyTab embedded />}
+      </section>
     </div>
   );
 }
 
 export default function IndicatorsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[var(--dsa-bg)]" aria-busy="true" />}>
+    <Suspense fallback={<div className="dsa-page min-h-[50vh] bg-[var(--dsa-bg)]" aria-busy="true" />}>
       <IndicatorsPageTabs />
     </Suspense>
   );

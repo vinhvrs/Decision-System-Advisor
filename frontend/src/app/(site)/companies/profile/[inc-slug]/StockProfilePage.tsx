@@ -546,39 +546,47 @@ export function StockProfilePage({ slug }: { slug: string }) {
   );
 
   return (
-    <div className={`min-h-screen ${CMC.bg} ${CMC.text} font-sans antialiased`}>
-      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 md:py-6 lg:px-6">
-        <nav
-          className={`mb-4 flex flex-wrap items-center justify-between gap-2 text-xs ${CMC.muted}`}
-          aria-label="Breadcrumb"
-        >
-          <div className="flex flex-wrap items-center gap-1">
-            <Link href="/" className="hover:text-white">
-              DSA
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5 opacity-60" />
-            <Link href="/companies" className="hover:text-white">
-              Companies
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5 opacity-60" />
-            <span className="text-white">{symbol}</span>
+    <div className={`dsa-page min-h-screen ${CMC.bg} ${CMC.text} font-sans antialiased`}>
+      <div className="space-y-3">
+        <section className="dsa-terminal-page-head">
+          <div className="min-w-0">
+            <div className={`flex flex-wrap items-center gap-1 text-[10px] ${CMC.muted}`}>
+              <Link href="/companies" className="hover:text-white">Companies</Link>
+              <ChevronRight className="h-3 w-3 opacity-60" />
+              <span className="font-mono text-[#8ab4ff]">{symbol}</span>
+            </div>
+            <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+              <h1 className="truncate text-sm font-semibold text-white">
+                {stripParentheticals(details?.company_name) || symbol}
+              </h1>
+              <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">
+                {details?.exchange || "Equity"}
+              </span>
+            </div>
           </div>
-          <Link
-            href="/investing"
-            className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-xs"
-          >
-            Research workspace
-          </Link>
-        </nav>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-right">
+              <p className="font-mono text-sm font-semibold tabular-nums text-white">
+                ${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className={`font-mono text-[10px] tabular-nums ${changePct == null ? CMC.muted : changePct >= 0 ? CMC.green : CMC.red}`}>
+                {changePct == null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`}
+              </p>
+            </div>
+            <Link href="/investing" className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-[10px]">
+              Research workspace
+            </Link>
+          </div>
+        </section>
 
-        {/* Three-column shell — left stats | center research | right coverage/news */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
+        {/* Fiscal-style three-column research shell — profile | analysis | context */}
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,260px)_minmax(0,1fr)_minmax(0,290px)] xl:items-start">
           <aside className="order-2 flex flex-col gap-3 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:order-1 xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex gap-3">
                 <img
                   src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
-                  className="h-12 w-12 shrink-0 rounded-full bg-white object-contain p-1"
+                  className="h-11 w-11 shrink-0 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-white object-contain p-1"
                   alt=""
                 />
                 <div className="min-w-0 flex-1">
@@ -618,7 +626,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </div>
 
               <div className="mt-4">
-                <p className="font-mono text-2xl font-semibold tabular-nums text-white sm:text-3xl">
+                <p className="font-mono text-2xl font-semibold tabular-nums text-white">
                   ${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 {changePct != null ? (

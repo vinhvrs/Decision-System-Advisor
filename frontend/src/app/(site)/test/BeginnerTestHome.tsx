@@ -1698,35 +1698,45 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   return (
     <div className={`min-h-screen ${C.page} ${C.text} font-sans antialiased`}>
-      {/* Top strip — CMC-style compact header */}
-      <header className={`sticky top-[var(--dsa-header-height)] z-30 border-b ${C.line} ${C.surface}`}>
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
-          <h1 className="min-w-0 text-sm font-semibold tracking-tight text-white sm:text-base">
-            Market view
-          </h1>
-          <div className="flex shrink-0 flex-wrap items-center gap-4 sm:gap-5">
-            <SelectDropdown
-              className="w-[7.5rem] shrink-0"
-              options={[
-                { id: "daily", label: "Daily" },
-                { id: "annual", label: "Annual" },
-              ]}
-              selected={{
-                id: period,
-                label: period === "daily" ? "Daily" : "Annual",
-              }}
-              onSelect={(opt) => setPeriod(opt.id as Period)}
-            />
-            <Link
-              href="/investing"
-              className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
-            >
-              <Home className="h-3.5 w-3.5 shrink-0" />
-              Research workspace
-            </Link>
+      <section className="dsa-terminal-page-head mb-3">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Market intelligence</p>
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+            <h1 className="truncate text-sm font-semibold text-white">Market overview</h1>
+            <span className="shrink-0 text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+              Multi-factor board
+            </span>
           </div>
         </div>
-      </header>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <SelectDropdown
+            className="w-[7.25rem] shrink-0"
+            options={[
+              { id: "daily", label: "Daily" },
+              { id: "annual", label: "Annual" },
+            ]}
+            selected={{
+              id: period,
+              label: period === "daily" ? "Daily" : "Annual",
+            }}
+            onSelect={(opt) => setPeriod(opt.id as Period)}
+          />
+          <Link
+            href="/search"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
+          >
+            <Search className="h-3 w-3" />
+            Symbol search
+          </Link>
+          <Link
+            href="/investing"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
+          >
+            <Home className="h-3 w-3" />
+            Workspace
+          </Link>
+        </div>
+      </section>
 
       <div className="mx-auto max-w-[1600px] px-2 py-4 phone:px-3 sm:px-4 sm:py-5">
         <section
