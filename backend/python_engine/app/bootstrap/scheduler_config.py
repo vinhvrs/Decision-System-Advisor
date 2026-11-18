@@ -15,6 +15,78 @@ def _env_float(name: str, default: float, *, minimum: float) -> float:
         return default
 
 
+def _env_int(name: str, default: int, *, minimum: int = 0, maximum: int | None = None) -> int:
+    """Parse an integer from env and clamp it to a safe range."""
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        value = default
+    else:
+        try:
+            value = int(raw)
+        except ValueError:
+            value = default
+    value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+ENGINE_RESOURCE_PROFILE = (os.environ.get("ENGINE_RESOURCE_PROFILE", "standard") or "standard").strip().lower()
+IS_PI4_PROFILE = ENGINE_RESOURCE_PROFILE in {"pi4", "raspberry-pi-4gb", "raspberry_pi_4gb", "low-memory"}
+
+# A Pi 4B/4GB should serialize APScheduler work. This does not change any data
+# formula; it only prevents independent scheduled jobs from competing for RAM/CPU.
+SCHEDULER_MAX_WORKERS = _env_int(
+    "SCHEDULER_MAX_WORKERS",
+    1 if IS_PI4_PROFILE else 4,
+    minimum=1,
+    maximum=16,
+)
+RANKING_FIRST_DELAY_SEC = _env_int("RANKING_FIRST_DELAY_SEC", 0, minimum=0, maximum=86400)
+STOCK_SYNC_FIRST_DELAY_SEC = _env_int("STOCK_SYNC_FIRST_DELAY_SEC", 240, minimum=0, maximum=86400)
+NEWS_STARTUP_DELAY_SEC = _env_int(
+    "NEWS_STARTUP_DELAY_SEC",
+    600 if IS_PI4_PROFILE else 0,
+    minimum=0,
+    maximum=86400,
+)
+AUTO_ANALYZE_FIRST_DELAY_SEC = _env_int(
+    "AUTO_ANALYZE_FIRST_DELAY_SEC",
+    1200 if IS_PI4_PROFILE else 360,
+    minimum=0,
+    maximum=86400,
+)
+AUTO_ANALYZE_CONCURRENCY = _env_int(
+    "AUTO_ANALYZE_CONCURRENCY",
+    2 if IS_PI4_PROFILE else 5,
+    minimum=1,
+    maximum=16,
+)
+AUTO_ANALYZE_SCHEDULE_LIMIT = _env_int(
+    "AUTO_ANALYZE_SCHEDULE_LIMIT",
+    40 if IS_PI4_PROFILE else 50,
+    minimum=1,
+    maximum=100,
+)
+_AUTO_STARTUP = os.environ.get(
+    "AUTO_ANALYZE_STARTUP_WARMUP_ENABLED",
+    "0" if IS_PI4_PROFILE else "1",
+).strip().lower()
+AUTO_ANALYZE_STARTUP_WARMUP_ENABLED = _AUTO_STARTUP not in ("0", "false", "no", "off")
+AUTO_ANALYZE_STARTUP_DELAY_SEC = _env_int(
+    "AUTO_ANALYZE_STARTUP_DELAY_SEC",
+    900 if IS_PI4_PROFILE else 0,
+    minimum=0,
+    maximum=86400,
+)
+AUTO_ANALYZE_STARTUP_LIMIT = _env_int(
+    "AUTO_ANALYZE_STARTUP_LIMIT",
+    20 if IS_PI4_PROFILE else 100,
+    minimum=1,
+    maximum=100,
+)
+
+
 # Env-tunable cadence (Docker / systemd should set these).
 # Default 1h: stock/candle DB sync + analyze refresh; dashboard Redis uses ``DASHBOARD_WARM_UP_INTERVAL_MINUTES`` (5m).
 SCHEDULE_INTERVAL_HOURS = float(os.environ.get("SCHEDULE_INTERVAL_HOURS", "1"))
@@ -45,7 +117,10 @@ try:
 except ValueError:
     DASHBOARD_STARTUP_WARMUP_SEC = 3.0
 # Await one warm-up in FastAPI lifespan before accepting traffic (default on). Disable: ``DASHBOARD_BLOCKING_STARTUP_WARMUP=0``.
-_bsw = os.environ.get("DASHBOARD_BLOCKING_STARTUP_WARMUP", "1").strip().lower()
+_bsw = os.environ.get(
+    "DASHBOARD_BLOCKING_STARTUP_WARMUP",
+    "0" if IS_PI4_PROFILE else "1",
+).strip().lower()
 DASHBOARD_BLOCKING_STARTUP_WARMUP = _bsw not in ("0", "false", "no", "off")
 # Background loop: re-check ``dashboard:daily`` TTL this often; refresh if key missing or TTL below minimum.
 try:
@@ -112,7 +187,11 @@ TECH_UNIVERSE_DAILY_INTERVAL_HOURS = _env_float("TECH_UNIVERSE_DAILY_INTERVAL_HO
 _tu_flag = os.environ.get("TECH_UNIVERSE_DAILY_ENABLED", "1").strip().lower()
 TECH_UNIVERSE_DAILY_ENABLED = _tu_flag not in ("0", "false", "no", "off")
 try:
-    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC = max(60, int(os.environ.get("TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC", "180")))
+    _tech_default = "1800" if IS_PI4_PROFILE else "180"
+    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC = max(
+        60,
+        int(os.environ.get("TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC", _tech_default)),
+    )
 except ValueError:
-    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC = 180
+    TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC = 1800 if IS_PI4_PROFILE else 180
 
