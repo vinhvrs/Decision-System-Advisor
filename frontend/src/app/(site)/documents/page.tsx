@@ -911,7 +911,7 @@ export default function DocumentsPage() {
       type: "Web",
       size: "On-site",
       updatedAt: "On-site reference",
-      icon: <Calculator className="text-cyan-400" size={24} />,
+      icon: <Calculator className="text-cyan-400" size={15} />,
       href: "/documents#ranking",
     },
     {
@@ -922,7 +922,7 @@ export default function DocumentsPage() {
       type: "Web",
       size: "On-site",
       updatedAt: "On-site reference",
-      icon: <Sigma className="text-green-400" size={24} />,
+      icon: <Sigma className="text-green-400" size={15} />,
       href: "/documents#formula",
     },
     {
@@ -933,7 +933,7 @@ export default function DocumentsPage() {
       type: "Web",
       size: "On-site",
       updatedAt: "On-site reference",
-      icon: <Shield className="text-emerald-400" size={24} />,
+      icon: <Shield className="text-emerald-400" size={15} />,
       href: "/documents#privacy",
     },
   ];
@@ -1060,7 +1060,7 @@ export default function DocumentsPage() {
                     className="group grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3 px-3 py-3 transition-colors hover:bg-[var(--dsa-surface-2)] tablet:grid-cols-[34px_minmax(220px,1fr)_120px_100px_130px_24px]"
                   >
                     <span className="flex h-8 w-8 items-center justify-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
-                      {React.cloneElement(doc.icon, { size: 15 })}
+                      {doc.icon}
                     </span>
 
                     <div className="min-w-0">
