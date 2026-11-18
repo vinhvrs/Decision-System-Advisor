@@ -75,6 +75,7 @@ jobs:
       - name: Verify 40-symbol runtime contract
         run: |
           grep -q 'SYMBOL_INGEST_TOP_N=40' ../../docker-compose.yml
+          grep -q 'MARKET_BOARD_SYMBOL_LIMIT=40' ../../docker-compose.yml
           grep -q 'HISTORY_BOOTSTRAP_MIN_BARS=180' ../../docker-compose.yml
           grep -q 'HISTORY_BOOTSTRAP_DAYS=3650' ../../docker-compose.yml
           grep -q 'DASHBOARD_WARM_UP_LIMIT=40' ../../docker-compose.yml
