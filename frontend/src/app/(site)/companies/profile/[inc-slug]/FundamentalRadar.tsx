@@ -12,7 +12,7 @@ import {
 } from "@/src/services/Beginner.service";
 
 export type FundamentalRadarProps = {
-  /** Symbol-backed radar using the same validated inputs as Market View. */
+  /** Symbol-backed radar using the same validated 40-row comparison scope as Market View. */
   symbol?: string;
   poolLimit?: number;
   compact?: boolean;
@@ -27,7 +27,7 @@ export type FundamentalRadarProps = {
 const FundamentalRadar = memo(
   ({
     symbol,
-    poolLimit = 100,
+    poolLimit = 40,
     compact = false,
     showFearGreed = true,
   }: FundamentalRadarProps) => {
