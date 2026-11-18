@@ -10,7 +10,7 @@ export const SITE_NAV_LINKS = [
 
 /** Paths that should highlight a nav item (e.g. legacy routes merged into one workspace). */
 export const SITE_NAV_ACTIVE_ALIASES: Record<string, string[]> = {
-  "/screener": ["/screener", "/instrument"],
+  "/screener": ["/screener", "/instrument"],\n  "/companies": ["/companies", "/stock-profile"],
   "/investing": ["/investing", "/trading"],
   "/indicators": ["/indicators", "/analysis", "/strategy"],
 };
