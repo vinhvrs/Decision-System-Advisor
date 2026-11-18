@@ -673,7 +673,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 {changePct != null ? (
                   <span
                     className={`mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${
-                      changePct >= 0 ? `bg-[#16c784]/15 ${CMC.green}` : `bg-[#ea3943]/15 ${CMC.red}`
+                      changePct >= 0 ? `bg-[rgba(44,182,125,0.12)] ${CMC.green}` : `bg-[rgba(231,91,100,0.12)] ${CMC.red}`
                     }`}
                   >
                     {changePct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
@@ -842,7 +842,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             {mainTab === "markets" && (
               <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
-                  <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
+                  <span className="rounded-md bg-[#3978df] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
                   <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
                 </div>
                 <h2 className="px-4 pt-4 text-lg font-bold text-white">
@@ -860,9 +860,9 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">#</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Venue</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Symbol</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Price</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Volume (est.)</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Vol %</th>
+                        <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase">Price</th>
+                        <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase">Volume (est.)</th>
+                        <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase">Vol / Mkt cap</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -870,14 +870,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <td className="px-4 py-3 tabular-nums text-white">1</td>
                         <td className="px-4 py-3 font-medium text-white">{details?.exchange || "—"}</td>
                         <td className="px-4 py-3 font-mono text-[#8ab4ff]">{details?.symbol || symbol}</td>
-                        <td className="px-4 py-3 font-mono tabular-nums text-white">
-                          {livePrice > 0 ? `$${livePrice.toFixed(2)}` : "—"}
+                        <td className="px-4 py-3 text-right font-mono tabular-nums text-white">
+                          {livePrice > 0 ? `${livePrice.toFixed(2)}` : "—"}
                         </td>
-                        <td className="px-4 py-3 font-mono tabular-nums text-white">{formatUsdStat(volUsdEst)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-right font-mono tabular-nums text-white">{formatUsdStat(volUsdEst)}</td>
+                        <td className="px-4 py-3 text-right">
                           <span
                             className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${
-                              volToMktPct != null ? "bg-[#16c784]/15 text-[#16c784]" : `${CMC.muted} bg-[var(--dsa-surface-2)]`
+                              volToMktPct != null ? "bg-[rgba(44,182,125,0.12)] text-[var(--dsa-positive)]" : `${CMC.muted} bg-[var(--dsa-surface-2)]`
                             }`}
                           >
                             {volToMktPct != null ? `${volToMktPct.toFixed(1)}%` : "—"}
@@ -909,11 +909,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     const { kind, href } = resolveNewsHref(item);
                     const label = newsSourceLabel(item);
                     const thumb = pickNewsThumbImage(item);
-                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
+                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition hover:border-[rgba(76,141,255,0.45)]`;
                     const inner = (
                       <>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                          <span className="rounded border border-[#3861fb]/20 bg-[#3861fb]/10 px-2 py-0.5 font-bold uppercase text-[#8ab4ff]">
+                          <span className="rounded border border-[rgba(76,141,255,0.20)] bg-[#3978df]/10 px-2 py-0.5 font-bold uppercase text-[#8ab4ff]">
                             {label}
                           </span>
                           <span className={CMC.muted}>{formatDate(item.published_at)}</span>
@@ -957,12 +957,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "holders" && (
-              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center`}>
-                <Layers className="mx-auto mb-3 h-10 w-10 text-[#8ab4ff] opacity-60" />
-                <h2 className="text-lg font-bold text-white">Holder distribution</h2>
-                <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
-                  Blockchain-style holder lists do not apply to this equity profile. Connect a cap-table or institutional
-                  holdings feed to show concentration and top holders here.
+              <section className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-6 text-center">
+                <Layers className="mx-auto mb-3 h-8 w-8 text-[#8ab4ff] opacity-70" />
+                <h2 className="text-sm font-semibold text-white">Institutional holdings unavailable</h2>
+                <p className="mx-auto mt-2 max-w-lg text-xs leading-relaxed text-[var(--dsa-text-muted)]">
+                  No verified institutional-ownership or fund-holdings feed is connected for this profile.
+                  DSA does not infer holder concentration from unrelated market data.
                 </p>
               </section>
             )}
@@ -1048,7 +1048,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <Link
                         key={comp.instrument_id || comp.symbol || idx}
                         href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
-                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
+                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-black/20 p-3 text-center transition hover:border-[rgba(76,141,255,0.45)]"
                       >
                         <div className="mb-2 h-9 w-9 rounded-lg bg-white p-1">
                           <img
@@ -1123,7 +1123,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={() => setMainTab("news")}
-                  className="shrink-0 rounded-md border border-[#3861fb]/30 px-2 py-1 text-[10px] font-bold text-[#8ab4ff] transition hover:bg-[#3861fb]/10"
+                  className="shrink-0 rounded-md border border-[rgba(76,141,255,0.30)] px-2 py-1 text-[10px] font-bold text-[#8ab4ff] transition hover:bg-[#3978df]/10"
                 >
                   View all
                 </button>
@@ -1135,20 +1135,20 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   const thumb = pickNewsThumbImage(item);
                   const itemSymbol = String(item?.symbol || symbol).trim().toUpperCase();
                   const content = (
-                    <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
+                    <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[rgba(76,141,255,0.45)] hover:bg-[#111b2a]`}>
                       <div className="flex gap-3">
                         {thumb ? (
                           <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[var(--dsa-border)] bg-black/30">
                             <img src={thumb} alt="" className="h-full w-full object-cover" />
                           </div>
                         ) : (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3861fb]/15 text-[#8ab4ff]">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3978df]/15 text-[#8ab4ff]">
                             <Newspaper className="h-4 w-4" aria-hidden />
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-2">
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#3861fb]/20 text-[9px] font-bold text-[#9bb4ff]">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#3978df]/20 text-[9px] font-bold text-[#9bb4ff]">
                               {sourceBadgeText(label)}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white">
