@@ -20,39 +20,61 @@ export default function DashboardCharts() {
   ];
 
   return (
-    <>
-      {/* Main chart: first symbol from watchlist or NVDA */}
-      <Card
-        className="flex h-[min(520px,72vh)] min-h-[480px] w-full flex-col overflow-hidden phone:min-h-[500px] tablet:min-h-[560px] laptop:min-h-[620px] pc:min-h-[680px]"
-        bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-      >
-        <div className="min-h-0 flex-1">
-          <TradingChart defaultSymbol={mainSymbol} isFixed={false} />
+    <div className="space-y-4">
+      <section>
+        <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="dsa-section-label">Primary chart</p>
+            <h3 className="dsa-section-title mt-0.5">{mainSymbol} research chart</h3>
+          </div>
+          <p className="text-[10px] text-[var(--dsa-text-muted)]">
+            Persisted OHLC · realtime quote overlay when available
+          </p>
         </div>
-      </Card>
 
-      {/* Side charts: next 3 symbols from watchlist or AAPL, MSFT, ORCL */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3 tablet:mb-4">Watchlist Workspace</h3>
-        <p className="text-sm text-white/60 mb-4">Quick monitoring for your watchlist symbols.</p>
-      </div>
-      <div className="flex flex-col gap-4 tablet:gap-6">
-        {sideSymbols.map((symbol) => (
-          <Card
-            key={symbol}
-            className="flex h-[360px] min-h-0 w-full flex-col overflow-hidden phone:h-[400px] tablet:h-[440px] laptop:h-[480px]"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
-            <div className="min-h-0 flex-1">
-              <TradingChart defaultSymbol={symbol} isFixed />
-            </div>
-          </Card>
-        ))}
-      </div>
+        <Card
+          className="flex h-[min(500px,68vh)] min-h-[420px] w-full flex-col overflow-hidden tablet:min-h-[480px] laptop:min-h-[520px]"
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <div className="min-h-0 flex-1">
+            <TradingChart defaultSymbol={mainSymbol} isFixed={false} />
+          </div>
+        </Card>
+      </section>
 
-      <div className="mt-6 w-full min-w-0">
+      <section>
+        <div className="mb-2">
+          <p className="dsa-section-label">Watchlist charts</p>
+          <div className="mt-0.5 flex flex-wrap items-end justify-between gap-2">
+            <h3 className="dsa-section-title">Quick comparison</h3>
+            <p className="text-[10px] text-[var(--dsa-text-muted)]">
+              First watchlist symbols; defaults are used only when the watchlist has open slots.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 tablet:grid-cols-3">
+          {sideSymbols.map((symbol) => (
+            <Card
+              key={symbol}
+              className="flex h-[280px] min-h-0 w-full flex-col overflow-hidden laptop:h-[320px]"
+              bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            >
+              <div className="min-h-0 flex-1">
+                <TradingChart defaultSymbol={symbol} isFixed />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-2">
+          <p className="dsa-section-label">Watchlist</p>
+          <h3 className="dsa-section-title mt-0.5">Tracked symbols</h3>
+        </div>
         <WatchlistDashboardTable className="w-full" />
-      </div>
-    </>
+      </section>
+    </div>
   );
 }
