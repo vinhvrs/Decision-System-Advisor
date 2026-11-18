@@ -6,11 +6,11 @@ import { calcPositionUnrealizedPnl, formatOpenPnl } from "@/src/libs/tradingPnl"
 import type { PaperTradingSnapshot } from "./paperTradingTypes";
 
 const CMC = {
-  card: "bg-[#1e2329] border border-[#2b3139]",
-  muted: "text-[#848e9c]",
-  line: "border-[#2b3139]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
+  card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
+  muted: "text-[var(--dsa-text-muted)]",
+  line: "border-[var(--dsa-border)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
 };
 
 function formatTime(sec: number): string {
@@ -41,9 +41,9 @@ export default function ProfilePaperTradingPanel({ symbol, state }: Props) {
 
   if (!isLoggedIn) {
     return (
-      <div className={`rounded-xl ${CMC.card} p-4`}>
+      <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
         <p className={`text-xs leading-relaxed ${CMC.muted}`}>
-          <Link href="/auth/login" className="font-semibold text-[#7b9cff] hover:underline">
+          <Link href="/auth/login" className="font-semibold text-[#8ab4ff] hover:underline">
             Sign in
           </Link>{" "}
           for paper trading summary on {symbol}.
@@ -75,12 +75,12 @@ export default function ProfilePaperTradingPanel({ symbol, state }: Props) {
       : (state?.unrealizedPnl ?? 0);
 
   return (
-    <div className={`rounded-xl ${CMC.card} p-4`}>
+    <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
       <p className={`mb-3 text-[10px] font-bold uppercase tracking-wider ${CMC.muted}`}>
         Paper trading · {symbol}
       </p>
 
-      <div className={`mb-3 rounded-lg border ${CMC.line} bg-black/20 p-3`}>
+      <div className={`mb-3 rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-2)] p-3`}>
         <p className={`mb-2 text-[10px] font-semibold uppercase tracking-wide ${CMC.muted}`}>
           Current position
         </p>
@@ -124,7 +124,7 @@ export default function ProfilePaperTradingPanel({ symbol, state }: Props) {
             Open orders
           </p>
           <ul
-            className={`max-h-24 space-y-1 overflow-y-auto no-scrollbar rounded-lg border ${CMC.line} bg-black/15 p-2`}
+            className={`max-h-24 space-y-1 overflow-y-auto no-scrollbar rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-2)] p-2`}
           >
             {openTrades.slice(-6).map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-2 text-[10px]">
@@ -146,10 +146,10 @@ export default function ProfilePaperTradingPanel({ symbol, state }: Props) {
           <p className={`text-xs ${CMC.muted}`}>No trades yet — use Buy/Sell on the chart.</p>
         ) : (
           <ul
-            className={`max-h-40 space-y-1.5 overflow-y-auto no-scrollbar rounded-lg border ${CMC.line} bg-black/15 p-2`}
+            className={`max-h-40 space-y-1.5 overflow-y-auto no-scrollbar rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-2)] p-2`}
           >
             {history.map((t) => (
-              <li key={t.id} className="border-b border-[#2b3139]/60 pb-1.5 last:border-0 last:pb-0">
+              <li key={t.id} className="border-b border-[var(--dsa-border)] pb-1.5 last:border-0 last:pb-0">
                 <div className="flex items-center justify-between gap-2 text-[10px]">
                   <span className={`font-semibold ${t.side === "buy" ? CMC.green : CMC.red}`}>
                     {t.side.toUpperCase()}

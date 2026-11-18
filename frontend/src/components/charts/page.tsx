@@ -659,12 +659,12 @@ export default function TradingChart({
 
   const shellClass = embed
     ? "flex h-full min-h-0 w-full flex-col overflow-hidden"
-    : "flex flex-col h-full w-full overflow-hidden bg-[#0B1220]";
+    : "flex h-full w-full flex-col overflow-hidden bg-[var(--dsa-bg)]";
 
   return (
     <div className={shellClass}>
       {!isFixed && !hideToolbar && !lockSymbol && (
-        <div className="p-2 flex flex-wrap gap-2 tablet:gap-4 border-b border-white/5 flex-none items-center">
+        <div className="flex flex-none flex-wrap items-center gap-2 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-2">
           <SelectDropdown
             searchable
             maxRender={200}
@@ -733,23 +733,25 @@ export default function TradingChart({
         </div>
       )}
 
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-3 laptop:flex-row laptop:gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-2 laptop:flex-row">
         <div className="relative min-h-[240px] min-w-0 flex-1 phone:min-h-[280px]">
           {isFixed && (
-            <div className="absolute top-2 left-2 z-10 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white uppercase border border-white/10">
+            <div className="absolute left-2 top-2 z-10 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1 font-mono text-[10px] font-semibold uppercase text-white">
               {selectedInstrument?.symbol || defaultSymbol}
             </div>
           )}
-          <div className="absolute top-2 right-2 z-10">
-            <AddToWatchlistButton symbol={selectedInstrument?.symbol || defaultSymbol} />
-          </div>
+          {!embed ? (
+            <div className="absolute right-2 top-2 z-10">
+              <AddToWatchlistButton symbol={selectedInstrument?.symbol || defaultSymbol} />
+            </div>
+          ) : null}
 
           {loadingChart ? (
-            <div className="flex h-full items-center justify-center text-gray-400">
-              Loading chart...
+            <div className="flex h-full items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+              Loading chart…
             </div>
           ) : chartError ? (
-            <div className="flex h-full items-center justify-center text-red-400/80 text-sm">
+            <div className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--dsa-negative)]">
               {chartError}
             </div>
           ) : candles.length ? (
@@ -768,8 +770,8 @@ export default function TradingChart({
               />
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-yellow-400 text-sm">
-              No candle data for {selectedInstrument?.symbol || defaultSymbol}
+            <div className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--dsa-warning)]">
+              No persisted candle data for {selectedInstrument?.symbol || defaultSymbol}
             </div>
           )}
         </div>

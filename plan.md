@@ -48,7 +48,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 
 ### Phase 3 — UI foundation (P1)
 - [~] D1 Shared design tokens are implemented in the repository baseline candidate; **live-source parity is still unverified**, so this cannot be marked complete.
-- [~] D2 Shared shell/control/panel/button/navigation classes added. Symbol header, chart frame, status/tooltip/empty-state primitives remain.
+- [~] D2 Shared shell/control/panel/button/navigation classes added. Company symbol header and chart frame are now tokenized; shared status/tooltip/empty-state primitives still need broader consolidation.
 - [~] D3 Global header/search/navigation compacted and active-state styling standardized; saved views/context persistence remain.
 - [~] D4 Screener numeric density/alignment and research hierarchy implemented; broader tables/charts still need migration.
 - [ ] D5 Review terms/locales; choose a single primary UI language plus explicit translation support.
@@ -58,10 +58,10 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
 - [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
-- [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
+- [~] M3 Indicators tab shell respects global header; LightChart canvas/candles/full-window controls now match the research-terminal palette while preserving chart behavior. Cross-module interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
-- [ ] M6 Instrument detail/history: research context, disclaimers, source provenance, functional chart interactions.
+- [~] M6 Instrument detail/history: company profile now has a compact symbol header, stored-bar/realtime separation, honest local-only sentiment, profile-completeness labeling, source-safe empty states, dense paper-trading/position surfaces, and tokenized chart UI. Responsive/browser visual QA and live-source provenance remain.
 **Exit:** each module has before/after captures, smoke/visual/functional tests; no console or blocking API errors.
 
 ### Phase 5 — Polish, performance, security and release (P2)
@@ -87,6 +87,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: P1.2 company profile/chart slice implemented on an isolated stacked branch: compact symbol context, stored-vs-realtime chart provenance, local-only sentiment disclosure, profile-completeness semantics, dense paper-trading surfaces, and shared chart palette. No formula/API/trading logic changes; no deployment performed.
 - 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
