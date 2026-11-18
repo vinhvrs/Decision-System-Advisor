@@ -227,6 +227,55 @@ class AuthController extends Controller
         return response()->json(['message' => 'Password updated. You can sign in with your new password.'], 200);
     }
 
+    /**
+     * Change the password for the authenticated account.
+     * All API tokens are revoked after a successful change so the user must
+     * authenticate again with the new credential.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/[A-Za-z]/',
+                'regex:/[0-9]/',
+            ],
+        ]);
+
+        $user = $request->user();
+        if (! $user || ! Hash::check($validated['current_password'], $user->password)) {
+            return response()->json([
+                'message' => 'Current password is incorrect.',
+            ], 422);
+        }
+
+        if (Hash::check($validated['password'], $user->password)) {
+            return response()->json([
+                'message' => 'New password must be different from the current password.',
+            ], 422);
+        }
+
+        $updated = $this->userRepository->update((string) $user->id, [
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        if (! $updated) {
+            return response()->json([
+                'message' => 'Password could not be updated.',
+            ], 500);
+        }
+
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Password updated. Sign in again with your new password.',
+        ], 200);
+    }
+
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->only(['email', 'password']);
