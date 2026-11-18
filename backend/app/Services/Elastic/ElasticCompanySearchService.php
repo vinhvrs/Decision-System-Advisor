@@ -83,7 +83,7 @@ class ElasticCompanySearchService
     {
         $client = $this->elasticClientService->client();
         $index = config('elasticsearch.indices.company_profiles');
-        $limit = max(1, min(50, $limit));
+        $limit = max(1, min(2000, $limit));
 
         $response = $client->search([
             'index' => $index,
