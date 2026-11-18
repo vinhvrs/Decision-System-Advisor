@@ -42,6 +42,7 @@ DSA presents directional output as **market/research bias**, not trade instructi
 ## Measurable acceptance targets (revisit after baseline)
 - **100%** of surfaced stance recommendations derived from eligible inputs; missing input cannot silently become strong sell or 0 score.
 - **100%** of scored or charted research widgets provide accessible data source and as-of information (or explicitly say unavailable).
+- **100%** of symbols displayed on the 40-row production market board have the configured persisted-history minimum before a historical chart is shown; realtime quote availability alone never qualifies as historical coverage.
 - **0** broken public navigation/download links in route crawl; **0** indefinite loading states in tested error scenarios.
 - **0** unintentional numeric output differences on fixed golden data after UI refactor.
 - **100%** of key desktop and touch workflows tested at 390/768/1024/1440 widths with no clipped core controls.
