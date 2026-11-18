@@ -88,12 +88,12 @@ function MiniFundamentalChart({
   const chartMargin = { top: 8, right: 8, left: 0, bottom: 0 };
 
   return (
-    <div className="rounded-xl border border-[#2b3139] bg-[#1e2329] p-4">
-      <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-[#848e9c]">{title}</h4>
+    <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
+      <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">{title}</h4>
       {pts.length === 0 ? (
-        <p className="text-xs text-[#848e9c]">No data for this metric in the loaded window.</p>
+        <p className="text-xs text-[var(--dsa-text-muted)]">No data for this metric in the loaded window.</p>
       ) : (
-        <div className="h-[200px] w-full">
+        <div className="h-[180px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             {chartKind === "bar" ? (
               <BarChart data={pts} margin={chartMargin}>
@@ -105,7 +105,7 @@ function MiniFundamentalChart({
                   tickFormatter={(v) => valueFmt(v as number)}
                 />
                 <Tooltip
-                  contentStyle={{ background: "#0b0e11", border: "1px solid #2b3139", borderRadius: 8 }}
+                  contentStyle={{ background: "#0e141b", border: "1px solid #202b37", borderRadius: 4 }}
                   labelStyle={{ color: "#eaecef" }}
                   formatter={(v: number | undefined) => [valueFmt(v), title]}
                 />
@@ -121,7 +121,7 @@ function MiniFundamentalChart({
                   tickFormatter={(v) => valueFmt(v as number)}
                 />
                 <Tooltip
-                  contentStyle={{ background: "#0b0e11", border: "1px solid #2b3139", borderRadius: 8 }}
+                  contentStyle={{ background: "#0e141b", border: "1px solid #202b37", borderRadius: 4 }}
                   labelStyle={{ color: "#eaecef" }}
                   formatter={(v: number | undefined) => [valueFmt(v), title]}
                 />
@@ -189,7 +189,7 @@ export function FundamentalSection({ symbol }: { symbol: string }) {
 
   if (loading) {
     return (
-      <div className={`rounded-xl border border-[#2b3139] bg-[#1e2329] p-8 text-center text-sm text-[#848e9c]`}>
+      <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-8 text-center text-xs text-[var(--dsa-text-muted)]">
         Loading fundamentals…
       </div>
     );
@@ -197,29 +197,32 @@ export function FundamentalSection({ symbol }: { symbol: string }) {
 
   if (err) {
     return (
-      <div className={`rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200`}>{err}</div>
+      <div className="rounded-[var(--dsa-radius-md)] border border-[rgba(231,91,100,0.3)] bg-[rgba(231,91,100,0.08)] p-4 text-xs text-[var(--dsa-negative)]">{err}</div>
     );
   }
 
   if (!annual.length) {
     return (
-      <div className={`rounded-xl border border-[#2b3139] bg-[#1e2329] p-8 text-center text-sm text-[#848e9c]`}>
-        No SEC fundamental data for <span className="font-mono text-white">{symbol}</span> yet. Run the Python ingest
-        job (`python fundamental_ingest.py` from <span className="font-mono">python_engine</span>) after migrating the
-        database.
+      <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-8 text-center">
+        <p className="text-xs font-medium text-[var(--dsa-text-secondary)]">
+          SEC fundamental history unavailable for <span className="font-mono text-white">{symbol}</span>
+        </p>
+        <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">
+          No SEC annual rows are currently available for this symbol.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <p className={`text-xs leading-relaxed text-[#848e9c]`}>
+    <div className="space-y-4">
+      <p className="text-xs leading-relaxed text-[var(--dsa-text-muted)]">
         Annual and quarterly metrics are derived from SEC XBRL company facts (US-GAAP tags with aliases). Scores are
         heuristic summaries for orientation only — not investment advice.
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label htmlFor="fundamental-chart-kind" className="text-xs font-semibold text-[#848e9c]">
+        <label htmlFor="fundamental-chart-kind" className="text-xs font-semibold text-[var(--dsa-text-muted)]">
           Chart type
         </label>
         <select
@@ -238,20 +241,20 @@ export function FundamentalSection({ symbol }: { symbol: string }) {
           {scoreCards.map((c) => (
             <div
               key={c.label}
-              className={`rounded-xl border border-[#2b3139] bg-[#1e2329] p-3 ${c.bold ? "ring-1 ring-[#3861fb]/40" : ""}`}
+              className={`rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 ${c.bold ? "border-[rgba(76,141,255,0.5)]" : ""}`}
             >
-              <p className={`text-[10px] font-bold uppercase tracking-wide text-[#848e9c]`}>{c.label}</p>
-              <p className={`mt-1 text-xl font-bold tabular-nums text-white ${c.bold ? "text-[#7b9cff]" : ""}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">{c.label}</p>
+              <p className={`mt-1 font-mono text-lg font-semibold tabular-nums text-white ${c.bold ? "text-[#8ab4ff]" : ""}`}>
                 {c.v != null && Number.isFinite(Number(c.v)) ? Number(c.v).toFixed(1) : "—"}
               </p>
             </div>
           ))}
         </div>
       ) : (
-        <p className={`text-xs text-[#848e9c]`}>Fundamental scores not available yet for this symbol.</p>
+        <p className="text-xs text-[var(--dsa-text-muted)]">Fundamental scores are not available for this symbol.</p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 laptop:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 laptop:grid-cols-2">
         <MiniFundamentalChart
           title="Revenue"
           data={annual}
