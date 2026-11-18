@@ -1104,9 +1104,17 @@ function sparklineValuesForRow(
   period: Period,
 ): number[] {
   const cap = period === "daily" ? 48 : 24;
+  const persistedPoints =
+    Number.isFinite(Number(row.history_points))
+      ? Number(row.history_points)
+      : Array.isArray(row.chart)
+        ? row.chart.length
+        : 0;
   const embeddedHistoryUsable =
-    row.history_state === "ok" ||
-    (row.history_state == null && Array.isArray(row.chart) && row.chart.length >= 2);
+    persistedPoints >= 2 &&
+    row.history_state !== "missing" &&
+    Array.isArray(row.chart) &&
+    row.chart.length >= 2;
   if (period === "daily" && embeddedHistoryUsable && row.chart && row.chart.length >= 2) {
     return row.chart.length <= cap ? row.chart : row.chart.slice(-cap);
   }
@@ -1539,20 +1547,24 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       if (!rows.length) return;
 
       const syms = rows.map((r) => r.symbol);
+      const hasRealEmbeddedHistory = (r: BeginnerBoardRow) => {
+        const persistedPoints =
+          Number.isFinite(Number(r.history_points))
+            ? Number(r.history_points)
+            : Array.isArray(r.chart)
+              ? r.chart.length
+              : 0;
+        return (
+          persistedPoints >= 2 &&
+          r.history_state !== "missing" &&
+          Array.isArray(r.chart) &&
+          r.chart.length >= 2
+        );
+      };
       const hasEmbedded =
-        period === "daily" &&
-        rows.some(
-          (r) =>
-            r.history_state === "ok" ||
-            (r.history_state == null && Array.isArray(r.chart) && r.chart.length >= 2),
-        );
+        period === "daily" && rows.some((r) => hasRealEmbeddedHistory(r));
       const allEmbedded =
-        period === "daily" &&
-        rows.every(
-          (r) =>
-            r.history_state === "ok" ||
-            (r.history_state == null && Array.isArray(r.chart) && r.chart.length >= 2),
-        );
+        period === "daily" && rows.every((r) => hasRealEmbeddedHistory(r));
 
       const applyMap = (map: Record<string, number[]>) => {
         if (cancelled) return;
