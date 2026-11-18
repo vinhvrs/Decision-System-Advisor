@@ -623,83 +623,104 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </Link>
         </nav>
 
-        {/* Three-column shell — left stats | center tabs | right community */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
-          <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_12px)] xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
-              <div className="flex gap-3">
-                <img
-                  src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
-                  className="h-12 w-12 shrink-0 rounded-full bg-white object-contain p-1"
-                  alt=""
-                />
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-base font-bold leading-snug text-white">
+        <section className="mb-3 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-3">
+          <div className="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <img
+                src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
+                className="h-10 w-10 shrink-0 rounded-[var(--dsa-radius-sm)] bg-white object-contain p-1"
+                alt=""
+              />
+              <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <h1 className="truncate text-base font-semibold text-white tablet:text-lg">
                     {stripParentheticals(details?.company_name) || symbol}
                   </h1>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-md bg-[var(--dsa-surface-2)] px-2 py-0.5 font-mono text-xs font-semibold text-white">
-                      {details?.symbol || symbol}
-                    </span>
-                    <span className="rounded-md bg-[#f7931a]/20 px-2 py-0.5 text-[11px] font-bold text-[#f0b90b]">EQ</span>
-                    <div className="ml-auto flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={toggleWatchlist}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-[#f0b90b]"
-                        aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
-                        title="Watchlist"
-                      >
-                        <Star className={`h-4 w-4 ${watchlisted ? "fill-[#f0b90b] text-[#f0b90b]" : ""}`} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={shareProfile}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-white"
-                        aria-label="Share"
-                        title="Share"
-                      >
-                        <Share2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
+                  <span className="rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-surface-3)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                    {details?.symbol || symbol}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--dsa-text-muted)]">
+                  <span>{details?.exchange || "Exchange unavailable"}</span>
+                  <span>·</span>
+                  <span>{details?.industry || details?.sector || "Industry unavailable"}</span>
+                  <span>·</span>
+                  <span>Equity</span>
                 </div>
               </div>
+            </div>
 
-              <div className="mt-4">
-                <p className="font-mono text-2xl font-semibold tabular-nums text-white sm:text-3xl">
-                  ${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="flex flex-wrap items-center gap-3 tablet:justify-end">
+              <div className="min-w-[10rem]">
+                <p className="font-mono text-xl font-semibold tabular-nums text-white">
+                  {livePrice > 0
+                    ? `${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : "—"}
                 </p>
                 {changePct != null ? (
-                  <span
-                    className={`mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${
-                      changePct >= 0 ? `bg-[rgba(44,182,125,0.12)] ${CMC.green}` : `bg-[rgba(231,91,100,0.12)] ${CMC.red}`
+                  <p
+                    className={`mt-0.5 flex items-center gap-1 font-mono text-[11px] font-semibold tabular-nums ${
+                      changePct >= 0 ? CMC.green : CMC.red
                     }`}
                   >
-                    {changePct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    {changePct >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                     {changePct >= 0 ? "+" : ""}
-                    {changePct.toFixed(2)}%{" "}
-                    <span className={`font-normal ${CMC.muted}`}>· {changeLabel}</span>
-                  </span>
-                ) : (
-                  <p className={`mt-2 text-sm ${CMC.muted}`}>—</p>
-                )}
-
-                <div className="mt-4 border-t border-[var(--dsa-border)] pt-3">
-                  <p className={`mb-1 text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>
-                    Signal radar
+                    {changePct.toFixed(2)}%
+                    <span className="font-sans font-normal text-[var(--dsa-text-muted)]">· {changeLabel}</span>
                   </p>
-                  <FundamentalRadar symbol={symbol} compact />
-                </div>
+                ) : (
+                  <p className="mt-0.5 text-[11px] text-[var(--dsa-text-muted)]">Change unavailable</p>
+                )}
+              </div>
 
-                <p className="mt-3 flex items-center gap-1.5 text-[10px] text-[var(--dsa-text-muted)]">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={toggleWatchlist}
+                  className="dsa-button-secondary min-h-0 px-2.5 py-1.5 text-xs"
+                  aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
+                >
+                  <Star className={`h-3.5 w-3.5 ${watchlisted ? "fill-[#d8a340] text-[#d8a340]" : ""}`} />
+                  {watchlisted ? "Watching" : "Watch"}
+                </button>
+                <button
+                  type="button"
+                  onClick={shareProfile}
+                  className="dsa-button-secondary min-h-0 px-2 py-1.5"
+                  aria-label="Share company profile"
+                  title="Share"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Three-column research shell — stats | analysis | local context */}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
+          <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_12px)] xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
+            <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="dsa-section-label">Signal radar</p>
+                  <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">Comparative multi-factor research context</p>
+                </div>
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] ${
+                    realtimeCandle ? "text-[var(--dsa-positive)]" : "text-[var(--dsa-text-muted)]"
+                  }`}
+                >
                   <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    className={`h-1.5 w-1.5 rounded-full ${
                       realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
                     }`}
                   />
-                  {realtimeCandle ? "Realtime quote received" : "Showing persisted market data"}
-                </p>
+                  {realtimeCandle ? "Quote received" : "Stored data"}
+                </span>
+              </div>
+              <div className="mt-2">
+                <FundamentalRadar symbol={symbol} compact />
               </div>
             </div>
 
@@ -804,13 +825,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={toggleWatchlist}
-                className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1.5 text-xs"
-              >
-                {watchlisted ? "Watching" : "Watch"}
-              </button>
+
             </div>
 
             {mainTab === "chart" && (
