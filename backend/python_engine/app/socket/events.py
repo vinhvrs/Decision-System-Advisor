@@ -41,12 +41,6 @@ DASHBOARD_YAHOO_MAP: Dict[str, tuple] = {
 
 DASHBOARD_YAHOO_SYMBOLS: Set[str] = set(DASHBOARD_YAHOO_MAP.keys())
 
-# Investing board stocks without historical rows in the curated market universe.
-# They are still valid Yahoo quote symbols and must not be dropped at subscribe time.
-INVESTING_BOARD_YAHOO_SYMBOLS: Set[str] = {
-    "AMD", "ADBE", "CRM", "CSCO", "ASML", "INTU", "QCOM", "NOW", "PANW", "SNOW",
-}
-
 try:
     MARKET_BOARD_SYMBOL_LIMIT = max(1, min(500, int(os.environ.get("MARKET_BOARD_SYMBOL_LIMIT", "40"))))
 except ValueError:
@@ -185,7 +179,7 @@ class ConnectionManager:
         await asyncio.gather(*(self._send_safe(ws, text) for ws in targets))
 
     def update_subscription(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
-        allowed = _load_allowed_stock_symbols() | DASHBOARD_YAHOO_SYMBOLS | INVESTING_BOARD_YAHOO_SYMBOLS
+        allowed = _load_allowed_stock_symbols() | DASHBOARD_YAHOO_SYMBOLS
         new_symbols = {
             s.upper()
             for s in symbols
