@@ -185,6 +185,21 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const [candles, setCandles] = useState<TradingChartCandle[]>([]);
   const [realtimeCandle, setRealtimeCandle] = useState<TradingChartCandle | null>(null);
+  const [marketDataMeta, setMarketDataMeta] = useState<{
+    realtimeQuoteAt: number | null;
+    realtimeQuoteStale: boolean;
+    persistedLastBarAt: number | null;
+    persistedSources: string[];
+    loading: boolean;
+    error: string | null;
+  }>({
+    realtimeQuoteAt: null,
+    realtimeQuoteStale: false,
+    persistedLastBarAt: null,
+    persistedSources: [],
+    loading: true,
+    error: null,
+  });
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
@@ -205,6 +220,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const frame = window.requestAnimationFrame(() => {
       setPaperTrading(null);
       setWatchlistActionMessage(null);
+      setMarketDataMeta({
+        realtimeQuoteAt: null,
+        realtimeQuoteStale: false,
+        persistedLastBarAt: null,
+        persistedSources: [],
+        loading: true,
+        error: null,
+      });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
@@ -359,6 +382,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
       if (state.symbol !== symbol || state.period !== selectedPeriod) return;
       setCandles(state.candles);
       setRealtimeCandle(state.realtimeCandle);
+      setMarketDataMeta({
+        realtimeQuoteAt: state.realtimeQuoteAt,
+        realtimeQuoteStale: state.realtimeQuoteStale,
+        persistedLastBarAt: state.persistedLastBarAt,
+        persistedSources: state.persistedSources,
+        loading: state.loading,
+        error: state.error,
+      });
     },
     [symbol, selectedPeriod],
   );
@@ -429,6 +460,53 @@ export function StockProfilePage({ slug }: { slug: string }) {
           selected={PERIOD_OPTIONS.find((p) => p.id === selectedPeriod) ?? null}
           onSelect={(opt) => setSelectedPeriod(opt.id as TF)}
         />
+      </div>
+      <div className="grid gap-1 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2 text-[10px] text-[var(--dsa-text-muted)] sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <span className="dsa-section-label">History</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {candles.length.toLocaleString("en-US")} persisted {selectedPeriod} bars
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Last persisted</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {marketDataMeta.persistedLastBarAt
+              ? new Date(marketDataMeta.persistedLastBarAt).toLocaleString()
+              : "Unavailable"}
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">History source</span>
+          <p
+            className="mt-0.5 truncate font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]"
+            title={marketDataMeta.persistedSources.join(", ") || "Source unavailable"}
+          >
+            {marketDataMeta.persistedSources.length
+              ? marketDataMeta.persistedSources.join(", ")
+              : "Source unavailable"}
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Quote stream</span>
+          <p
+            className={`mt-0.5 font-mono text-[10px] normal-case tracking-normal ${
+              marketDataMeta.realtimeQuoteStale
+                ? "text-[var(--dsa-warning)]"
+                : marketDataMeta.realtimeQuoteAt
+                  ? "text-[var(--dsa-positive)]"
+                  : "text-[var(--dsa-text-secondary)]"
+            }`}
+          >
+            {marketDataMeta.realtimeQuoteAt
+              ? `${marketDataMeta.realtimeQuoteStale ? "Stale · " : ""}${new Date(
+                  marketDataMeta.realtimeQuoteAt,
+                ).toLocaleString()}`
+              : marketDataMeta.loading
+                ? "Waiting for quote"
+                : "No live quote received"}
+          </p>
+        </div>
       </div>
       {candles.length < 2 ? (
         <div className="border-b border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-xs text-[#d9bb7a]">
@@ -566,11 +644,17 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <p className={`mt-3 flex items-center gap-1.5 text-[10px] ${CMC.muted}`}>
                   <span
                     className={`inline-block h-1.5 w-1.5 rounded-full ${
-                      realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
+                      marketDataMeta.realtimeQuoteAt && !marketDataMeta.realtimeQuoteStale
+                        ? "bg-[var(--dsa-positive)]"
+                        : marketDataMeta.realtimeQuoteStale
+                          ? "bg-[var(--dsa-warning)]"
+                          : "bg-[var(--dsa-text-muted)]"
                     }`}
                   />
-                  {realtimeCandle
-                    ? "Live quote layered on persisted OHLC"
+                  {marketDataMeta.realtimeQuoteAt
+                    ? marketDataMeta.realtimeQuoteStale
+                      ? "Latest quote is stale · persisted OHLC retained"
+                      : "Live quote received · persisted OHLC retained"
                     : candles.length > 0
                       ? "Persisted OHLC loaded · live quote unavailable"
                       : "Persisted OHLC unavailable"}
