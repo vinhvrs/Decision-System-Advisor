@@ -48,16 +48,16 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 
 ### Phase 3 — UI foundation (P1)
 - [~] D1 Shared design tokens are implemented in the repository baseline candidate; **live-source parity is still unverified**, so this cannot be marked complete.
-- [~] D2 Shared shell/control/panel/button/navigation classes added. Symbol header, chart frame, status/tooltip/empty-state primitives remain.
-- [~] D3 Global header/search/navigation compacted and active-state styling standardized; saved views/context persistence remain.
-- [~] D4 Screener numeric density/alignment and research hierarchy implemented; broader tables/charts still need migration.
+- [~] D2 Shared shell/control/panel/button/navigation classes added. Reusable Market View trust strip now exposes source/as-of/history/quote state; generic chart-frame/tooltip/empty-state primitives still remain.
+- [~] D3 Global header/search/navigation compacted and active-state styling standardized; desktop `/` focuses symbol search, mobile has direct Search access, and `/search` is now a functional dense workspace. Saved views/context persistence remain.
+- [~] D4 Screener numeric density/alignment and research hierarchy implemented; market and SEC-fundamental coverage are quantified instead of using a binary warning. Broader tables/charts still need migration.
 - [ ] D5 Review terms/locales; choose a single primary UI language plus explicit translation support.
 - [ ] D6 Test responsiveness and accessibility at 390, 768, 1024 and 1440 pixels; snapshot visual regressions.
 **Exit:** visually coherent shell and components without changing backend calculations.
 
 ### Phase 4 — Module-by-module refinement (P1→P2)
-- [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
-- [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
+- [~] M1 Home/Market View now uses one compact terminal header (redundant hero removed), a flat trust strip for 40-symbol scope/history/quotes/as-of/source, and flatter News/Heatmap/Movers panels. Responsive/browser QA remains.
+- [~] M2 Ranking eligibility is gated; Screener now has a sticky dense numeric table plus explicit universe/market/SEC coverage and UTC as-of. Heatmap/filter work remains.
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
@@ -87,6 +87,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: P1 refinement adds quantified data trust to Market View and Screener, removes the redundant homepage hero, flattens Market Extras, makes global search usable on mobile, adds desktop `/` search focus, rebuilds `/search` into a dense research workspace, and replaces production-facing `demo/top-symbols` usage with neutral `top-symbols` while preserving the legacy alias. No formulas or deployment changed.
 - 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
