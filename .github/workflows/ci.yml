@@ -66,8 +66,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run table-mode regression tests
-        run: python -m unittest tests.test_dsa_table_mode
+      - name: Run data-universe regression tests
+        run: |
+          python -m unittest tests.test_dsa_table_mode
+          python -m unittest tests.test_stock_sync_scope
 
   laravel-guards:
     name: Laravel production guards

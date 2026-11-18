@@ -1,7 +1,10 @@
 import logging
 from threading import Lock
 
-from app.bootstrap.scheduler_config import SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N
+from app.bootstrap.scheduler_config import (
+    STOCK_SYNC_MODE,
+    STOCK_SYNC_TOP_N,
+)
 from app.data_collect.collectors.demo_data_sync import DSADemoSync
 from app.data_collect.collectors.stock_sync import DSATurbo
 from app.data_collect.symbol_ingest import snapshot_limit_for_stock_sync
@@ -18,7 +21,7 @@ def run_snapshot_tables_update() -> None:
         logger.warning("Snapshot update skipped because previous run is still active.")
         return
     try:
-        out = run_snapshot_update(symbol_scope=SYMBOL_INGEST_MODE, top_n=SYMBOL_INGEST_TOP_N)
+        out = run_snapshot_update(symbol_scope=STOCK_SYNC_MODE, top_n=STOCK_SYNC_TOP_N)
         logger.info("[Schedule] Snapshot tables update completed: %s", out)
     except Exception as e:
         logger.error("[Schedule] Snapshot tables update error: %s", e, exc_info=True)
@@ -31,7 +34,7 @@ def run_stock_sync() -> None:
         logger.warning("Stock sync skipped because previous run is still active.")
         return
     try:
-        lim = snapshot_limit_for_stock_sync(SYMBOL_INGEST_MODE, SYMBOL_INGEST_TOP_N)
+        lim = snapshot_limit_for_stock_sync(STOCK_SYNC_MODE, STOCK_SYNC_TOP_N)
         if settings.USE_DEMO_TABLES:
             DSADemoSync(
                 snapshot_limit=lim,
