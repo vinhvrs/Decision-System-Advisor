@@ -82,8 +82,16 @@ const SUBTITLES: Record<SimulatorIndicatorId, string> = {
 export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }: Props) {
   const [symbol, setSymbol] = useState<string>('AAPL');
   const [marketSymbols, setMarketSymbols] = useState<string[]>([...FALLBACK_MARKET_SYMBOLS]);
+  const [universeSource, setUniverseSource] = useState<'dashboard' | 'fallback'>('fallback');
   const [period, setPeriod] = useState<MarketPeriod>('daily');
   const [marketBars, setMarketBars] = useState<SampleBar[]>([]);
+  const [historyMeta, setHistoryMeta] = useState<{
+    rawRows: number;
+    displayedBars: number;
+    firstAt: string | null;
+    lastAt: string | null;
+    sources: string[];
+  }>({ rawRows: 0, displayedBars: 0, firstAt: null, lastAt: null, sources: [] });
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hiddenLineIds, setHiddenLineIds] = useState<string[]>([]);
@@ -124,7 +132,10 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
               .filter(Boolean),
           ),
         ];
-        if (symbols.length > 0) setMarketSymbols(symbols.slice(0, 40));
+        if (symbols.length > 0) {
+          setMarketSymbols(symbols.slice(0, 40));
+          setUniverseSource('dashboard');
+        }
       })
       .catch(() => {
         // Keep the small fallback catalog when the dashboard universe is unavailable.
@@ -162,8 +173,29 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
       InstrumentService.getInstrumentData(sym, period, FETCH_LIMIT, 1)
         .then((raw) => {
           if (cancelled) return;
-          const mapped = mapInstrumentDataToSampleBars(raw || []).slice(-DISPLAY_MAX_BARS);
+          const sourceRows = raw || [];
+          const mapped = mapInstrumentDataToSampleBars(sourceRows).slice(-DISPLAY_MAX_BARS);
+          const timestamps = sourceRows
+            .map((row) => String(row.timestamp || '').trim())
+            .filter(Boolean)
+            .sort();
+          const sources = [
+            ...new Set(
+              sourceRows
+                .map((row) => row.source?.trim())
+                .filter((source): source is string => Boolean(source)),
+            ),
+          ];
+
           setMarketBars(mapped);
+          setHistoryMeta({
+            rawRows: sourceRows.length,
+            displayedBars: mapped.length,
+            firstAt: timestamps[0] ?? null,
+            lastAt: timestamps[timestamps.length - 1] ?? null,
+            sources,
+          });
+
           if (!mapped.length) {
             setFetchError(`Persisted ${period} history is unavailable for ${sym}.`);
           }
@@ -171,6 +203,7 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
         .catch(() => {
           if (!cancelled) {
             setMarketBars([]);
+            setHistoryMeta({ rawRows: 0, displayedBars: 0, firstAt: null, lastAt: null, sources: [] });
             setFetchError(`Could not load persisted ${period} history for ${sym}.`);
           }
         })
@@ -431,6 +464,51 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
       </div>
 
       <p className="mt-2 text-[10px] text-[var(--dsa-text-muted)]">{SUBTITLES[indicatorId]}</p>
+
+      <div className="mt-3 grid gap-1 border-y border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2 text-[10px] text-[var(--dsa-text-muted)] sm:grid-cols-2 laptop:grid-cols-4">
+        <div>
+          <span className="dsa-section-label">Universe</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {universeSource === 'dashboard'
+              ? `Dashboard universe · ${marketSymbols.length} symbols`
+              : `Fallback selector · ${marketSymbols.length} symbols`}
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Coverage</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {historyMeta.displayedBars}/{historyMeta.rawRows || 0} bars shown/received
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Persisted range</span>
+          <p
+            className="mt-0.5 truncate font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]"
+            title={
+              historyMeta.firstAt && historyMeta.lastAt
+                ? `${historyMeta.firstAt} → ${historyMeta.lastAt}`
+                : 'Unavailable'
+            }
+          >
+            {historyMeta.lastAt ?? 'Unavailable'}
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">History source</span>
+          <p
+            className="mt-0.5 truncate font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]"
+            title={historyMeta.sources.join(', ') || 'Source unavailable'}
+          >
+            {historyMeta.sources.length ? historyMeta.sources.join(', ') : 'Source unavailable'}
+          </p>
+        </div>
+      </div>
+
+      {universeSource === 'fallback' ? (
+        <p className="mt-2 text-[10px] leading-relaxed text-[var(--dsa-warning)]">
+          Dashboard symbol universe is unavailable. The fallback list affects the selector only; indicator values still require persisted OHLCV for the selected symbol.
+        </p>
+      ) : null}
 
       <div className="mt-4 grid gap-3 laptop:grid-cols-[minmax(0,250px)_1fr]">
         <div className="space-y-4 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-3">

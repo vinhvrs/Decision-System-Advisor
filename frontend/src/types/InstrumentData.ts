@@ -8,6 +8,7 @@ export type InstrumentData = {
     close: number;
     volume: number;
     slug: string;
+    source?: string | null;
 }
 
 export interface InstrumentDataAPI {
@@ -21,4 +22,5 @@ export interface InstrumentDataAPI {
     close: number;
     volume: number;
     slug: string;
+    source?: string | null;
 }
