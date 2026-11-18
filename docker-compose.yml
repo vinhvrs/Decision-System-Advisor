@@ -97,6 +97,7 @@ services:
       # Market View production board is 40 rows; scheduled OHLC sync must cover at least the same pool.
       - SYMBOL_INGEST_MODE=top_snapshot
       - SYMBOL_INGEST_TOP_N=40
+      - MARKET_BOARD_SYMBOL_LIMIT=40
       - HISTORY_BOOTSTRAP_MIN_BARS=180
       - HISTORY_BOOTSTRAP_DAYS=3650
       - DASHBOARD_WARM_UP_LIMIT=40
