@@ -25,6 +25,7 @@ import type { HomeMarketViewVariant } from "@/src/app/(site)/HomeMarketView";
 import BeginnerRadarChart from "./BeginnerRadarChart";
 import BeginnerTestMarketExtras from "./BeginnerTestMarketExtras";
 import SelectDropdown from "@/src/sections/Dropdown";
+import ResearchTrustStrip from "@/src/components/research/ResearchTrustStrip";
 import { stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 import { isDemoDevMode } from "@/src/libs/devMode";
 import { fearGreedFromBoardRows, fearGreedFromChangePct } from "@/src/libs/fearGreed";
@@ -1726,6 +1727,30 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     return fearGreedFromChangePct(boardAggregates?.avgChangePct);
   }, [boardRows, period, boardAggregates?.avgChangePct]);
 
+  const boardTrustStats = useMemo(() => {
+    let historyOk = 0;
+    let historyShort = 0;
+    let historyMissing = 0;
+    let quoteObserved = 0;
+    let quoteStale = 0;
+
+    for (const row of boardRows) {
+      const legacyHistoryLength = Array.isArray(row.chart) ? row.chart.length : 0;
+      if (row.history_state === "ok" || (row.history_state == null && legacyHistoryLength >= 2)) {
+        historyOk++;
+      } else if (row.history_state === "short" || (row.history_state == null && legacyHistoryLength === 1)) {
+        historyShort++;
+      } else {
+        historyMissing++;
+      }
+
+      if (Number.isFinite(row.quote_ts) && Number(row.quote_ts) > 0) quoteObserved++;
+      if (row.quote_stale === true) quoteStale++;
+    }
+
+    return { historyOk, historyShort, historyMissing, quoteObserved, quoteStale };
+  }, [boardRows]);
+
   const headerStatsReady = !boardLoading && boardRows.length > 0 && boardAggregates != null;
 
   return (
@@ -1761,6 +1786,20 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       </header>
 
       <div className="mx-auto max-w-[1600px] px-2 py-4 phone:px-3 sm:px-4 sm:py-5">
+        <ResearchTrustStrip
+          className="mb-4"
+          loadedCount={boardRows.length}
+          targetCount={BOARD_LIMIT_PROD}
+          historyOk={boardTrustStats.historyOk}
+          historyShort={boardTrustStats.historyShort}
+          historyMissing={boardTrustStats.historyMissing}
+          quoteObserved={boardTrustStats.quoteObserved}
+          quoteStale={boardTrustStats.quoteStale}
+          updatedAt={dashboardUpdatedAt}
+          sourceLabel={isRedisDaily ? "Stored OHLC · Yahoo quote stream" : "Ranking API · quote stream"}
+          loading={boardLoading}
+        />
+
         {/* Stat widgets — stack on small screens, grid on medium, optional horizontal scroll on very wide */}
         <section className="mb-4 grid grid-cols-1 gap-3 phone:grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-3 xl:grid-cols-5 xl:gap-3">
           <div
