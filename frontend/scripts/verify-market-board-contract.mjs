@@ -9,7 +9,8 @@ const required = [
   ["dev row completion fails closed", "if (!isDemoDevMode()) return partial;"],
   ["production board is capped without dev injection", "rows = rows.slice(0, BOARD_LIMIT_PROD);"],
   ["explicit missing-history UI", "No history"],
-  ["persisted history state is honored", 'r.history_state === "ok"'],
+  ["persisted history state is honored", 'history_state !== "missing"'],
+  ["persisted points are required before embedded history is trusted", "persistedPoints >= 2"],
   ["history request failure preserves existing data", "Keep the last known good or embedded history on transient API failure."],
 ];
 
