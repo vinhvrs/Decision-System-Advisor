@@ -21,6 +21,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] P0.4a Add non-destructive Pi source-parity capture (`scripts/pi-source-parity.sh`) for live Git HEAD, dirty paths, route/build manifests, container images and 40-symbol runtime settings. Script is committed; live execution/output still required.
 - [ ] P0.5 Audit runtime demo data, especially `frontend/src/app/(site)/market-overview/page.tsx`; confirm whether file exists in live build.
 - [~] P0.6 Align declared PHP runtime with dependency lock. Repository baseline candidate is updated to PHP 8.4; deployed Raspberry Pi PHP version still requires verification.
+- [~] P0.7 Dependency lock audit/remediation is integrated: audited npm/composer locks are carried forward and production dependency audits are blocking CI gates. Production Pi dependency/runtime parity still requires verification.
 **Exit:** verified mapping of live route → actual source and deployment, clean baseline, backups, reproducible QA. **BLOCK** later code changes until achieved.
 
 ### Phase 1 — Trust and data correctness (P0)
@@ -65,7 +66,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
-- [ ] M6 Instrument detail/history: research context, disclaimers, source provenance, functional chart interactions.
+- [~] M6 Instrument detail/history: persisted-history coverage is explicit; fake local community sentiment and heuristic fallback radar removed; chart research-bias terminology aligned; profile watch state now uses the canonical server API and realtime status requires an actual quote. Remaining source/as-of provenance and responsive visual QA are pending.
 **Exit:** each module has before/after captures, smoke/visual/functional tests; no console or blocking API errors.
 
 ### Phase 5 — Polish, performance, security and release (P2)
@@ -91,6 +92,10 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Audited npm/composer lockfiles and blocking production dependency audit gates carried into integration v2.
+- 2026-11-18: P1.2 company profile trust cleanup integrated: explicit persisted-history coverage, no seeded local community sentiment, no heuristic fallback radar, canonical watchlist state, and chart model output labeled as research bias.
+- 2026-11-18: Market View provenance strip added: research snapshot timestamp, realtime-quote coverage, persisted-history coverage, and analysis eligibility are displayed independently.
+- 2026-11-18: Market View density pass: five large KPI cards/gauge replaced by a flat metric strip; legend pills compacted; ranking terminology standardized to Multi-factor research ranking, Bias, Strength, Watchers and Room to high.
 - 2026-11-18: Exhaustive branch-tree scan confirmed Data Health / Market Analytics source is absent from every stored historical/production-candidate Git branch; live Pi source recovery is an explicit P0 release blocker.
 - 2026-11-18: Public aitemple.tech verified as a mixed-asset 40-instrument terminal with `/data-health` and `/market-analytics`, while no inspected Git branch contains those live routes. Added Pi source-parity capture; production promotion remains blocked until live uncommitted/source/build state is reconciled into Git.
 - 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
