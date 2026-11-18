@@ -692,9 +692,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <FundamentalRadar symbol={symbol} compact />
                 </div>
 
-                <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                <p className="mt-3 flex items-center gap-1.5 text-[10px] text-[var(--dsa-text-muted)]">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
+                    }`}
+                  />
+                  {realtimeCandle ? "Realtime quote received" : "Showing persisted market data"}
                 </p>
               </div>
             </div>
@@ -737,19 +741,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <StatTile label="IPO" value={formatDate(details?.ipo_date)} />
             </div>
 
-            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
+            <div className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile score</span>
-                <span className="text-xs font-bold text-[#f0b90b]">{profileScore}%</span>
+                <span className="text-xs font-semibold text-[var(--dsa-text-secondary)]">Profile completeness</span>
+                <span className="font-mono text-xs font-semibold tabular-nums text-[#8ab4ff]">{profileScore}%</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-[var(--dsa-surface-2)]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#c99400] to-[#f0b90b]"
-                  style={{ width: `${profileScore}%` }}
-                />
+              <div className="h-1.5 overflow-hidden rounded-full bg-[var(--dsa-surface-3)]">
+                <div className="h-full bg-[#4c8dff]" style={{ width: `${profileScore}%` }} />
               </div>
-              <p className={`mt-2 text-[10px] leading-relaxed ${CMC.muted}`}>
-                How complete this company record is (name, sector, financials, description, etc.).
+              <p className="mt-2 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+                Field completeness only. This is not an investment score or quality rating.
               </p>
             </div>
 
@@ -761,7 +762,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   href={details.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
+                  className="dsa-button-secondary min-h-0 py-2 text-xs"
                 >
                   <Globe className="h-4 w-4" />
                   Website
@@ -769,7 +770,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               ) : null}
               <Link
                 href="/search"
-                className={`flex items-center justify-center gap-2 rounded-xl border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
+                className="dsa-button-secondary min-h-0 py-2 text-xs"
               >
                 <Building2 className="h-4 w-4" />
                 More companies
