@@ -214,6 +214,7 @@ class DSATurbo:
         *,
         backfill_days: Optional[int] = None,
         history_period: str = "7d",
+        symbols: Optional[list[str]] = None,
     ):
         """
         ``snapshot_limit``: max rows from ``snapshot_demo`` ordered by volume.
@@ -227,6 +228,11 @@ class DSATurbo:
             self.snapshot_limit = snapshot_limit
             self.backfill_days = backfill_days
             self.history_period = history_period
+            self.symbols = list(dict.fromkeys(
+                str(symbol).strip().upper()
+                for symbol in (symbols or [])
+                if symbol and str(symbol).strip()
+            ))
             self.db_config = settings.DB_CONFIG.copy()
             self.db_config['cursorclass'] = pymysql.cursors.DictCursor
             self.conn = pymysql.connect(**self.db_config)
@@ -244,6 +250,26 @@ class DSATurbo:
     def fetch_symbols(self):
         with self.conn.cursor() as cur:
             ensure_snapshot_demo_table(self.conn)
+
+            if self.symbols:
+                placeholders = ",".join(["%s"] * len(self.symbols))
+                cur.execute(
+                    f"""
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                      AND UPPER(TRIM(symbol)) IN ({placeholders})
+                    """,
+                    self.symbols,
+                )
+                by_symbol = {
+                    str(row["symbol"]).strip().upper(): row
+                    for row in (cur.fetchall() or [])
+                    if row.get("symbol")
+                }
+                # Preserve the caller's requested order and ignore unknown symbols.
+                return [by_symbol[sym] for sym in self.symbols if sym in by_symbol]
+
             limit = (
                 self.snapshot_limit
                 if self.snapshot_limit is not None
@@ -470,9 +496,27 @@ if __name__ == "__main__":
         default="7d",
         help="yfinance period when --days is not set (default: 7d)",
     )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum snapshot/catalog symbols to sync (e.g. 40).",
+    )
+    p.add_argument(
+        "--symbols",
+        default="",
+        help="Comma-separated exact symbols for targeted backfill; overrides --limit universe selection.",
+    )
     args = p.parse_args()
+    wanted = [
+        s.strip().upper()
+        for s in str(args.symbols or "").split(",")
+        if s.strip()
+    ]
     DSA_TURBO = DSATurbo(
+        snapshot_limit=args.limit,
         backfill_days=args.days,
         history_period=args.period,
+        symbols=wanted or None,
     )
     DSA_TURBO.run()
