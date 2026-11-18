@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";\nimport { Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Search } from "lucide-react";
 import {
   InstrumentScreenerService,
   SCREENER_TECH_SYMBOLS,
@@ -65,7 +66,8 @@ export function InstrumentScreenerDashboard() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("symbol");
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("asc");\n  const [query, setQuery] = useState("");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("asc");
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
