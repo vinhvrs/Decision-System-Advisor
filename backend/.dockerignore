@@ -1,0 +1,7 @@
+vendor
+node_modules
+storage
+.env
+.env.*
+python_engine
+bootstrap/cache
