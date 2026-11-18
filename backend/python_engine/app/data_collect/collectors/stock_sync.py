@@ -16,8 +16,9 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Symbol universe for DSATurbo sync follows DEV_MODE (snapshot_demo or instrument_snapshot).
+# Symbol universe for DSATurbo sync follows the DEV_MODE-resolved snapshot table.
 from app.config.dsa_tables import table as dsa_table
+from app.data_collect.history_policy import choose_history_fetch_plan, prioritize_by_history_coverage
 
 
 def snapshot_symbol_table() -> str:
@@ -42,9 +43,24 @@ def ensure_snapshot_symbol_table(conn: pymysql.connections.Connection) -> None:
             )
 
 
-# Backward-compatible alias
-ensure_snapshot_demo_table = ensure_snapshot_symbol_table
 SNAPSHOT_SYMBOL_TABLE = snapshot_symbol_table()
+
+DEFAULT_HISTORY_PRIORITY_SYMBOLS = (
+    "AMD", "ADBE", "CRM", "CSCO", "ASML",
+    "INTU", "QCOM", "NOW", "PANW", "SNOW",
+)
+
+
+def history_priority_symbols() -> list[str]:
+    raw = os.environ.get(
+        "HISTORY_PRIORITY_SYMBOLS",
+        ",".join(DEFAULT_HISTORY_PRIORITY_SYMBOLS),
+    )
+    return list(dict.fromkeys(
+        s.strip().upper()
+        for s in raw.split(",")
+        if s and s.strip()
+    ))
 
 
 def _doc_id_corporate(symbol: str, title: str, published_at, url: str) -> str:
@@ -197,10 +213,11 @@ class DSATurbo:
         *,
         backfill_days: Optional[int] = None,
         history_period: str = "7d",
+        symbols: Optional[list[str]] = None,
     ):
         """
-        ``snapshot_limit``: max rows from ``snapshot_demo`` ordered by volume.
-        ``None`` → ``settings.TOP_N`` (capped by how many rows exist in ``snapshot_demo``).
+        ``snapshot_limit``: requested rows from the DEV_MODE-resolved market snapshot universe.
+        Sparse snapshots are filled from the stock instrument catalog up to this limit.
 
         ``backfill_days``: if set, fetch daily bars from (now − N days) through today (overrides ``history_period``).
 
@@ -210,6 +227,19 @@ class DSATurbo:
             self.snapshot_limit = snapshot_limit
             self.backfill_days = backfill_days
             self.history_period = history_period
+            self.bootstrap_min_bars = max(
+                2,
+                int(os.environ.get("HISTORY_BOOTSTRAP_MIN_BARS", "180")),
+            )
+            self.bootstrap_days = max(
+                30,
+                int(os.environ.get("HISTORY_BOOTSTRAP_DAYS", "3650")),
+            )
+            self.symbols = list(dict.fromkeys(
+                str(symbol).strip().upper()
+                for symbol in (symbols or [])
+                if symbol and str(symbol).strip()
+            ))
             self.db_config = settings.DB_CONFIG.copy()
             self.db_config['cursorclass'] = pymysql.cursors.DictCursor
             self.conn = pymysql.connect(**self.db_config)
@@ -226,21 +256,176 @@ class DSATurbo:
 
     def fetch_symbols(self):
         with self.conn.cursor() as cur:
-            ensure_snapshot_demo_table(self.conn)
-            sql = f"""
-                SELECT i.id, i.symbol
-                FROM {SNAPSHOT_SYMBOL_TABLE} s
-                JOIN instruments i ON s.instrument_id = i.id
-                ORDER BY s.volume DESC
-                LIMIT %s
-            """
+            ensure_snapshot_symbol_table(self.conn)
+
+            if self.symbols:
+                placeholders = ",".join(["%s"] * len(self.symbols))
+                cur.execute(
+                    f"""
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                      AND UPPER(TRIM(symbol)) IN ({placeholders})
+                    """,
+                    self.symbols,
+                )
+                by_symbol = {
+                    str(row["symbol"]).strip().upper(): row
+                    for row in (cur.fetchall() or [])
+                    if row.get("symbol")
+                }
+                # Preserve the caller's requested order and ignore unknown symbols.
+                return [by_symbol[sym] for sym in self.symbols if sym in by_symbol]
+
             limit = (
                 self.snapshot_limit
                 if self.snapshot_limit is not None
                 else getattr(settings, "TOP_N", 500)
             )
+            limit = max(1, min(int(limit), 500))
+
+            # Prefer the ranked snapshot universe, but do not let an old/sparse
+            # snapshot permanently cap OHLC persistence below the requested board
+            # size. Fill the remainder from the stock instrument catalog.
+            sql = f"""
+                SELECT i.id, i.symbol
+                FROM {SNAPSHOT_SYMBOL_TABLE} s
+                JOIN instruments i ON s.instrument_id = i.id
+                WHERE i.type = 'stock'
+                ORDER BY s.volume DESC, i.symbol ASC
+                LIMIT %s
+            """
             cur.execute(sql, (limit,))
-            return cur.fetchall()
+            rows = list(cur.fetchall() or [])
+
+            if len(rows) >= limit:
+                return rows
+
+            selected_ids = {str(row["id"]) for row in rows if row.get("id")}
+            selected_symbols = {
+                str(row["symbol"]).strip().upper()
+                for row in rows
+                if row.get("symbol")
+            }
+            remaining = limit - len(rows)
+            if remaining <= 0:
+                return rows
+
+            # First recover the board symbols that the realtime layer historically
+            # allowed even when they had no persisted OHLC.
+            priority = [
+                sym for sym in history_priority_symbols()
+                if sym not in selected_symbols
+            ]
+            if priority and remaining > 0:
+                ph = ",".join(["%s"] * len(priority))
+                cur.execute(
+                    f"""
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                      AND UPPER(TRIM(symbol)) IN ({ph})
+                    ORDER BY symbol ASC
+                    """,
+                    priority,
+                )
+                for row in (cur.fetchall() or []):
+                    iid = str(row.get("id") or "")
+                    sym = str(row.get("symbol") or "").strip().upper()
+                    if not iid or iid in selected_ids or sym in selected_symbols:
+                        continue
+                    rows.append(row)
+                    selected_ids.add(iid)
+                    selected_symbols.add(sym)
+                    remaining -= 1
+                    if remaining <= 0:
+                        return rows
+
+            # Then bootstrap any remaining stock instruments. Once daily OHLC
+            # exists, snapshot/ranking can rank them normally.
+            if selected_ids:
+                placeholders = ",".join(["%s"] * len(selected_ids))
+                cur.execute(
+                    f"""
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                      AND id NOT IN ({placeholders})
+                    ORDER BY symbol ASC
+                    LIMIT %s
+                    """,
+                    (*selected_ids, remaining),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                    ORDER BY symbol ASC
+                    LIMIT %s
+                    """,
+                    (remaining,),
+                )
+
+            rows.extend(cur.fetchall() or [])
+            return rows
+
+    def prioritize_undercovered(self, instruments):
+        """
+        Scheduled sync processes the least-covered symbols first. This prevents
+        a repeated upstream throttle/interruption from starving the same tail of
+        the 40-symbol universe. Manual --symbols order is preserved.
+        """
+        items = list(instruments or [])
+        if self.symbols or len(items) <= 1:
+            return items
+
+        ids = [str(row.get("id") or "") for row in items if row.get("id")]
+        if not ids:
+            return items
+
+        coverage: dict[str, int] = {}
+        placeholders = ",".join(["%s"] * len(ids))
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT p.instrument_id,
+                       COUNT(DISTINCT DATE(d.timestamps)) AS daily_days
+                FROM instrument_periods p
+                LEFT JOIN instrument_data d
+                  ON d.instrument_period_id = p.id
+                WHERE p.period = 'daily'
+                  AND p.instrument_id IN ({placeholders})
+                GROUP BY p.instrument_id
+                """,
+                ids,
+            )
+            for row in (cur.fetchall() or []):
+                iid = str(row.get("instrument_id") or "")
+                if not iid:
+                    continue
+                try:
+                    coverage[iid] = max(0, int(row.get("daily_days") or 0))
+                except (TypeError, ValueError):
+                    coverage[iid] = 0
+
+        ordered = prioritize_by_history_coverage(
+            items,
+            coverage,
+            preserve_input_order=False,
+        )
+        logger.info(
+            "History sync priority (least-covered first): %s",
+            [
+                {
+                    "symbol": str(row.get("symbol") or "").upper(),
+                    "daily_days": coverage.get(str(row.get("id") or ""), 0),
+                }
+                for row in ordered
+            ],
+        )
+        return ordered
 
     def ensure_periods(self, inst_id, symbol):
         periods = ['daily', 'weekly', 'monthly', 'yearly']
@@ -260,16 +445,113 @@ class DSATurbo:
         self.conn.commit()
         return p_ids
 
-    def update_stock(self, inst_id, symbol):
+    def persisted_daily_bar_count(self, daily_period_id: str) -> int:
+        """Count distinct persisted trading dates, not raw rows.
+
+        Legacy/raw and canonical collectors may have written different timestamps
+        for the same trading date. Raw COUNT(*) can therefore overstate coverage
+        and incorrectly suppress the long bootstrap for under-covered symbols.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT DATE(timestamps)) AS n
+                FROM instrument_data
+                WHERE instrument_period_id=%s
+                """,
+                (daily_period_id,),
+            )
+            row = cur.fetchone() or {}
+        try:
+            return max(0, int(row.get("n") or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    def persisted_daily_frame(self, daily_period_id: str) -> pd.DataFrame:
+        """Load canonical aggregation input from persisted daily history.
+
+        Aggregates must be rebuilt from stored daily OHLC, not from the latest
+        Yahoo fetch window. Otherwise an incremental 7d fetch can overwrite a
+        monthly/yearly bar with only a few recent sessions.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT timestamps, open, high, low, close, volume
+                FROM instrument_data
+                WHERE instrument_period_id=%s
+                ORDER BY timestamps ASC
+                """,
+                (daily_period_id,),
+            )
+            rows = list(cur.fetchall() or [])
+
+        if not rows:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(rows)
+        frame["timestamps"] = pd.to_datetime(frame["timestamps"], errors="coerce")
+        frame = frame.dropna(subset=["timestamps"]).copy()
+        if frame.empty:
+            return pd.DataFrame()
+
+        # Different collectors historically used different intraday timestamps.
+        # Do not silently choose between duplicate trading-date rows; ambiguity
+        # must be resolved by data:coverage before aggregate bars are rewritten.
+        trade_dates = frame["timestamps"].dt.date
+        if trade_dates.duplicated().any():
+            duplicate_days = sorted(
+                {str(day) for day in trade_dates[trade_dates.duplicated(keep=False)].tolist()}
+            )
+            raise RuntimeError(
+                "duplicate persisted daily trading dates; aggregation withheld: "
+                + ",".join(duplicate_days[:10])
+            )
+
+        frame = frame.set_index("timestamps")
+        frame = frame.rename(
+            columns={
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
+            }
+        )
+        for column in ("Open", "High", "Low", "Close", "Volume"):
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        return frame.dropna(subset=["Open", "High", "Low", "Close"])
+
+    def update_stock(self, inst_id, symbol) -> bool:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
-            if self.backfill_days is not None:
-                start = (datetime.now() - timedelta(days=max(1, int(self.backfill_days)))).strftime("%Y-%m-%d")
+            existing_daily_bars = self.persisted_daily_bar_count(p_ids["daily"])
+            plan = choose_history_fetch_plan(
+                existing_daily_bars=existing_daily_bars,
+                backfill_days=self.backfill_days,
+                history_period=self.history_period,
+                bootstrap_min_bars=self.bootstrap_min_bars,
+                bootstrap_days=self.bootstrap_days,
+            )
+
+            if plan.days is not None:
+                fetch_days = int(plan.days)
+                start = (datetime.now() - timedelta(days=fetch_days)).strftime("%Y-%m-%d")
                 df = ticker.history(start=start, interval="1d", auto_adjust=True)
+                fetch_mode = (
+                    f"{plan.mode}:{fetch_days}d existing={existing_daily_bars} "
+                    f"min={self.bootstrap_min_bars}"
+                )
             else:
-                df = ticker.history(period=self.history_period, interval="1d", auto_adjust=True)
-            if df.empty: return
+                fetch_period = str(plan.period or self.history_period)
+                df = ticker.history(period=fetch_period, interval="1d", auto_adjust=True)
+                fetch_mode = f"{plan.mode}:{fetch_period}"
+
+            logger.info("OHLC sync %s mode=%s", symbol, fetch_mode)
+            if df.empty:
+                logger.warning("OHLC sync %s returned no daily bars (%s)", symbol, fetch_mode)
+                return False
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
@@ -290,12 +572,16 @@ class DSATurbo:
             if daily_values:
                 self._execute_upsert(daily_values)
 
-            # Resampled weekly / monthly / yearly
-            self.aggregate_for_symbol(symbol, p_ids, df, now_str)
+            # Resample from the persisted daily table, never from this fetch window.
+            # This keeps incremental 7d syncs from truncating monthly/yearly OHLC.
+            persisted_daily = self.persisted_daily_frame(p_ids["daily"])
+            self.aggregate_for_symbol(symbol, p_ids, persisted_daily, now_str)
+            return True
 
         except Exception as e:
-            print(f"Error {symbol}: {e}")
+            logger.error("OHLC sync failed for %s: %s", symbol, e, exc_info=True)
             self.conn.rollback()
+            return False
 
     def _execute_upsert(self, values):
         with self.conn.cursor() as cur:
@@ -310,6 +596,11 @@ class DSATurbo:
         self.conn.commit()
 
     def aggregate_for_symbol(self, symbol, p_ids, df, now_str):
+        if df is None or df.empty:
+            logger.warning("Aggregate rebuild skipped for %s: no persisted daily history", symbol)
+            return
+
+        df = df.copy()
         df.index = pd.to_datetime(df.index)
         # W-MON week start Monday; MS month start; YS year start
         rules = {'weekly': 'W-MON', 'monthly': 'MS', 'yearly': 'YS'}
@@ -337,30 +628,44 @@ class DSATurbo:
 
     def run(self):
         start_turbo = time.time()
-        instruments = self.fetch_symbols()
+        instruments = self.prioritize_undercovered(self.fetch_symbols())
         total = len(instruments)
         window = (
             f"{self.backfill_days}d calendar backfill"
             if self.backfill_days is not None
-            else f"period={self.history_period}"
+            else (
+                f"coverage-aware: bootstrap={self.bootstrap_days}d "
+                f"until >= {self.bootstrap_min_bars} daily bars; "
+                f"then incremental period={self.history_period}"
+            )
         )
         print(f"Starting Turbo Sync v3.5 ({window}) for {total} symbols...")
         
+        succeeded = 0
+        failed = 0
         for idx, inst in enumerate(instruments):
             start_time = time.time()
             sym = inst['symbol'].upper()
-            self.update_stock(inst['id'], sym)
+            ok = self.update_stock(inst['id'], sym)
             elapsed = time.time() - start_time
-            print(f"[{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
+            if ok:
+                succeeded += 1
+                print(f"[{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
+            else:
+                failed += 1
+                print(f"[{idx+1}/{total}] {sym} FAILED ({elapsed:.2f}s)")
             
         self.conn.close()
-        print(f"Done. Total time: {(time.time() - start_turbo)/60:.2f} minutes.")
+        print(
+            f"Done. success={succeeded} failed={failed} "
+            f"total={total} time={(time.time() - start_turbo)/60:.2f} minutes."
+        )
 
 if __name__ == "__main__":
     import argparse
 
     p = argparse.ArgumentParser(
-        description="Turbo sync: Yahoo daily → instrument_data for symbols listed in snapshot_demo."
+        description="Turbo sync: Yahoo daily → instrument_data for the resolved market universe."
     )
     p.add_argument(
         "--days",
@@ -374,9 +679,27 @@ if __name__ == "__main__":
         default="7d",
         help="yfinance period when --days is not set (default: 7d)",
     )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum snapshot/catalog symbols to sync (e.g. 40).",
+    )
+    p.add_argument(
+        "--symbols",
+        default="",
+        help="Comma-separated exact symbols for targeted backfill; overrides --limit universe selection.",
+    )
     args = p.parse_args()
+    wanted = [
+        s.strip().upper()
+        for s in str(args.symbols or "").split(",")
+        if s.strip()
+    ]
     DSA_TURBO = DSATurbo(
+        snapshot_limit=args.limit,
         backfill_days=args.days,
         history_period=args.period,
+        symbols=wanted or None,
     )
     DSA_TURBO.run()

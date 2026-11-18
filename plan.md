@@ -17,6 +17,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [ ] P0.2 Extract live deployed commit/build hashes; compare main `29a14d7`, verify route manifest and code ownership. Record exact live baseline with safe snapshot; do not guess parity.
 - [ ] P0.3 Determine canonical repo / branch; if live code is not committed, import under controlled branch only after checking secrets and binary data. Write repeatable staging and rollback runbook.
 - [ ] P0.4 Inventory every live route and take desktop/tablet/mobile screenshots, collect console/network errors, Lighthouse/accessibility and performance baseline.
+- [~] P0.4a Add non-destructive Pi source-parity capture (`scripts/pi-source-parity.sh`) for live Git HEAD, dirty paths, route/build manifests, container images and 40-symbol runtime settings. Script is committed; live execution/output still required.
 - [ ] P0.5 Audit runtime demo data, especially `frontend/src/app/(site)/market-overview/page.tsx`; confirm whether file exists in live build.
 - [~] P0.6 Align declared PHP runtime with dependency lock. Repository baseline candidate is updated to PHP 8.4; deployed Raspberry Pi PHP version still requires verification.
 **Exit:** verified mapping of live route → actual source and deployment, clean baseline, backups, reproducible QA. **BLOCK** later code changes until achieved.
@@ -26,7 +27,12 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [x] T2 Add explicit eligibility/data-state metadata through Python/Laravel/frontend ranking paths; remaining stale/delayed taxonomy work continues under C1/C2.
 - [x] T3 Fail closed against demo-table/demo-symbol mode in production defaults. Independent live production verification is still required before release.
 - [~] T4 Regression guards added for production table selection. Golden market-data fixtures for sparse history, stale quotes, holidays and recovery are still required.
-**Exit:** no invalid Buy/Sell states, zero-as-missing, or misleading live status. Compare legitimate scoring outputs unchanged.
+- [~] T5 Fix historical coverage parity for the 40-symbol Market View universe: remove the legacy 15-symbol persistence whitelist; align Python scheduler default, Docker runtime override, Redis warm-up and frontend board to 40; prioritize known realtime-only symbols; keep UUID IDs intact; tolerate sparse source rows; expose `history_state/history_points`; and audit ≥90 distinct persisted daily trading days per displayed symbol with `data:coverage`, plus duplicate/source diagnostics. CI/live Pi coverage verification remains before release.
+- [~] T6 Make Python `DSATurbo` the single scheduled OHLC writer. Laravel `data:periods` is retained only for explicit legacy/manual diagnostics because its raw Yahoo/timestamp convention differs from DSATurbo; `data:coverage` now flags duplicate rows per trading date before any cleanup.
+- [x] T7 Remove production demo-universe leakage from Redis board normalization; dev seed/filter helpers are now fail-closed outside explicit dev mode.
+- [~] T8 Align realtime universe with persisted universe: remove missing `market_universe` dependency, resolve stock whitelist from DB, bootstrap top 40 quotes, and preserve live change/bias through Redis board refresh. Runtime/CI verification remains.
+- [x] T9 Protect canonical OHLC aggregation: scheduled coverage uses distinct trading dates, and weekly/monthly/yearly rebuild from persisted daily history rather than the latest incremental fetch window; duplicate trading dates block aggregate rewrite instead of being silently chosen.
+**Exit:** no invalid Buy/Sell states, zero-as-missing, quote-only masquerading as history, demo rows in production, or misleading live status. Compare legitimate scoring outputs unchanged.
 
 ### Phase 2 — Data provenance and content integrity (P1)
 - [ ] C1 Review BUG-004/008/009. Data Health: stored coverage vs completeness vs freshness vs source health vs analytic eligibility; show denominators/calendars.
@@ -53,6 +59,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
+- [x] P0 Market View history persistence: canonical Python sync covers the 40-symbol runtime universe, least-covered symbols run first, missing/short history is explicit, synthetic sparklines are removed, and Pi coverage audit/runbook are included. Live Pi data still must pass 40/40 coverage before release.
 - [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
@@ -83,6 +90,9 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Public aitemple.tech verified as a mixed-asset 40-instrument terminal with `/data-health` and `/market-analytics`, while no inspected Git branch contains those live routes. Added Pi source-parity capture; production promotion remains blocked until live uncommitted/source/build state is reconciled into Git.
+- 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
+- 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
 - 2026-11-18: P1 UI foundation started on isolated child branch: neutral design tokens, compact global shell, Market View/Investing/Indicators/News/Documents/Screener cleanup, and CI workflow added. No deployment performed.
 - 2026-11-18: Data Health / Market Analytics source gap reconfirmed in selected baseline candidate; do not recreate or overwrite those live modules until production source parity is established.

@@ -59,9 +59,9 @@ except ValueError:
 _DWD = os.environ.get("DASHBOARD_REDIS_WATCHDOG_ENABLED", "1").strip().lower()
 DASHBOARD_REDIS_WATCHDOG_ENABLED = _DWD not in ("0", "false", "no", "off")
 try:
-    WARM_UP_LIMIT = max(1, min(500, int(os.environ.get("DASHBOARD_WARM_UP_LIMIT", "100"))))
+    WARM_UP_LIMIT = max(1, min(500, int(os.environ.get("DASHBOARD_WARM_UP_LIMIT", "40"))))
 except ValueError:
-    WARM_UP_LIMIT = 100
+    WARM_UP_LIMIT = 40
 try:
     WARM_UP_CHART_BARS = max(2, min(500, int(os.environ.get("DASHBOARD_WARM_UP_CHART_BARS", "90"))))
 except ValueError:
@@ -81,9 +81,9 @@ SCHEDULER_MISFIRE_GRACE_SEC = int(os.environ.get("SCHEDULER_MISFIRE_GRACE_SEC", 
 
 # Symbol universe for scheduled news + candle sync:
 #   all            — every company_profile row (news) and TOP_N snapshot rows (candles)
-#   top_snapshot   — top SYMBOL_INGEST_TOP_N by snapshot volume (thesis demo default)
+#   top_snapshot   — top SYMBOL_INGEST_TOP_N by snapshot volume (default 40 to match the production board)
 SYMBOL_INGEST_MODE = os.environ.get("SYMBOL_INGEST_MODE", "top_snapshot")
-SYMBOL_INGEST_TOP_N = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "20")))
+SYMBOL_INGEST_TOP_N = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "40")))
 
 # Embed + Qdrant for knowledge_docs (off by default: crawl-only; set NEWS_EMBED_ENABLED=1 to enable).
 _NEWS_EMBED_FLAG = os.environ.get("NEWS_EMBED_ENABLED", "0").strip().lower()

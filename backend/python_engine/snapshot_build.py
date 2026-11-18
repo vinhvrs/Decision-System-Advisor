@@ -40,7 +40,7 @@ def _max_candles() -> int:
 
 def _resolve_scope(symbol_scope: Optional[str], top_n: Optional[int]) -> Tuple[str, int]:
     mode = normalize_symbol_ingest_mode(symbol_scope or MODE_TOP_SNAPSHOT)
-    n = max(1, int(top_n or 20))
+    n = max(1, int(top_n or 40))
     return mode, n
 
 

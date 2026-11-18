@@ -94,9 +94,14 @@ services:
       - FUNDAMENTAL_INGEST_ENABLED=1
       - MACROTRENDS_ENABLED=1
       # Table mode: set DEV_MODE in backend/.env (dev → *_demo tables, production → prod tables)
-      # Thesis demo default in app/main.py is top_snapshot + 20; for full universe set SYMBOL_INGEST_MODE=all
+      # Market View production board is 40 rows; scheduled OHLC sync must cover at least the same pool.
       - SYMBOL_INGEST_MODE=top_snapshot
-      - SYMBOL_INGEST_TOP_N=20
+      - SYMBOL_INGEST_TOP_N=40
+      - MARKET_BOARD_SYMBOL_LIMIT=40
+      - HISTORY_BOOTSTRAP_MIN_BARS=180
+      - HISTORY_BOOTSTRAP_DAYS=3650
+      - DASHBOARD_WARM_UP_LIMIT=40
+      - DASHBOARD_WARM_UP_CHART_BARS=90
       - SCHEDULER_MISFIRE_GRACE_SEC=14400
       # ARM-only (Pi / Apple Silicon). Omit on amd64 Docker Desktop to avoid missing libgomp preload.
       # - LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1

@@ -99,6 +99,7 @@ const DEV_BOARD_FETCH_LIMIT = 200;
 const DEV_SYMBOL_ORDER = new Map(DEV_SYMBOL_SEED.map((r, i) => [r.symbol.toUpperCase(), i]));
 
 function filterBoardRowsForDevMode(rows: BeginnerBoardRow[]): BeginnerBoardRow[] {
+  if (!isDemoDevMode()) return rows;
   const filtered = rows.filter((r) => DEV_SYMBOL_ORDER.has(r.symbol.toUpperCase()));
   filtered.sort((a, b) => {
     const ia = DEV_SYMBOL_ORDER.get(a.symbol.toUpperCase()) ?? 999;
@@ -268,6 +269,7 @@ function devBoardRowIsThin(r: BeginnerBoardRow): boolean {
 
 /** Always show all ``DEV_SYMBOL_SEED`` tickers; fill gaps when Redis row missing or has no usable price. */
 async function ensureDevBoardRowsComplete(partial: BeginnerBoardRow[]): Promise<BeginnerBoardRow[]> {
+  if (!isDemoDevMode()) return partial;
   const bySym = new Map(partial.map((r) => [r.symbol.toUpperCase(), r] as const));
   const missing = DEV_SYMBOL_SEED.filter((s) => {
     const row = bySym.get(s.symbol.toUpperCase());
@@ -298,8 +300,12 @@ async function buildRedisDailyBoardState(payload: BeginnerBoardPayload | null) {
     Array.isArray(payload.rows) && payload.rows.length > 0
       ? payload.rows
       : (payload as BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] }).ranking_board ?? [];
-  rows = filterBoardRowsForDevMode(rows);
-  rows = await ensureDevBoardRowsComplete(rows);
+  if (isDemoDevMode()) {
+    rows = filterBoardRowsForDevMode(rows);
+    rows = await ensureDevBoardRowsComplete(rows);
+  }
+  // Production must preserve the real Redis/database universe. Never inject
+  // DEV_SYMBOL_SEED rows into a public market board.
   rows = rows.slice(0, BOARD_LIMIT_PROD);
   return {
     rows,
@@ -387,13 +393,35 @@ function averageClosesSeries(
   return out;
 }
 
-/** Yahoo / python_engine ``quote`` messages: numeric price and changePercent. */
+/** Yahoo / python_engine ``quote`` messages: preserve live fields across Redis/HTTP board refreshes. */
 function mergeBoardQuotes(rows: BeginnerBoardRow[], previous: BeginnerBoardRow[]): BeginnerBoardRow[] {
-  const lastQuotes = new Map(previous.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row]));
-  return rows.map((row) => {
+  const lastQuotes = new Map(
+    previous
+      .filter((row) => row.quote_ts && row.price > 0)
+      .map((row) => [String(row.symbol).toUpperCase(), row]),
+  );
+
+  const merged = rows.map((row) => {
     const quote = lastQuotes.get(String(row.symbol).toUpperCase());
-    return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
+    if (!quote) return row;
+
+    const missing = new Set(row.missing_fields ?? []);
+    if (Number.isFinite(quote.price) && quote.price > 0) missing.delete("price");
+    if (Number.isFinite(quote.change_pct_snapshot)) missing.delete("change_pct");
+
+    return {
+      ...row,
+      price: quote.price,
+      change_pct_snapshot: quote.change_pct_snapshot,
+      candle_move_abs_pct: quote.candle_move_abs_pct,
+      day_bias: quote.day_bias,
+      quote_ts: quote.quote_ts,
+      quote_stale: quote.quote_stale,
+      missing_fields: [...missing],
+    };
   });
+
+  return alignLiveChangeScores(merged);
 }
 
 function parseSocketQuoteNumber(v: unknown): number | null {
@@ -738,7 +766,14 @@ const TableSparkline = memo(function TableSparkline({ values }: { values: number
   }, [values]);
 
   if (values.length < 2 || !poly) {
-    return <div className="mx-auto h-7 w-[88px] rounded bg-white/[0.05]" aria-hidden />;
+    return (
+      <div
+        className="mx-auto flex h-7 w-[88px] items-center justify-center text-[9px] font-medium text-[var(--dsa-text-muted)]"
+        title="Persisted history is unavailable or too short"
+      >
+        No history
+      </div>
+    );
   }
   return (
     <svg
@@ -1069,7 +1104,18 @@ function sparklineValuesForRow(
   period: Period,
 ): number[] {
   const cap = period === "daily" ? 48 : 24;
-  if (period === "daily" && row.chart && row.chart.length >= 2) {
+  const persistedPoints =
+    Number.isFinite(Number(row.history_points))
+      ? Number(row.history_points)
+      : Array.isArray(row.chart)
+        ? row.chart.length
+        : 0;
+  const embeddedHistoryUsable =
+    persistedPoints >= 2 &&
+    row.history_state !== "missing" &&
+    Array.isArray(row.chart) &&
+    row.chart.length >= 2;
+  if (period === "daily" && embeddedHistoryUsable && row.chart && row.chart.length >= 2) {
     return row.chart.length <= cap ? row.chart : row.chart.slice(-cap);
   }
   const sym = row.symbol;
@@ -1077,38 +1123,12 @@ function sparklineValuesForRow(
   return arr.length <= cap ? arr : arr.slice(-cap);
 }
 
-/**
- * Fallback when a symbol has snapshot price but no daily close series.
- * This keeps row sparklines visible (e.g. BE) by deriving a 2-point line
- * from snapshot price and snapshot percent change.
- */
-function ensureSparklineValuesForRow(
-  row: BeginnerBoardRow,
-  batchMap: Record<string, number[]>,
-  period: Period,
-): number[] {
-  const values = sparklineValuesForRow(row, batchMap, period);
-  if (values.length >= 2) return values;
-  if (period === "annual") return values;
-
-  const price = Number(row.price);
-  if (!Number.isFinite(price) || price <= 0) return values;
-
-  const ch = Number(row.change_pct_snapshot);
-  if (Number.isFinite(ch) && ch > -99.9) {
-    const prev = price / (1 + ch / 100);
-    if (Number.isFinite(prev) && prev > 0) return [prev, price];
-  }
-
-  return [price * 0.995, price];
-}
-
 function upsideTechnicalForSort(
   row: BeginnerBoardRow,
   sparkMap: Record<string, number[]>,
   period: Period,
 ): number {
-  const closes = ensureSparklineValuesForRow(row, sparkMap, period);
+  const closes = sparklineValuesForRow(row, sparkMap, period);
   return upsideTechnicalPct(row, closes);
 }
 
@@ -1347,15 +1367,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             if (cancelled) return;
             const built = await buildRedisDailyBoardState(payload);
             if (cancelled || !built) return;
-            setBoardRows((prev) => {
-              const lastQuotes = new Map(
-                prev.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row])
-              );
-              return built.rows.map((row) => {
-                const quote = lastQuotes.get(String(row.symbol).toUpperCase());
-                return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
-              });
-            });
+            setBoardRows((prev) => mergeBoardQuotes(built.rows, prev));
             setBoardLegend(built.legend);
             setDashboardUpdatedAt(built.updatedAt);
           })
@@ -1438,10 +1450,13 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           const sym = String(msg.symbol).toUpperCase();
           const price = parseSocketQuoteNumber(msg.price);
           const chg = parseSocketQuoteNumber(msg.change);
-          const quoteTs = Number(msg.quote_ts ?? msg.ts);
           const isInitial = msg.type === "initial_quote";
-          const quoteAge = Date.now() - quoteTs;
-          if (isInitial && (!Number.isFinite(quoteAge) || quoteAge < 0 || quoteAge > 24 * 60 * 60 * 1000)) return;
+          // For initial_quote, only quote_ts proves when the market quote was
+          // observed. msg.ts is merely the websocket envelope send time.
+          const rawQuoteTs = isInitial ? msg.quote_ts : (msg.quote_ts ?? msg.ts);
+          const quoteTs = rawQuoteTs == null ? Number.NaN : Number(rawQuoteTs);
+          const quoteAge = Number.isFinite(quoteTs) ? Date.now() - quoteTs : Number.NaN;
+          if (isInitial && msg.quote_ts != null && (!Number.isFinite(quoteAge) || quoteAge < 0 || quoteAge > 24 * 60 * 60 * 1000)) return;
           if (!isInitial && (!Number.isFinite(quoteAge) || quoteAge < -60_000 || quoteAge > 90_000)) return;
           setBoardRows((prev) => {
             let touched = false;
@@ -1453,8 +1468,12 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                 row.price = price;
                 row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
               }
-              row.quote_stale = isInitial && (msg.quote_stale === true || quoteAge > 90_000);
-              row.quote_ts = quoteTs;
+              if (Number.isFinite(quoteTs)) {
+                row.quote_stale = isInitial
+                  ? msg.quote_stale === true || quoteAge > 90_000
+                  : false;
+                row.quote_ts = quoteTs;
+              }
               if (!isInitial && chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
@@ -1472,15 +1491,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           invalidateDashboardDailyCache();
           const built = await buildRedisDailyBoardState(msg.payload as BeginnerBoardPayload);
           if (cancelled || !built) return;
-          setBoardRows((prev) => {
-            const lastQuotes = new Map(
-              prev.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row])
-            );
-            return built.rows.map((row) => {
-              const quote = lastQuotes.get(String(row.symbol).toUpperCase());
-              return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
-            });
-          });
+          setBoardRows((prev) => mergeBoardQuotes(built.rows, prev));
           setBoardLegend(built.legend);
           setDashboardUpdatedAt(built.updatedAt);
           setBoardLoading(false);
@@ -1535,27 +1546,44 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       const rows = boardRowsRef.current;
       if (!rows.length) return;
 
-      if (showSpinner) setSparklinesLoading(true);
       const syms = rows.map((r) => r.symbol);
+      const hasRealEmbeddedHistory = (r: BeginnerBoardRow) => {
+        const persistedPoints =
+          Number.isFinite(Number(r.history_points))
+            ? Number(r.history_points)
+            : Array.isArray(r.chart)
+              ? r.chart.length
+              : 0;
+        return (
+          persistedPoints >= 2 &&
+          r.history_state !== "missing" &&
+          Array.isArray(r.chart) &&
+          r.chart.length >= 2
+        );
+      };
+      const hasEmbedded =
+        period === "daily" && rows.some((r) => hasRealEmbeddedHistory(r));
       const allEmbedded =
-        period === "daily" &&
-        rows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
+        period === "daily" && rows.every((r) => hasRealEmbeddedHistory(r));
 
       const applyMap = (map: Record<string, number[]>) => {
         if (cancelled) return;
         const latest = boardRowsRef.current;
         const next: Record<string, number[]> = {};
         for (const r of latest) {
-          next[r.symbol] = ensureSparklineValuesForRow(r, map, period);
+          next[r.symbol] = sparklineValuesForRow(r, map, period);
         }
         setRowSparklines(next);
       };
 
-      if (allEmbedded) {
+      if (hasEmbedded) {
         applyMap({});
-        if (!cancelled) setSparklinesLoading(false);
-        return;
+        setSparklinesLoading(false);
+      } else if (showSpinner) {
+        setSparklinesLoading(true);
       }
+
+      if (allEmbedded) return;
 
       const sparkLimit = period === "daily" ? 40 : 24;
       InstrumentService.batchDailyCloses(syms, sparkLimit, periodToApiSlug(period))
@@ -1563,7 +1591,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           applyMap(map);
         })
         .catch(() => {
-          if (!cancelled && showSpinner) setRowSparklines({});
+          // Keep the last known good or embedded history on transient API failure.
         })
         .finally(() => {
           if (!cancelled) setSparklinesLoading(false);

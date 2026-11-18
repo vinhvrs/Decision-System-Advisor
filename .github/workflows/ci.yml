@@ -59,8 +59,34 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Compile production data/realtime modules
+        run: |
+          python -m py_compile \
+            app/analyze/dashboard/dashboard.py \
+            app/bootstrap/scheduler_config.py \
+            app/data_collect/history_policy.py \
+            app/data_collect/collectors/stock_sync.py \
+            app/data_collect/symbol_ingest.py \
+            app/jobs/stock_job.py \
+            app/socket/events.py \
+            app/warm_up/warm_up.py \
+            snapshot_build.py
+
+      - name: Verify 40-symbol runtime contract
+        run: |
+          grep -q 'SYMBOL_INGEST_TOP_N=40' ../../docker-compose.yml
+          grep -q 'MARKET_BOARD_SYMBOL_LIMIT=40' ../../docker-compose.yml
+          grep -q 'HISTORY_BOOTSTRAP_MIN_BARS=180' ../../docker-compose.yml
+          grep -q 'HISTORY_BOOTSTRAP_DAYS=3650' ../../docker-compose.yml
+          grep -q 'DASHBOARD_WARM_UP_LIMIT=40' ../../docker-compose.yml
+          grep -q 'DASHBOARD_WARM_UP_CHART_BARS=90' ../../docker-compose.yml
+          grep -q 'SYMBOL_INGEST_TOP_N.*"40"' app/bootstrap/scheduler_config.py
+          grep -q 'DASHBOARD_WARM_UP_LIMIT.*"40"' app/bootstrap/scheduler_config.py
+          grep -q 'COUNT(DISTINCT DATE(timestamps))' app/data_collect/collectors/stock_sync.py
+          grep -q 'persisted_daily = self.persisted_daily_frame' app/data_collect/collectors/stock_sync.py
+
       - name: Run table-mode regression tests
-        run: python -m unittest tests.test_dsa_table_mode
+        run: python -m unittest tests.test_dsa_table_mode tests.test_history_policy
 
   laravel-guards:
     name: Laravel production guards
@@ -88,5 +114,18 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Run DSA table resolver tests
-        run: php artisan test --filter DsaTablesTest
+      - name: Verify data commands are registered
+        run: |
+          php artisan list --raw | grep -q '^data:periods '
+          php artisan list --raw | grep -q '^data:coverage '
+
+      - name: Verify Pi audit script syntax
+        run: |
+          bash -n ../scripts/pi-history-audit.sh
+          bash -n ../scripts/pi-source-parity.sh
+
+
+      - name: Run DSA production guard tests
+        run: |
+          php artisan test --filter DsaTablesTest
+          php artisan test --filter SnapshotServiceUuidTest

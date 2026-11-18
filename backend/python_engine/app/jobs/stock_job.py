@@ -40,7 +40,18 @@ def run_stock_sync() -> None:
         else:
             DSATurbo(snapshot_limit=lim).run()
         run_snapshot_tables_update()
-        logger.info("[Schedule] Stock sync completed.")
+
+        # OHLC bootstrap can add symbols that were absent from instrument_snapshot.
+        # Refresh ranking immediately after persistence so the board universe does
+        # not wait for the next independent ranking interval.
+        from app.jobs.ranking_job import run_ranking_sync
+        run_ranking_sync()
+
+        # Publish the refreshed board as soon as persistence/ranking are complete.
+        from app.jobs.dashboard_job import run_dashboard_warm_up
+        run_dashboard_warm_up()
+
+        logger.info("[Schedule] Stock sync completed; snapshot/ranking/dashboard refreshed.")
     except Exception as e:
         logger.error(f"[Schedule] Stock sync error: {str(e)}", exc_info=True)
     finally:

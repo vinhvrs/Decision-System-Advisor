@@ -57,7 +57,7 @@ def maybe_run_demo_data_sync(*, snapshot_limit: int) -> None:
 
 def run_dashboard_daily_warmup(
     *,
-    limit: int = 100,
+    limit: int = 40,
     chart_bars: int = 90,
     skip_validation: bool = False,
     skip_demo_sync: bool = False,
@@ -124,8 +124,8 @@ def main() -> None:
     parser.add_argument(
         "--limit",
         type=int,
-        default=100,
-        help="Top N symbols by snapshot volume to include (default 100, max 500)",
+        default=40,
+        help="Top N symbols by snapshot volume to include (default 40, max 500)",
     )
     parser.add_argument(
         "--chart-bars",

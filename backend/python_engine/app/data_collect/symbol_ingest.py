@@ -4,7 +4,7 @@ How many symbols participate in scheduled news + corporate ingest.
 - ``all``: every row in ``company_profile`` (fallback: ``instruments``), same as legacy behavior.
 - ``top_snapshot`` (option 1 / thesis demo): top N tickers by ``instrument_snapshot.volume``.
 
-Override with env ``SYMBOL_INGEST_MODE`` and ``SYMBOL_INGEST_TOP_N``, or pass explicit args from callers.
+Override with env ``SYMBOL_INGEST_MODE`` and ``SYMBOL_INGEST_TOP_N``, or pass explicit args from callers. The scheduled board default is 40 symbols.
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ def normalize_symbol_ingest_mode(mode: str) -> str:
 
 
 def ingest_params_from_env() -> Tuple[str, int]:
-    mode = normalize_symbol_ingest_mode(os.environ.get("SYMBOL_INGEST_MODE", MODE_ALL))
-    n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "20")))
+    mode = normalize_symbol_ingest_mode(os.environ.get("SYMBOL_INGEST_MODE", MODE_TOP_SNAPSHOT))
+    n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "40")))
     return mode, n
 
 
@@ -33,7 +33,7 @@ def resolve_ingest_scope(
     symbol_scope: Optional[str] = None,
     top_n: Optional[int] = None,
 ) -> Tuple[str, int]:
-    """When args are None, use env (defaults: all symbols, top_n=20 if mode is snapshot)."""
+    """When args are None, use env (production top-snapshot default is 40 symbols)."""
     if symbol_scope is None and top_n is None:
         return ingest_params_from_env()
     mode = normalize_symbol_ingest_mode(
@@ -42,7 +42,7 @@ def resolve_ingest_scope(
     if top_n is not None:
         n = max(1, top_n)
     else:
-        n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "20")))
+        n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "40")))
     return mode, n
 
 
@@ -71,21 +71,41 @@ def fetch_companies_for_ingest(
                 """,
                 (top_n,),
             )
-            rows = cursor.fetchall()
-            if rows:
+            rows = list(cursor.fetchall() or [])
+            if len(rows) >= top_n:
                 return rows
+
+            selected = {
+                str(row.get("symbol") or "").strip().upper()
+                for row in rows
+                if row.get("symbol")
+            }
+            remaining = max(0, top_n - len(rows))
+            if remaining <= 0:
+                return rows
+
             cursor.execute(
                 """
                 SELECT DISTINCT UPPER(TRIM(symbol)) AS symbol,
                        UPPER(TRIM(symbol)) AS company_name
                 FROM instruments
-                WHERE symbol IS NOT NULL AND TRIM(symbol) != ''
+                WHERE symbol IS NOT NULL
+                  AND TRIM(symbol) != ''
                 ORDER BY symbol
                 LIMIT %s
                 """,
-                (top_n,),
+                (max(top_n * 3, top_n),),
             )
-            return cursor.fetchall()
+            for row in (cursor.fetchall() or []):
+                symbol = str(row.get("symbol") or "").strip().upper()
+                if not symbol or symbol in selected:
+                    continue
+                rows.append(row)
+                selected.add(symbol)
+                remaining -= 1
+                if remaining <= 0:
+                    break
+            return rows
 
         cursor.execute(
             """
