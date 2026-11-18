@@ -133,11 +133,13 @@ function deriveMoversFromDashboardRows(rows: BeginnerBoardRow[], moversLimit = M
       !r.missing_fields?.includes("change_pct") &&
       Number.isFinite(Number(r.change_pct_snapshot)),
   );
-  const gainers = [...finiteChg]
+  const gainers = finiteChg
+    .filter((r) => Number(r.change_pct_snapshot) > 0)
     .sort((a, b) => b.change_pct_snapshot - a.change_pct_snapshot)
     .slice(0, moversLimit)
     .map(boardRowToVolumeMover);
-  const losers = [...finiteChg]
+  const losers = finiteChg
+    .filter((r) => Number(r.change_pct_snapshot) < 0)
     .sort((a, b) => a.change_pct_snapshot - b.change_pct_snapshot)
     .slice(0, moversLimit)
     .map(boardRowToVolumeMover);
