@@ -18,6 +18,8 @@ type SortKey =
   | "volume"
   | "market_cap";
 
+type NumericSortKey = Exclude<SortKey, "rank" | "symbol">;
+
 function isMissing(row: TopCompanyRow, field: string): boolean {
   return row.missing_fields?.includes(field) ?? false;
 }
@@ -168,11 +170,13 @@ export default function CompaniesPage() {
   }, []);
 
   const sorted = useMemo(() => {
-    if (sort.key === "rank") return stocks;
+    if (sort.key === "rank") {
+      return sort.dir === "asc" ? stocks : [...stocks].reverse();
+    }
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...stocks].sort((a, b) => {
       if (sort.key === "symbol") return a.symbol.localeCompare(b.symbol) * dir;
-      const field = sort.key;
+      const field = sort.key as NumericSortKey;
       const aMissing = isMissing(a, field);
       const bMissing = isMissing(b, field);
       if (aMissing && bMissing) return 0;
