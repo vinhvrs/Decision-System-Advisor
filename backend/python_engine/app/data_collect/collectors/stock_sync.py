@@ -227,20 +227,64 @@ class DSATurbo:
     def fetch_symbols(self):
         with self.conn.cursor() as cur:
             ensure_snapshot_demo_table(self.conn)
-            sql = f"""
-                SELECT i.id, i.symbol
-                FROM {SNAPSHOT_SYMBOL_TABLE} s
-                JOIN instruments i ON s.instrument_id = i.id
-                ORDER BY s.volume DESC
-                LIMIT %s
-            """
             limit = (
                 self.snapshot_limit
                 if self.snapshot_limit is not None
                 else getattr(settings, "TOP_N", 500)
             )
+            limit = max(1, min(int(limit), 500))
+
+            # Prefer the ranked snapshot universe, but do not let an old/sparse
+            # snapshot permanently cap OHLC persistence below the requested board
+            # size. Fill the remainder from the stock instrument catalog.
+            sql = f"""
+                SELECT i.id, i.symbol
+                FROM {SNAPSHOT_SYMBOL_TABLE} s
+                JOIN instruments i ON s.instrument_id = i.id
+                WHERE i.type = 'stock'
+                ORDER BY s.volume DESC, i.symbol ASC
+                LIMIT %s
+            """
             cur.execute(sql, (limit,))
-            return cur.fetchall()
+            rows = list(cur.fetchall() or [])
+
+            if len(rows) >= limit:
+                return rows
+
+            selected_ids = {str(row["id"]) for row in rows if row.get("id")}
+            remaining = limit - len(rows)
+            if remaining <= 0:
+                return rows
+
+            # Bootstrap symbols that do not yet have a snapshot row. Once daily
+            # OHLC exists, the snapshot/ranking job can rank them normally.
+            if selected_ids:
+                placeholders = ",".join(["%s"] * len(selected_ids))
+                cur.execute(
+                    f"""
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                      AND id NOT IN ({placeholders})
+                    ORDER BY symbol ASC
+                    LIMIT %s
+                    """,
+                    (*selected_ids, remaining),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                    ORDER BY symbol ASC
+                    LIMIT %s
+                    """,
+                    (remaining,),
+                )
+
+            rows.extend(cur.fetchall() or [])
+            return rows
 
     def ensure_periods(self, inst_id, symbol):
         periods = ['daily', 'weekly', 'monthly', 'yearly']
