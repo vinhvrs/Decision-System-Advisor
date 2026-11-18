@@ -15,6 +15,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 ### Phase 0 — Source parity & baseline (P0, mandatory before everything)
 - [ ] P0.1 Inventory deployments: domain routing, Raspberry Pi service names, built assets, backend/frontend directories, release process, DB schema, remote branches.
 - [ ] P0.2 Extract live deployed commit/build hashes; compare main `29a14d7`, verify route manifest and code ownership. Record exact live baseline with safe snapshot; do not guess parity.
+- [~] P0.2b Exhaustive GitHub branch scan complete: no stored branch contains the live Data Health / Market Analytics route source. Remaining parity work must recover the Raspberry Pi/live frontend checkout rather than merge another Git branch.
 - [ ] P0.3 Determine canonical repo / branch; if live code is not committed, import under controlled branch only after checking secrets and binary data. Write repeatable staging and rollback runbook.
 - [ ] P0.4 Inventory every live route and take desktop/tablet/mobile screenshots, collect console/network errors, Lighthouse/accessibility and performance baseline.
 - [ ] P0.5 Audit runtime demo data, especially `frontend/src/app/(site)/market-overview/page.tsx`; confirm whether file exists in live build.
@@ -84,6 +85,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Exhaustive branch-tree scan confirmed Data Health / Market Analytics source is absent from every stored historical/production-candidate Git branch; live Pi source recovery is an explicit P0 release blocker.
 - 2026-11-18: Market View density pass: five large KPI cards/gauge replaced by a flat metric strip; legend pills compacted; ranking terminology standardized to Multi-factor research ranking, Bias, Strength, Watchers and Room to high.
 - 2026-11-18: Market View provenance strip added on isolated branch: research snapshot timestamp, realtime-quote coverage, persisted-history coverage, and analysis eligibility are displayed independently.
 - 2026-11-18: P1.2 company profile trust cleanup started: explicit persisted-history coverage, no seeded local community sentiment, no heuristic fallback radar, and chart model output labeled as research bias.
