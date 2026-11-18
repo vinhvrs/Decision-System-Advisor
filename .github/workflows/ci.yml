@@ -126,3 +126,4 @@ jobs:
         run: |
           php artisan test --filter DsaTablesTest
           php artisan test --filter SnapshotServiceUuidTest
+          php artisan test --filter PasswordChangeTest
