@@ -178,10 +178,10 @@ Target `dashboard:daily` meta:
 
 Per row:
 
-- `history_state = "ok"`
-- `history_points >= 2` (and operationally the server audit requires at least 90 distinct daily trading days)
+- `history_state = "ok"` only when the row has the requested persisted chart coverage (`history_required_points`, 90 for the production daily dashboard)
+- `history_points >= history_required_points`; rows with 1…N-1 genuine persisted points are `short`, not `ok`
 
-Realtime quote availability is independent of this status.
+Realtime quote availability is independent of this status. The UI may render a genuine short series when at least 2 persisted points exist, but it must label the coverage as short and must never fabricate missing points.
 
 ## 8. Browser verification
 
