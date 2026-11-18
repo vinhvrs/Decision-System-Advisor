@@ -11,6 +11,7 @@ OVERRIDE_FILE="${DSA_OVERRIDE_FILE:-$LIVE_ROOT/ops/pi/compose.runtime.override.y
 PROJECT="${DSA_COMPOSE_PROJECT:-dsa-pi}"
 RUN_HISTORY_AUDIT="${RUN_HISTORY_AUDIT:-1}"
 ALLOW_DB_MIGRATIONS="${ALLOW_DB_MIGRATIONS:-0}"
+ALLOW_LIVE_ONLY_DELETIONS="${ALLOW_LIVE_ONLY_DELETIONS:-0}"
 EXPECTED_SHA="${DSA_TARGET_SHA:-}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 CACHE_REPO="$CACHE_ROOT/repo.git"
@@ -280,7 +281,21 @@ printf '%s\n' "$TARGET_BRANCH" > "$BACKUP/target.branch"
 
 echo
 echo "== Backend source change plan =="
-rsync -anic --delete "${SYNC_EXCLUDES[@]}" "$STAGE/backend/" "$LIVE_ROOT/backend/"   | tee "$BACKUP/rsync-plan.txt"
+rsync -anic --delete "${SYNC_EXCLUDES[@]}" "$STAGE/backend/" "$LIVE_ROOT/backend/" \
+  | tee "$BACKUP/rsync-plan.txt"
+
+live_only_deletions="$(grep -E '^\*deleting[[:space:]]+' "$BACKUP/rsync-plan.txt" || true)"
+if [ -n "$live_only_deletions" ]; then
+  echo
+  echo "LIVE_ONLY_BACKEND_DELETIONS:"
+  echo "$live_only_deletions"
+  if [ "$ALLOW_LIVE_ONLY_DELETIONS" != "1" ]; then
+    echo "ERROR: live backend contains files absent from Git that rsync would delete." >&2
+    echo "Review/canonicalize or explicitly preserve those files before deployment." >&2
+    echo "To approve reviewed deletions for this run only, set ALLOW_LIVE_ONLY_DELETIONS=1." >&2
+    exit 8
+  fi
+fi
 
 echo
 echo "== Install Git-controlled Pi runtime override =="
