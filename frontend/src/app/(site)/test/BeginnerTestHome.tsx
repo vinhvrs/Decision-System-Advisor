@@ -1623,6 +1623,51 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     };
   }, [boardRows, rowSparklines, period]);
 
+  const boardProvenance = useMemo(() => {
+    const total = boardRows.length;
+    let liveQuotes = 0;
+    let historyOk = 0;
+    let historyShort = 0;
+    let historyMissing = 0;
+    let notRated = 0;
+
+    for (const row of boardRows) {
+      if (Number.isFinite(Number(row.quote_ts)) && row.quote_stale !== true) {
+        liveQuotes++;
+      }
+
+      const historyState =
+        row.history_state ??
+        (Array.isArray(row.chart) && row.chart.length >= 2
+          ? "ok"
+          : Array.isArray(row.chart) && row.chart.length === 1
+            ? "short"
+            : "missing");
+
+      if (historyState === "ok") historyOk++;
+      else if (historyState === "short") historyShort++;
+      else historyMissing++;
+
+      if (!isRowEligibleForConviction(row)) notRated++;
+    }
+
+    return { total, liveQuotes, historyOk, historyShort, historyMissing, notRated };
+  }, [boardRows]);
+
+  const boardSnapshotLabel = useMemo(() => {
+    if (!dashboardUpdatedAt) return "Unavailable";
+    const parsed = new Date(dashboardUpdatedAt);
+    if (Number.isNaN(parsed.getTime())) return "Unavailable";
+    return parsed.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }, [dashboardUpdatedAt]);
+
   const rowPeriodChanges = useMemo(() => {
     const out: Record<string, number | null> = {};
     for (const r of boardRows) {
@@ -1749,6 +1794,56 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       </header>
 
       <div className="mx-auto max-w-[1600px] px-2 py-4 phone:px-3 sm:px-4 sm:py-5">
+        <section
+          className="mb-3 grid gap-px overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-5"
+          aria-label="Market data provenance"
+        >
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Research snapshot</p>
+            <p className="mt-1 font-mono text-[11px] tabular-nums text-[var(--dsa-text-secondary)]">
+              {boardSnapshotLabel}
+            </p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Realtime quotes</p>
+            <p className="mt-1 font-mono text-xs tabular-nums text-white">
+              {boardProvenance.liveQuotes}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Received and not marked stale</p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Persisted history</p>
+            <p
+              className={`mt-1 font-mono text-xs tabular-nums ${
+                boardProvenance.historyMissing || boardProvenance.historyShort
+                  ? "text-[var(--dsa-warning)]"
+                  : "text-[var(--dsa-positive)]"
+              }`}
+            >
+              {boardProvenance.historyOk}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">
+              {boardProvenance.historyShort} short · {boardProvenance.historyMissing} missing
+            </p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Analysis eligibility</p>
+            <p className="mt-1 font-mono text-xs tabular-nums text-white">
+              {Math.max(0, boardProvenance.total - boardProvenance.notRated)}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">{boardProvenance.notRated} Not Rated</p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Data model</p>
+            <p className="mt-1 text-[10px] font-medium text-[var(--dsa-text-secondary)]">
+              Realtime quote ≠ persisted OHLC
+            </p>
+            <p className="mt-0.5 text-[9px] leading-snug text-[var(--dsa-text-muted)]">
+              Missing history stays missing; it is not rebuilt from the latest quote.
+            </p>
+          </div>
+        </section>
+
         {/* Stat widgets — stack on small screens, grid on medium, optional horizontal scroll on very wide */}
         <section className="mb-4 grid grid-cols-1 gap-3 phone:grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-3 xl:grid-cols-5 xl:gap-3">
           <div
