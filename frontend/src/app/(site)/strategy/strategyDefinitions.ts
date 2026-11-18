@@ -11,8 +11,6 @@ export type StrategyDef = {
   id: StrategyId;
   name: string;
   risk: 'Low' | 'Medium' | 'High';
-  winRate: string;
-  profit: string;
   tags: string[];
   description: string;
   /** Primary pane overlay / sub-pane in “indicator” explain mode */
@@ -31,8 +29,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'liq_break',
     name: 'Liquidity Breakout',
     risk: 'Medium',
-    winRate: '68%',
-    profit: '+12.5%',
     tags: ['Trend', 'Momentum'],
     description: 'Trades when Liquidity Score surges with price confirmation.',
     linkedIndicator: 'ls',
@@ -69,8 +65,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'conservative',
     name: 'Conservative Growth',
     risk: 'Low',
-    winRate: '75%',
-    profit: '+4.2%',
     tags: ['Stable', 'Long-term'],
     description: 'Favors steady money flow without chasing extremes.',
     linkedIndicator: 'mfi',
@@ -107,8 +101,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'scalp',
     name: 'Aggressive Scalping',
     risk: 'High',
-    winRate: '54%',
-    profit: '+28.1%',
     tags: ['Fast', 'Scalp'],
     description: 'Short holding periods; reacts to fast oscillators and vol spikes.',
     linkedIndicator: 'stoch',
@@ -145,8 +137,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'mean_rev',
     name: 'Mean Reversion',
     risk: 'Medium',
-    winRate: '62%',
-    profit: '+8.9%',
     tags: ['Oscillator', 'Reversion'],
     description: 'Looks for stretched price versus a middle band (RSI-style context in prose).',
     linkedIndicator: 'bb',
