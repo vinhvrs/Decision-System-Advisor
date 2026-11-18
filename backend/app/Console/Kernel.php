@@ -2,6 +2,8 @@
 namespace App\Console;
 use App\Console\Commands\ElasticReindexCommand;
 use App\Console\Commands\ElasticSetupCommand;
+use App\Console\Commands\DataPeriods;
+use App\Console\Commands\DataCoverage;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +13,8 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         ElasticSetupCommand::class,
         ElasticReindexCommand::class,
+        DataPeriods::class,
+        DataCoverage::class,
     ];
     protected $middlewareGroups = [
         'api' => [
