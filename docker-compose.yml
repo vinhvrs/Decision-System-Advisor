@@ -78,6 +78,19 @@ services:
       #   (same as Laravel) or AUTH fails silently and dashboard:daily never appears.
       # - DASHBOARD_WARM_UP_BOOTSTRAP_SEC: seconds after startup for first warm-up (default 120).
       - SCHEDULE_INTERVAL_HOURS=3
+      # Raspberry Pi 4B / 4GB: serialize scheduled heavy jobs and stagger startup work.
+      # This changes cadence/concurrency only; formulas, symbol universe and persistence contracts stay unchanged.
+      - ENGINE_RESOURCE_PROFILE=pi4
+      - SCHEDULER_MAX_WORKERS=1
+      - RANKING_FIRST_DELAY_SEC=0
+      - STOCK_SYNC_FIRST_DELAY_SEC=240
+      - NEWS_STARTUP_DELAY_SEC=600
+      - AUTO_ANALYZE_FIRST_DELAY_SEC=1200
+      - AUTO_ANALYZE_STARTUP_WARMUP_ENABLED=0
+      - AUTO_ANALYZE_CONCURRENCY=2
+      - AUTO_ANALYZE_SCHEDULE_LIMIT=40
+      - DASHBOARD_BLOCKING_STARTUP_WARMUP=0
+      - DASHBOARD_STARTUP_WARMUP_SEC=15
       # GDELT: add NEWS_HANDLE_ENABLED=1 to backend/.env for scheduled + CLI backfill (rate limits / outbound HTTPS).
       # One-shot history: docker compose run --rm -e NEWS_HANDLE_ENABLED=1 data-engine python3 news_ingest.py backfill --limit-year 2018
       # Rolling window: docker compose run --rm -e NEWS_HANDLE_ENABLED=1 data-engine python3 news_ingest.py daily --lookback-days 14
@@ -89,7 +102,7 @@ services:
       # SEC EDGAR fundamentals (10 US tech symbols) + optional MacroTrends gap-fill
       - TECH_UNIVERSE_DAILY_ENABLED=1
       - TECH_UNIVERSE_DAILY_INTERVAL_HOURS=24
-      - TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC=180
+      - TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC=1800
       - TECH_UNIVERSE_YF_PERIOD=30d
       - FUNDAMENTAL_INGEST_ENABLED=1
       - MACROTRENDS_ENABLED=1

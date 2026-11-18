@@ -4,6 +4,11 @@ from threading import Lock
 
 from app.analyze.analysis_cache import analysis_cache_service
 from app.analyze.auto_analyze import auto_analyze_service
+from app.bootstrap.scheduler_config import (
+    AUTO_ANALYZE_CONCURRENCY,
+    AUTO_ANALYZE_SCHEDULE_LIMIT,
+    AUTO_ANALYZE_STARTUP_LIMIT,
+)
 
 logger = logging.getLogger(__name__)
 _auto_analyze_lock = Lock()
@@ -13,11 +18,11 @@ async def _run_auto_analyze_refresh_async() -> None:
     try:
         symbols = await analysis_cache_service.get_top_symbols_from_ranking(
             ranking_key="liquidity:ranking:daily",
-            limit=50,
+            limit=AUTO_ANALYZE_SCHEDULE_LIMIT,
         )
         if not symbols:
             return
-        semaphore = asyncio.Semaphore(5)
+        semaphore = asyncio.Semaphore(AUTO_ANALYZE_CONCURRENCY)
 
         async def process_symbol(symbol: str):
             async with semaphore:
@@ -52,12 +57,12 @@ async def warmup_top_stocks() -> None:
     try:
         symbols = await analysis_cache_service.get_top_symbols_from_ranking(
             ranking_key="liquidity:ranking:daily",
-            limit=100,
+            limit=AUTO_ANALYZE_STARTUP_LIMIT,
         )
         if not symbols:
             return
 
-        semaphore = asyncio.Semaphore(5)
+        semaphore = asyncio.Semaphore(AUTO_ANALYZE_CONCURRENCY)
 
         async def process_symbol(symbol: str):
             async with semaphore:
