@@ -492,8 +492,8 @@ def build_ranking_rows(
         persisted_history_points = len(chart_vals)
         history_state = (
             "ok"
-            if persisted_history_points >= 2
-            else ("short" if persisted_history_points == 1 else "missing")
+            if persisted_history_points >= chart_bars
+            else ("short" if persisted_history_points > 0 else "missing")
         )
         if price is not None and price > 0:
             # Append the current snapshot only after measuring persisted history coverage.
@@ -520,6 +520,7 @@ def build_ranking_rows(
             "candle_move_abs_pct": round(candle_move, 4) if candle_move is not None else None,
             "chart": chart_vals,
             "history_points": persisted_history_points,
+            "history_required_points": chart_bars,
             "history_state": history_state,
             "analysis_eligible": len(missing_fields) == 0,
             "data_state": "ok" if not missing_fields else "partial",
