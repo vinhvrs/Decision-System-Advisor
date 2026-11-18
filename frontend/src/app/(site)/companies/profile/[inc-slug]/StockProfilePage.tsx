@@ -30,6 +30,7 @@ import FundamentalRadar from "./FundamentalRadar";
 import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service";
+import { useWatchlist } from "@/src/hooks/useWatchlist";
 import { SimpleSocket } from "@/src/libs/socket";
 import { stripParentheticals } from "@/src/libs/displayString";
 import {
@@ -258,13 +259,26 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
-  const [watchlisted, setWatchlisted] = useState(false);
+  const [watchlistMutating, setWatchlistMutating] = useState(false);
+  const [watchlistActionMessage, setWatchlistActionMessage] = useState<string | null>(null);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
+
+  const {
+    loading: watchlistLoading,
+    add: addToWatchlist,
+    remove: removeFromWatchlist,
+    isInWatchlist,
+  } = useWatchlist();
+  const watchlisted = isInWatchlist(symbol);
 
   const candleRequestIdRef = useRef(0);
 
   useEffect(() => {
-    setPaperTrading(null);
+    const frame = window.requestAnimationFrame(() => {
+      setPaperTrading(null);
+      setWatchlistActionMessage(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
 
   const livePrice = useMemo(() => {
@@ -318,15 +332,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "fundamentals") setMainTab("fundamentals");
     else setMainTab("chart");
-  }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      setWatchlisted(sessionStorage.getItem(`dsa-watch-${symbol}`) === "1");
-    } catch {
-      /* ignore */
-    }
   }, [symbol]);
 
   useEffect(() => {
@@ -473,15 +478,25 @@ export function StockProfilePage({ slug }: { slug: string }) {
       ? "24h vs previous daily close"
       : `Change vs previous ${selectedPeriod} bar`;
 
-  const toggleWatchlist = () => {
-    const next = !watchlisted;
-    setWatchlisted(next);
-    if (typeof window !== "undefined" && symbol) {
-      try {
-        sessionStorage.setItem(`dsa-watch-${symbol}`, next ? "1" : "0");
-      } catch {
-        /* ignore */
+  const toggleWatchlist = async () => {
+    if (!symbol || watchlistMutating || watchlistLoading) return;
+
+    setWatchlistActionMessage(null);
+    setWatchlistMutating(true);
+
+    try {
+      if (watchlisted) {
+        const removed = await removeFromWatchlist(symbol);
+        if (!removed) setWatchlistActionMessage("Could not remove this symbol from your watchlist.");
+        return;
       }
+
+      const result = await addToWatchlist(symbol);
+      if (!result.ok) {
+        setWatchlistActionMessage(result.message ?? "Could not add this symbol to your watchlist.");
+      }
+    } finally {
+      setWatchlistMutating(false);
     }
   };
 
@@ -600,12 +615,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={toggleWatchlist}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-[#f0b90b]"
+                        onClick={() => void toggleWatchlist()}
+                        className="rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-[#8ab4ff] disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
-                        title="Watchlist"
+                        title={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
+                        disabled={watchlistLoading || watchlistMutating}
                       >
-                        <Star className={`h-4 w-4 ${watchlisted ? "fill-[#f0b90b] text-[#f0b90b]" : ""}`} />
+                        <Star className={`h-4 w-4 ${watchlisted ? "fill-[#8ab4ff] text-[#8ab4ff]" : ""}`} />
                       </button>
                       <button
                         type="button"
@@ -647,9 +663,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <FundamentalRadar symbol={symbol} compact />
                 </div>
 
-                <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                <p className={`mt-3 flex items-center gap-1.5 text-[10px] ${CMC.muted}`}>
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
+                    }`}
+                  />
+                  {realtimeCandle ? "Realtime quote received" : "Realtime quote not received"}
                 </p>
               </div>
             </div>
@@ -758,15 +778,20 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </button>
                 ))}
               </div>
-              <div className="flex shrink-0 items-center gap-2 px-1 sm:px-0">
+              <div className="flex shrink-0 flex-col items-end gap-1 px-1 sm:px-0">
                 <button
                   type="button"
-                  onClick={toggleWatchlist}
-                  className="rounded-lg bg-[#3861fb] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#3861fb]/20 transition hover:bg-[#2f56e0]"
+                  onClick={() => void toggleWatchlist()}
+                  className="dsa-button-primary px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={watchlistLoading || watchlistMutating}
                 >
-                  {watchlisted ? "Watching" : "Track symbol"}
+                  {watchlistMutating ? "Updating…" : watchlisted ? "Watching" : "Watch symbol"}
                 </button>
-
+                {watchlistActionMessage ? (
+                  <span className="max-w-[260px] text-right text-[10px] leading-snug text-[var(--dsa-warning)]">
+                    {watchlistActionMessage}
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -1026,10 +1051,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </div>
                 <button
                   type="button"
-                  onClick={toggleWatchlist}
-                  className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-[11px]"
+                  onClick={() => void toggleWatchlist()}
+                  className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={watchlistLoading || watchlistMutating}
                 >
-                  {watchlisted ? "Watching" : "Watch"}
+                  {watchlistMutating ? "Updating…" : watchlisted ? "Watching" : "Watch"}
                 </button>
               </div>
 
