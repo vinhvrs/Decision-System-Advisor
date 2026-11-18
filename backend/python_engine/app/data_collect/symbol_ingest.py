@@ -4,7 +4,7 @@ How many symbols participate in scheduled news + corporate ingest.
 - ``all``: every row in ``company_profile`` (fallback: ``instruments``), same as legacy behavior.
 - ``top_snapshot`` (option 1 / thesis demo): top N tickers by ``instrument_snapshot.volume``.
 
-Override with env ``SYMBOL_INGEST_MODE`` and ``SYMBOL_INGEST_TOP_N``, or pass explicit args from callers.
+Override with env ``SYMBOL_INGEST_MODE`` and ``SYMBOL_INGEST_TOP_N``, or pass explicit args from callers. The scheduled board default is 40 symbols.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def normalize_symbol_ingest_mode(mode: str) -> str:
 
 def ingest_params_from_env() -> Tuple[str, int]:
     mode = normalize_symbol_ingest_mode(os.environ.get("SYMBOL_INGEST_MODE", MODE_ALL))
-    n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "20")))
+    n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "40")))
     return mode, n
 
 
@@ -42,7 +42,7 @@ def resolve_ingest_scope(
     if top_n is not None:
         n = max(1, top_n)
     else:
-        n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "20")))
+        n = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "40")))
     return mode, n
 
 
