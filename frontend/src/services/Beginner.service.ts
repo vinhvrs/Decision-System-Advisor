@@ -60,6 +60,7 @@ export type BeginnerBoardRow = {
   chart?: number[];
   /** Persisted daily-bar coverage before any realtime snapshot price is appended. */
   history_points?: number;
+  history_required_points?: number;
   history_state?: "ok" | "short" | "missing";
   /** When set, advisory upside uses ((target − price) / price)×100 (12m consensus style). */
   analyst_consensus_target_price?: number | null;
