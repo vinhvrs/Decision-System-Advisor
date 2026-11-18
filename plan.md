@@ -17,6 +17,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [ ] P0.2 Extract live deployed commit/build hashes; compare main `29a14d7`, verify route manifest and code ownership. Record exact live baseline with safe snapshot; do not guess parity.
 - [ ] P0.3 Determine canonical repo / branch; if live code is not committed, import under controlled branch only after checking secrets and binary data. Write repeatable staging and rollback runbook.
 - [ ] P0.4 Inventory every live route and take desktop/tablet/mobile screenshots, collect console/network errors, Lighthouse/accessibility and performance baseline.
+- [~] P0.4a Add non-destructive Pi source-parity capture (`scripts/pi-source-parity.sh`) for live Git HEAD, dirty paths, route/build manifests, container images and 40-symbol runtime settings. Script is committed; live execution/output still required.
 - [ ] P0.5 Audit runtime demo data, especially `frontend/src/app/(site)/market-overview/page.tsx`; confirm whether file exists in live build.
 - [~] P0.6 Align declared PHP runtime with dependency lock. Repository baseline candidate is updated to PHP 8.4; deployed Raspberry Pi PHP version still requires verification.
 **Exit:** verified mapping of live route → actual source and deployment, clean baseline, backups, reproducible QA. **BLOCK** later code changes until achieved.
@@ -89,6 +90,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Public aitemple.tech verified as a mixed-asset 40-instrument terminal with `/data-health` and `/market-analytics`, while no inspected Git branch contains those live routes. Added Pi source-parity capture; production promotion remains blocked until live uncommitted/source/build state is reconciled into Git.
 - 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
