@@ -69,7 +69,12 @@ class DataCoverage extends Command
             ->where('p.period', 'daily')
             ->groupBy('p.instrument_id')
             ->selectRaw(
-                'p.instrument_id, COUNT(d.id) as daily_bars, COUNT(DISTINCT DATE(d.timestamps)) as daily_days, MIN(d.timestamps) as first_bar, MAX(d.timestamps) as last_bar'
+                'p.instrument_id,
+                 COUNT(d.id) as daily_bars,
+                 COUNT(DISTINCT DATE(d.timestamps)) as daily_days,
+                 MIN(d.timestamps) as first_bar,
+                 MAX(d.timestamps) as last_bar,
+                 GROUP_CONCAT(DISTINCT COALESCE(d.source, "unknown") ORDER BY d.source SEPARATOR ",") as sources'
             );
 
         $rows = DB::table($instrumentsTable.' as i')
@@ -86,6 +91,7 @@ class DataCoverage extends Command
                 DB::raw('COALESCE(c.daily_days, 0) as daily_days'),
                 'c.first_bar',
                 'c.last_bar',
+                'c.sources',
             ])
             ->keyBy(fn ($row) => strtoupper(trim((string) $row->symbol)));
 
@@ -134,6 +140,7 @@ class DataCoverage extends Command
                 $bars,
                 $days,
                 $duplicates,
+                $row && $row->sources ? (string) $row->sources : '—',
                 $row && $row->first_bar ? (string) $row->first_bar : '—',
                 $row && $row->last_bar ? (string) $row->last_bar : '—',
                 $state,
@@ -141,7 +148,7 @@ class DataCoverage extends Command
         }
 
         $this->table(
-            ['Symbol', 'Snapshot', 'Snap age', 'Daily bars', 'Daily days', 'Dup rows', 'First bar', 'Last bar', 'State'],
+            ['Symbol', 'Snapshot', 'Snap age', 'Daily bars', 'Daily days', 'Dup rows', 'Sources', 'First bar', 'Last bar', 'State'],
             $table
         );
 
