@@ -6,7 +6,7 @@ Updated: 2026-11-18
 
 Use this runbook only after the P0 history-persistence branch is present in the Raspberry Pi checkout. It verifies that every symbol intended for the 40-row Market View has **real persisted daily OHLC**, not merely a realtime quote.
 
-The canonical scheduled OHLC writer is the Python **DSATurbo** pipeline. Laravel `data:periods` is retained only for legacy/manual diagnostics and must **not** be used for normal recovery because it has different Yahoo adjustment/timestamp semantics.
+The canonical scheduled OHLC writer is the Python **DSATurbo** pipeline. Under-covered symbols automatically receive a long bootstrap (default 3650 calendar days) until the scheduled coverage threshold is met; covered symbols return to the short incremental window. Laravel `data:periods` is retained only for legacy/manual diagnostics and must **not** be used for normal recovery because it has different Yahoo adjustment/timestamp semantics.
 
 This procedure does not change ranking formulas and never manufactures missing candles.
 
@@ -58,14 +58,14 @@ If `TOP_N` is still 20, stop. The runtime is not using this P0 configuration.
 ## 3. Audit the intended 40-symbol board
 
 ```bash
-docker compose exec app php artisan data:coverage --limit=40 --min-bars=40
+docker compose exec app php artisan data:coverage --limit=40 --min-bars=90
 ```
 
 The command reports, per symbol:
 
 - symbol
 - current snapshot price and snapshot age
-- persisted daily-row count
+- persisted daily-row count and distinct trading-day count
 - distinct daily-date count
 - duplicate rows on the same trading date
 - first persisted bar
@@ -130,7 +130,7 @@ This rebuilds `instrument_snapshot`/ranking from persisted OHLC and then republi
 Then re-run:
 
 ```bash
-docker compose exec app php artisan data:coverage --limit=40 --min-bars=40
+docker compose exec app php artisan data:coverage --limit=40 --min-bars=90
 ```
 
 Expected exit status: `0`.
@@ -162,7 +162,7 @@ Target `dashboard:daily` meta:
 Per row:
 
 - `history_state = "ok"`
-- `history_points >= 2` (and operationally the server audit requires at least 40 daily bars)
+- `history_points >= 2` (and operationally the server audit requires at least 90 distinct daily trading days)
 
 Realtime quote availability is independent of this status.
 
