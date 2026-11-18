@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminService } from "@/src/services/Admin.service";
-import { RefreshCw, Terminal, Activity, AlertTriangle, FileText } from "lucide-react";
+import { RefreshCw, Activity, AlertTriangle, FileText } from "lucide-react";
 
 type MainTab = "activity" | "laravel" | "raw";
 
