@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Symbol universe for DSATurbo sync follows DEV_MODE (snapshot_demo or instrument_snapshot).
 from app.config.dsa_tables import table as dsa_table
+from app.data_collect.history_policy import choose_history_fetch_plan
 
 
 def snapshot_symbol_table() -> str:
@@ -407,29 +408,28 @@ class DSATurbo:
         try:
             ticker = yf.Ticker(symbol)
             existing_daily_bars = self.persisted_daily_bar_count(p_ids["daily"])
+            plan = choose_history_fetch_plan(
+                existing_daily_bars=existing_daily_bars,
+                backfill_days=self.backfill_days,
+                history_period=self.history_period,
+                bootstrap_min_bars=self.bootstrap_min_bars,
+                bootstrap_days=self.bootstrap_days,
+            )
 
-            if self.backfill_days is not None:
-                fetch_days = max(1, int(self.backfill_days))
-                fetch_mode = f"manual:{fetch_days}d"
+            if plan.days is not None:
+                fetch_days = int(plan.days)
                 start = (datetime.now() - timedelta(days=fetch_days)).strftime("%Y-%m-%d")
                 df = ticker.history(start=start, interval="1d", auto_adjust=True)
-            elif existing_daily_bars < self.bootstrap_min_bars:
-                fetch_days = self.bootstrap_days
                 fetch_mode = (
-                    f"bootstrap:{fetch_days}d existing={existing_daily_bars} "
+                    f"{plan.mode}:{fetch_days}d existing={existing_daily_bars} "
                     f"min={self.bootstrap_min_bars}"
                 )
-                start = (datetime.now() - timedelta(days=fetch_days)).strftime("%Y-%m-%d")
-                df = ticker.history(start=start, interval="1d", auto_adjust=True)
             else:
-                fetch_mode = f"incremental:{self.history_period}"
-                df = ticker.history(period=self.history_period, interval="1d", auto_adjust=True)
+                fetch_period = str(plan.period or self.history_period)
+                df = ticker.history(period=fetch_period, interval="1d", auto_adjust=True)
+                fetch_mode = f"{plan.mode}:{fetch_period}"
 
-            logger.info(
-                "OHLC sync %s mode=%s",
-                symbol,
-                fetch_mode,
-            )
+            logger.info("OHLC sync %s mode=%s", symbol, fetch_mode)
             if df.empty:
                 logger.warning("OHLC sync %s returned no daily bars (%s)", symbol, fetch_mode)
                 return
