@@ -31,6 +31,7 @@ export type TradingChartCandle = {
   close: number;
   volume: number;
   symbol?: string;
+  source?: string;
 };
 
 type TF = TradingChartPeriod;
@@ -43,6 +44,7 @@ export type TradingChartMarketData = {
   realtimeQuoteAt: number | null;
   realtimeQuoteStale: boolean;
   persistedLastBarAt: number | null;
+  persistedSources: string[];
   loading: boolean;
   error: string | null;
 };
@@ -159,13 +161,17 @@ function normalizeCandles(list: any[], period: TF): TradingChartCandle[] {
       const time = getPeriodBucketMs(rawTs, period);
       if (time === null) return;
 
-      const next = {
+      const next: TradingChartCandle = {
         time,
         open: Number(d.open),
         high: Number(d.high),
         low: Number(d.low),
         close: Number(d.close),
         volume: Number(d.volume || 0),
+        source:
+          typeof d.source === "string" && d.source.trim()
+            ? d.source.trim()
+            : undefined,
       };
 
       const prev = uniqueMap.get(time);
@@ -179,6 +185,7 @@ function normalizeCandles(list: any[], period: TF): TradingChartCandle[] {
           low: Math.min(Number(prev.low), Number(next.low)),
           close: Number(next.close),
           volume: Number(prev.volume || 0) + Number(next.volume || 0),
+          source: next.source ?? prev.source,
         });
       }
     });
@@ -366,6 +373,13 @@ export default function TradingChart({
       realtimeQuoteAt,
       realtimeQuoteStale,
       persistedLastBarAt: candles.length ? Number(candles[candles.length - 1]?.time) : null,
+      persistedSources: [
+        ...new Set(
+          candles
+            .map((candle) => candle.source?.trim())
+            .filter((source): source is string => Boolean(source)),
+        ),
+      ],
       loading: loadingChart,
       error: chartError,
     });
