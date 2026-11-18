@@ -92,6 +92,9 @@ jobs:
           grep -q 'HISTORY_BOOTSTRAP_DAYS=3650' ../../docker-compose.yml
           grep -q 'DASHBOARD_WARM_UP_LIMIT=40' ../../docker-compose.yml
           grep -q 'DASHBOARD_WARM_UP_CHART_BARS=90' ../../docker-compose.yml
+          grep -q 'ENGINE_RESOURCE_PROFILE=pi4' ../../docker-compose.yml
+          grep -q 'SCHEDULER_MAX_WORKERS=1' ../../docker-compose.yml
+          grep -q 'AUTO_ANALYZE_CONCURRENCY=2' ../../docker-compose.yml
           grep -q 'SYMBOL_INGEST_TOP_N.*"40"' app/bootstrap/scheduler_config.py
           grep -q 'DASHBOARD_WARM_UP_LIMIT.*"40"' app/bootstrap/scheduler_config.py
           grep -q 'COUNT(DISTINCT DATE(timestamps))' app/data_collect/collectors/stock_sync.py
