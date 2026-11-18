@@ -1,147 +1,317 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT="${DSA_ROOT:-/home/trivi/Decision-System-Advisor}"
+LIVE_ROOT="${DSA_ROOT:-/home/trivi/Decision-System-Advisor}"
 TARGET_BRANCH="${DSA_BRANCH:-integration/dsa-next-v2-20261118}"
-REMOTE="${DSA_REMOTE:-origin}"
+REPO_URL="${DSA_REPO_URL:-https://github.com/vinhvrs/Decision-System-Advisor.git}"
+CACHE_ROOT="${DSA_CACHE_ROOT:-/home/trivi/.cache/dsa-deploy}"
+RELEASE_ROOT="${DSA_RELEASE_ROOT:-/home/trivi/dsa-releases}"
+COMPOSE_FILE="${DSA_COMPOSE_FILE:-$LIVE_ROOT/compose.pi.yml}"
+OVERRIDE_FILE="${DSA_OVERRIDE_FILE:-$LIVE_ROOT/ops/pi/compose.runtime.override.yml}"
+PROJECT="${DSA_COMPOSE_PROJECT:-dsa-pi}"
 RUN_HISTORY_AUDIT="${RUN_HISTORY_AUDIT:-1}"
+ALLOW_DB_MIGRATIONS="${ALLOW_DB_MIGRATIONS:-0}"
+EXPECTED_SHA="${DSA_TARGET_SHA:-}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+CACHE_REPO="$CACHE_ROOT/repo.git"
+STAGE="$CACHE_ROOT/stage-$STAMP"
+BACKUP="$RELEASE_ROOT/$STAMP-backend-git-sync"
+SOURCE_SYNC_STARTED=0
+OVERRIDE_EXISTED=0
 
-cd "$ROOT" || {
-  echo "ERROR: DSA root not found: $ROOT" >&2
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "ERROR: required command missing: $1" >&2
+    exit 2
+  }
+}
+
+for cmd in git docker rsync tar python3; do
+  require_cmd "$cmd"
+done
+
+docker compose version >/dev/null 2>&1 || {
+  echo "ERROR: Docker Compose v2 is required." >&2
   exit 2
 }
 
+[ -d "$LIVE_ROOT" ] || {
+  echo "ERROR: live DSA root not found: $LIVE_ROOT" >&2
+  exit 2
+}
+[ -f "$COMPOSE_FILE" ] || {
+  echo "ERROR: Pi compose file not found: $COMPOSE_FILE" >&2
+  exit 2
+}
+
+mkdir -p "$CACHE_ROOT" "$RELEASE_ROOT" "$STAGE" "$BACKUP"
+
+SYNC_EXCLUDES=(
+  --exclude '.env'
+  --exclude '.env.*'
+  --exclude 'storage/'
+  --exclude 'bootstrap/cache/'
+  --exclude 'vendor/'
+  --exclude 'node_modules/'
+  --exclude 'certs/'
+  --exclude 'Dockerfile.pi'
+  --exclude 'public/storage'
+  --exclude '__pycache__/'
+  --exclude '*.pyc'
+)
+
+compose_cmd() {
+  if [ -f "$OVERRIDE_FILE" ]; then
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" "$@"
+  else
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
+  fi
+}
+
+restore_source() {
+  trap - ERR
+  if [ "$SOURCE_SYNC_STARTED" != "1" ]; then
+    return 0
+  fi
+
+  echo
+  echo "!! DEPLOY FAILED — RESTORING PRE-DEPLOY SOURCE !!"
+  compose_cmd stop data-engine >/dev/null 2>&1 || true
+
+  if [ -d "$BACKUP/backend" ]; then
+    rsync -a --delete "${SYNC_EXCLUDES[@]}" "$BACKUP/backend/" "$LIVE_ROOT/backend/" || true
+  fi
+
+  if [ "$OVERRIDE_EXISTED" = "1" ] && [ -f "$BACKUP/compose.runtime.override.yml" ]; then
+    mkdir -p "$(dirname "$OVERRIDE_FILE")"
+    cp -a "$BACKUP/compose.runtime.override.yml" "$OVERRIDE_FILE" || true
+  elif [ "$OVERRIDE_EXISTED" = "0" ]; then
+    rm -f "$OVERRIDE_FILE" || true
+  fi
+
+  echo "Rebuilding restored app/data-engine..."
+  compose_cmd build app data-engine || true
+  compose_cmd up -d --no-deps app data-engine || true
+  echo "Rollback source restored from: $BACKUP"
+}
+
+trap restore_source ERR
+
 echo "======================================================"
-echo "DSA PI BACKEND DEPLOY"
+echo "DSA PI LIVE BACKEND DEPLOY"
 echo "======================================================"
-echo "ROOT=$ROOT"
+echo "LIVE_ROOT=$LIVE_ROOT"
+echo "COMPOSE_FILE=$COMPOSE_FILE"
+echo "PROJECT=$PROJECT"
 echo "TARGET_BRANCH=$TARGET_BRANCH"
 echo "TIME=$(date -Is)"
 echo
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: working tree is dirty. Refusing to pull or rebuild." >&2
-  git status --short
+echo "== Verify live dsa-pi topology =="
+live_project="$(docker inspect dsa-pi-data-engine-1 -f '{{ index .Config.Labels "com.docker.compose.project" }}' 2>/dev/null || true)"
+live_workdir="$(docker inspect dsa-pi-data-engine-1 -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' 2>/dev/null || true)"
+if [ "$live_project" != "$PROJECT" ] || [ "$live_workdir" != "$LIVE_ROOT" ]; then
+  echo "ERROR: live data-engine does not match expected dsa-pi topology." >&2
+  echo "project=$live_project"
+  echo "working_dir=$live_workdir"
   exit 3
 fi
+echo "project=$live_project"
+echo "working_dir=$live_workdir"
 
-before_sha="$(git rev-parse HEAD)"
-before_branch="$(git branch --show-current)"
-echo "before_branch=$before_branch"
-echo "before_sha=$before_sha"
+echo
+echo "== Fetch target Git commit into isolated cache =="
+if [ ! -d "$CACHE_REPO" ]; then
+  git clone --mirror "$REPO_URL" "$CACHE_REPO"
+else
+  git --git-dir="$CACHE_REPO" remote set-url origin "$REPO_URL"
+fi
 
-git fetch --prune "$REMOTE" "$TARGET_BRANCH"
-target_sha="$(git rev-parse "$REMOTE/$TARGET_BRANCH")"
+git --git-dir="$CACHE_REPO" fetch --prune origin "$TARGET_BRANCH"
+target_sha="$(git --git-dir="$CACHE_REPO" rev-parse FETCH_HEAD)"
 echo "target_sha=$target_sha"
 
-git checkout "$TARGET_BRANCH"
-git pull --ff-only "$REMOTE" "$TARGET_BRANCH"
-
-after_sha="$(git rev-parse HEAD)"
-echo "after_sha=$after_sha"
-if [ "$after_sha" != "$target_sha" ]; then
-  echo "ERROR: checked-out HEAD does not match fetched target." >&2
+if [ -n "$EXPECTED_SHA" ] && [ "$target_sha" != "$EXPECTED_SHA" ]; then
+  echo "ERROR: fetched target SHA does not match DSA_TARGET_SHA." >&2
+  echo "expected=$EXPECTED_SHA"
+  echo "actual=$target_sha"
   exit 4
 fi
 
-mkdir -p "$ROOT/.deploy-state"
-printf '%s\n' "$before_sha" > "$ROOT/.deploy-state/backend-before-$STAMP.sha"
-printf '%s\n' "$after_sha" > "$ROOT/.deploy-state/backend-after-$STAMP.sha"
+git --git-dir="$CACHE_REPO" archive "$target_sha" | tar -x -C "$STAGE"
 
-echo
-echo "== Compose validation =="
-docker compose config -q
-
-echo
-echo "== Resource contract =="
-docker compose config 2>/dev/null \
-  | grep -E 'ENGINE_RESOURCE_PROFILE|SCHEDULER_MAX_WORKERS|AUTO_ANALYZE_(CONCURRENCY|SCHEDULE_LIMIT|FIRST_DELAY_SEC|STARTUP_WARMUP_ENABLED)|NEWS_STARTUP_DELAY_SEC|TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC|SYMBOL_INGEST_TOP_N|MARKET_BOARD_SYMBOL_LIMIT' \
-  || true
-
-echo
-echo "== Start persistent dependencies =="
-docker compose up -d db qdrant elasticsearch
-
-echo
-echo "== Build backend images =="
-docker compose build app data-engine
-
-echo
-echo "== Start backend services =="
-docker compose up -d app data-engine nginx
-
-echo
-echo "== Wait for Laravel php-fpm health =="
-for _ in $(seq 1 36); do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' dsa-api 2>/dev/null || true)"
-  if [ "$status" = "healthy" ]; then
-    break
-  fi
-  if [ "$status" = "unhealthy" ]; then
-    echo "ERROR: dsa-api became unhealthy." >&2
-    docker compose ps
-    docker compose logs --tail=120 app
-    exit 5
-  fi
-  sleep 5
+for required in   backend/python_engine/app/bootstrap/scheduler_config.py   backend/python_engine/app/bootstrap/scheduler_runtime.py   backend/python_engine/app/jobs/analysis_job.py   scripts/pi-history-audit.sh   scripts/pi-source-parity.sh   ops/pi/compose.runtime.override.yml
+do
+  [ -e "$STAGE/$required" ] || {
+    echo "ERROR: target commit is missing required path: $required" >&2
+    exit 4
+  }
 done
 
-if [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' dsa-api 2>/dev/null || true)" != "healthy" ]; then
-  echo "ERROR: dsa-api did not become healthy." >&2
-  docker compose ps
-  docker compose logs --tail=120 app
-  exit 6
+echo
+echo "== Staged source preflight =="
+python3 -m compileall -q "$STAGE/backend/python_engine/app"
+bash -n "$STAGE/scripts/pi-history-audit.sh"
+bash -n "$STAGE/scripts/pi-source-parity.sh"
+bash -n "$STAGE/scripts/pi-backend-deploy.sh"
+
+echo
+echo "== Detect migration changes =="
+migration_plan="$(rsync -anic --delete "$STAGE/backend/database/migrations/" "$LIVE_ROOT/backend/database/migrations/" || true)"
+if [ -n "$migration_plan" ]; then
+  echo "$migration_plan"
+  if [ "$ALLOW_DB_MIGRATIONS" != "1" ]; then
+    echo "ERROR: migration tree differs. Set ALLOW_DB_MIGRATIONS=1 only after reviewing the migration diff." >&2
+    exit 5
+  fi
+else
+  echo "No migration changes."
 fi
 
 echo
-echo "== Laravel migration/cache =="
-docker compose exec -T app php artisan migrate --force
-docker compose exec -T app php artisan optimize:clear
-docker compose exec -T app php artisan config:cache
+echo "== Snapshot current live backend source =="
+rsync -a "${SYNC_EXCLUDES[@]}" "$LIVE_ROOT/backend/" "$BACKUP/backend/"
+cp -a "$COMPOSE_FILE" "$BACKUP/compose.pi.yml"
+if [ -f "$OVERRIDE_FILE" ]; then
+  OVERRIDE_EXISTED=1
+  cp -a "$OVERRIDE_FILE" "$BACKUP/compose.runtime.override.yml"
+fi
+printf '%s\n' "$target_sha" > "$BACKUP/target.sha"
+printf '%s\n' "$TARGET_BRANCH" > "$BACKUP/target.branch"
 
 echo
-echo "== Restart API after cached config =="
-docker compose restart app
-for _ in $(seq 1 24); do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' dsa-api 2>/dev/null || true)"
-  [ "$status" = "healthy" ] && break
+echo "== Backend source change plan =="
+rsync -anic --delete "${SYNC_EXCLUDES[@]}" "$STAGE/backend/" "$LIVE_ROOT/backend/"   | tee "$BACKUP/rsync-plan.txt"
+
+echo
+echo "== Install Git-controlled Pi runtime override =="
+mkdir -p "$(dirname "$OVERRIDE_FILE")"
+install -m 0644 "$STAGE/ops/pi/compose.runtime.override.yml" "$OVERRIDE_FILE"
+mkdir -p "$LIVE_ROOT/scripts"
+install -m 0755 "$STAGE/scripts/pi-history-audit.sh" "$LIVE_ROOT/scripts/pi-history-audit.sh"
+install -m 0755 "$STAGE/scripts/pi-source-parity.sh" "$LIVE_ROOT/scripts/pi-source-parity.sh"
+install -m 0755 "$STAGE/scripts/pi-backend-deploy.sh" "$LIVE_ROOT/scripts/pi-backend-deploy.sh"
+
+echo
+echo "== Validate live compose + override =="
+compose_cmd config -q
+compose_cmd config 2>/dev/null   | grep -E 'ENGINE_RESOURCE_PROFILE|SCHEDULER_MAX_WORKERS|AUTO_ANALYZE_(CONCURRENCY|SCHEDULE_LIMIT|STARTUP_WARMUP_ENABLED)|SYMBOL_INGEST_TOP_N|MARKET_BOARD_SYMBOL_LIMIT|HISTORY_BOOTSTRAP_(MIN_BARS|DAYS)|DASHBOARD_WARM_UP_(LIMIT|CHART_BARS)'   || true
+
+echo
+echo "== Stop only bind-mounted data-engine before source cutover =="
+compose_cmd stop data-engine
+SOURCE_SYNC_STARTED=1
+
+echo
+echo "== Sync target backend into live tree =="
+rsync -a --checksum --delete "${SYNC_EXCLUDES[@]}" "$STAGE/backend/" "$LIVE_ROOT/backend/"
+
+echo
+echo "== Build new backend images while existing Laravel app keeps serving =="
+compose_cmd build app data-engine
+
+echo
+echo "== Recreate app + data-engine from new images =="
+compose_cmd up -d --no-deps app data-engine
+
+echo
+echo "== Wait for app and data-engine processes =="
+for _ in $(seq 1 36); do
+  app_id="$(compose_cmd ps -q app)"
+  engine_id="$(compose_cmd ps -q data-engine)"
+  app_state="$(docker inspect -f '{{.State.Status}}' "$app_id" 2>/dev/null || true)"
+  engine_state="$(docker inspect -f '{{.State.Status}}' "$engine_id" 2>/dev/null || true)"
+  if [ "$app_state" = "running" ] && [ "$engine_state" = "running" ]; then
+    break
+  fi
   sleep 5
 done
 
+app_id="$(compose_cmd ps -q app)"
+engine_id="$(compose_cmd ps -q data-engine)"
+[ "$(docker inspect -f '{{.State.Status}}' "$app_id" 2>/dev/null || true)" = "running" ] || {
+  echo "ERROR: Laravel app did not reach running state." >&2
+  compose_cmd logs --tail=120 app
+  exit 6
+}
+[ "$(docker inspect -f '{{.State.Status}}' "$engine_id" 2>/dev/null || true)" = "running" ] || {
+  echo "ERROR: data-engine did not reach running state." >&2
+  compose_cmd logs --tail=120 data-engine
+  exit 6
+}
+
 echo
-echo "== Data engine health =="
-curl -fsS --max-time 15 http://127.0.0.1:8000/ ; echo
-curl -fsS --max-time 15 http://127.0.0.1:8000/health/scheduler ; echo
+echo "== Laravel migration/cache =="
+compose_cmd exec -T app php artisan migrate --force
+compose_cmd exec -T app php artisan optimize:clear
+compose_cmd exec -T app php artisan config:cache
+compose_cmd restart app
+
+echo
+echo "== Runtime health gates =="
+compose_cmd exec -T app sh -lc 'pidof php-fpm >/dev/null 2>&1 || pgrep -f "php-fpm: master" >/dev/null'
+
+compose_cmd exec -T data-engine python3 - <<'PY'
+import json
+import urllib.request
+
+def get(path):
+    with urllib.request.urlopen("http://127.0.0.1:8000" + path, timeout=15) as r:
+        return json.load(r)
+
+root = get("/")
+scheduler = get("/health/scheduler")
+print("engine=", root)
+print("scheduler_status=", scheduler.get("status"))
+print("resource_profile=", scheduler.get("resource_profile"))
+print("scheduler_max_workers=", scheduler.get("scheduler_max_workers"))
+print("dashboard_row_count=", (scheduler.get("dashboard_warm_up_last") or {}).get("row_count"))
+
+assert root.get("status") == "online"
+assert scheduler.get("running") is True
+assert scheduler.get("resource_profile") == "pi4"
+assert scheduler.get("scheduler_max_workers") == 1
+row_count = (scheduler.get("dashboard_warm_up_last") or {}).get("row_count")
+assert row_count in (None, 40) or int(row_count) >= 40
+PY
 
 echo
 echo "== Containers =="
-docker compose ps
+compose_cmd ps
 
 echo
 echo "== Memory snapshot =="
-docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}' \
-  dsa-mysql dsa-elasticsearch dsa-qdrant dsa-data-engine dsa-api dsa-nginx 2>/dev/null || true
+ids="$(compose_cmd ps -q | tr '\n' ' ')"
+if [ -n "$ids" ]; then
+  # shellcheck disable=SC2086
+  docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}' $ids || true
+fi
 
 history_rc=0
 if [ "$RUN_HISTORY_AUDIT" = "1" ]; then
   echo
   echo "== 40-symbol persisted-history audit =="
   set +e
-  DSA_ROOT="$ROOT" LIMIT=40 MIN_BARS=90 bash "$ROOT/scripts/pi-history-audit.sh"
+  DSA_ROOT="$LIVE_ROOT"   DSA_COMPOSE_FILE="$COMPOSE_FILE"   DSA_OVERRIDE_FILE="$OVERRIDE_FILE"   DSA_COMPOSE_PROJECT="$PROJECT"   LIMIT=40 MIN_BARS=90     bash "$LIVE_ROOT/scripts/pi-history-audit.sh"
   history_rc=$?
   set -e
 fi
 
+SOURCE_SYNC_STARTED=0
+trap - ERR
+rm -rf "$STAGE"
+
 echo
 echo "======================================================"
 echo "DEPLOY COMPLETE"
-echo "HEAD=$after_sha"
+echo "TARGET_SHA=$target_sha"
+echo "BACKUP=$BACKUP"
 if [ "$history_rc" -eq 0 ]; then
   echo "HISTORY_AUDIT=PASS"
 else
   echo "HISTORY_AUDIT=NEEDS_RECOVERY"
-  echo "Code deploy is healthy, but one or more displayed symbols need canonical DSATurbo recovery."
+  echo "Code/runtime deploy passed, but persisted-history coverage needs targeted canonical DSATurbo recovery."
 fi
-echo "Rollback source SHA saved at: $ROOT/.deploy-state/backend-before-$STAMP.sha"
 echo "======================================================"
+
+exit 0
