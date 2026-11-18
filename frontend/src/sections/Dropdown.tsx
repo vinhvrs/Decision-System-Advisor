@@ -176,14 +176,14 @@ export default function SelectDropdown({
     <div
       ref={menuRef}
       style={portalMenu ? portalStyle ?? undefined : undefined}
-      className={`${portalMenu ? "fixed" : "absolute"} z-[100] mt-1 w-full min-w-full overflow-hidden rounded-lg border border-white/10 bg-[#1e212b] shadow-xl`}
+      className={`${portalMenu ? "fixed" : "absolute"} dsa-panel-raised z-[100] mt-1 w-full min-w-full overflow-hidden`}
     >
       {searchable ? (
-        <div className="border-b border-white/10 p-2">
+        <div className="border-b border-[var(--dsa-border)] p-1.5">
           <div className="relative">
             <Search
               size={14}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--dsa-text-muted)]"
             />
             <input
               autoFocus
@@ -195,7 +195,7 @@ export default function SelectDropdown({
                 }
               }}
               placeholder="Search…"
-              className="w-full rounded-md border border-white/10 bg-[#262a3b] py-2 pl-8 pr-2 text-xs text-white placeholder:text-white/35 focus:border-[#3861fb]/50 focus:outline-none"
+              className="dsa-control h-8 w-full py-1.5 pl-8 pr-2 text-xs placeholder:text-[var(--dsa-text-muted)] focus:outline-none"
             />
           </div>
         </div>
@@ -203,7 +203,7 @@ export default function SelectDropdown({
 
       <div
         ref={listRef}
-        className="max-h-56 overflow-y-auto no-scrollbar py-0.5"
+        className="max-h-64 overflow-y-auto py-0.5"
       >
         {filteredOptions.length > 0 ? (
           filteredOptions.map((option, idx) => {
@@ -219,23 +219,23 @@ export default function SelectDropdown({
                 }}
                 onMouseEnter={() => setActiveIndex(idx)}
                 onClick={() => handleSelect(option)}
-                className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition ${
+                className={`flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-xs transition-colors ${
                   isSelected
-                    ? "bg-[#2c344e] text-white"
+                    ? "bg-[var(--dsa-accent-soft)] text-white"
                     : isActive
-                      ? "bg-white/[0.06] text-white"
-                      : "text-white/90 hover:bg-white/[0.06]"
+                      ? "bg-[var(--dsa-surface-3)] text-white"
+                      : "text-[var(--dsa-text-secondary)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
                 }`}
               >
                 <span className="truncate">{option.label}</span>
                 {isSelected ? (
-                  <Check size={16} className="shrink-0 text-[#3861fb]" />
+                  <Check size={14} className="shrink-0 text-[#8ab4ff]" />
                 ) : null}
               </button>
             );
           })
         ) : (
-          <div className="px-3 py-4 text-center text-xs text-white/45">
+          <div className="px-3 py-4 text-center text-xs text-[var(--dsa-text-muted)]">
             No results
           </div>
         )}
@@ -254,14 +254,14 @@ export default function SelectDropdown({
         type="button"
         onClick={() => (isOpen ? closeDropdown() : openDropdown())}
         aria-expanded={isOpen}
-        className="flex w-full min-w-[140px] items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#262a3b] px-3 py-2.5 text-sm font-medium text-white transition hover:border-white/20 hover:bg-[#2d3148]"
+        className="dsa-control flex h-9 w-full min-w-[140px] items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-medium transition-colors"
       >
         <span className="truncate">
           {selected ? selected.label : placeholder}
         </span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-white/45 transition-transform ${
+          className={`shrink-0 text-[var(--dsa-text-muted)] transition-transform ${
             isOpen ? "rotate-180" : ""
           }`}
         />
