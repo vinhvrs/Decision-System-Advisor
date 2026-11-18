@@ -340,23 +340,10 @@ class DataPeriods extends Command
         $weeklyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $weeklyId)->max('timestamps');
         $monthlyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $monthlyId)->max('timestamps');
         $yearlyLatest = DB::table(DsaTables::name('instrument_data'))->where('instrument_period_id', $yearlyId)->max('timestamps');
-        $periodStarts = DB::table(DsaTables::name('instrument_data'))
-            ->where('instrument_period_id', $dailyId)
-            ->min('timestamps');
-        $periodStarts = Carbon::parse($periodStarts ?? now());
-
-        $weeklyLatest = $weeklyLatest
-            ? $this->strictCarbon($weeklyLatest)
-            : $periodStarts->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
-        $monthlyLatest = $monthlyLatest
-            ? $this->strictCarbon($monthlyLatest)
-            : $periodStarts->copy()->startOfMonth()->startOfDay();
-        $yearlyLatest = $yearlyLatest
-            ? $this->strictCarbon($yearlyLatest)
-            : $periodStarts->copy()->startOfYear()->startOfDay();
-
         return [
             'daily_latest' => $this->normalizeDbTimestamp($dailyLatest),
+            // Preserve true missingness. The aggregation functions use null to
+            // detect a first build and backfill from the earliest lower-period bar.
             'weekly_latest' => $this->normalizeDbTimestamp($weeklyLatest),
             'monthly_latest' => $this->normalizeDbTimestamp($monthlyLatest),
             'yearly_latest' => $this->normalizeDbTimestamp($yearlyLatest),
