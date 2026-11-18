@@ -5,6 +5,18 @@ import { normalizeNewsListResponse } from "@/src/libs/newsArticle";
 import { getSymbolDevRows, type SymbolDevCompany } from "@/src/libs/symbolDevIdb";
 import type { News } from "@/src/types/News";
 
+export type TopCompanyRow = {
+    company_name?: string | null;
+    symbol: string;
+    price: number;
+    change_pct: number;
+    liquidity: number;
+    volume: number;
+    market_cap: number;
+    updated_at?: string | null;
+    missing_fields?: string[];
+};
+
 function pickCompanyFields(row: SymbolDevCompany, select?: string[]) {
     const base: Record<string, unknown> = {
         symbol: row.symbol,
@@ -94,15 +106,19 @@ export const CompanyService = {
         return res.data ?? [];
     },
 
-    async topCompanies(limit: number = 10, orderBy: string = "liquidity") {
+    async topCompanies(limit: number = 10, orderBy: string = "liquidity"): Promise<TopCompanyRow[]> {
         if (isDemoDevMode()) {
             const rows = await getSymbolDevRows();
-            return rows.slice(0, limit).map((r, i) => demoRankingRow(r, i));
+            return rows.slice(0, limit).map((r, i) => ({
+                ...demoRankingRow(r, i),
+                updated_at: null,
+                missing_fields: [],
+            }));
         }
         const companies = await api.get("/rankings/top-companies", {
             params: { limit, orderBy }
         });
-        return companies.data?.data ?? [];
+        return Array.isArray(companies.data?.data) ? companies.data.data : [];
     },
 
     /**
