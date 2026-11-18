@@ -26,8 +26,11 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [x] T2 Add explicit eligibility/data-state metadata through Python/Laravel/frontend ranking paths; remaining stale/delayed taxonomy work continues under C1/C2.
 - [x] T3 Fail closed against demo-table/demo-symbol mode in production defaults. Independent live production verification is still required before release.
 - [~] T4 Regression guards added for production table selection. Golden market-data fixtures for sparse history, stale quotes, holidays and recovery are still required.
-- [~] T5 Fix historical coverage parity for the 40-symbol Market View universe: remove 15-symbol persistence whitelist, keep UUID IDs intact, rotate scheduled backfill order, tolerate sparse Yahoo candles, expose history coverage metadata, and add `data:coverage`. CI/live Pi coverage verification remains before release.
-**Exit:** no invalid Buy/Sell states, zero-as-missing, or misleading live status. Compare legitimate scoring outputs unchanged.
+- [~] T5 Fix historical coverage parity for the 40-symbol Market View universe: remove the legacy 15-symbol persistence whitelist, align scheduled Python stock sync from top 20 to 40, prioritize known realtime-only symbols, keep UUID IDs intact, tolerate sparse source rows, expose `history_state/history_points`, and audit ≥40 persisted bars per displayed symbol with `data:coverage`. CI/live Pi coverage verification remains before release.
+- [~] T6 Make Python `DSATurbo` the single scheduled OHLC writer. Laravel `data:periods` is retained only for explicit legacy/manual diagnostics because its raw Yahoo/timestamp convention differs from DSATurbo; `data:coverage` now flags duplicate rows per trading date before any cleanup.
+- [x] T7 Remove production demo-universe leakage from Redis board normalization; dev seed/filter helpers are now fail-closed outside explicit dev mode.
+- [~] T8 Align realtime universe with persisted universe: remove missing `market_universe` dependency, resolve stock whitelist from DB, bootstrap top 40 quotes, and preserve live change/bias through Redis board refresh. Runtime/CI verification remains.
+**Exit:** no invalid Buy/Sell states, zero-as-missing, quote-only masquerading as history, demo rows in production, or misleading live status. Compare legitimate scoring outputs unchanged.
 
 ### Phase 2 — Data provenance and content integrity (P1)
 - [ ] C1 Review BUG-004/008/009. Data Health: stored coverage vs completeness vs freshness vs source health vs analytic eligibility; show denominators/calendars.
@@ -84,6 +87,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
 - 2026-11-18: P1 UI foundation started on isolated child branch: neutral design tokens, compact global shell, Market View/Investing/Indicators/News/Documents/Screener cleanup, and CI workflow added. No deployment performed.
