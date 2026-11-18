@@ -12,6 +12,7 @@ PROJECT="${DSA_COMPOSE_PROJECT:-dsa-pi}"
 RUN_HISTORY_AUDIT="${RUN_HISTORY_AUDIT:-1}"
 ALLOW_DB_MIGRATIONS="${ALLOW_DB_MIGRATIONS:-0}"
 ALLOW_LIVE_ONLY_DELETIONS="${ALLOW_LIVE_ONLY_DELETIONS:-0}"
+PREFLIGHT_ONLY="${PREFLIGHT_ONLY:-0}"
 EXPECTED_SHA="${DSA_TARGET_SHA:-}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 CACHE_REPO="$CACHE_ROOT/repo.git"
@@ -268,23 +269,12 @@ case "$migration_rc" in
 esac
 
 echo
-echo "== Snapshot current live backend source =="
-rsync -a "${SYNC_EXCLUDES[@]}" "$LIVE_ROOT/backend/" "$BACKUP/backend/"
-cp -a "$COMPOSE_FILE" "$BACKUP/compose.pi.yml"
-if [ -f "$OVERRIDE_FILE" ]; then
-  OVERRIDE_EXISTED=1
-  cp -a "$OVERRIDE_FILE" "$BACKUP/compose.runtime.override.yml"
-fi
-BACKUP_READY=1
-printf '%s\n' "$target_sha" > "$BACKUP/target.sha"
-printf '%s\n' "$TARGET_BRANCH" > "$BACKUP/target.branch"
-
-echo
 echo "== Backend source change plan =="
+PLAN_FILE="$STAGE/rsync-plan.txt"
 rsync -anic --delete "${SYNC_EXCLUDES[@]}" "$STAGE/backend/" "$LIVE_ROOT/backend/" \
-  | tee "$BACKUP/rsync-plan.txt"
+  | tee "$PLAN_FILE"
 
-live_only_deletions="$(grep -E '^\*deleting[[:space:]]+' "$BACKUP/rsync-plan.txt" || true)"
+live_only_deletions="$(grep -E '^\*deleting[[:space:]]+' "$PLAN_FILE" || true)"
 if [ -n "$live_only_deletions" ]; then
   echo
   echo "LIVE_ONLY_BACKEND_DELETIONS:"
@@ -296,6 +286,29 @@ if [ -n "$live_only_deletions" ]; then
     exit 8
   fi
 fi
+
+if [ "$PREFLIGHT_ONLY" = "1" ]; then
+  echo
+  echo "======================================================"
+  echo "PREFLIGHT COMPLETE — NO LIVE SOURCE OR CONTAINER CHANGES MADE"
+  echo "TARGET_SHA=$target_sha"
+  echo "PLAN_FILE=$PLAN_FILE"
+  echo "======================================================"
+  exit 0
+fi
+
+echo
+echo "== Snapshot current live backend source =="
+rsync -a "${SYNC_EXCLUDES[@]}" "$LIVE_ROOT/backend/" "$BACKUP/backend/"
+cp -a "$COMPOSE_FILE" "$BACKUP/compose.pi.yml"
+if [ -f "$OVERRIDE_FILE" ]; then
+  OVERRIDE_EXISTED=1
+  cp -a "$OVERRIDE_FILE" "$BACKUP/compose.runtime.override.yml"
+fi
+BACKUP_READY=1
+printf '%s\n' "$target_sha" > "$BACKUP/target.sha"
+printf '%s\n' "$TARGET_BRANCH" > "$BACKUP/target.branch"
+cp -a "$PLAN_FILE" "$BACKUP/rsync-plan.txt"
 
 echo
 echo "== Install Git-controlled Pi runtime override =="
