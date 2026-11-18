@@ -119,8 +119,10 @@ jobs:
           php artisan list --raw | grep -q '^data:periods '
           php artisan list --raw | grep -q '^data:coverage '
 
-      - name: Verify Pi history audit script syntax
-        run: bash -n ../scripts/pi-history-audit.sh
+      - name: Verify Pi audit script syntax
+        run: |
+          bash -n ../scripts/pi-history-audit.sh
+          bash -n ../scripts/pi-source-parity.sh
 
 
       - name: Run DSA production guard tests
