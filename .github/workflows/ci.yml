@@ -74,6 +74,8 @@ jobs:
           python -m py_compile \
             app/analyze/dashboard/dashboard.py \
             app/bootstrap/scheduler_config.py \
+            app/bootstrap/scheduler_runtime.py \
+            app/jobs/analysis_job.py \
             app/data_collect/history_policy.py \
             app/data_collect/collectors/stock_sync.py \
             app/data_collect/symbol_ingest.py \
@@ -94,6 +96,25 @@ jobs:
           grep -q 'DASHBOARD_WARM_UP_LIMIT.*"40"' app/bootstrap/scheduler_config.py
           grep -q 'COUNT(DISTINCT DATE(timestamps))' app/data_collect/collectors/stock_sync.py
           grep -q 'persisted_daily = self.persisted_daily_frame' app/data_collect/collectors/stock_sync.py
+
+      - name: Verify Raspberry Pi 4GB scheduler profile
+        run: |
+          ENGINE_RESOURCE_PROFILE=pi4 \
+          python - <<'PY'
+          from app.bootstrap.scheduler_config import (
+              AUTO_ANALYZE_CONCURRENCY,
+              AUTO_ANALYZE_SCHEDULE_LIMIT,
+              AUTO_ANALYZE_STARTUP_WARMUP_ENABLED,
+              SCHEDULER_MAX_WORKERS,
+              TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC,
+          )
+
+          assert SCHEDULER_MAX_WORKERS == 1
+          assert AUTO_ANALYZE_CONCURRENCY == 2
+          assert AUTO_ANALYZE_SCHEDULE_LIMIT == 40
+          assert AUTO_ANALYZE_STARTUP_WARMUP_ENABLED is False
+          assert TECH_UNIVERSE_BOOTSTRAP_DELAY_SEC >= 1800
+          PY
 
       - name: Run table-mode regression tests
         run: python -m unittest tests.test_dsa_table_mode tests.test_history_policy
@@ -136,6 +157,7 @@ jobs:
         run: |
           bash -n ../scripts/pi-history-audit.sh
           bash -n ../scripts/pi-source-parity.sh
+          bash -n ../scripts/pi-backend-deploy.sh
 
 
       - name: Run DSA production guard tests
