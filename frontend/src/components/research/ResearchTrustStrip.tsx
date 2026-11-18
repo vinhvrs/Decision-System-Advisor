@@ -20,13 +20,16 @@ function formatAsOf(value?: string | null): string {
   if (!value) return "Awaiting snapshot";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "Unknown";
-  return new Intl.DateTimeFormat(undefined, {
+  const formatted = new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
   }).format(date);
+  return `${formatted} UTC`;
 }
 
 export default function ResearchTrustStrip({
