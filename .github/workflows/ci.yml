@@ -38,101 +38,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Report frontend dependency advisories
+      - name: Verify frontend runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Report frontend dev/tooling advisories
         continue-on-error: true
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
 
       - name: Lint
         run: npm run lint
 
       - name: Production build
         run: npm run build
-
-  dependency-lock-refresh:
-    name: Security lockfile update
-    if: github.event_name == 'pull_request' && github.head_ref == 'work/p0-dependency-security-20261118'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout security branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.4"
-          coverage: none
-
-      - name: Resolve npm security updates within declared ranges
-        working-directory: frontend
-        run: npm audit fix --package-lock-only || true
-
-      - name: Resolve targeted Composer security updates
-        working-directory: backend
-        run: >
-          composer update
-          laravel/framework
-          guzzlehttp/guzzle
-          guzzlehttp/psr7
-          league/commonmark
-          league/flysystem
-          paragonie/sodium_compat
-          symfony/http-foundation
-          symfony/http-kernel
-          symfony/mailer
-          symfony/mime
-          symfony/polyfill-intl-idn
-          symfony/routing
-          --with-all-dependencies
-          --no-install
-          --no-scripts
-          --no-interaction
-          --no-progress
-
-      - name: Verify frontend runtime dependencies are clean
-        working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Verify Composer production dependencies are clean
-        working-directory: backend
-        run: composer audit --locked --no-dev
-
-      - name: Show proposed lockfile diff
-        run: |
-          git diff --stat -- frontend/package-lock.json backend/composer.lock
-          git diff -- frontend/package.json backend/composer.json
-
-      - name: Upload proposed lockfiles
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-lockfiles
-          path: |
-            frontend/package-lock.json
-            backend/composer.lock
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Commit patched lockfiles if changed
-        run: |
-          if git diff --quiet -- frontend/package-lock.json backend/composer.lock; then
-            echo "No lockfile changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/package-lock.json backend/composer.lock
-          git commit -m "fix(security): update dependency lockfiles"
-          git push origin "HEAD:${{ github.head_ref }}"
 
   python-guards:
     name: Python production guards
@@ -173,8 +90,7 @@ jobs:
           rm -rf vendor
           composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Report Composer dependency advisories
-        continue-on-error: true
+      - name: Verify Composer production dependencies
         run: composer audit --locked --no-dev
 
       - name: Prepare test environment
