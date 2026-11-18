@@ -466,7 +466,7 @@ class DSATurbo:
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
         return frame.dropna(subset=["Open", "High", "Low", "Close"])
 
-    def update_stock(self, inst_id, symbol):
+    def update_stock(self, inst_id, symbol) -> bool:
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
@@ -495,7 +495,7 @@ class DSATurbo:
             logger.info("OHLC sync %s mode=%s", symbol, fetch_mode)
             if df.empty:
                 logger.warning("OHLC sync %s returned no daily bars (%s)", symbol, fetch_mode)
-                return
+                return False
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
@@ -520,10 +520,12 @@ class DSATurbo:
             # This keeps incremental 7d syncs from truncating monthly/yearly OHLC.
             persisted_daily = self.persisted_daily_frame(p_ids["daily"])
             self.aggregate_for_symbol(symbol, p_ids, persisted_daily, now_str)
+            return True
 
         except Exception as e:
-            print(f"Error {symbol}: {e}")
+            logger.error("OHLC sync failed for %s: %s", symbol, e, exc_info=True)
             self.conn.rollback()
+            return False
 
     def _execute_upsert(self, values):
         with self.conn.cursor() as cur:
@@ -538,6 +540,11 @@ class DSATurbo:
         self.conn.commit()
 
     def aggregate_for_symbol(self, symbol, p_ids, df, now_str):
+        if df is None or df.empty:
+            logger.warning("Aggregate rebuild skipped for %s: no persisted daily history", symbol)
+            return
+
+        df = df.copy()
         df.index = pd.to_datetime(df.index)
         # W-MON week start Monday; MS month start; YS year start
         rules = {'weekly': 'W-MON', 'monthly': 'MS', 'yearly': 'YS'}
@@ -578,15 +585,25 @@ class DSATurbo:
         )
         print(f"Starting Turbo Sync v3.5 ({window}) for {total} symbols...")
         
+        succeeded = 0
+        failed = 0
         for idx, inst in enumerate(instruments):
             start_time = time.time()
             sym = inst['symbol'].upper()
-            self.update_stock(inst['id'], sym)
+            ok = self.update_stock(inst['id'], sym)
             elapsed = time.time() - start_time
-            print(f"[{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
+            if ok:
+                succeeded += 1
+                print(f"[{idx+1}/{total}] {sym} synced ({elapsed:.2f}s)")
+            else:
+                failed += 1
+                print(f"[{idx+1}/{total}] {sym} FAILED ({elapsed:.2f}s)")
             
         self.conn.close()
-        print(f"Done. Total time: {(time.time() - start_turbo)/60:.2f} minutes.")
+        print(
+            f"Done. success={succeeded} failed={failed} "
+            f"total={total} time={(time.time() - start_turbo)/60:.2f} minutes."
+        )
 
 if __name__ == "__main__":
     import argparse
