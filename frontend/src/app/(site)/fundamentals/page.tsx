@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, BarChart3 } from "lucide-react";
 import { FundamentalsService } from "@/src/services/Fundamentals.service";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA", "GOOGL", "META", "AMZN", "IBM", "ORCL", "AVGO"] as const;
 
@@ -17,13 +17,13 @@ export default function FundamentalsHomePage() {
     (async () => {
       const next: Record<string, number | null> = {};
       await Promise.all(
-        SYMBOLS.map(async (sym) => {
+        SYMBOLS.map(async (symbol) => {
           try {
-            const res = (await FundamentalsService.score(sym)) as { data?: ScoreLite };
-            const v = res?.data?.overall_score;
-            next[sym] = v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+            const res = (await FundamentalsService.score(symbol)) as { data?: ScoreLite };
+            const value = res?.data?.overall_score;
+            next[symbol] = value != null && Number.isFinite(Number(value)) ? Number(value) : null;
           } catch {
-            next[sym] = null;
+            next[symbol] = null;
           }
         }),
       );
@@ -34,54 +34,122 @@ export default function FundamentalsHomePage() {
     };
   }, []);
 
+  const coverage = useMemo(
+    () => SYMBOLS.filter((symbol) => scores[symbol] != null).length,
+    [scores],
+  );
+
+  const ranked = useMemo(
+    () =>
+      SYMBOLS.map((symbol) => ({ symbol, score: scores[symbol] ?? null })).sort((a, b) => {
+        if (a.score == null && b.score == null) return a.symbol.localeCompare(b.symbol);
+        if (a.score == null) return 1;
+        if (b.score == null) return -1;
+        return b.score - a.score;
+      }),
+    [scores],
+  );
+
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white">
-      <div className="border-b border-white/10 bg-gradient-to-r from-[#0b1220] via-[#111827] to-[#0b1220]">
-        <div className="mx-auto max-w-6xl px-4 py-12 phone:px-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#7b9cff]">Fundamentals</p>
-              <h1 className="mt-2 text-3xl font-bold phone:text-4xl">US tech fundamentals</h1>
-              <p className="mt-3 max-w-2xl text-sm text-white/65">
-                SEC-based income statement, balance sheet, and cash-flow history for ten large-cap technology names, with
-                dashboard-style scores. Open a symbol for charts; use the company profile for the full market stack
-                (price, stance, trend, watchlist).
-              </p>
-            </div>
-            <BarChart3 className="h-12 w-12 shrink-0 text-[#3861fb] opacity-90" aria-hidden />
+    <div className="dsa-page space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
+            <BarChart3 className="h-4 w-4 text-[#8ab4ff]" aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <p className="dsa-section-label">Fundamentals</p>
+            <h1 className="mt-0.5 truncate text-sm font-semibold text-white">US technology fundamentals</h1>
           </div>
         </div>
-      </div>
-
-      <div className="mx-auto max-w-6xl px-4 py-10 phone:px-6">
-        <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 laptop:grid-cols-3">
-          {SYMBOLS.map((sym) => (
-            <Link
-              key={sym}
-              href={`/fundamentals/${sym.toLowerCase()}`}
-              className="group rounded-2xl border border-white/10 bg-[#0F172A]/80 p-5 shadow-lg transition hover:border-[#3861fb]/50 hover:shadow-[#3861fb]/10"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-mono text-lg font-bold text-white">{sym}</span>
-                <ArrowUpRight className="h-4 w-4 shrink-0 text-[#848e9c] transition group-hover:text-[#7b9cff]" />
-              </div>
-              <p className="mt-2 text-xs text-white/55">Revenue, margins, cash flow, leverage — SEC annual history.</p>
-              <div className="mt-4 flex items-baseline justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-white/45">Overall score</span>
-                <span className="text-2xl font-bold tabular-nums text-[#7b9cff]">
-                  {scores[sym] != null ? scores[sym]!.toFixed(1) : "—"}
-                </span>
-              </div>
-              <p className="mt-3 text-[10px] text-white/40">
-                Profile (technical + fundamentals):{" "}
-                <span className="text-[#7b9cff] underline-offset-2 group-hover:underline">
-                  /companies/profile/{sym.toLowerCase()}
-                </span>
-              </p>
-            </Link>
-          ))}
+        <div className="text-right">
+          <p className="dsa-section-label">Coverage</p>
+          <p className="mt-0.5 font-mono text-[10px] text-white">{coverage}/{SYMBOLS.length}</p>
         </div>
-      </div>
+      </section>
+
+      <section className="grid gap-px overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-4">
+        <div className="dsa-terminal-kpi">
+          <p className="dsa-section-label">Universe</p>
+          <p className="mt-1 font-mono text-xs text-white">{SYMBOLS.length} symbols</p>
+        </div>
+        <div className="dsa-terminal-kpi">
+          <p className="dsa-section-label">Source</p>
+          <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">SEC company facts</p>
+        </div>
+        <div className="dsa-terminal-kpi">
+          <p className="dsa-section-label">History</p>
+          <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">Annual XBRL metrics</p>
+        </div>
+        <div className="dsa-terminal-kpi">
+          <p className="dsa-section-label">Profile link</p>
+          <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">Market + fundamentals</p>
+        </div>
+      </section>
+
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <div>
+            <p className="text-xs font-semibold text-white">Fundamental directory</p>
+            <p className="text-[10px] text-[var(--dsa-text-muted)]">
+              Revenue, margins, cash flow, leverage, and orientation scores from SEC-derived history.
+            </p>
+          </div>
+          <span className="text-[9px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+            Score ≠ investment recommendation
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="dsa-terminal-table min-w-[680px]">
+            <thead>
+              <tr>
+                <th className="text-right">#</th>
+                <th className="text-left">Symbol</th>
+                <th className="text-right">Overall score</th>
+                <th className="text-left">Dataset</th>
+                <th className="text-right">Research</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranked.map((row, index) => (
+                <tr key={row.symbol}>
+                  <td className="text-right font-mono text-[10px] tabular-nums text-[var(--dsa-text-muted)]">{index + 1}</td>
+                  <td>
+                    <Link
+                      href={`/fundamentals/${row.symbol.toLowerCase()}`}
+                      className="font-mono text-xs font-semibold text-[#8ab4ff] hover:underline"
+                    >
+                      {row.symbol}
+                    </Link>
+                  </td>
+                  <td className="text-right">
+                    <span className={`font-mono text-sm font-semibold tabular-nums ${row.score != null ? "text-white" : "text-[var(--dsa-text-muted)]"}`}>
+                      {row.score != null ? row.score.toFixed(1) : "—"}
+                    </span>
+                  </td>
+                  <td className="text-[10px] text-[var(--dsa-text-secondary)]">
+                    Revenue · margins · cash flow · leverage
+                  </td>
+                  <td className="text-right">
+                    <Link
+                      href={`/companies/profile/${row.symbol.toLowerCase()}?tab=fundamentals`}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#8ab4ff] hover:text-white"
+                    >
+                      Company profile
+                      <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <p className="px-1 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+        Fundamental history is derived from SEC EDGAR company facts (XBRL). Missing scores remain unavailable and are not replaced with synthetic values.
+      </p>
     </div>
   );
 }
