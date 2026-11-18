@@ -21,7 +21,8 @@ export const HEATMAP_LABEL_STROKE = "rgba(2,6,23,0.95)";
 export const HEATMAP_LABEL_STROKE_WIDTH = 1.6;
 
 /** Graded red / green by |change| % with restrained saturation for label readability. */
-export function heatmapTreemapColor(change: number): string {
+export function heatmapTreemapColor(change: number | null | undefined): string {
+  if (change == null) return "#3f3f46";
   const n = Number(change);
   if (!Number.isFinite(n) || n === 0) return "#3f3f46";
   const a = Math.min(Math.abs(n), 12);
@@ -39,7 +40,8 @@ export function heatmapTreemapColor(change: number): string {
   return "#5f1b20";
 }
 
-export function formatHeatmapChangePct(change: number): string {
+export function formatHeatmapChangePct(change: number | null | undefined): string {
+  if (change == null) return "—";
   const n = Number(change);
   if (!Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
@@ -96,7 +98,7 @@ export function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
     if (!sym) continue;
     const liq = Number(row?.liquidity);
     const liquidity = Number.isFinite(liq) && liq > 0 ? liq : 1;
-    const ch = Number(row?.change_pct);
+    const ch = row?.change_pct == null ? Number.NaN : Number(row.change_pct);
     const changePct = Number.isFinite(ch) ? ch : undefined;
     const prev = bySym.get(sym);
     if (!prev) {
