@@ -176,17 +176,17 @@ function formatUsdStat(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-/** Dark theme surface tokens for company profile */
+/** Shared research-terminal tokens for company profile. */
 const CMC = {
-  bg: "bg-[#0b0e11]",
-  card: "bg-[#1e2329] border border-[#2b3139]",
-  text: "text-[#eaecef]",
-  muted: "text-[#848e9c]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
-  line: "border-[#2b3139]",
-  tabActive: "border-[#3861fb] text-white",
-  tabIdle: "border-transparent text-[#848e9c] hover:text-[#eaecef]",
+  bg: "bg-[var(--dsa-bg)]",
+  card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
+  text: "text-[var(--dsa-text)]",
+  muted: "text-[var(--dsa-text-muted)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
+  line: "border-[var(--dsa-border)]",
+  tabActive: "border-[#4c8dff] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]",
+  tabIdle: "border-transparent text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white",
 };
 
 function computeProfileScore(d: any): number {
@@ -226,7 +226,7 @@ function StatTile({
   sub?: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-xl border ${CMC.line} bg-[#0d1621]/90 p-3`}>
+    <div className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-2.5">
       <div className="mb-1 flex items-center gap-1">
         <span className={`text-[11px] font-medium leading-tight ${CMC.muted}`}>{label}</span>
         {hintTitle ? (
@@ -264,8 +264,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlisted, setWatchlisted] = useState(false);
-  const [sentimentBull, setSentimentBull] = useState(42);
-  const [sentimentBear, setSentimentBear] = useState(8);
+  const [sentimentBull, setSentimentBull] = useState(0);
+  const [sentimentBear, setSentimentBear] = useState(0);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -321,7 +321,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
     latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
   const sentimentTotal = sentimentBull + sentimentBear;
-  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
+  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -498,18 +498,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
-        <Loader2 className="animate-spin mb-4" size={40} />
-        <span className="uppercase tracking-[0.3em] text-sm animate-pulse">
-          Syncing Market Data...
-        </span>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center bg-[var(--dsa-bg)] text-[var(--dsa-text-muted)]">
+        <Loader2 className="mb-3 animate-spin text-[#8ab4ff]" size={22} />
+        <span className="text-xs font-medium">Loading company research…</span>
       </div>
     );
   }
 
   const changeLabel =
     selectedPeriod === "daily"
-      ? "24h vs previous daily close"
+      ? "vs previous daily close"
       : `Change vs previous ${selectedPeriod} bar`;
 
   const toggleWatchlist = () => {
