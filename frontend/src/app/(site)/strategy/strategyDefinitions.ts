@@ -35,7 +35,7 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     explainIndicator:
       'Uses the same Liquidity Score (LS) lane as the indicator simulator: yellow score (0–100) and raw P×V on its own scale. A “breakout” read is when score pushes into the top quartile while candles print higher highs — here you only see the synthetic replay, not a live signal. The lower strip also shows hybrid MACD: SMA(fast) − EMA(slow), plus signal — so momentum agrees (or not) with liquidity.',
     explainAttributes:
-      'On the beginner board, Liquidity and Volume spikes lift liquidity and volume spokes; Fear & Greed tilts with the day’s close-to-close move (50 + 3.25×r, clamped). Reputation and People care reward green sessions and participation. This strategy conceptually wants high liquidity + volume with supportive F&G, not extreme fear spikes alone. In 6 + F&G view the six scores and F&G line sit on the main chart (0–100 overlay); hybrid MACD is hidden there but still drives the illustrative buy/sell arrows.',
+      'On the beginner board, Liquidity and Volume spikes lift liquidity and volume spokes; Fear & Greed tilts with the day’s close-to-close move (50 + 3.25×r, clamped). Reputation and People care reward green sessions and participation. This strategy conceptually wants high liquidity + volume with supportive F&G, not extreme fear spikes alone. In 6 + F&G view the six scores and F&G line sit on the main chart (0–100 overlay); hybrid MACD is hidden there but still drives the illustrative entry/exit arrows.',
     buyCases: [
       {
         label: 'Liquidity thrust + MACD firming',
