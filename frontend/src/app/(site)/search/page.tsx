@@ -58,7 +58,8 @@ function SearchResults() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
-  const [draftQuery, setDraftQuery] = useState(q);
+  const [draftState, setDraftState] = useState({ sourceQuery: q, value: q });
+  const draftQuery = draftState.sourceQuery === q ? draftState.value : q;
   const debouncedQ = useDebouncedValue(q, 300);
   const [results, setResults] = useState<ElasticCompanyHit[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -66,8 +67,6 @@ function SearchResults() {
   const [total, setTotal] = useState(0);
   const [popular, setPopular] = useState<ElasticCompanyHit[]>([]);
   const [newsResults, setNewsResults] = useState<News[]>([]);
-
-  useEffect(() => setDraftQuery(q), [q]);
 
   useEffect(() => {
     ElasticService.getDemoTopSymbols(20)
@@ -79,14 +78,7 @@ function SearchResults() {
     const query = debouncedQ.trim();
     let cancelled = false;
 
-    if (query.length < 2) {
-      setResults([]);
-      setSuggestions([]);
-      setTotal(0);
-      setNewsResults([]);
-      setLoading(false);
-      return;
-    }
+    if (query.length < 2) return;
 
     setLoading(true);
     Promise.all([
@@ -136,7 +128,7 @@ function SearchResults() {
   };
 
   const selectSuggestion = (value: string) => {
-    setDraftQuery(value);
+    setDraftState({ sourceQuery: value, value });
     router.push(`/search?q=${encodeURIComponent(value)}`);
   };
 
@@ -192,7 +184,7 @@ function SearchResults() {
               <input
                 autoFocus={!hasQuery}
                 value={draftQuery}
-                onChange={(event) => setDraftQuery(event.target.value)}
+                onChange={(event) => setDraftState({ sourceQuery: q, value: event.target.value })}
                 placeholder="Ticker or company name"
                 aria-label="Search ticker or company"
                 className="dsa-control h-9 w-full pl-9 pr-3 text-sm placeholder:text-[var(--dsa-text-muted)]"
