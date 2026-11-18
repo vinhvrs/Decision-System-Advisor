@@ -67,8 +67,8 @@ type LineToggleConfig = {
 };
 
 const SUBTITLES: Record<SimulatorIndicatorId, string> = {
-  ls: 'Liquidity Score — real OHLCV',
-  vol: 'Volatility proxy — rolling vol on real closes',
+  ls: 'Liquidity Score — persisted OHLCV',
+  vol: 'Volatility proxy — rolling vol on persisted closes',
   adx: 'Trend strength (ADX)',
   mfi: 'Money Flow Index (MFI)',
   sma: 'Simple moving average on close',
@@ -89,6 +89,11 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
   const [hiddenLineIds, setHiddenLineIds] = useState<string[]>([]);
   const [expandedChart, setExpandedChart] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(720);
+
+  const symbolOptions = useMemo(
+    () => [...new Set([symbol, ...marketSymbols].map((item) => item.trim().toUpperCase()).filter(Boolean))],
+    [symbol, marketSymbols],
+  );
 
   const [volMult, setVolMult] = useState(INDICATOR_DEFAULTS.volumeScale);
   const [lsSmooth, setLsSmooth] = React.useState(INDICATOR_DEFAULTS.liquiditySmoothingPeriod);
@@ -377,7 +382,7 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               className="dsa-control min-w-[100px] px-2.5 py-1.5 text-xs font-medium outline-none"
             >
-              {marketSymbols.map((marketSymbol) => (
+              {symbolOptions.map((marketSymbol) => (
                 <option key={marketSymbol} value={marketSymbol}>
                   {marketSymbol}
                 </option>
