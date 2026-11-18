@@ -264,8 +264,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlisted, setWatchlisted] = useState(false);
-  const [sentimentBull, setSentimentBull] = useState(42);
-  const [sentimentBear, setSentimentBear] = useState(8);
+  const [sentimentBull, setSentimentBull] = useState(0);
+  const [sentimentBear, setSentimentBear] = useState(0);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -321,7 +321,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
     latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
   const sentimentTotal = sentimentBull + sentimentBear;
-  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
+  const bullishPct =
+    sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -341,30 +342,55 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (typeof window === "undefined" || !symbol) return;
-    try {
-      const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
-      if (!raw) return;
-      const j = JSON.parse(raw) as { bull?: number; bear?: number };
-      if (typeof j.bull === "number" && typeof j.bear === "number" && j.bull + j.bear > 0) {
-        setSentimentBull(j.bull);
-        setSentimentBear(j.bear);
+
+    const frame = window.requestAnimationFrame(() => {
+      let bull = 0;
+      let bear = 0;
+      try {
+        const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
+        if (raw) {
+          const parsed = JSON.parse(raw) as { bull?: number; bear?: number };
+          if (
+            typeof parsed.bull === "number" &&
+            Number.isFinite(parsed.bull) &&
+            parsed.bull >= 0
+          ) {
+            bull = parsed.bull;
+          }
+          if (
+            typeof parsed.bear === "number" &&
+            Number.isFinite(parsed.bear) &&
+            parsed.bear >= 0
+          ) {
+            bear = parsed.bear;
+          }
+        }
+      } catch {
+        /* ignore malformed local state */
       }
-    } catch {
-      /* ignore */
-    }
+      setSentimentBull(bull);
+      setSentimentBear(bear);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !symbol) return;
     try {
-      sessionStorage.setItem(
-        sentimentStorageKey(symbol),
-        JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
-      );
+      const key = sentimentStorageKey(symbol);
+      if (sentimentTotal <= 0) {
+        sessionStorage.removeItem(key);
+      } else {
+        sessionStorage.setItem(
+          key,
+          JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
+        );
+      }
     } catch {
       /* ignore */
     }
-  }, [symbol, sentimentBull, sentimentBear]);
+  }, [symbol, sentimentBull, sentimentBear, sentimentTotal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1057,44 +1083,56 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
           <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-3`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-white line-clamp-1">
-                    {stripParentheticals(details?.company_name) || symbol}
-                  </p>
-                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} votes on this device</p>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-lg bg-[#3861fb] px-3 py-1.5 text-[11px] font-bold text-white"
-                  title="Coming soon"
-                >
-                  + Follow
-                </button>
+              <div>
+                <p className="line-clamp-1 text-sm font-semibold text-white">
+                  {stripParentheticals(details?.company_name) || symbol}
+                </p>
+                <p className={`mt-0.5 text-[10px] leading-relaxed ${CMC.muted}`}>
+                  Local sentiment · stored only in this browser
+                </p>
               </div>
-              <p className={`mt-3 text-xs font-semibold ${CMC.muted}`}>Community sentiment</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
-                <div
-                  className="h-full rounded-full bg-[#16c784] transition-all duration-300"
-                  style={{ width: `${bullishPct}%` }}
-                />
+
+              <div className="mt-3">
+                {bullishPct == null ? (
+                  <div className="rounded-[var(--dsa-radius-sm)] border border-dashed border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2">
+                    <p className="text-[11px] font-medium text-[var(--dsa-text-secondary)]">
+                      No local sentiment votes
+                    </p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+                      This is not a market-wide or community poll.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="h-1.5 w-full overflow-hidden bg-[rgba(231,91,100,0.22)]">
+                      <div
+                        className="h-full bg-[var(--dsa-positive)] transition-[width] duration-200"
+                        style={{ width: `${bullishPct}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 flex justify-between font-mono text-[10px] font-semibold tabular-nums">
+                      <span className={CMC.green}>{bullishPct}% Bullish</span>
+                      <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
+                    </div>
+                    <p className={`mt-1 text-[9px] ${CMC.muted}`}>
+                      {sentimentTotal} local {sentimentTotal === 1 ? "vote" : "votes"}
+                    </p>
+                  </>
+                )}
               </div>
-              <div className="mt-1 flex justify-between text-[11px] font-semibold">
-                <span className={CMC.green}>{bullishPct}% Bullish</span>
-                <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
-              </div>
+
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={voteBullish}
-                  className={`rounded-xl border-2 border-[#16c784]/50 py-2.5 text-xs font-bold ${CMC.green} transition hover:bg-[#16c784]/10`}
+                  className={`rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.45)] py-2 text-xs font-semibold ${CMC.green} transition-colors hover:bg-[rgba(44,182,125,0.1)]`}
                 >
                   Bullish
                 </button>
                 <button
                   type="button"
                   onClick={voteBearish}
-                  className={`rounded-xl border-2 border-[#ea3943]/50 py-2.5 text-xs font-bold ${CMC.red} transition hover:bg-[#ea3943]/10`}
+                  className={`rounded-[var(--dsa-radius-sm)] border border-[rgba(231,91,100,0.45)] py-2 text-xs font-semibold ${CMC.red} transition-colors hover:bg-[rgba(231,91,100,0.1)]`}
                 >
                   Bearish
                 </button>
