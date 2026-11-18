@@ -26,14 +26,15 @@ function publishedMs(item: News): number {
 }
 
 function formatRelativeDate(dateString: string | Date) {
-  const now = new Date();
-  const publishedDate = new Date(dateString);
-  const diffInMs = now.getTime() - publishedDate.getTime();
+  const publishedDate = dateString instanceof Date ? dateString : new Date(dateString);
+  if (Number.isNaN(publishedDate.getTime())) return "Time unavailable";
+
+  const diffInMs = Math.max(0, Date.now() - publishedDate.getTime());
   const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
 
   if (diffInHours < 1) {
     const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    return `${diffInMinutes <= 0 ? 1 : diffInMinutes} min ago`;
+    return `${Math.max(1, diffInMinutes)}m ago`;
   }
   if (diffInHours < 24) {
     return `${diffInHours}h ago`;
@@ -119,9 +120,9 @@ export default function WatchlistRelatedNews() {
 
   if (!watchlistLoading && symbols.length === 0) {
     return (
-      <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
-        <p className="text-sm text-white/60">
-          Add symbols to your watchlist to see related market news here.
+      <Card title="Watchlist news" subtitle="Recent headlines matched to tracked symbols.">
+        <p className="text-xs text-[var(--dsa-text-muted)]">
+          Add symbols to the watchlist to populate related headlines.
         </p>
       </Card>
     );
@@ -129,7 +130,7 @@ export default function WatchlistRelatedNews() {
 
   if (loading) {
     return (
-      <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
+      <Card title="Watchlist news" subtitle="Recent headlines matched to tracked symbols.">
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div
@@ -144,17 +145,17 @@ export default function WatchlistRelatedNews() {
 
   if (rows.length === 0) {
     return (
-      <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
-        <p className="text-sm text-white/60">
-          No related news returned for your watchlist yet. Try again later or add more symbols.
+      <Card title="Watchlist news" subtitle="Recent headlines matched to tracked symbols.">
+        <p className="text-xs text-[var(--dsa-text-muted)]">
+          No related headlines are currently available for the tracked symbols.
         </p>
       </Card>
     );
   }
 
   return (
-    <Card title="Related news" subtitle="Latest headlines tied to your watchlist symbols.">
-      <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 gap-4 tablet:gap-5">
+    <Card title="Watchlist news" subtitle="Recent headlines matched to tracked symbols.">
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
         {rows.map((news) => {
           const imageUrl = pickNewsThumbImage(news);
           const href = resolveNewsHref(news);
@@ -166,22 +167,22 @@ export default function WatchlistRelatedNews() {
           const inner = (
             <>
               {imageUrl && (
-                <div className="relative h-36 w-full mb-3 overflow-hidden rounded-xl border border-white/5">
+                <div className="relative mb-3 h-28 w-full overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                   <img
                     src={imageUrl}
                     alt=""
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="h-full w-full object-cover"
                     onError={(e) => {
                       (e.currentTarget.parentElement as HTMLElement | null)?.remove();
                     }}
                   />
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-1.5 mb-2">
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
                 {chips.slice(0, 4).map((s) => (
                   <span
                     key={s}
-                    className="text-[10px] font-semibold uppercase tracking-wide rounded bg-blue-500/15 text-blue-300 px-1.5 py-0.5"
+                    className="rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-accent-soft)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#a9c7ff]"
                   >
                     {s}
                   </span>
@@ -190,8 +191,8 @@ export default function WatchlistRelatedNews() {
                   <span className="text-[10px] text-white/40">+{chips.length - 4}</span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[10px] text-white/40 mb-2 uppercase font-bold tracking-widest">
-                <span className="text-blue-400/90 truncate max-w-[45%]">
+              <div className="mb-2 flex items-center gap-2 text-[10px] text-[var(--dsa-text-muted)]">
+                <span className="max-w-[48%] truncate font-medium text-[#8ab4ff]">
                   {newsSourceLabel(news)}
                 </span>
                 <span>•</span>
@@ -200,23 +201,20 @@ export default function WatchlistRelatedNews() {
                   {dateStr ? formatRelativeDate(dateStr) : "—"}
                 </div>
               </div>
-              <h3 className="text-sm font-semibold line-clamp-3 leading-snug group-hover:text-blue-400 transition-colors">
+              <h3 className="line-clamp-3 text-xs font-semibold leading-relaxed text-white transition-colors group-hover:text-[#a9c7ff]">
                 {news.title}
               </h3>
-              <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/5 text-white/50 uppercase">
-                  Watchlist
-                </span>
+              <div className="mt-3 flex items-center justify-end border-t border-[var(--dsa-border)] pt-2">
                 <ChevronRight
-                  size={14}
-                  className="text-white/20 group-hover:text-blue-400 transform group-hover:translate-x-1 transition-all"
+                  size={13}
+                  className="text-[var(--dsa-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#8ab4ff]"
                 />
               </div>
             </>
           );
 
           const className =
-            "group block p-4 rounded-2xl bg-[#161D2C]/60 border border-white/10 hover:border-blue-500/35 transition-all flex flex-col shadow-md h-full";
+            "group block h-full rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 transition-colors hover:border-[var(--dsa-border-strong)]";
 
           if (href.kind === "external") {
             return (
