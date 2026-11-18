@@ -87,7 +87,7 @@ export default function ResearchTrustStrip({
         <div className="flex min-w-[156px] items-center gap-2 px-3 py-2">
           <Database className="h-3.5 w-3.5 text-[var(--dsa-accent)]" aria-hidden />
           <div>
-            <p className="font-medium text-[var(--dsa-text-secondary)]">Daily history</p>
+            <p className="font-medium text-[var(--dsa-text-secondary)]">Stored history</p>
             <p className="font-mono tabular-nums text-[var(--dsa-text)]">
               {historyOk}/{loadedCount || target} stored
               {(historyShort > 0 || historyMissing > 0) && (
