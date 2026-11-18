@@ -243,7 +243,7 @@ function StatTile({
 
 const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "chart", label: "Chart" },
-  { id: "markets", label: "Markets" },
+  { id: "markets", label: "Listing" },
   { id: "news", label: "News" },
   { id: "fundamentals", label: "Fundamentals" },
   { id: "about", label: "About" },
@@ -864,13 +864,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
                   <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
                 </div>
-                <h2 className="px-4 pt-4 text-lg font-bold text-white">
+                <h2 className="px-4 pt-4 text-base font-semibold text-white">
                   {stripParentheticals(details?.company_name) || symbol}{" "}
-                  <span className={CMC.muted}>markets</span>
+                  <span className={CMC.muted}>primary listing</span>
                 </h2>
                 <p className={`px-4 pb-3 text-xs ${CMC.muted}`}>
-                  Primary listing for this equity. Depth and multi-venue breakdown can be added when your data source
-                  supports it.
+                  Primary venue and the current market snapshot available for this equity.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[520px] text-left text-sm">
@@ -880,8 +879,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Venue</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Symbol</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Price</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Volume (est.)</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Vol %</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Est. $ volume</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Est. vol / mkt cap</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -977,7 +976,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
             {mainTab === "fundamentals" && (
               <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
-                <h2 className="mb-1 text-lg font-bold text-white">Fundamentals (SEC)</h2>
+                <h2 className="mb-1 text-base font-semibold text-white">Fundamentals (SEC)</h2>
                 <p className={`mb-4 text-xs ${CMC.muted}`}>
                   Long-term financial quality and growth derived from SEC XBRL. Technical columns (price, stance, trend,
                   etc.) stay on the Chart tab.
@@ -1021,7 +1020,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       href={details.website}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#3861fb] hover:underline"
+                      className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#8ab4ff] hover:underline"
                     >
                       <LinkIcon className="h-4 w-4" />
                       Official website
