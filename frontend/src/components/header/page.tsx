@@ -242,23 +242,10 @@ export default function Header() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 tablet:gap-3">
-          <nav className="no-scrollbar mr-1 hidden min-w-0 laptop:flex laptop:max-w-[min(50vw,40rem)] laptop:items-center laptop:space-x-0.5 laptop:overflow-x-auto">
-            {SITE_NAV_LINKS.map((link) => {
-              const active = isActive(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={[
-                    "dsa-nav-link",
-                    active ? "dsa-nav-link-active" : "",
-                  ].join(" ")}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="mr-1 hidden items-center gap-2 border-r border-[var(--dsa-border)] pr-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--dsa-text-muted)] laptop:flex">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--dsa-positive)]" />
+            <span>Research terminal</span>
+          </div>
 
           <div className="flex shrink-0 items-center gap-2">
             {user ? (
