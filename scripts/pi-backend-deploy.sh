@@ -164,17 +164,100 @@ bash -n "$STAGE/scripts/pi-source-parity.sh"
 bash -n "$STAGE/scripts/pi-backend-deploy.sh"
 
 echo
-echo "== Detect migration changes =="
-migration_plan="$(rsync -anic --delete "$STAGE/backend/database/migrations/" "$LIVE_ROOT/backend/database/migrations/" || true)"
-if [ -n "$migration_plan" ]; then
-  echo "$migration_plan"
-  if [ "$ALLOW_DB_MIGRATIONS" != "1" ]; then
-    echo "ERROR: migration tree differs. Set ALLOW_DB_MIGRATIONS=1 only after reviewing the migration diff." >&2
+echo "== Verify migration content parity =="
+set +e
+python3 - "$STAGE/backend/database/migrations" "$LIVE_ROOT/backend/database/migrations" "$ALLOW_DB_MIGRATIONS" <<'PY'
+from __future__ import annotations
+
+import hashlib
+import pathlib
+import sys
+
+stage = pathlib.Path(sys.argv[1])
+live = pathlib.Path(sys.argv[2])
+allow_new = sys.argv[3] == "1"
+
+def php_files(root: pathlib.Path) -> dict[str, str]:
+    result: dict[str, str] = {}
+    if not root.is_dir():
+        return result
+    for path in sorted(root.glob("*.php")):
+        result[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+stage_files = php_files(stage)
+live_files = php_files(live)
+
+stage_only = sorted(set(stage_files) - set(live_files))
+live_only = sorted(set(live_files) - set(stage_files))
+changed = sorted(
+    name for name in set(stage_files) & set(live_files)
+    if stage_files[name] != live_files[name]
+)
+
+print(f"stage_migrations={len(stage_files)}")
+print(f"live_migrations={len(live_files)}")
+
+if live_only:
+    print("LIVE_ONLY_MIGRATIONS:")
+    for name in live_only:
+        print(f"  {name}")
+
+if changed:
+    print("CONTENT_CHANGED_MIGRATIONS:")
+    for name in changed:
+        print(f"  {name}")
+        print(f"    git_sha256={stage_files[name]}")
+        print(f"    live_sha256={live_files[name]}")
+
+if stage_only:
+    print("NEW_GIT_MIGRATIONS:")
+    for name in stage_only:
+        print(f"  {name}")
+
+if live_only:
+    print(
+        "ERROR: production contains migration files absent from Git. "
+        "Canonicalize the exact live files into Git before deployment.",
+        file=sys.stderr,
+    )
+    sys.exit(20)
+
+if changed:
+    print(
+        "ERROR: an existing migration filename has different content in Git and production. "
+        "Applied migrations are immutable; reconcile source before deployment.",
+        file=sys.stderr,
+    )
+    sys.exit(21)
+
+if stage_only and not allow_new:
+    print(
+        "ERROR: Git contains new migration files not present on production. "
+        "Review them, then set ALLOW_DB_MIGRATIONS=1 for this deployment.",
+        file=sys.stderr,
+    )
+    sys.exit(22)
+
+if stage_only:
+    print("Migration gate: reviewed new Git migrations are allowed for this run.")
+else:
+    print("Migration gate: exact content parity; metadata differences ignored.")
+PY
+migration_rc=$?
+set -e
+
+case "$migration_rc" in
+  0)
+    ;;
+  20|21|22)
     exit 5
-  fi
-else
-  echo "No migration changes."
-fi
+    ;;
+  *)
+    echo "ERROR: migration parity checker failed unexpectedly (rc=$migration_rc)." >&2
+    exit 5
+    ;;
+esac
 
 echo
 echo "== Snapshot current live backend source =="
