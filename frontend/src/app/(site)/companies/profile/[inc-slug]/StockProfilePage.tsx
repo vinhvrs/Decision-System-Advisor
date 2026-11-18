@@ -569,7 +569,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
                     }`}
                   />
-                  {realtimeCandle ? "Realtime quote received" : "Realtime quote not received"}
+                  {realtimeCandle
+                    ? "Live quote layered on persisted OHLC"
+                    : candles.length > 0
+                      ? "Persisted OHLC loaded · live quote unavailable"
+                      : "Persisted OHLC unavailable"}
                 </p>
               </div>
             </div>
@@ -583,7 +587,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <StatTile
                 label="Volume (est.)"
                 value={formatUsdStat(volUsdEst)}
-                hintTitle="Last candle: shares × close. Not full-session exchange volume."
+                hintTitle="Selected period: current/recent bar shares × price. This is an estimate, not consolidated full-session exchange volume."
               />
               <StatTile
                 label="Vol / Mkt cap"
@@ -705,12 +709,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </summary>
                   <ul className={`mt-3 list-inside list-disc space-y-2 text-xs leading-relaxed ${CMC.muted}`}>
                     <li>
-                      <strong className="text-white/90">% change</strong> compares the last closed bar on this timeframe
-                      to the previous one.
+                      <strong className="text-white/90">% change</strong> uses the live price versus the previous
+                      completed period close when a realtime quote is available; otherwise it compares the latest two
+                      persisted bars.
                     </li>
                     <li>
-                      <strong className="text-white/90">Estimated dollar volume</strong> is last bar share volume times
-                      its closing price.
+                      <strong className="text-white/90">Estimated dollar volume</strong> is the selected period&apos;s
+                      current/recent bar share volume multiplied by the displayed price.
                     </li>
                     <li>
                       <strong className="text-white/90">Volume vs market cap</strong> divides that estimate by the
