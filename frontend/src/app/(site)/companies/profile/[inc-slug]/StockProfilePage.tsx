@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -21,17 +21,19 @@ import {
   Share2,
 } from "lucide-react";
 
-import TradingChart from "@/src/components/charts/page";
+import TradingChart, {
+  type TradingChartCandle,
+  type TradingChartMarketData,
+  type TradingChartPeriod,
+} from "@/src/components/charts/page";
 import SelectDropdown from "@/src/sections/Dropdown";
 import ProfilePaperTradingPanel from "@/src/components/paperTrading/ProfilePaperTradingPanel";
 import ProfileChartPositionsLog from "@/src/components/paperTrading/ProfileChartPositionsLog";
 import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
 import FundamentalRadar from "./FundamentalRadar";
 import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
-import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service";
 import { useWatchlist } from "@/src/hooks/useWatchlist";
-import { SimpleSocket } from "@/src/libs/socket";
 import { stripParentheticals } from "@/src/libs/displayString";
 import {
   newsSourceLabel,
@@ -39,7 +41,7 @@ import {
   resolveNewsHref,
 } from "@/src/libs/newsArticle";
 
-type TF = "daily" | "weekly" | "monthly" | "yearly";
+type TF = TradingChartPeriod;
 
 type ProfileMainTab = "chart" | "markets" | "news" | "fundamentals" | "about";
 
@@ -52,79 +54,6 @@ const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
 function toNumber(value: any, fallback = 0): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
-}
-
-function normalizeTimestamp(raw: any): number | null {
-  if (raw === null || raw === undefined || raw === "") return null;
-
-  if (typeof raw === "number") {
-    return raw < 10_000_000_000 ? raw * 1000 : raw;
-  }
-
-  const str = String(raw).trim();
-  if (!str) return null;
-
-  const date = str.includes("T")
-    ? new Date(str)
-    : new Date(str.replace(" ", "T") + "Z");
-
-  const ms = date.getTime();
-  return Number.isNaN(ms) ? null : ms;
-}
-
-function normalizeCandles(list: any[], period: TF) {
-  const uniqueMap = new Map<number, any>();
-
-  (list || [])
-    .filter((d: any) => d?.timestamp || d?.timestamps || d?.time)
-    .forEach((d: any) => {
-      const rawTs = d.timestamp ?? d.timestamps ?? d.time;
-      const parsedMs = normalizeTimestamp(rawTs);
-      if (!parsedMs) return;
-
-      const date = new Date(parsedMs);
-
-      if (period === "daily") {
-        date.setUTCHours(0, 0, 0, 0);
-      } else if (period === "weekly") {
-        const day = date.getUTCDay() || 7;
-        date.setUTCDate(date.getUTCDate() - day + 1);
-        date.setUTCHours(0, 0, 0, 0);
-      } else if (period === "monthly") {
-        date.setUTCDate(1);
-        date.setUTCHours(0, 0, 0, 0);
-      } else if (period === "yearly") {
-        date.setUTCMonth(0, 1);
-        date.setUTCHours(0, 0, 0, 0);
-      }
-
-      const time = date.getTime();
-
-      const next = {
-        time,
-        open: toNumber(d.open),
-        high: toNumber(d.high),
-        low: toNumber(d.low),
-        close: toNumber(d.close),
-        volume: toNumber(d.volume),
-      };
-
-      if (!uniqueMap.has(time)) {
-        uniqueMap.set(time, next);
-      } else {
-        const prev = uniqueMap.get(time);
-        uniqueMap.set(time, {
-          time,
-          open: toNumber(prev.open),
-          high: Math.max(toNumber(prev.high), toNumber(next.high)),
-          low: Math.min(toNumber(prev.low), toNumber(next.low)),
-          close: toNumber(next.close),
-          volume: toNumber(prev.volume) + toNumber(next.volume),
-        });
-      }
-    });
-
-  return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
 }
 
 function normalizeSymbolFromSlug(slug: string) {
@@ -254,8 +183,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [similar, setSimilar] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
 
-  const [candles, setCandles] = useState<any[]>([]);
-  const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
+  const [candles, setCandles] = useState<TradingChartCandle[]>([]);
+  const [realtimeCandle, setRealtimeCandle] = useState<TradingChartCandle | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
@@ -271,7 +200,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
   } = useWatchlist();
   const watchlisted = isInWatchlist(symbol);
 
-  const candleRequestIdRef = useRef(0);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -292,31 +220,58 @@ export function StockProfilePage({ slug }: { slug: string }) {
   }, [realtimeCandle, candles]);
 
   const changePct = useMemo(() => {
+    if (!candles.length) return null;
+
+    const latestPersisted = candles[candles.length - 1] ?? null;
+    const realtimeClose =
+      realtimeCandle?.close != null && Number.isFinite(Number(realtimeCandle.close))
+        ? Number(realtimeCandle.close)
+        : null;
+
+    if (realtimeClose != null) {
+      const sameBucket =
+        latestPersisted &&
+        realtimeCandle &&
+        Number(latestPersisted.time) === Number(realtimeCandle.time);
+      const reference = sameBucket
+        ? candles[candles.length - 2]?.close
+        : latestPersisted?.close;
+      const ref = toNumber(reference);
+      if (ref > 0) return ((realtimeClose - ref) / ref) * 100;
+    }
+
     if (candles.length < 2) return null;
     const prev = toNumber(candles[candles.length - 2].close);
     const last = toNumber(candles[candles.length - 1].close);
     if (!prev) return null;
     return ((last - prev) / prev) * 100;
-  }, [candles]);
+  }, [candles, realtimeCandle]);
 
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
+  const currentCandle = realtimeCandle ?? lastCandle;
 
   const athAtl = useMemo(() => {
-    if (!candles.length) return { high: null as number | null, low: null as number | null };
+    if (!candles.length && !realtimeCandle) {
+      return { high: null as number | null, low: null as number | null };
+    }
     let hi = -Infinity;
     let lo = Infinity;
     for (const c of candles) {
       hi = Math.max(hi, toNumber(c.high));
       lo = Math.min(lo, toNumber(c.low));
     }
+    if (realtimeCandle) {
+      hi = Math.max(hi, toNumber(realtimeCandle.high));
+      lo = Math.min(lo, toNumber(realtimeCandle.low));
+    }
     return {
       high: Number.isFinite(hi) ? hi : null,
       low: Number.isFinite(lo) ? lo : null,
     };
-  }, [candles]);
+  }, [candles, realtimeCandle]);
 
   const marketCap = toNumber(details?.market_cap);
-  const volShares = lastCandle ? toNumber(lastCandle.volume) : 0;
+  const volShares = currentCandle ? toNumber(currentCandle.volume) : 0;
   const volUsdEst = lastCandle && livePrice ? volShares * livePrice : 0;
   const volToMktPct =
     marketCap > 0 && volUsdEst > 0 ? (volUsdEst / marketCap) * 100 : null;
@@ -399,70 +354,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
     };
   }, [symbol]);
 
-  const fetchCandles = useCallback(async (ticker: string, period: TF) => {
-    if (!ticker || !period) {
-      setCandles([]);
-      return;
-    }
-
-    const requestId = ++candleRequestIdRef.current;
-
-    try {
-      setRealtimeCandle(null);
-
-      const raw = await InstrumentService.getInstrumentData(ticker, period, 1000, 1);
-
-      if (requestId !== candleRequestIdRef.current) return;
-
-      const normalized = normalizeCandles(raw || [], period);
-      setCandles(normalized);
-    } catch (error) {
-      if (requestId !== candleRequestIdRef.current) return;
-      console.error("Fetch candles failed:", error);
-      setCandles([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!symbol) return;
-    fetchCandles(symbol, selectedPeriod);
-  }, [symbol, selectedPeriod, fetchCandles]);
-
-  useEffect(() => {
-    if (!symbol) return;
-
-    const socket = new SimpleSocket((data: any) => {
-      if (!data || data.type !== "quote") return;
-      if (String(data.symbol).toUpperCase() !== symbol) return;
-
-      const price = toNumber(data.price);
-      const ts = normalizeTimestamp(data.ts);
-      if (!ts) return;
-
-      setRealtimeCandle({
-        time: ts,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-      });
-    });
-
-    socket.connect();
-
-    const timer = setTimeout(() => {
-      socket.send({
-        type: "subscribe",
-        symbols: [symbol],
-      });
-    }, 500);
-
-    return () => {
-      clearTimeout(timer);
-      socket.disconnect();
-      setRealtimeCandle(null);
-    };
-  }, [symbol]);
+  const handleChartMarketData = useCallback(
+    (state: TradingChartMarketData) => {
+      if (state.symbol !== symbol || state.period !== selectedPeriod) return;
+      setCandles(state.candles);
+      setRealtimeCandle(state.realtimeCandle);
+    },
+    [symbol, selectedPeriod],
+  );
 
   if (loading) {
     return (
@@ -550,6 +449,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             hidePositionsPanel
             embed
             onPaperTradingChange={setPaperTrading}
+            onMarketDataChange={handleChartMarketData}
           />
         </div>
       </div>
