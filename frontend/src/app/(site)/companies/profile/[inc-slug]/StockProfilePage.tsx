@@ -265,6 +265,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [watchlisted, setWatchlisted] = useState(false);
   const [sentimentBull, setSentimentBull] = useState(0);
   const [sentimentBear, setSentimentBear] = useState(0);
+  const [sentimentHydratedSymbol, setSentimentHydratedSymbol] = useState("");
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -369,13 +370,20 @@ export function StockProfilePage({ slug }: { slug: string }) {
       }
       setSentimentBull(bull);
       setSentimentBear(bear);
+      setSentimentHydratedSymbol(symbol);
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
+    if (
+      typeof window === "undefined" ||
+      !symbol ||
+      sentimentHydratedSymbol !== symbol
+    ) {
+      return;
+    }
     try {
       const key = sentimentStorageKey(symbol);
       if (sentimentTotal <= 0) {
@@ -389,7 +397,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
     } catch {
       /* ignore */
     }
-  }, [symbol, sentimentBull, sentimentBear, sentimentTotal]);
+  }, [symbol, sentimentBull, sentimentBear, sentimentTotal, sentimentHydratedSymbol]);
 
   useEffect(() => {
     let cancelled = false;
@@ -532,7 +540,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const changeLabel =
     selectedPeriod === "daily"
-      ? "24h vs previous daily close"
+      ? "Daily vs previous close"
       : `Change vs previous ${selectedPeriod} bar`;
 
   const toggleWatchlist = () => {
