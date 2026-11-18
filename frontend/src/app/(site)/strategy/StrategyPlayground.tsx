@@ -251,7 +251,7 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
             This walkthrough uses a fixed sequence of <strong className="text-[var(--dsa-text-secondary)]">{SIMULATION_CANDLES}</strong>{' '}
             synthetic candles. It is intentionally separate from the Indicator Lab, which uses persisted market OHLCV.
             Indicator mode overlays <strong className="text-[var(--dsa-text-secondary)]">{LINK_LABEL[ind]}</strong> and hybrid MACD;
-            6 + F&amp;G mode shows synthetic board-style attributes. Buy/sell markers are illustrative playbook actions, not live signals or backtest results.
+            6 + F&amp;G mode shows synthetic board-style attributes. Long-entry / exit markers are illustrative playbook actions, not live signals or backtest results.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -292,9 +292,32 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
         </div>
       </div>
 
-      <p className="mt-2 text-[10px] text-[var(--dsa-text-muted)]">
-        {strategy.name} · synthetic dataset · {LINK_LABEL[ind]} in indicator mode · markers = illustrative playbook actions
-      </p>
+      <div className="mt-3 grid gap-1 border-y border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2 text-[10px] text-[var(--dsa-text-muted)] sm:grid-cols-2 laptop:grid-cols-4">
+        <div>
+          <span className="dsa-section-label">Dataset</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            Synthetic education
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Bars</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {SIMULATION_CANDLES} fixed candles
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Execution</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            None · illustrative markers only
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Result type</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            Not live · not a backtest
+          </p>
+        </div>
+      </div>
 
       <div className="mt-4 grid gap-3 laptop:grid-cols-[minmax(0,280px)_1fr]">
         <div className="space-y-4 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-3">
@@ -417,10 +440,10 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 <span className="text-[var(--dsa-text-muted)]">+ {LINK_LABEL[ind]} (see chart)</span>
                 <span className="w-full text-[9px] uppercase tracking-wide text-[var(--dsa-text-muted)]">Markers</span>
                 <span>
-                  <span className="font-mono text-emerald-400">▲</span> Buy hint
+                  <span className="font-mono text-emerald-400">▲</span> Long-entry hint
                 </span>
                 <span>
-                  <span className="font-mono text-rose-400">▼</span> Sell hint
+                  <span className="font-mono text-rose-400">▼</span> Exit hint
                 </span>
               </>
             ) : (
@@ -450,10 +473,10 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 </span>
                 <span className="w-full text-[9px] uppercase tracking-wide text-[var(--dsa-text-muted)]">Markers</span>
                 <span>
-                  <span className="font-mono text-emerald-400">▲</span> Buy hint
+                  <span className="font-mono text-emerald-400">▲</span> Long-entry hint
                 </span>
                 <span>
-                  <span className="font-mono text-rose-400">▼</span> Sell hint
+                  <span className="font-mono text-rose-400">▼</span> Exit hint
                 </span>
               </>
             )}
@@ -468,11 +491,11 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
             <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--dsa-text-muted)]">
               <span className="inline-flex items-center gap-1 font-medium text-emerald-400/95">
                 <ArrowUp className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-                <span>↑ Long / buy-side examples</span>
+                <span>↑ Long-entry examples</span>
               </span>
               <span className="inline-flex items-center gap-1 font-medium text-rose-400/95">
                 <ArrowDown className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-                <span>↓ Exit / sell-side examples</span>
+                <span>↓ Exit / de-risk examples</span>
               </span>
             </p>
             <ul className="mt-3 space-y-2.5 text-[11px] leading-snug text-[var(--dsa-text-secondary)]">
@@ -483,13 +506,13 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 >
                   <span
                     className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
-                    title="Buy-side example"
-                    aria-label="Buy-side example"
+                    title="Long-entry example"
+                    aria-label="Long-entry example"
                   >
                     <ArrowUp className="h-4 w-4" strokeWidth={2.5} aria-hidden />
                   </span>
                   <div className="min-w-0">
-                    <span className="font-semibold text-emerald-400/95">Buy · </span>
+                    <span className="font-semibold text-emerald-400/95">Long entry · </span>
                     <span className="font-medium text-gray-300">{c.label}</span>
                     <span className="text-[var(--dsa-text-muted)]">: </span>
                     {c.when}
@@ -503,13 +526,13 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 >
                   <span
                     className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30"
-                    title="Sell-side example"
-                    aria-label="Sell-side example"
+                    title="Exit / de-risk example"
+                    aria-label="Exit / de-risk example"
                   >
                     <ArrowDown className="h-4 w-4" strokeWidth={2.5} aria-hidden />
                   </span>
                   <div className="min-w-0">
-                    <span className="font-semibold text-rose-400/95">Sell · </span>
+                    <span className="font-semibold text-rose-400/95">Exit · </span>
                     <span className="font-medium text-gray-300">{c.label}</span>
                     <span className="text-[var(--dsa-text-muted)]">: </span>
                     {c.when}
