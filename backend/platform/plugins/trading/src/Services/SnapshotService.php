@@ -28,7 +28,7 @@ class SnapshotService
     protected string $liquidityRankingKey = 'liquidity:ranking:daily';
     protected string $changeRankingKey = 'heatmap:ranking:change';
 
-    public function updateFromDailyCandle(int $instrumentId): void
+    public function updateFromDailyCandle(string $instrumentId): void
     {
         $row = DB::table(DsaTables::name('instrument_data').' as d')
             ->join(DsaTables::name('instrument_periods').' as p', 'p.id', '=', 'd.instrument_period_id')
@@ -376,7 +376,7 @@ class SnapshotService
                 $sym = strtoupper((string) $row->symbol);
 
                 return [
-                    'instrument_id' => (int) $row->instrument_id,
+                    'instrument_id' => (string) $row->instrument_id,
                     'symbol' => $sym,
                     'name' => $sym,
                     'price' => (float) ($row->price ?? 0),
