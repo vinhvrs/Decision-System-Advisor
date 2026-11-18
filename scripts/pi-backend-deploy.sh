@@ -18,6 +18,7 @@ STAGE="$CACHE_ROOT/stage-$STAMP"
 BACKUP="$RELEASE_ROOT/$STAMP-backend-git-sync"
 SOURCE_SYNC_STARTED=0
 OVERRIDE_EXISTED=0
+BACKUP_READY=0
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -74,6 +75,16 @@ compose_cmd() {
 
 restore_source() {
   trap - ERR
+
+  if [ "$BACKUP_READY" = "1" ]; then
+    if [ "$OVERRIDE_EXISTED" = "1" ] && [ -f "$BACKUP/compose.runtime.override.yml" ]; then
+      mkdir -p "$(dirname "$OVERRIDE_FILE")"
+      cp -a "$BACKUP/compose.runtime.override.yml" "$OVERRIDE_FILE" || true
+    elif [ "$OVERRIDE_EXISTED" = "0" ]; then
+      rm -f "$OVERRIDE_FILE" || true
+    fi
+  fi
+
   if [ "$SOURCE_SYNC_STARTED" != "1" ]; then
     return 0
   fi
@@ -84,13 +95,6 @@ restore_source() {
 
   if [ -d "$BACKUP/backend" ]; then
     rsync -a --delete "${SYNC_EXCLUDES[@]}" "$BACKUP/backend/" "$LIVE_ROOT/backend/" || true
-  fi
-
-  if [ "$OVERRIDE_EXISTED" = "1" ] && [ -f "$BACKUP/compose.runtime.override.yml" ]; then
-    mkdir -p "$(dirname "$OVERRIDE_FILE")"
-    cp -a "$BACKUP/compose.runtime.override.yml" "$OVERRIDE_FILE" || true
-  elif [ "$OVERRIDE_EXISTED" = "0" ]; then
-    rm -f "$OVERRIDE_FILE" || true
   fi
 
   echo "Rebuilding restored app/data-engine..."
@@ -180,12 +184,9 @@ if [ -f "$OVERRIDE_FILE" ]; then
   OVERRIDE_EXISTED=1
   cp -a "$OVERRIDE_FILE" "$BACKUP/compose.runtime.override.yml"
 fi
+BACKUP_READY=1
 printf '%s\n' "$target_sha" > "$BACKUP/target.sha"
 printf '%s\n' "$TARGET_BRANCH" > "$BACKUP/target.branch"
-mkdir -p "$LIVE_ROOT/.deploy-state"
-printf '%s\n' "$target_sha" > "$LIVE_ROOT/.deploy-state/target.sha"
-printf '%s\n' "$TARGET_BRANCH" > "$LIVE_ROOT/.deploy-state/target.branch"
-printf '%s\n' "$STAMP" > "$LIVE_ROOT/.deploy-state/deployed-at"
 
 echo
 echo "== Backend source change plan =="
@@ -282,6 +283,11 @@ assert scheduler.get("scheduler_max_workers") == 1
 row_count = (scheduler.get("dashboard_warm_up_last") or {}).get("row_count")
 assert row_count in (None, 40) or int(row_count) >= 40
 PY
+
+mkdir -p "$LIVE_ROOT/.deploy-state"
+printf '%s\n' "$target_sha" > "$LIVE_ROOT/.deploy-state/target.sha"
+printf '%s\n' "$TARGET_BRANCH" > "$LIVE_ROOT/.deploy-state/target.branch"
+printf '%s\n' "$STAMP" > "$LIVE_ROOT/.deploy-state/deployed-at"
 
 echo
 echo "== Containers =="
