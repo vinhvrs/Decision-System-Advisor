@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Symbol universe for DSATurbo sync follows the DEV_MODE-resolved snapshot table.
 from app.config.dsa_tables import table as dsa_table
-from app.data_collect.history_policy import choose_history_fetch_plan
+from app.data_collect.history_policy import choose_history_fetch_plan, prioritize_by_history_coverage
 
 
 def snapshot_symbol_table() -> str:
@@ -371,6 +371,62 @@ class DSATurbo:
             rows.extend(cur.fetchall() or [])
             return rows
 
+    def prioritize_undercovered(self, instruments):
+        """
+        Scheduled sync processes the least-covered symbols first. This prevents
+        a repeated upstream throttle/interruption from starving the same tail of
+        the 40-symbol universe. Manual --symbols order is preserved.
+        """
+        items = list(instruments or [])
+        if self.symbols or len(items) <= 1:
+            return items
+
+        ids = [str(row.get("id") or "") for row in items if row.get("id")]
+        if not ids:
+            return items
+
+        coverage: dict[str, int] = {}
+        placeholders = ",".join(["%s"] * len(ids))
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT p.instrument_id,
+                       COUNT(DISTINCT DATE(d.timestamps)) AS daily_days
+                FROM instrument_periods p
+                LEFT JOIN instrument_data d
+                  ON d.instrument_period_id = p.id
+                WHERE p.period = 'daily'
+                  AND p.instrument_id IN ({placeholders})
+                GROUP BY p.instrument_id
+                """,
+                ids,
+            )
+            for row in (cur.fetchall() or []):
+                iid = str(row.get("instrument_id") or "")
+                if not iid:
+                    continue
+                try:
+                    coverage[iid] = max(0, int(row.get("daily_days") or 0))
+                except (TypeError, ValueError):
+                    coverage[iid] = 0
+
+        ordered = prioritize_by_history_coverage(
+            items,
+            coverage,
+            preserve_input_order=False,
+        )
+        logger.info(
+            "History sync priority (least-covered first): %s",
+            [
+                {
+                    "symbol": str(row.get("symbol") or "").upper(),
+                    "daily_days": coverage.get(str(row.get("id") or ""), 0),
+                }
+                for row in ordered
+            ],
+        )
+        return ordered
+
     def ensure_periods(self, inst_id, symbol):
         periods = ['daily', 'weekly', 'monthly', 'yearly']
         p_ids = {}
@@ -572,7 +628,7 @@ class DSATurbo:
 
     def run(self):
         start_turbo = time.time()
-        instruments = self.fetch_symbols()
+        instruments = self.prioritize_undercovered(self.fetch_symbols())
         total = len(instruments)
         window = (
             f"{self.backfill_days}d calendar backfill"
