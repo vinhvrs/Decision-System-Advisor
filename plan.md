@@ -58,7 +58,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
-- [~] M6 Instrument detail/history: persisted-history coverage is explicit; fake local community sentiment and heuristic fallback radar removed; chart research-bias terminology aligned. Remaining source/as-of provenance and responsive visual QA are pending.
+- [~] M6 Instrument detail/history: persisted-history coverage is explicit; fake local community sentiment and heuristic fallback radar removed; chart research-bias terminology aligned; profile watch state now uses the canonical server API and realtime status requires an actual quote. Remaining source/as-of provenance and responsive visual QA are pending.
 **Exit:** each module has before/after captures, smoke/visual/functional tests; no console or blocking API errors.
 
 ### Phase 5 — Polish, performance, security and release (P2)
