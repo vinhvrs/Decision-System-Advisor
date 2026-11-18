@@ -175,6 +175,8 @@ jobs:
           grep -q 'skipping php artisan migrate' ../scripts/pi-backend-deploy.sh
           grep -q 'LIVE_ONLY_BACKEND_DELETIONS' ../scripts/pi-backend-deploy.sh
           grep -q 'ALLOW_LIVE_ONLY_DELETIONS' ../scripts/pi-backend-deploy.sh
+          grep -q 'PREFLIGHT_ONLY' ../scripts/pi-backend-deploy.sh
+          grep -q 'PREFLIGHT COMPLETE — NO LIVE SOURCE OR CONTAINER CHANGES MADE' ../scripts/pi-backend-deploy.sh
           ! grep -Eq '^[[:space:]]*compose_cmd exec -T app php artisan migrate --force[[:space:]]*$' ../scripts/pi-backend-deploy.sh
 
       - name: Run DSA production guard tests
