@@ -16,7 +16,7 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Symbol universe for DSATurbo sync follows DEV_MODE (snapshot_demo or instrument_snapshot).
+# Symbol universe for DSATurbo sync follows the DEV_MODE-resolved snapshot table.
 from app.config.dsa_tables import table as dsa_table
 from app.data_collect.history_policy import choose_history_fetch_plan
 
@@ -43,8 +43,6 @@ def ensure_snapshot_symbol_table(conn: pymysql.connections.Connection) -> None:
             )
 
 
-# Backward-compatible alias
-ensure_snapshot_demo_table = ensure_snapshot_symbol_table
 SNAPSHOT_SYMBOL_TABLE = snapshot_symbol_table()
 
 DEFAULT_HISTORY_PRIORITY_SYMBOLS = (
@@ -218,8 +216,8 @@ class DSATurbo:
         symbols: Optional[list[str]] = None,
     ):
         """
-        ``snapshot_limit``: max rows from ``snapshot_demo`` ordered by volume.
-        ``None`` → ``settings.TOP_N`` (capped by how many rows exist in ``snapshot_demo``).
+        ``snapshot_limit``: requested rows from the DEV_MODE-resolved market snapshot universe.
+        Sparse snapshots are filled from the stock instrument catalog up to this limit.
 
         ``backfill_days``: if set, fetch daily bars from (now − N days) through today (overrides ``history_period``).
 
@@ -258,7 +256,7 @@ class DSATurbo:
 
     def fetch_symbols(self):
         with self.conn.cursor() as cur:
-            ensure_snapshot_demo_table(self.conn)
+            ensure_snapshot_symbol_table(self.conn)
 
             if self.symbols:
                 placeholders = ",".join(["%s"] * len(self.symbols))
@@ -527,7 +525,7 @@ if __name__ == "__main__":
     import argparse
 
     p = argparse.ArgumentParser(
-        description="Turbo sync: Yahoo daily → instrument_data for symbols listed in snapshot_demo."
+        description="Turbo sync: Yahoo daily → instrument_data for the resolved market universe."
     )
     p.add_argument(
         "--days",
