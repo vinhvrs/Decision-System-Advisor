@@ -170,6 +170,16 @@ jobs:
           grep -q 'LIVE_ONLY_MIGRATIONS' ../scripts/pi-backend-deploy.sh
           grep -q 'CONTENT_CHANGED_MIGRATIONS' ../scripts/pi-backend-deploy.sh
           grep -q 'metadata differences ignored' ../scripts/pi-backend-deploy.sh
+          grep -q 'NEW_MIGRATIONS_FILE' ../scripts/pi-backend-deploy.sh
+          grep -q 'Applying reviewed migration only' ../scripts/pi-backend-deploy.sh
+          grep -q 'skipping php artisan migrate' ../scripts/pi-backend-deploy.sh
+          ! grep -Eq 'php artisan migrate --force[[:space:]]*
+
+      - name: Run DSA production guard tests
+        run: |
+          php artisan test --filter DsaTablesTest
+          php artisan test --filter SnapshotServiceUuidTest
+ ../scripts/pi-backend-deploy.sh
 
 
       - name: Run DSA production guard tests

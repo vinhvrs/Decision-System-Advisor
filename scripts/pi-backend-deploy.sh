@@ -16,6 +16,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 CACHE_REPO="$CACHE_ROOT/repo.git"
 STAGE="$CACHE_ROOT/stage-$STAMP"
 BACKUP="$RELEASE_ROOT/$STAMP-backend-git-sync"
+NEW_MIGRATIONS_FILE="$STAGE/.new-git-migrations"
 SOURCE_SYNC_STARTED=0
 OVERRIDE_EXISTED=0
 BACKUP_READY=0
@@ -166,7 +167,7 @@ bash -n "$STAGE/scripts/pi-backend-deploy.sh"
 echo
 echo "== Verify migration content parity =="
 set +e
-python3 - "$STAGE/backend/database/migrations" "$LIVE_ROOT/backend/database/migrations" "$ALLOW_DB_MIGRATIONS" <<'PY'
+python3 - "$STAGE/backend/database/migrations" "$LIVE_ROOT/backend/database/migrations" "$ALLOW_DB_MIGRATIONS" "$NEW_MIGRATIONS_FILE" <<'PY'
 from __future__ import annotations
 
 import hashlib
@@ -176,6 +177,7 @@ import sys
 stage = pathlib.Path(sys.argv[1])
 live = pathlib.Path(sys.argv[2])
 allow_new = sys.argv[3] == "1"
+new_file = pathlib.Path(sys.argv[4])
 
 def php_files(root: pathlib.Path) -> dict[str, str]:
     result: dict[str, str] = {}
@@ -214,6 +216,11 @@ if stage_only:
     print("NEW_GIT_MIGRATIONS:")
     for name in stage_only:
         print(f"  {name}")
+
+new_file.write_text(
+    "".join(f"{name}\n" for name in stage_only),
+    encoding="utf-8",
+)
 
 if live_only:
     print(
@@ -333,8 +340,22 @@ engine_id="$(compose_cmd ps -q data-engine)"
 }
 
 echo
-echo "== Laravel migration/cache =="
-compose_cmd exec -T app php artisan migrate --force
+echo "== Laravel targeted migration/cache =="
+if [ -s "$NEW_MIGRATIONS_FILE" ]; then
+  if [ "$ALLOW_DB_MIGRATIONS" != "1" ]; then
+    echo "ERROR: reviewed new migrations exist but ALLOW_DB_MIGRATIONS is not enabled." >&2
+    exit 7
+  fi
+
+  while IFS= read -r migration; do
+    [ -n "$migration" ] || continue
+    echo "Applying reviewed migration only: $migration"
+    compose_cmd exec -T app php artisan migrate --force --path="database/migrations/$migration"
+  done < "$NEW_MIGRATIONS_FILE"
+else
+  echo "No new Git migrations to apply; skipping php artisan migrate."
+fi
+
 compose_cmd exec -T app php artisan optimize:clear
 compose_cmd exec -T app php artisan config:cache
 compose_cmd restart app
