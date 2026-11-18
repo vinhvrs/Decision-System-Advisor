@@ -112,18 +112,16 @@ export default function StockRankingPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedStock?.symbol) {
-      setSelectedDetails(null);
-      return;
-    }
-    const symbol = String(selectedStock.symbol).toUpperCase();
-    if (detailsCacheRef.current[symbol]) {
-      setSelectedDetails(detailsCacheRef.current[symbol]);
-      return;
-    }
+    if (!selectedStock?.symbol) return;
 
+    const symbol = String(selectedStock.symbol).toUpperCase();
     const fetchId = ++hoverFetchIdRef.current;
-    CompanyService.getCompanyInfo(symbol)
+    const cached = detailsCacheRef.current[symbol];
+    const request = cached
+      ? Promise.resolve(cached)
+      : CompanyService.getCompanyInfo(symbol);
+
+    request
       .then((data) => {
         if (fetchId !== hoverFetchIdRef.current) return;
         detailsCacheRef.current[symbol] = data ?? null;
