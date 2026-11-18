@@ -18,5 +18,9 @@ Route::prefix('/auth')->group(function () {
     });
 
     Route::middleware('throttle:login')->post('/login', [AuthController::class, 'login']);
-    Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
+
+    Route::middleware(['auth:sanctum', 'throttle:6,1'])->group(function () {
+        Route::post('/password/change', [AuthController::class, 'changePassword']);
+        Route::post('/logout', [AuthController::class, 'logout']);
+    });
 });
