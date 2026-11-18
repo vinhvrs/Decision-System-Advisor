@@ -59,9 +59,9 @@ except ValueError:
 _DWD = os.environ.get("DASHBOARD_REDIS_WATCHDOG_ENABLED", "1").strip().lower()
 DASHBOARD_REDIS_WATCHDOG_ENABLED = _DWD not in ("0", "false", "no", "off")
 try:
-    WARM_UP_LIMIT = max(1, min(500, int(os.environ.get("DASHBOARD_WARM_UP_LIMIT", "100"))))
+    WARM_UP_LIMIT = max(1, min(500, int(os.environ.get("DASHBOARD_WARM_UP_LIMIT", "40"))))
 except ValueError:
-    WARM_UP_LIMIT = 100
+    WARM_UP_LIMIT = 40
 try:
     WARM_UP_CHART_BARS = max(2, min(500, int(os.environ.get("DASHBOARD_WARM_UP_CHART_BARS", "90"))))
 except ValueError:
