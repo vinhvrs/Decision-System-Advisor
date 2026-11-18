@@ -21,9 +21,10 @@ export const HEATMAP_LABEL_STROKE = "rgba(2,6,23,0.95)";
 export const HEATMAP_LABEL_STROKE_WIDTH = 1.6;
 
 /** Graded red / green by |change| % with restrained saturation for label readability. */
-export function heatmapTreemapColor(change: number): string {
+export function heatmapTreemapColor(change: number | null | undefined): string {
   const n = Number(change);
-  if (!Number.isFinite(n) || n === 0) return "#3f3f46";
+  if (change == null || !Number.isFinite(n)) return "#27313d";
+  if (n === 0) return "#3f3f46";
   const a = Math.min(Math.abs(n), 12);
   if (n > 0) {
     if (a >= 8) return "#37a86a";
@@ -39,9 +40,9 @@ export function heatmapTreemapColor(change: number): string {
   return "#5f1b20";
 }
 
-export function formatHeatmapChangePct(change: number): string {
+export function formatHeatmapChangePct(change: number | null | undefined): string {
   const n = Number(change);
-  if (!Number.isFinite(n)) return "—";
+  if (change == null || !Number.isFinite(n)) return "N/A";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}%`;
 }
@@ -85,7 +86,7 @@ export function heatmapTileLabel(w: number, h: number, symbol: string): HeatmapT
   return { showSymbol, showPct, symFs, pctFs, symbolText, symY, pctY };
 }
 
-export type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number };
+export type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number | null };
 
 export function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
   const bySym = new Map<string, HeatmapListRow>();
@@ -97,7 +98,8 @@ export function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
     const liq = Number(row?.liquidity);
     const liquidity = Number.isFinite(liq) && liq > 0 ? liq : 1;
     const ch = Number(row?.change_pct);
-    const change_pct = Number.isFinite(ch) ? ch : 0;
+    const change_pct =
+      row?.change_pct != null && Number.isFinite(ch) ? ch : null;
     const prev = bySym.get(sym);
     if (!prev) {
       bySym.set(sym, { symbol: sym, liquidity, change_pct });
@@ -105,7 +107,10 @@ export function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
       bySym.set(sym, {
         symbol: sym,
         liquidity: (prev.liquidity ?? 1) + liquidity,
-        change_pct: prev.change_pct ?? change_pct,
+        change_pct:
+          prev.change_pct != null
+            ? prev.change_pct
+            : change_pct,
       });
     }
   }
@@ -117,7 +122,11 @@ const HEATMAP_API_MIN_ROWS = 10;
 
 export function boardRowsToHeatmap(rows: BeginnerBoardRow[]): HeatmapListRow[] {
   return rows.map((r) => {
-    const changePct = Number.isFinite(r.change_pct_snapshot) ? r.change_pct_snapshot : 0;
+    const changeMissing = r.missing_fields?.includes("change_pct") ?? false;
+    const changePct =
+      !changeMissing && Number.isFinite(r.change_pct_snapshot)
+        ? r.change_pct_snapshot
+        : null;
     const marketCap = Number(r.market_cap);
     const liquidity = Number(r.liquidity);
     const volume = Number(r.volume);
@@ -136,30 +145,79 @@ export function boardRowsToHeatmap(rows: BeginnerBoardRow[]): HeatmapListRow[] {
   });
 }
 
-/** Load treemap rows from ranking APIs only (heatmap-daily → dashboard-daily fallback). */
-export async function fetchHeatmapRowsFromApi(): Promise<HeatmapListRow[]> {
-  try {
-    const fromHeatmapEndpoint = async (sector?: string) => {
+export type HeatmapLoadSource =
+  | "heatmap-daily:technology"
+  | "heatmap-daily:all"
+  | "dashboard-daily"
+  | "unavailable";
+
+export type HeatmapLoadResult = {
+  rows: HeatmapListRow[];
+  source: HeatmapLoadSource;
+};
+
+/** Load treemap rows with explicit source/fallback metadata. */
+export async function fetchHeatmapRowsWithMeta(): Promise<HeatmapLoadResult> {
+  const fromHeatmapEndpoint = async (sector?: string) => {
+    try {
       const raw = await heatmapService.getHeatmapData({
         limit: HEATMAP_API_FETCH_LIMIT,
         ...(sector ? { sector } : {}),
       });
       return mergeHeatmapRows(Array.isArray(raw) ? raw : []);
-    };
-
-    let rows = await fromHeatmapEndpoint(HEATMAP_SECTOR_TECHNOLOGY);
-    if (rows.length < HEATMAP_API_MIN_ROWS) {
-      rows = await fromHeatmapEndpoint();
+    } catch {
+      return [];
     }
-    if (rows.length < HEATMAP_API_MIN_ROWS) {
-      const daily = await BeginnerService.getDashboardDaily({ maxAgeMs: 15_000 });
-      if (daily?.rows?.length) {
-        rows = mergeHeatmapRows(boardRowsToHeatmap(daily.rows));
+  };
+
+  let bestRows: HeatmapListRow[] = [];
+
+  const technologyRows = await fromHeatmapEndpoint(HEATMAP_SECTOR_TECHNOLOGY);
+  if (technologyRows.length >= HEATMAP_API_MIN_ROWS) {
+    return {
+      rows: technologyRows.slice(0, HEATMAP_DISPLAY_TILE_MAX),
+      source: "heatmap-daily:technology",
+    };
+  }
+  if (technologyRows.length > bestRows.length) bestRows = technologyRows;
+
+  const allRows = await fromHeatmapEndpoint();
+  if (allRows.length >= HEATMAP_API_MIN_ROWS) {
+    return {
+      rows: allRows.slice(0, HEATMAP_DISPLAY_TILE_MAX),
+      source: "heatmap-daily:all",
+    };
+  }
+  if (allRows.length > bestRows.length) bestRows = allRows;
+
+  try {
+    const daily = await BeginnerService.getDashboardDaily({ maxAgeMs: 15_000 });
+    if (daily?.rows?.length) {
+      const rows = mergeHeatmapRows(boardRowsToHeatmap(daily.rows));
+      if (rows.length > 0) {
+        return {
+          rows: rows.slice(0, HEATMAP_DISPLAY_TILE_MAX),
+          source: "dashboard-daily",
+        };
       }
     }
-
-    return rows.slice(0, HEATMAP_DISPLAY_TILE_MAX);
   } catch {
-    return [];
+    /* fall through to best endpoint result */
   }
+
+  if (bestRows.length > 0) {
+    return {
+      rows: bestRows.slice(0, HEATMAP_DISPLAY_TILE_MAX),
+      source: technologyRows.length >= allRows.length
+        ? "heatmap-daily:technology"
+        : "heatmap-daily:all",
+    };
+  }
+
+  return { rows: [], source: "unavailable" };
+}
+
+/** Backward-compatible rows-only helper. */
+export async function fetchHeatmapRowsFromApi(): Promise<HeatmapListRow[]> {
+  return (await fetchHeatmapRowsWithMeta()).rows;
 }
