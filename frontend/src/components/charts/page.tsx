@@ -23,6 +23,26 @@ import TradingSignInPrompt from "@/src/components/trading/TradingSignInPrompt";
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
+const TRADING_CHART_CONTEXT_KEY = "dsa:trading-chart:context:v1";
+const VALID_TF = new Set<TF>(["daily", "weekly", "monthly", "yearly"]);
+
+function readTradingChartContext(): { symbol: string | null; period: TF | null } {
+  if (typeof window === "undefined") return { symbol: null, period: null };
+  try {
+    const raw = window.sessionStorage.getItem(TRADING_CHART_CONTEXT_KEY);
+    if (!raw) return { symbol: null, period: null };
+    const parsed = JSON.parse(raw) as { symbol?: unknown; period?: unknown };
+    const symbol = String(parsed.symbol ?? "").trim().toUpperCase() || null;
+    const periodRaw = String(parsed.period ?? "") as TF;
+    return {
+      symbol,
+      period: VALID_TF.has(periodRaw) ? periodRaw : null,
+    };
+  } catch {
+    return { symbol: null, period: null };
+  }
+}
+
 interface TradingChartProps {
   defaultSymbol?: string;
   isFixed?: boolean;
@@ -253,7 +273,9 @@ export default function TradingChart({
 
   const [selectedInstrument, setSelectedInstrument] =
     useState<InstrumentLike | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
+  const [selectedPeriod, setSelectedPeriod] = useState<TF>(
+    () => controlledPeriod ?? readTradingChartContext().period ?? "daily"
+  );
   const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
   const [, setCandlePage] = useState(1);
@@ -314,6 +336,18 @@ export default function TradingChart({
     const frame = window.requestAnimationFrame(() => setSelectedPeriod(controlledPeriod));
     return () => window.cancelAnimationFrame(frame);
   }, [controlledPeriod]);
+
+  useEffect(() => {
+    if (lockSymbol || controlledPeriod || !selectedSymbol) return;
+    try {
+      window.sessionStorage.setItem(
+        TRADING_CHART_CONTEXT_KEY,
+        JSON.stringify({ symbol: selectedSymbol, period: selectedPeriod }),
+      );
+    } catch {
+      /* UI context only; candle/quote data is never stored here. */
+    }
+  }, [selectedSymbol, selectedPeriod, lockSymbol, controlledPeriod]);
 
   const loadingMoreCandlesRef = useRef(false);
   const candlePageRef = useRef(1);
@@ -381,7 +415,11 @@ export default function TradingChart({
 
           setInstruments(normalizedCached);
 
+          const rememberedSymbol = !lockSymbol ? readTradingChartContext().symbol : null;
           const preferred =
+            (rememberedSymbol
+              ? normalizedCached.find((i) => i.symbol.toUpperCase() === rememberedSymbol)
+              : null) ||
             normalizedCached.find((i) => i.symbol === defaultSymbol) ||
             normalizedCached.find((i) => i.symbol === "AAPL") ||
             normalizedCached[0] ||
@@ -401,7 +439,11 @@ export default function TradingChart({
         setInstruments(normalizedRes);
         await set(instrumentsCacheKey, normalizedRes);
 
+        const rememberedSymbol = !lockSymbol ? readTradingChartContext().symbol : null;
         const preferred =
+          (rememberedSymbol
+            ? normalizedRes.find((i) => i.symbol.toUpperCase() === rememberedSymbol)
+            : null) ||
           normalizedRes.find((i) => i.symbol === defaultSymbol) ||
           normalizedRes.find((i) => i.symbol === "AAPL") ||
           normalizedRes[0] ||

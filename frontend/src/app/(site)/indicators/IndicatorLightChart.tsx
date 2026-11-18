@@ -11,6 +11,7 @@ import {
   LineStyle,
   createSeriesMarkers,
   type IChartApi,
+  type LogicalRange,
   type SeriesMarker,
   type UTCTimestamp,
 } from 'lightweight-charts';
@@ -80,6 +81,11 @@ export type MainPaneBoardSpec = {
 
 type Props = {
   className?: string;
+  /**
+   * Stable identity of the candle dataset. Rebuilds with the same key preserve
+   * the user's zoom/pan range; changing the key fits the new dataset.
+   */
+  viewKey: string;
   /** Total chart height in px (includes sub-pane when present) */
   height?: number;
   bars: SampleBar[];
@@ -95,6 +101,7 @@ type Props = {
 
 export function IndicatorLightChart({
   className = '',
+  viewKey,
   height = 480,
   bars,
   overlays = [],
@@ -104,10 +111,19 @@ export function IndicatorLightChart({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const visibleRangeRef = useRef<LogicalRange | null>(null);
+  const activeViewKeyRef = useRef(viewKey);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el || bars.length === 0) return;
+
+    const sameView = activeViewKeyRef.current === viewKey;
+    const rangeToRestore = sameView ? visibleRangeRef.current : null;
+    if (!sameView) {
+      activeViewKeyRef.current = viewKey;
+      visibleRangeRef.current = null;
+    }
 
     const chart = createChart(el, {
       height,
@@ -324,7 +340,17 @@ export function IndicatorLightChart({
       });
     }
 
-    chart.timeScale().fitContent();
+    if (rangeToRestore) {
+      requestAnimationFrame(() => {
+        try {
+          chart.timeScale().setVisibleLogicalRange(rangeToRestore);
+        } catch {
+          chart.timeScale().fitContent();
+        }
+      });
+    } else {
+      chart.timeScale().fitContent();
+    }
 
     chartRef.current = chart;
 
@@ -336,11 +362,30 @@ export function IndicatorLightChart({
     chart.applyOptions({ width: el.clientWidth });
 
     return () => {
+      try {
+        visibleRangeRef.current = chart.timeScale().getVisibleLogicalRange();
+      } catch {
+        visibleRangeRef.current = null;
+      }
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
     };
-  }, [bars, height, overlays, subPane, mainPaneBoard, tradeMarkers]);
+  }, [bars, height, overlays, subPane, mainPaneBoard, tradeMarkers, viewKey]);
 
-  return <div ref={containerRef} className={`w-full overflow-hidden rounded-lg ${className}`} />;
+  const resetView = () => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    visibleRangeRef.current = null;
+    chart.timeScale().fitContent();
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={`w-full overflow-hidden rounded-[var(--dsa-radius-sm)] ${className}`}
+      onDoubleClick={resetView}
+      title="Double-click to fit the full dataset"
+    />
+  );
 }

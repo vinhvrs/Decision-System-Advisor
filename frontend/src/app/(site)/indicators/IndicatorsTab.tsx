@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Activity,
@@ -120,9 +120,29 @@ const INDICATORS: IndicatorCatalogItem[] = [
   },
 ];
 
+const INDICATOR_SELECTION_KEY = 'dsa:indicator-lab:indicator:v1';
+
+function readIndicatorSelection(): SimulatorIndicatorId {
+  if (typeof window === 'undefined') return 'ls';
+  try {
+    const value = window.sessionStorage.getItem(INDICATOR_SELECTION_KEY) as SimulatorIndicatorId | null;
+    return value && INDICATORS.some((item) => item.id === value) ? value : 'ls';
+  } catch {
+    return 'ls';
+  }
+}
+
 export default function IndicatorsTab({ embedded = false }: IndicatorsTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [simIndicator, setSimIndicator] = useState<SimulatorIndicatorId>('ls');
+  const [simIndicator, setSimIndicator] = useState<SimulatorIndicatorId>(() => readIndicatorSelection());
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(INDICATOR_SELECTION_KEY, simIndicator);
+    } catch {
+      /* UI preference only */
+    }
+  }, [simIndicator]);
 
   const filteredIndicators = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
