@@ -49,7 +49,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 ### Phase 3 — UI foundation (P1)
 - [~] D1 Shared design tokens are implemented in the repository baseline candidate; **live-source parity is still unverified**, so this cannot be marked complete.
 - [~] D2 Shared shell/control/panel/button/navigation classes added. Company symbol header and chart frame are now tokenized; shared status/tooltip/empty-state primitives still need broader consolidation.
-- [~] D3 Global header/search/navigation compacted and active-state styling standardized; saved views/context persistence remain.
+- [~] D3 Global header/search/navigation compacted; Search now uses a neutral indexed symbol catalog instead of demo/popularity semantics, and Companies discovery links directly into the profile workspace. Saved views/context persistence remain.
 - [~] D4 Screener numeric density/alignment and research hierarchy implemented; broader tables/charts still need migration.
 - [ ] D5 Review terms/locales; choose a single primary UI language plus explicit translation support.
 - [ ] D6 Test responsiveness and accessibility at 390, 768, 1024 and 1440 pixels; snapshot visual regressions.
@@ -80,13 +80,14 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 | 3 | Documentation and error/empty/loading | P1 | 0–2 | IN PROGRESS |
 | 4 | UI tokens and shared layout components | P1 | 0; ideally 1–2 | IN PROGRESS |
 | 5 | Rankings, tables and charts | P1 | 2–4 | IN PROGRESS |
-| 6 | Secondary modules and responsive | P2 | 4–5 | NOT STARTED / PARTIAL PER ROUTE |
+| 6 | Secondary modules and responsive | P2 | 4–5 | IN PROGRESS — company discovery/search/profile slices migrated; responsive visual QA remains |
 | 7 | Full QA, canary, rollback-ready release | P1 | 0–6 | BLOCKED |
 
 ## Per-ticket Definition of Done
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: P1.3 discovery flow implemented on an isolated stacked branch: neutral Elasticsearch symbol catalog with backward-compatible legacy alias, source-aware 40-row Companies table with missing-field/as-of metadata, and dense Search/Browse UI without fake popularity or realtime claims. No deployment performed.
 - 2026-11-18: P1.2 company profile/chart slice implemented on an isolated stacked branch: compact symbol context, stored-vs-realtime chart provenance, local-only sentiment disclosure, profile-completeness semantics, dense paper-trading surfaces, and shared chart palette. No formula/API/trading logic changes; no deployment performed.
 - 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
