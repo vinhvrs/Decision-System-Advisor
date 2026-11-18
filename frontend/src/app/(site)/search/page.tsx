@@ -69,7 +69,7 @@ function SearchResults() {
   const [newsResults, setNewsResults] = useState<News[]>([]);
 
   useEffect(() => {
-    ElasticService.getDemoTopSymbols(20)
+    ElasticService.getTopSymbols(20)
       .then(({ items }) => setPopular(items))
       .catch(() => setPopular([]));
   }, []);
