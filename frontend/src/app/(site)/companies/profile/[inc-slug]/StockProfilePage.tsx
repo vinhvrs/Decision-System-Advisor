@@ -266,6 +266,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [watchlisted, setWatchlisted] = useState(false);
   const [sentimentBull, setSentimentBull] = useState(0);
   const [sentimentBear, setSentimentBear] = useState(0);
+  const [sentimentHydrated, setSentimentHydrated] = useState(false);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -341,30 +342,46 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (typeof window === "undefined" || !symbol) return;
-    try {
-      const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
-      if (!raw) return;
-      const j = JSON.parse(raw) as { bull?: number; bear?: number };
-      if (typeof j.bull === "number" && typeof j.bear === "number" && j.bull + j.bear > 0) {
-        setSentimentBull(j.bull);
-        setSentimentBear(j.bear);
+    setSentimentHydrated(false);
+    const frame = window.requestAnimationFrame(() => {
+      setSentimentBull(0);
+      setSentimentBear(0);
+      try {
+        const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
+        if (raw) {
+          const j = JSON.parse(raw) as { version?: number; bull?: number; bear?: number };
+          // Ignore unversioned legacy values: the old UI seeded 42/8 by default.
+          if (
+            j.version === 2 &&
+            typeof j.bull === "number" &&
+            typeof j.bear === "number" &&
+            j.bull >= 0 &&
+            j.bear >= 0
+          ) {
+            setSentimentBull(j.bull);
+            setSentimentBear(j.bear);
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setSentimentHydrated(true);
       }
-    } catch {
-      /* ignore */
-    }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
+    if (typeof window === "undefined" || !symbol || !sentimentHydrated) return;
     try {
       sessionStorage.setItem(
         sentimentStorageKey(symbol),
-        JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
+        JSON.stringify({ version: 2, bull: sentimentBull, bear: sentimentBear }),
       );
     } catch {
       /* ignore */
     }
-  }, [symbol, sentimentBull, sentimentBear]);
+  }, [symbol, sentimentBull, sentimentBear, sentimentHydrated]);
 
   useEffect(() => {
     let cancelled = false;
