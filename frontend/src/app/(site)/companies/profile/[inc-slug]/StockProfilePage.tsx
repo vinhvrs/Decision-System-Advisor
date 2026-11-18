@@ -517,8 +517,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
       </div>
       {candles.length < 2 ? (
         <div className="border-b border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-xs text-[#d9bb7a]">
-          Persisted {selectedPeriod} history is {candles.length === 1 ? "too short" : "unavailable"} for {symbol}.
-          Realtime price may still update, but historical chart data is not synthesized.
+          Persisted {selectedPeriod} history is {candles.length === 1 ? "too short" : "unavailable"} for {symbol}. Realtime price may still update, but historical chart data is not synthesized.
         </div>
       ) : (
         <div className="border-b border-[var(--dsa-border)] px-3 py-1.5 text-[10px] text-[var(--dsa-text-muted)]">
@@ -572,15 +571,466 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </div>
           <Link
             href="/investing"
-            className="shrink-0 rounded-lg border border-[var(--dsa-border)] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
+            className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
           >
             Investing site
           </Link>
         </nav>
 
-        {/* Three-column shell — left stats | center tabs | right community */}
+        {/* Three-column shell — left stats | center research | right coverage/news */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
           <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
+            <div className={`rounded-xl ${CMC.card} p-4`}>
+              <div className="flex gap-3">
+                <img
+                  src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
+                  className="h-12 w-12 shrink-0 rounded-full bg-white object-contain p-1"
+                  alt=""
+                />
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-base font-bold leading-snug text-white">
+                    {stripParentheticals(details?.company_name) || symbol}
+                  </h1>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-md bg-[#2b3139] px-2 py-0.5 font-mono text-xs font-semibold text-white">
+                      {details?.symbol || symbol}
+                    </span>
+                    <span className="rounded-md bg-[#f7931a]/20 px-2 py-0.5 text-[11px] font-bold text-[#f0b90b]">EQ</span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={toggleWatchlist}
+                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-[#f0b90b]"
+                        aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
+                        title="Watchlist"
+                      >
+                        <Star className={`h-4 w-4 ${watchlisted ? "fill-[#f0b90b] text-[#f0b90b]" : ""}`} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={shareProfile}
+                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-white"
+                        aria-label="Share"
+                        title="Share"
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="font-mono text-2xl font-semibold tabular-nums text-white sm:text-3xl">
+                  ${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                {changePct != null ? (
+                  <span
+                    className={`mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${
+                      changePct >= 0 ? `bg-[#16c784]/15 ${CMC.green}` : `bg-[#ea3943]/15 ${CMC.red}`
+                    }`}
+                  >
+                    {changePct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    {changePct >= 0 ? "+" : ""}
+                    {changePct.toFixed(2)}%{" "}
+                    <span className={`font-normal ${CMC.muted}`}>· {changeLabel}</span>
+                  </span>
+                ) : (
+                  <p className={`mt-2 text-sm ${CMC.muted}`}>—</p>
+                )}
+
+                <div className="mt-4 border-t border-[#2b3139] pt-3">
+                  <p className={`mb-1 text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>
+                    Signal radar
+                  </p>
+                  <FundamentalRadar symbol={symbol} compact />
+                </div>
+
+                <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
+                  Live stream when connected
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <StatTile
+                label="Market cap"
+                value={formatUsdStat(marketCap)}
+                hintTitle="From company profile when available."
+              />
+              <StatTile
+                label="Volume (est.)"
+                value={formatUsdStat(volUsdEst)}
+                hintTitle="Last candle: shares × close. Not full-session exchange volume."
+              />
+              <StatTile
+                label="Vol / Mkt cap"
+                value={volToMktPct != null ? `${volToMktPct.toFixed(2)}%` : "—"}
+                hintTitle="Estimated dollar volume of last bar ÷ market cap."
+              />
+              <StatTile label="Last price" value={livePrice > 0 ? `$${livePrice.toFixed(2)}` : "—"} />
+              <StatTile
+                label="Range high"
+                value={athAtl.high != null ? `$${athAtl.high.toFixed(2)}` : "—"}
+                hintTitle="Max high in loaded candles for the selected period."
+              />
+              <StatTile
+                label="Range low"
+                value={athAtl.low != null ? `$${athAtl.low.toFixed(2)}` : "—"}
+                hintTitle="Min low in loaded candles for the selected period."
+              />
+              <StatTile
+                label="Employees"
+                value={
+                  details?.full_time_employees
+                    ? Number(details.full_time_employees).toLocaleString("en-US")
+                    : "—"
+                }
+              />
+              <StatTile label="IPO" value={formatDate(details?.ipo_date)} />
+            </div>
+
+            <div className={`rounded-xl ${CMC.card} p-4`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile completeness</span>
+                <span className="font-mono text-xs font-semibold tabular-nums text-[#8ab4ff]">{profileScore}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#2b3139]">
+                <div
+                  className="h-full rounded-full bg-[#4c8dff]"
+                  style={{ width: `${profileScore}%` }}
+                />
+              </div>
+              <p className={`mt-2 text-[10px] leading-relaxed ${CMC.muted}`}>
+                How complete this company record is (name, sector, financials, description, etc.).
+              </p>
+            </div>
+
+            <ProfilePaperTradingPanel symbol={symbol} state={paperTrading} />
+
+            <div className="flex flex-col gap-2">
+              {details?.website ? (
+                <a
+                  href={details.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-[#2b3139] bg-[#2b3139]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
+                >
+                  <Globe className="h-4 w-4" />
+                  Website
+                </a>
+              ) : null}
+              <Link
+                href="/search"
+                className={`flex items-center justify-center gap-2 rounded-xl border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
+              >
+                <Building2 className="h-4 w-4" />
+                More companies
+              </Link>
+            </div>
+
+            <div className={`rounded-xl ${CMC.card} p-4`}>
+              <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${CMC.muted}`}>Listing</p>
+              <div className="flex items-center gap-2 text-sm">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-[#3861fb]" />
+                <span className="text-white">{details?.exchange || "—"}</span>
+                <span className={CMC.muted}>·</span>
+                <span className={`truncate ${CMC.muted}`}>{details?.industry || "Industry N/A"}</span>
+              </div>
+            </div>
+          </aside>
+
+          <main className="order-1 min-w-0 xl:order-2">
+            <div className={`mb-3 flex flex-col gap-3 rounded-xl ${CMC.card} px-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4`}>
+              <div className="no-scrollbar flex gap-0 overflow-x-auto border-b border-transparent sm:border-0">
+                {MAIN_TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setMainTab(t.id)}
+                    className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${
+                      mainTab === t.id ? CMC.tabActive : CMC.tabIdle
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex shrink-0 items-center gap-2 px-1 sm:px-0">
+                <button
+                  type="button"
+                  onClick={toggleWatchlist}
+                  className="rounded-lg bg-[#3861fb] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#3861fb]/20 transition hover:bg-[#2f56e0]"
+                >
+                  {watchlisted ? "Watching" : "Track symbol"}
+                </button>
+                <span
+                  className={`hidden rounded-lg border px-3 py-2 text-[11px] font-semibold sm:inline ${CMC.line} ${CMC.muted}`}
+                  title="Advanced layout and alerts (coming soon)"
+                >
+                  Pro view
+                </span>
+              </div>
+            </div>
+
+            {mainTab === "chart" && (
+              <div className="space-y-4">
+                {chartBlock}
+                <details className={`rounded-xl ${CMC.card} p-4`}>
+                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#7b9cff]">
+                    <Info className="h-4 w-4" />
+                    How chart stats are read
+                  </summary>
+                  <ul className={`mt-3 list-inside list-disc space-y-2 text-xs leading-relaxed ${CMC.muted}`}>
+                    <li>
+                      <strong className="text-white/90">% change</strong> compares the last closed bar on this timeframe
+                      to the previous one.
+                    </li>
+                    <li>
+                      <strong className="text-white/90">Estimated dollar volume</strong> is last bar share volume times
+                      its closing price.
+                    </li>
+                    <li>
+                      <strong className="text-white/90">Volume vs market cap</strong> divides that estimate by the
+                      profile market cap when both are available.
+                    </li>
+                  </ul>
+                </details>
+              </div>
+            )}
+
+            {mainTab === "markets" && (
+              <section className={`rounded-xl ${CMC.card} overflow-hidden`}>
+                <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
+                  <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
+                  <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
+                </div>
+                <h2 className="px-4 pt-4 text-lg font-bold text-white">
+                  {stripParentheticals(details?.company_name) || symbol}{" "}
+                  <span className={CMC.muted}>markets</span>
+                </h2>
+                <p className={`px-4 pb-3 text-xs ${CMC.muted}`}>
+                  Primary listing for this equity. Depth and multi-venue breakdown can be added when your data source
+                  supports it.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-left text-sm">
+                    <thead>
+                      <tr className={`border-t ${CMC.line} ${CMC.muted}`}>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">#</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Venue</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Symbol</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Price</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Volume (est.)</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Vol %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className={`border-t ${CMC.line} bg-white/[0.02]`}>
+                        <td className="px-4 py-3 tabular-nums text-white">1</td>
+                        <td className="px-4 py-3 font-medium text-white">{details?.exchange || "—"}</td>
+                        <td className="px-4 py-3 font-mono text-[#7b9cff]">{details?.symbol || symbol}</td>
+                        <td className="px-4 py-3 font-mono tabular-nums text-white">
+                          {livePrice > 0 ? `$${livePrice.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 font-mono tabular-nums text-white">{formatUsdStat(volUsdEst)}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${
+                              volToMktPct != null ? "bg-[#16c784]/15 text-[#16c784]" : `${CMC.muted} bg-[#2b3139]`
+                            }`}
+                          >
+                            {volToMktPct != null ? `${volToMktPct.toFixed(1)}%` : "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {mainTab === "news" && (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold text-white">
+                    {symbol} <span className={CMC.muted}>news</span>
+                  </h2>
+                  <span className={`rounded-md border ${CMC.line} px-2 py-1 text-[10px] font-bold uppercase ${CMC.muted}`}>
+                    Latest
+                  </span>
+                </div>
+                {news.length === 0 ? (
+                  <p className={`rounded-xl ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
+                    No news items for this symbol yet.
+                  </p>
+                ) : (
+                  news.map((item, idx) => {
+                    const { kind, href } = resolveNewsHref(item);
+                    const label = newsSourceLabel(item);
+                    const thumb = pickNewsThumbImage(item);
+                    const cardClass = `block rounded-xl ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
+                    const inner = (
+                      <>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                          <span className="rounded border border-[#3861fb]/20 bg-[#3861fb]/10 px-2 py-0.5 font-bold uppercase text-[#7b9cff]">
+                            {label}
+                          </span>
+                          <span className={CMC.muted}>{formatDate(item.published_at)}</span>
+                        </div>
+                        <div className="flex gap-3">
+                          {thumb ? (
+                            <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
+                              <img src={thumb} alt="" className="h-full w-full object-cover" />
+                            </div>
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                            <p className={`mt-2 text-xs leading-relaxed ${CMC.muted}`}>
+                              {truncateText(item.content || "", 280)}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    );
+                    if (kind === "external") {
+                      return (
+                        <a
+                          key={item.id || idx}
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={cardClass}
+                        >
+                          {inner}
+                        </a>
+                      );
+                    }
+                    return (
+                      <Link key={item.id || idx} href={href} className={cardClass}>
+                        {inner}
+                      </Link>
+                    );
+                  })
+                )}
+              </section>
+            )}
+
+            {mainTab === "holders" && (
+              <section className={`rounded-xl ${CMC.card} p-8 text-center`}>
+                <Layers className="mx-auto mb-3 h-10 w-10 text-[#3861fb] opacity-60" />
+                <h2 className="text-lg font-bold text-white">Holder distribution</h2>
+                <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
+                  Blockchain-style holder lists do not apply to this equity profile. Connect a cap-table or institutional
+                  holdings feed to show concentration and top holders here.
+                </p>
+              </section>
+            )}
+
+            {mainTab === "fundamentals" && (
+              <section className={`rounded-xl ${CMC.card} p-5`}>
+                <h2 className="mb-1 text-lg font-bold text-white">Fundamentals (SEC)</h2>
+                <p className={`mb-4 text-xs ${CMC.muted}`}>
+                  Long-term financial quality and growth derived from SEC XBRL. Technical columns (price, stance, trend,
+                  etc.) stay on the Chart tab.
+                </p>
+                <FundamentalSection symbol={symbol} />
+              </section>
+            )}
+
+            {mainTab === "about" && (
+              <div className="space-y-4">
+                <section className={`rounded-xl ${CMC.card} p-5`}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <Info className="h-5 w-5 text-[#3861fb]" />
+                    <h2 className="text-base font-bold text-white">
+                      About {stripParentheticals(details?.company_name) || symbol}
+                    </h2>
+                  </div>
+                  <p className={`text-sm leading-relaxed ${CMC.muted}`}>
+                    {details?.description || "No company description available."}
+                  </p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: "CEO", value: details?.ceo || "—" },
+                      { label: "Country", value: details?.country || "—" },
+                      {
+                        label: "Employees",
+                        value: details?.full_time_employees
+                          ? Number(details.full_time_employees).toLocaleString("en-US")
+                          : "—",
+                      },
+                      { label: "IPO", value: formatDate(details?.ipo_date) },
+                    ].map((x) => (
+                      <div key={x.label} className="rounded-lg bg-black/25 px-3 py-2.5">
+                        <p className={`text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>{x.label}</p>
+                        <p className="mt-0.5 text-sm font-medium text-white">{x.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {details?.website ? (
+                    <a
+                      href={details.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#3861fb] hover:underline"
+                    >
+                      <LinkIcon className="h-4 w-4" />
+                      Official website
+                    </a>
+                  ) : null}
+                </section>
+
+                <section className={`rounded-xl ${CMC.card} p-5`}>
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-white">
+                    <Activity className="h-4 w-4 text-[#3861fb]" />
+                    Signal radar
+                  </h3>
+                  <p className={`mb-3 text-[11px] leading-snug ${CMC.muted}`}>
+                    Five drivers — momentum, price action, volume, liquidity, and community interest — plus a daily mood
+                    strip. Scores are relative to large-cap peers for context.
+                  </p>
+                  <FundamentalRadar symbol={symbol} />
+                </section>
+
+                <section className={`rounded-xl ${CMC.card} p-5`}>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+                      <Layers className="h-4 w-4 text-[#3861fb]" />
+                      Similar companies
+                    </h3>
+                    <Link href="/companies" className="text-xs font-semibold text-[#3861fb] hover:underline">
+                      See more
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {similar.map((comp: any, idx: number) => (
+                      <Link
+                        key={comp.instrument_id || comp.symbol || idx}
+                        href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
+                        className="flex flex-col items-center rounded-xl border border-[#2b3139] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
+                      >
+                        <div className="mb-2 h-9 w-9 rounded-lg bg-white p-1">
+                          <img
+                            src={comp.image || `https://images.financialmodelingprep.com/symbol/${comp.symbol}.png`}
+                            alt=""
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                        <span className="text-[11px] font-bold text-white">{comp.symbol}</span>
+                        <span className={`mt-0.5 line-clamp-2 text-[10px] ${CMC.muted}`}>
+                          {stripParentheticals(comp.company_name)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
+          </main>
+
+          <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -626,7 +1076,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </div>
             </div>
 
-            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
+            <div className={`rounded-xl ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
               <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
                 <div className="min-w-0">
                   <span className="block text-xs font-bold text-white">Latest</span>
@@ -649,10 +1099,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   const thumb = pickNewsThumbImage(item);
                   const itemSymbol = String(item?.symbol || symbol).trim().toUpperCase();
                   const content = (
-                    <div className={`group rounded-lg border ${CMC.line} bg-[var(--dsa-surface-2)] p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
+                    <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
                       <div className="flex gap-3">
                         {thumb ? (
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[var(--dsa-border)] bg-black/30">
+                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
                             <img src={thumb} alt="" className="h-full w-full object-cover" />
                           </div>
                         ) : (
@@ -692,7 +1142,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   );
                 })}
                 {sidebarNews.length === 0 ? (
-                  <div className={`rounded-lg border ${CMC.line} bg-[var(--dsa-surface-2)] px-4 py-8 text-center`}>
+                  <div className={`rounded-lg border ${CMC.line} bg-[#0d1621]/70 px-4 py-8 text-center`}>
                     <Newspaper className="mx-auto mb-3 h-5 w-5 text-[#7b9cff]" aria-hidden />
                     <p className={`text-xs ${CMC.muted}`}>No headlines for {symbol} yet.</p>
                   </div>
