@@ -10,7 +10,11 @@ import type { News } from "@/src/types/News";
 import { BeginnerService, type BeginnerBoardRow, type TopByVolumeRow } from "@/src/services/Beginner.service";
 import { stripParentheticals, symbolLogoUrl } from "@/src/libs/displayString";
 import { MARKET_MOVERS_LIST_LIMIT } from "@/src/libs/marketViewConstants";
-import { boardRowsToHeatmap, fetchHeatmapRowsFromApi } from "@/src/libs/heatmapTreemap";
+import {
+  boardRowsToHeatmap,
+  fetchHeatmapRowsFromApi,
+  type HeatmapListRow,
+} from "@/src/libs/heatmapTreemap";
 
 const C = {
   card: "bg-[#1e2329] border border-[#2b3139]",
@@ -71,9 +75,6 @@ function VolumeListLogo({ symbol, url }: { symbol: string; url?: string | null }
     </span>
   );
 }
-
-type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number };
-
 
 function CompactHeatmap({ data, ariaLabel }: { data: HeatmapListRow[]; ariaLabel: string }) {
   const router = useRouter();

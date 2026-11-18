@@ -59,7 +59,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 ### Phase 4 — Module-by-module refinement (P1→P2)
 - [~] M1 Home/Market View converted from marketing hero to compact research header; sticky toolbar now respects global header. Source-freshness strip remains.
 - [x] P0 Market View history persistence: canonical Python sync covers the 40-symbol runtime universe, least-covered symbols run first, missing/short history is explicit, synthetic sparklines are removed, and Pi coverage audit/runbook are included. Live Pi data still must pass 40/40 coverage before release.
-- [~] M2 Ranking eligibility is gated; Screener now has sticky dense numeric table and partial-data warning. Heatmap/filter work remains.
+- [~] M2 Ranking eligibility is gated; Screener has a sticky dense numeric table, and Heatmap now preserves missing-vs-zero semantics, exposes source/coverage, uses a wide dense Finviz-style treemap and explicit unavailable states. Advanced filters/presets remain.
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
@@ -89,6 +89,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: P1.3 Market breadth/Heatmap updated: missing change no longer becomes 0%, endpoint failures are not silently swallowed, fallback source/coverage are shown, responsive Finviz-style treemap/legend added, and nested-card wrapper removed. No deployment performed.
 - 2026-11-18: P1.2 Company Profile migrated to shared research-terminal tokens: compact symbol header, realtime daily change, flatter chart/paper-trading panels, fake local sentiment defaults removed, and placeholder Holders/Follow/Pro controls removed. No deployment performed.
 - 2026-11-18: Root-cause chain expanded: scheduled Python OHLC sync was top 20 while UI board is 40; realtime explicitly allowed 10 quote-only symbols; Redis production normalization applied dev seed helpers; socket imported a missing universe module; duplicate Laravel/Python OHLC writers used incompatible adjustment/timestamp conventions. P0 branch now aligns these paths around the canonical Python DSATurbo pipeline and audits duplicate trading-date rows.
 - 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
