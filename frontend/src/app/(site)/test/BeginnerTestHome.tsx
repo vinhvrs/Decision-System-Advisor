@@ -99,6 +99,7 @@ const DEV_BOARD_FETCH_LIMIT = 200;
 const DEV_SYMBOL_ORDER = new Map(DEV_SYMBOL_SEED.map((r, i) => [r.symbol.toUpperCase(), i]));
 
 function filterBoardRowsForDevMode(rows: BeginnerBoardRow[]): BeginnerBoardRow[] {
+  if (!isDemoDevMode()) return rows;
   const filtered = rows.filter((r) => DEV_SYMBOL_ORDER.has(r.symbol.toUpperCase()));
   filtered.sort((a, b) => {
     const ia = DEV_SYMBOL_ORDER.get(a.symbol.toUpperCase()) ?? 999;
@@ -268,6 +269,7 @@ function devBoardRowIsThin(r: BeginnerBoardRow): boolean {
 
 /** Always show all ``DEV_SYMBOL_SEED`` tickers; fill gaps when Redis row missing or has no usable price. */
 async function ensureDevBoardRowsComplete(partial: BeginnerBoardRow[]): Promise<BeginnerBoardRow[]> {
+  if (!isDemoDevMode()) return partial;
   const bySym = new Map(partial.map((r) => [r.symbol.toUpperCase(), r] as const));
   const missing = DEV_SYMBOL_SEED.filter((s) => {
     const row = bySym.get(s.symbol.toUpperCase());
@@ -298,8 +300,12 @@ async function buildRedisDailyBoardState(payload: BeginnerBoardPayload | null) {
     Array.isArray(payload.rows) && payload.rows.length > 0
       ? payload.rows
       : (payload as BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] }).ranking_board ?? [];
-  rows = filterBoardRowsForDevMode(rows);
-  rows = await ensureDevBoardRowsComplete(rows);
+  if (isDemoDevMode()) {
+    rows = filterBoardRowsForDevMode(rows);
+    rows = await ensureDevBoardRowsComplete(rows);
+  }
+  // Production must preserve the real Redis/database universe. Never inject
+  // DEV_SYMBOL_SEED rows into a public market board.
   rows = rows.slice(0, BOARD_LIMIT_PROD);
   return {
     rows,
