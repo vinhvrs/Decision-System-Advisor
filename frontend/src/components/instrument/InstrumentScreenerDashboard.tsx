@@ -44,10 +44,19 @@ function num(r: ScreenerRow, k: SortKey): number | string {
 }
 
 function formatAsOf(value: string | null): string {
-  if (!value) return "As-of time unavailable";
+  if (!value) return "As-of unavailable";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "As-of time unavailable";
-  return `As of ${d.toLocaleString()}`;
+  if (Number.isNaN(d.getTime())) return "As-of unavailable";
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(d);
+  return `${formatted} UTC`;
 }
 
 export function InstrumentScreenerDashboard() {
@@ -55,14 +64,12 @@ export function InstrumentScreenerDashboard() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("symbol");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("asc");
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
-    setWarning(null);
     try {
       const data = await InstrumentScreenerService.getTechScreener();
       if (!data?.rows?.length) {
@@ -75,14 +82,6 @@ export function InstrumentScreenerDashboard() {
       setRows(data.rows);
       setUpdatedAt(data.updated_at ?? null);
 
-      const hasFundamentals = data.rows.some(
-        (r) => r.fiscal_year != null || r.revenue != null || r.net_income != null
-      );
-      setWarning(
-        hasFundamentals
-          ? null
-          : "Market snapshot is available, but fundamental fields are currently unavailable for this universe."
-      );
     } catch {
       setErr("Screener data is temporarily unavailable.");
       setRows([]);
@@ -113,6 +112,32 @@ export function InstrumentScreenerDashboard() {
     });
     return list;
   }, [rows, sortKey, sortDir]);
+
+  const coverage = useMemo(() => {
+    const total = rows.length;
+    const market = rows.filter(
+      (row) => row.price != null && Number.isFinite(Number(row.price))
+    ).length;
+    const fundamentals = rows.filter(
+      (row) =>
+        row.fiscal_year != null ||
+        row.filing_date != null ||
+        row.revenue != null ||
+        row.net_income != null ||
+        row.roe != null ||
+        row.debt_equity != null
+    ).length;
+    return { total, market, fundamentals };
+  }, [rows]);
+
+  const coverageWarning =
+    coverage.total === 0
+      ? null
+      : coverage.fundamentals === 0
+        ? "Market snapshot is available, but SEC fundamental fields are unavailable for this universe."
+        : coverage.fundamentals < coverage.total
+          ? `SEC fundamentals are partial: ${coverage.fundamentals}/${coverage.total} symbols have filing-derived fields.`
+          : null;
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) {
@@ -190,13 +215,39 @@ export function InstrumentScreenerDashboard() {
           </div>
 
           <div className="shrink-0 text-right">
-            <p className="text-[10px] uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">Data timestamp</p>
+            <p className="text-[10px] uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">As of</p>
             <p className="mt-1 font-mono text-[11px] text-[var(--dsa-text-secondary)]">{formatAsOf(updatedAt)}</p>
           </div>
         </div>
       </header>
 
       <div className="dsa-page px-3 py-4 phone:px-4 tablet:px-5 laptop:px-6">
+        <section
+          aria-label="Screener data coverage"
+          className="mb-3 overflow-x-auto rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]"
+        >
+          <div className="flex min-w-max divide-x divide-[var(--dsa-border)] text-[11px]">
+            <div className="min-w-[130px] px-3 py-2">
+              <p className="font-medium text-[var(--dsa-text-secondary)]">Universe</p>
+              <p className="font-mono tabular-nums text-white">{coverage.total}/{SCREENER_TECH_SYMBOLS.length} rows</p>
+            </div>
+            <div className="min-w-[145px] px-3 py-2">
+              <p className="font-medium text-[var(--dsa-text-secondary)]">Market snapshot</p>
+              <p className="font-mono tabular-nums text-white">{coverage.market}/{coverage.total || SCREENER_TECH_SYMBOLS.length} priced</p>
+            </div>
+            <div className="min-w-[165px] px-3 py-2">
+              <p className="font-medium text-[var(--dsa-text-secondary)]">SEC fundamentals</p>
+              <p className="font-mono tabular-nums text-white">
+                {coverage.fundamentals}/{coverage.total || SCREENER_TECH_SYMBOLS.length} covered
+              </p>
+            </div>
+            <div className="min-w-[210px] px-3 py-2">
+              <p className="font-medium text-[var(--dsa-text-secondary)]">Source path</p>
+              <p className="text-white">Market snapshot · SEC annual filings</p>
+            </div>
+          </div>
+        </section>
+
         <section className="dsa-panel overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dsa-border)] px-3 py-2">
             <p className="text-xs text-[var(--dsa-text-muted)]">
@@ -207,9 +258,9 @@ export function InstrumentScreenerDashboard() {
             </button>
           </div>
 
-          {warning ? (
+          {coverageWarning ? (
             <div className="border-b border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-xs text-[#d9bb7a]">
-              {warning}
+              {coverageWarning}
             </div>
           ) : null}
 
