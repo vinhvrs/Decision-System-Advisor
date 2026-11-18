@@ -85,6 +85,18 @@ SCHEDULER_MISFIRE_GRACE_SEC = int(os.environ.get("SCHEDULER_MISFIRE_GRACE_SEC", 
 SYMBOL_INGEST_MODE = os.environ.get("SYMBOL_INGEST_MODE", "top_snapshot")
 SYMBOL_INGEST_TOP_N = max(1, int(os.environ.get("SYMBOL_INGEST_TOP_N", "20")))
 
+# Candle/snapshot persistence has a wider universe than news/corporate ingest.
+# The Market View can render 40 symbols, so the scheduled OHLC pipeline must
+# never default below that board size. Default 100 matches dashboard warm-up.
+STOCK_SYNC_MODE = os.environ.get("STOCK_SYNC_MODE", "top_snapshot")
+try:
+    STOCK_SYNC_TOP_N = max(
+        40,
+        min(500, int(os.environ.get("STOCK_SYNC_TOP_N", str(WARM_UP_LIMIT)))),
+    )
+except ValueError:
+    STOCK_SYNC_TOP_N = max(40, WARM_UP_LIMIT)
+
 # Embed + Qdrant for knowledge_docs (off by default: crawl-only; set NEWS_EMBED_ENABLED=1 to enable).
 _NEWS_EMBED_FLAG = os.environ.get("NEWS_EMBED_ENABLED", "0").strip().lower()
 NEWS_EMBED_ENABLED = _NEWS_EMBED_FLAG not in ("0", "false", "no", "off")
