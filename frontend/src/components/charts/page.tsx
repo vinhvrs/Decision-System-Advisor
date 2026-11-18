@@ -40,6 +40,9 @@ export type TradingChartMarketData = {
   period: TradingChartPeriod;
   candles: TradingChartCandle[];
   realtimeCandle: TradingChartCandle | null;
+  realtimeQuoteAt: number | null;
+  realtimeQuoteStale: boolean;
+  persistedLastBarAt: number | null;
   loading: boolean;
   error: string | null;
 };
@@ -274,6 +277,8 @@ export default function TradingChart({
   const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
   const [candles, setCandles] = useState<TradingChartCandle[]>([]);
   const [realtimeCandle, setRealtimeCandle] = useState<TradingChartCandle | null>(null);
+  const [realtimeQuoteAt, setRealtimeQuoteAt] = useState<number | null>(null);
+  const [realtimeQuoteStale, setRealtimeQuoteStale] = useState(false);
 
   const [selectedInstrument, setSelectedInstrument] =
     useState<InstrumentLike | null>(null);
@@ -358,6 +363,9 @@ export default function TradingChart({
       period: selectedPeriod,
       candles,
       realtimeCandle,
+      realtimeQuoteAt,
+      realtimeQuoteStale,
+      persistedLastBarAt: candles.length ? Number(candles[candles.length - 1]?.time) : null,
       loading: loadingChart,
       error: chartError,
     });
@@ -366,6 +374,8 @@ export default function TradingChart({
     selectedPeriod,
     candles,
     realtimeCandle,
+    realtimeQuoteAt,
+    realtimeQuoteStale,
     loadingChart,
     chartError,
     onMarketDataChange,
@@ -473,6 +483,8 @@ export default function TradingChart({
       setChartError(null);
       setCandles([]);
       setRealtimeCandle(null);
+      setRealtimeQuoteAt(null);
+      setRealtimeQuoteStale(false);
       setHasMoreCandles(true);
       setCandlePage(1);
 
@@ -530,14 +542,49 @@ export default function TradingChart({
     currentCandleFromDBRef.current = null;
 
     const socket = new SimpleSocket((data) => {
-      const msg = data as { type?: string; symbol?: string; current_candle?: any };
+      const msg = data as {
+        type?: string;
+        symbol?: string;
+        current_candle?: TradingChartCandle;
+        price?: unknown;
+        quote_ts?: unknown;
+        quote_stale?: boolean;
+      };
       const sym = msg.symbol;
 
       if (msg.type === "initial_quote") {
         if (sym !== selectedSymbol) return;
+
         if (msg.current_candle) {
           currentCandleFromDBRef.current = msg.current_candle;
-          setRealtimeCandle(msg.current_candle);
+        }
+
+        const initialPrice = Number(msg.price);
+        const initialQuoteTs = Number(msg.quote_ts);
+        const hasFreshQuote =
+          Number.isFinite(initialPrice) &&
+          initialPrice > 0 &&
+          Number.isFinite(initialQuoteTs) &&
+          initialQuoteTs > 0;
+
+        if (hasFreshQuote) {
+          setRealtimeQuoteAt(initialQuoteTs);
+          setRealtimeQuoteStale(msg.quote_stale === true);
+          setRealtimeCandle((prev) => {
+            const currentCandles = candlesRef.current;
+            const latestHistorical = currentCandles.length
+              ? currentCandles[currentCandles.length - 1]
+              : null;
+            return buildRealtimeBucketCandle({
+              price: initialPrice,
+              rawTs: initialQuoteTs,
+              period: selectedPeriod,
+              previousRealtime: prev,
+              latestHistorical,
+              currentCandleFromDB: currentCandleFromDBRef.current,
+              symbol: selectedSymbol,
+            });
+          });
         }
         return;
       }
@@ -551,6 +598,8 @@ export default function TradingChart({
 
       if (!Number.isFinite(price) || price <= 0) return;
 
+      setRealtimeQuoteAt(ts);
+      setRealtimeQuoteStale(false);
       setRealtimeCandle((prev) => {
         const currentCandles = candlesRef.current;
         const latestHistorical =
@@ -585,6 +634,8 @@ export default function TradingChart({
       clearTimeout(timer);
       socket.disconnect();
       setRealtimeCandle(null);
+      setRealtimeQuoteAt(null);
+      setRealtimeQuoteStale(false);
       currentCandleFromDBRef.current = null;
     };
   }, [selectedSymbol, selectedPeriod]);
