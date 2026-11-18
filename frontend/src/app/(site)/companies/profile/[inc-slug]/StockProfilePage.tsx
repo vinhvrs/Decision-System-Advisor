@@ -1061,50 +1061,47 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </main>
 
           <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-white line-clamp-1">
-                    {stripParentheticals(details?.company_name) || symbol}
-                  </p>
-                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} votes on this device</p>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-lg bg-[#3861fb] px-3 py-1.5 text-[11px] font-bold text-white"
-                  title="Coming soon"
-                >
-                  + Follow
-                </button>
-              </div>
-              <p className={`mt-3 text-xs font-semibold ${CMC.muted}`}>Community sentiment</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
-                <div
-                  className="h-full rounded-full bg-[#16c784] transition-all duration-300"
-                  style={{ width: `${bullishPct}%` }}
-                />
-              </div>
-              <div className="mt-1 flex justify-between text-[11px] font-semibold">
-                <span className={CMC.green}>{bullishPct}% Bullish</span>
-                <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
-              </div>
+            <section className="rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
+              <p className="text-xs font-semibold text-white">Local sentiment poll</p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+                Stored only in this browser for {symbol}. This is not market-wide sentiment data.
+              </p>
+
+              {bullishPct == null ? (
+                <p className="mt-3 text-xs text-[var(--dsa-text-muted)]">No local votes yet.</p>
+              ) : (
+                <>
+                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(231,91,100,0.22)]">
+                    <div
+                      className="h-full bg-[var(--dsa-positive)] transition-[width] duration-300"
+                      style={{ width: `${bullishPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex justify-between font-mono text-[10px] font-semibold tabular-nums">
+                    <span className={CMC.green}>{bullishPct}% Bullish</span>
+                    <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">{sentimentTotal} local votes</p>
+                </>
+              )}
+
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={voteBullish}
-                  className={`rounded-xl border-2 border-[#16c784]/50 py-2.5 text-xs font-bold ${CMC.green} transition hover:bg-[#16c784]/10`}
+                  className="rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.45)] py-2 text-xs font-semibold text-[var(--dsa-positive)] transition-colors hover:bg-[rgba(44,182,125,0.08)]"
                 >
                   Bullish
                 </button>
                 <button
                   type="button"
                   onClick={voteBearish}
-                  className={`rounded-xl border-2 border-[#ea3943]/50 py-2.5 text-xs font-bold ${CMC.red} transition hover:bg-[#ea3943]/10`}
+                  className="rounded-[var(--dsa-radius-sm)] border border-[rgba(231,91,100,0.45)] py-2 text-xs font-semibold text-[var(--dsa-negative)] transition-colors hover:bg-[rgba(231,91,100,0.08)]"
                 >
                   Bearish
                 </button>
               </div>
-            </div>
+            </section>
 
             <div className={`rounded-xl ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
               <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
