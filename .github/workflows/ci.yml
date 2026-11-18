@@ -167,6 +167,9 @@ jobs:
           grep -q 'SCHEDULER_MAX_WORKERS: "1"' ../ops/pi/compose.runtime.override.yml
           grep -q 'SYMBOL_INGEST_TOP_N: "40"' ../ops/pi/compose.runtime.override.yml
           grep -q 'MARKET_BOARD_SYMBOL_LIMIT: "40"' ../ops/pi/compose.runtime.override.yml
+          grep -q 'LIVE_ONLY_MIGRATIONS' ../scripts/pi-backend-deploy.sh
+          grep -q 'CONTENT_CHANGED_MIGRATIONS' ../scripts/pi-backend-deploy.sh
+          grep -q 'metadata differences ignored' ../scripts/pi-backend-deploy.sh
 
 
       - name: Run DSA production guard tests
