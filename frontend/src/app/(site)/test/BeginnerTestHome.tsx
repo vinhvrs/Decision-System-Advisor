@@ -440,7 +440,7 @@ function isRowEligibleForConviction(r: BeginnerBoardRow): boolean {
   );
 }
 
-/** Five-tier stance from validated Python-engine indicators only (Str + radar averages). */
+/** Five-tier research bias from validated Python-engine indicators only (strength + radar averages). */
 function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
   if (!isRowEligibleForConviction(r)) return "unrated";
   const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
@@ -934,7 +934,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
           </div>
         </div>
         <div className="col-span-2 phone:col-span-1">
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Stance / Str</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Bias / Strength</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <span
               className={`inline-block max-w-[6.5rem] rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${convictionBadgeClass(conviction)}`}
@@ -957,7 +957,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
           </div>
         </div>
         <div className="col-span-2 phone:col-span-1">
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Upside</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Room to high</p>
           <div className="mt-0.5">
             <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
           </div>
@@ -1904,8 +1904,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Stance"
-                          title={`Blend of model signals (strength + multi-factor scores). Shown separately from the ${periodChangeLabel(period)} column.`}
+                          label="Bias"
+                          title={`Directional research bias from strength + validated multi-factor scores. Shown separately from the ${periodChangeLabel(period)} column.`}
                           columnKey="bias"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -2007,7 +2007,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                       Analyst consensus targets are shown only when sourced; no synthetic target is generated.
                     </li>
                     <li>
-                      <strong className="text-white/80">Stance</strong> summarizes the model outlook; it does not replace
+                      <strong className="text-white/80">Bias</strong> summarizes the directional research view; it does not replace
                       the {periodChangeLabel(period)} column.
                     </li>
                   </ul>
