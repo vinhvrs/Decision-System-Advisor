@@ -37,6 +37,7 @@ from app.bootstrap.scheduler_config import (
     SCHEDULE_INTERVAL_HOURS,
     SCHEDULER_MISFIRE_GRACE_SEC,
     SCHEDULER_MAX_WORKERS,
+    ENGINE_RESOURCE_PROFILE,
     RANKING_FIRST_DELAY_SEC,
     STOCK_SYNC_FIRST_DELAY_SEC,
     AUTO_ANALYZE_FIRST_DELAY_SEC,
@@ -328,6 +329,7 @@ def build_scheduler_health_payload(scheduler) -> dict:
     return {
         "ok": True,
         "running": scheduler.running,
+        "resource_profile": ENGINE_RESOURCE_PROFILE,
         "scheduler_max_workers": SCHEDULER_MAX_WORKERS,
         "startup_delays_sec": {
             "ranking_sync": RANKING_FIRST_DELAY_SEC,
