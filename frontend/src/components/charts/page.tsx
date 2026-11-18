@@ -21,7 +21,28 @@ import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTr
 import { useAuth, readHasTradingSession } from "@/src/hooks/useAuth";
 import TradingSignInPrompt from "@/src/components/trading/TradingSignInPrompt";
 
-type TF = "daily" | "weekly" | "monthly" | "yearly";
+export type TradingChartPeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+export type TradingChartCandle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  symbol?: string;
+};
+
+type TF = TradingChartPeriod;
+
+export type TradingChartMarketData = {
+  symbol: string;
+  period: TradingChartPeriod;
+  candles: TradingChartCandle[];
+  realtimeCandle: TradingChartCandle | null;
+  loading: boolean;
+  error: string | null;
+};
 
 interface TradingChartProps {
   defaultSymbol?: string;
@@ -37,6 +58,8 @@ interface TradingChartProps {
   /** Fill parent card instead of full dashboard shell. */
   embed?: boolean;
   onPaperTradingChange?: (snapshot: PaperTradingSnapshot) => void;
+  /** Emits the exact persisted + realtime series rendered by this chart. */
+  onMarketDataChange?: (state: TradingChartMarketData) => void;
 }
 
 type InstrumentLike = Instrument & {
@@ -123,8 +146,8 @@ function getPeriodBucketMs(rawTs: number | string | Date, period: TF): number | 
   return date.getTime();
 }
 
-function normalizeCandles(list: any[], period: TF) {
-  const uniqueMap = new Map<number, any>();
+function normalizeCandles(list: any[], period: TF): TradingChartCandle[] {
+  const uniqueMap = new Map<number, TradingChartCandle>();
 
   list
     .filter((d: any) => d.timestamp || d.timestamps || d.time)
@@ -160,8 +183,8 @@ function normalizeCandles(list: any[], period: TF) {
   return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
 }
 
-function mergeCandles(prev: any[], next: any[]) {
-  const map = new Map<number, any>();
+function mergeCandles(prev: TradingChartCandle[], next: TradingChartCandle[]) {
+  const map = new Map<number, TradingChartCandle>();
 
   [...prev, ...next].forEach((c) => {
     if (!c?.time) return;
@@ -185,10 +208,10 @@ function buildRealtimeBucketCandle({
   volume?: number;
   rawTs: number;
   period: TF;
-  previousRealtime: any | null;
-  latestHistorical: any | null;
+  previousRealtime: TradingChartCandle | null;
+  latestHistorical: TradingChartCandle | null;
   /** Current period candle from DB (initial_quote) - open price to avoid gap */
-  currentCandleFromDB: any | null;
+  currentCandleFromDB: TradingChartCandle | null;
   symbol: string;
 }) {
   const bucketTime = getPeriodBucketMs(rawTs, period);
@@ -246,10 +269,11 @@ export default function TradingChart({
   hidePositionsPanel = false,
   embed = false,
   onPaperTradingChange,
+  onMarketDataChange,
 }: TradingChartProps) {
   const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
-  const [candles, setCandles] = useState<any[]>([]);
-  const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
+  const [candles, setCandles] = useState<TradingChartCandle[]>([]);
+  const [realtimeCandle, setRealtimeCandle] = useState<TradingChartCandle | null>(null);
 
   const [selectedInstrument, setSelectedInstrument] =
     useState<InstrumentLike | null>(null);
@@ -318,14 +342,34 @@ export default function TradingChart({
   const loadingMoreCandlesRef = useRef(false);
   const candlePageRef = useRef(1);
   const requestKeyRef = useRef(0);
-  const candlesRef = useRef<any[]>([]);
-  const currentCandleFromDBRef = useRef<any>(null);
+  const candlesRef = useRef<TradingChartCandle[]>([]);
+  const currentCandleFromDBRef = useRef<TradingChartCandle | null>(null);
 
   const PAGE_SIZE = 1000;
 
   useEffect(() => {
     candlesRef.current = candles;
   }, [candles]);
+
+  useEffect(() => {
+    if (!onMarketDataChange) return;
+    onMarketDataChange({
+      symbol: activeSymbol,
+      period: selectedPeriod,
+      candles,
+      realtimeCandle,
+      loading: loadingChart,
+      error: chartError,
+    });
+  }, [
+    activeSymbol,
+    selectedPeriod,
+    candles,
+    realtimeCandle,
+    loadingChart,
+    chartError,
+    onMarketDataChange,
+  ]);
 
   const loadCandlePage = useCallback(
     async ({
@@ -507,7 +551,7 @@ export default function TradingChart({
 
       if (!Number.isFinite(price) || price <= 0) return;
 
-      setRealtimeCandle((prev: any) => {
+      setRealtimeCandle((prev) => {
         const currentCandles = candlesRef.current;
         const latestHistorical =
           Array.isArray(currentCandles) && currentCandles.length > 0
