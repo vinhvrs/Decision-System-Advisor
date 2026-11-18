@@ -751,15 +751,18 @@ export default function TradingHistoryPage() {
   return (
     <div className="dsa-page text-[var(--dsa-text)]">
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Investing History Simulator</h1>
-            <p className="mt-1 text-sm text-white/70">Review past candles, place long-horizon paper decisions, then speed up to your target date.</p>
+        <section className="dsa-terminal-page-head">
+          <div className="min-w-0">
+            <p className="dsa-section-label">Historical research</p>
+            <h1 className="mt-0.5 text-sm font-semibold text-white">Investing history simulator</h1>
+            <p className="mt-0.5 max-w-3xl truncate text-[10px] text-[var(--dsa-text-muted)]">
+              Replay historical candles, test paper decisions, and inspect long-horizon advice context.
+            </p>
           </div>
-          <Link href="/investing" className="rounded-lg border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">
-            Back to Investing
+          <Link href="/investing" className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]">
+            Back to research
           </Link>
-        </div>
+        </section>
 
         <section className="dsa-terminal-panel overflow-hidden">
           <div className="grid grid-cols-1 gap-2 border-b border-[var(--dsa-border)] bg-[#0b1118] p-3 laptop:grid-cols-8">
@@ -911,7 +914,7 @@ export default function TradingHistoryPage() {
                   <select
                     value={orderSide}
                     onChange={(e) => setOrderSide(e.target.value as OrderSide)}
-                    className="min-w-0 flex-1 rounded border border-white/15 bg-[#0b1220] px-1 py-0.5"
+                    className="dsa-control h-7 min-h-0 min-w-0 flex-1 px-1.5 text-[10px]"
                   >
                     <option value="buy">Accumulate</option>
                     <option value="sell">Reduce</option>
@@ -925,7 +928,7 @@ export default function TradingHistoryPage() {
                     step={0.01}
                     value={orderVolume}
                     onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))}
-                    className="w-full rounded border border-white/15 bg-[#0b1220] px-1 py-0.5"
+                    className="dsa-control h-7 min-h-0 w-full px-1.5 text-[10px]"
                   />
                 </label>
                 <label className="flex items-center gap-1 text-[10px] text-white/70">
@@ -936,14 +939,14 @@ export default function TradingHistoryPage() {
                     step={1}
                     value={orderLeverage}
                     onChange={(e) => setOrderLeverage(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full rounded border border-white/15 bg-[#0b1220] px-1 py-0.5"
+                    className="dsa-control h-7 min-h-0 w-full px-1.5 text-[10px]"
                   />
                 </label>
               </div>
               <div className="mt-2 flex gap-1.5">
                 <button
                   type="button"
-                  className="flex-1 rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                  className="flex-1 rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.3)] bg-[rgba(44,182,125,0.1)] px-2 py-1 text-[10px] font-semibold text-[var(--dsa-positive)] hover:bg-[rgba(44,182,125,0.16)]"
                   onClick={() => {
                     const atIso = pickToBarTimestamp(investPopup.pick);
                     placeOrderAt(investPopup.pick.close, atIso, { timeSec: investPopup.pick.timeSec });
@@ -954,7 +957,7 @@ export default function TradingHistoryPage() {
                 </button>
                 <button
                   type="button"
-                  className="rounded border border-white/25 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10"
+                  className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px]"
                   onClick={() => setInvestPopup(null)}
                 >
                   Cancel
@@ -984,25 +987,25 @@ export default function TradingHistoryPage() {
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] text-white/70">Decision:</span>
-              <select value={orderSide} onChange={(e) => setOrderSide(e.target.value as OrderSide)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs">
+              <select value={orderSide} onChange={(e) => setOrderSide(e.target.value as OrderSide)} className="dsa-control h-7 min-h-0 px-1.5 text-[10px]">
                 <option value="buy">ACCUMULATE</option>
                 <option value="sell">REDUCE</option>
               </select>
               <span className="text-[10px] text-white/70">By volume:</span>
-              <input type="number" min={0.01} step={0.01} value={orderVolume} onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))} className="w-20 rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
+              <input type="number" min={0.01} step={0.01} value={orderVolume} onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))} className="dsa-control h-7 min-h-0 w-20 px-1.5 text-[10px]" />
               <span className="text-[10px] text-white/70">By weight:</span>
-              <input type="number" min={1} step={1} value={orderLeverage} onChange={(e) => setOrderLeverage(Math.max(1, Number(e.target.value) || 1))} className="w-16 rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
-              <button onClick={placeOrder} disabled={!currentBar || currentPrice <= 0} className="rounded bg-[#2563eb] px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-60">Place</button>
-              <button onClick={stepForward} disabled={!canStep} className="rounded bg-[#1f2937] px-2.5 py-1 text-xs text-white disabled:opacity-60">Next</button>
+              <input type="number" min={1} step={1} value={orderLeverage} onChange={(e) => setOrderLeverage(Math.max(1, Number(e.target.value) || 1))} className="dsa-control h-7 min-h-0 w-16 px-1.5 text-[10px]" />
+              <button onClick={placeOrder} disabled={!currentBar || currentPrice <= 0} className="dsa-button-primary min-h-0 px-2.5 py-1 text-[10px] disabled:opacity-50">Place</button>
+              <button onClick={stepForward} disabled={!canStep} className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px] disabled:opacity-50">Next</button>
               <span className="text-[10px] text-white/70">Speed:</span>
-              <select value={String(speed)} onChange={(e) => setSpeed(Number(e.target.value) as Speed)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs">
+              <select value={String(speed)} onChange={(e) => setSpeed(Number(e.target.value) as Speed)} className="dsa-control h-7 min-h-0 px-1.5 text-[10px]">
                 <option value="1">1x (0.7s/candle)</option>
                 <option value="2">2x (0.35s/candle)</option>
                 <option value="4">4x (0.15s/candle)</option>
               </select>
-              <input type="date" min={fromDate || undefined} max={toDate || undefined} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
-              <button onClick={startAuto} disabled={bars.length < 2 || autoRunning} className="rounded bg-[#2563eb] px-2 py-1 text-xs font-semibold disabled:opacity-60">Speed Up</button>
-              <button onClick={stopAuto} disabled={!autoRunning} className="rounded bg-[#1f2937] px-2 py-1 text-xs disabled:opacity-60">Stop</button>
+              <input type="date" min={fromDate || undefined} max={toDate || undefined} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="dsa-control h-7 min-h-0 px-1.5 text-[10px]" />
+              <button onClick={startAuto} disabled={bars.length < 2 || autoRunning} className="dsa-button-primary min-h-0 px-2 py-1 text-[10px] disabled:opacity-50">Speed Up</button>
+              <button onClick={stopAuto} disabled={!autoRunning} className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-50">Stop</button>
             </div>
             <p className="mt-2 text-[10px] text-white/70">
               Position: {shares > 0 ? "Long" : "Flat"} &nbsp; Equity ({currency}): {fmtMoney(equity, currency)} &nbsp; Profit and Loss:{" "}
@@ -1034,10 +1037,15 @@ export default function TradingHistoryPage() {
         </section>
 
         <section className="dsa-terminal-panel overflow-hidden">
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white/80">History Advice (Demo)</h2>
-          <p className="mb-3 text-xs text-white/60">
-            Simulated 6-attribute investing radar for 10 fixed symbols. Advice is long-horizon oriented.
-          </p>
+          <div className="dsa-terminal-panel-head">
+            <div>
+              <p className="text-xs font-semibold text-white">History advice (demo)</p>
+              <p className="text-[10px] text-[var(--dsa-text-muted)]">
+                Simulated six-factor long-horizon research context for the fixed demo universe.
+              </p>
+            </div>
+            <span className="font-mono text-[9px] text-[var(--dsa-text-muted)]">{demoHistoryAdviceRows.length} rows</span>
+          </div>
           <div className="overflow-x-auto">
             <table className="dsa-terminal-table min-w-[980px]">
               <thead>
@@ -1067,7 +1075,7 @@ export default function TradingHistoryPage() {
                     <td className="px-3 py-2">{row.sentiment.toFixed(1)}</td>
                     <td className="px-3 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 font-semibold ${
+                        className={`rounded-[var(--dsa-radius-sm)] px-1.5 py-0.5 text-[9px] font-semibold ${
                           row.advice === "ACCUMULATE"
                             ? "bg-emerald-500/20 text-emerald-300"
                             : row.advice === "KEEP"
