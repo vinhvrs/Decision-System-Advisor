@@ -47,7 +47,7 @@ class DataPeriods extends Command
     {
         Log::info('[Schedule] DataPeriods started', ['db' => DB::connection()->getDatabaseName()]);
 
-        $instruments = $this->targetInstruments();
+        $instruments = $this->rotateTargetOrder($this->targetInstruments());
 
         Log::info('[Schedule] DataPeriods target universe', [
             'count' => $instruments->count(),
@@ -164,6 +164,57 @@ class DataPeriods extends Command
             ->orderBy('symbol')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Rotate the scheduled universe so an upstream rate limit cannot starve the
+     * same alphabetical tail on every run. Explicit --symbols requests keep the
+     * caller's intended set/order stable.
+     */
+    private function rotateTargetOrder($instruments)
+    {
+        $items = $instruments->values();
+        $count = $items->count();
+
+        if ($count <= 1 || trim((string) $this->option('symbols')) !== '') {
+            return $items;
+        }
+
+        $slot = intdiv(now()->timestamp, 15 * 60);
+        $step = $this->coprimeStep($count);
+        $offset = ($slot * $step) % $count;
+
+        if ($offset === 0) {
+            return $items;
+        }
+
+        return $items
+            ->slice($offset)
+            ->concat($items->slice(0, $offset))
+            ->values();
+    }
+
+    private function coprimeStep(int $count): int
+    {
+        if ($count <= 2) {
+            return 1;
+        }
+
+        $candidate = max(2, (int) floor($count / 3));
+        while ($candidate < $count && $this->greatestCommonDivisor($candidate, $count) !== 1) {
+            $candidate++;
+        }
+
+        return $candidate >= $count ? 1 : $candidate;
+    }
+
+    private function greatestCommonDivisor(int $a, int $b): int
+    {
+        while ($b !== 0) {
+            [$a, $b] = [$b, $a % $b];
+        }
+
+        return abs($a);
     }
 
     // ---------- periods ----------
