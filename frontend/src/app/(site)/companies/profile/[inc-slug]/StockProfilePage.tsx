@@ -177,7 +177,7 @@ function formatUsdStat(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-/** Dark theme surface tokens for company profile */
+/** Shared research-terminal surface tokens for company profile. */
 const CMC = {
   bg: "bg-[var(--dsa-bg)]",
   card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
@@ -186,8 +186,8 @@ const CMC = {
   green: "text-[var(--dsa-positive)]",
   red: "text-[var(--dsa-negative)]",
   line: "border-[var(--dsa-border)]",
-  tabActive: "border-[var(--dsa-accent)] text-white",
-  tabIdle: "border-transparent text-[var(--dsa-text-muted)] hover:text-white",
+  tabActive: "border-[#4c8dff] text-white bg-[var(--dsa-accent-soft)]",
+  tabIdle: "border-transparent text-[var(--dsa-text-muted)] hover:text-white hover:bg-[var(--dsa-surface-2)]",
 };
 
 function computeProfileScore(d: any): number {
@@ -240,7 +240,7 @@ function StatTile({
 
 const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "chart", label: "Chart" },
-  { id: "markets", label: "Markets" },
+  { id: "markets", label: "Listing" },
   { id: "news", label: "News" },
   { id: "fundamentals", label: "Fundamentals" },
   { id: "about", label: "About" },
@@ -462,7 +462,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
       socket.disconnect();
       setRealtimeCandle(null);
     };
-  }, [symbol, selectedPeriod]);
+  }, [symbol]);
 
   if (loading) {
     return (
@@ -475,7 +475,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const changeLabel =
     selectedPeriod === "daily"
-      ? "24h vs previous daily close"
+      ? "Daily vs previous close"
       : `Change vs previous ${selectedPeriod} bar`;
 
   const toggleWatchlist = async () => {
@@ -843,8 +843,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Venue</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Symbol</th>
                         <th className="px-4 py-2 text-[11px] font-semibold uppercase">Price</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Volume (est.)</th>
-                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Vol %</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Est. $ volume</th>
+                        <th className="px-4 py-2 text-[11px] font-semibold uppercase">Est. vol / mkt cap</th>
                       </tr>
                     </thead>
                     <tbody>
