@@ -15,7 +15,7 @@ use Carbon\Carbon;
 
 class DataPeriods extends Command
 {
-    protected $signature = 'data:periods';
+    protected $signature = 'data:periods {--symbols= : Comma-separated symbol override} {--limit= : Maximum symbols from the live snapshot universe}';
     protected $description = 'Incremental DAILY from Yahoo + chained aggregation: daily->weekly->monthly->yearly (low transfer).';
 
     /**
@@ -109,15 +109,23 @@ class DataPeriods extends Command
      */
     private function targetInstruments()
     {
+        $cliLimit = $this->option('limit');
         $limit = max(
             1,
             min(
                 500,
-                (int) env('DATA_PERIODS_SYMBOL_LIMIT', self::DEFAULT_SYMBOL_LIMIT)
+                is_numeric($cliLimit)
+                    ? (int) $cliLimit
+                    : (int) env('DATA_PERIODS_SYMBOL_LIMIT', self::DEFAULT_SYMBOL_LIMIT)
             )
         );
 
-        $explicit = collect(explode(',', (string) env('DATA_PERIODS_SYMBOLS', '')))
+        $cliSymbols = trim((string) $this->option('symbols'));
+        $symbolSource = $cliSymbols !== ''
+            ? $cliSymbols
+            : (string) env('DATA_PERIODS_SYMBOLS', '');
+
+        $explicit = collect(explode(',', $symbolSource))
             ->map(fn ($symbol) => strtoupper(trim((string) $symbol)))
             ->filter()
             ->unique()
@@ -383,38 +391,24 @@ class DataPeriods extends Command
 
             foreach ($timestamps as $i => $ts) {
 
-                // validate timestamp
+                // A malformed historical row should not permanently block all
+                // later bars for the symbol. Request/JSON failures still abort the
+                // symbol, but row-level gaps are skipped and logged.
                 if (!is_int($ts) && !ctype_digit((string) $ts)) {
-                    Log::error('[YahooAbort] Invalid timestamp', [
+                    Log::warning('[YahooSkip] Invalid timestamp', [
                         'symbol' => $symbol,
                         'value' => $ts,
                     ]);
-                    return [self::SYMBOL_ABORT, 0];
+                    continue;
                 }
 
-                // validate candle prices
                 if ($this->isInvalidYahooCandle($quotes, $i)) {
-                    Log::error('[YahooAbort] Invalid candle detected', [
+                    Log::warning('[YahooSkip] Invalid candle', [
                         'symbol' => $symbol,
                         'timestamp' => $ts,
-                    ]);
-                    return [self::SYMBOL_ABORT, 0];
-                }
-
-                // ensure quote arrays align on index i
-                if (
-                    !isset(
-                    $quotes['open'][$i],
-                    $quotes['high'][$i],
-                    $quotes['low'][$i],
-                    $quotes['close'][$i]
-                )
-                ) {
-                    Log::error('[YahooAbort] Quote index mismatch', [
-                        'symbol' => $symbol,
                         'index' => $i,
                     ]);
-                    return [self::SYMBOL_ABORT, 0];
+                    continue;
                 }
 
                 $timestampStr = Carbon::createFromTimestamp((int) $ts, 'UTC')
