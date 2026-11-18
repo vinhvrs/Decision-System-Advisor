@@ -81,6 +81,8 @@ jobs:
           grep -q 'DASHBOARD_WARM_UP_CHART_BARS=90' ../../docker-compose.yml
           grep -q 'SYMBOL_INGEST_TOP_N.*"40"' app/bootstrap/scheduler_config.py
           grep -q 'DASHBOARD_WARM_UP_LIMIT.*"40"' app/bootstrap/scheduler_config.py
+          grep -q 'COUNT(DISTINCT DATE(timestamps))' app/data_collect/collectors/stock_sync.py
+          grep -q 'persisted_daily = self.persisted_daily_frame' app/data_collect/collectors/stock_sync.py
 
       - name: Run table-mode regression tests
         run: python -m unittest tests.test_dsa_table_mode tests.test_history_policy
