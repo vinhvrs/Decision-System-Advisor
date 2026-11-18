@@ -26,6 +26,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [x] T2 Add explicit eligibility/data-state metadata through Python/Laravel/frontend ranking paths; remaining stale/delayed taxonomy work continues under C1/C2.
 - [x] T3 Fail closed against demo-table/demo-symbol mode in production defaults. Independent live production verification is still required before release.
 - [~] T4 Regression guards added for production table selection. Golden market-data fixtures for sparse history, stale quotes, holidays and recovery are still required.
+- [~] T5 Fix historical coverage parity for the 40-symbol Market View universe: remove 15-symbol persistence whitelist, keep UUID IDs intact, rotate scheduled backfill order, tolerate sparse Yahoo candles, expose history coverage metadata, and add `data:coverage`. CI/live Pi coverage verification remains before release.
 **Exit:** no invalid Buy/Sell states, zero-as-missing, or misleading live status. Compare legitimate scoring outputs unchanged.
 
 ### Phase 2 — Data provenance and content integrity (P1)
@@ -83,6 +84,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 Issue reproduced or conclusively classified; root-cause and code path documented; test added; numeric and data-provenance invariants pass; screenshot before/after if UI; responsive/keyboard checks; no unnecessary new polling or deployment; PR with rollback instructions; production outcome verified when released.
 
 ## Change log
+- 2026-11-18: Confirmed 40-symbol Market View history gap: board limit is 40 while `DataPeriods` persisted only 15 hard-coded tickers. Isolated P0 branch now aligns persistence to live snapshot universe, fixes UUID instrument IDs, removes synthetic/wiped sparklines, and adds `data:coverage` for Pi verification.
 - 2026-11-18: PHP runtime mismatch confirmed: committed vendor/lock require >=8.4 while Dockerfile/composer constraint were 8.2-compatible; isolated branch aligned to PHP 8.4 pending Pi runtime verification.
 - 2026-11-18: P1 UI foundation started on isolated child branch: neutral design tokens, compact global shell, Market View/Investing/Indicators/News/Documents/Screener cleanup, and CI workflow added. No deployment performed.
 - 2026-11-18: Data Health / Market Analytics source gap reconfirmed in selected baseline candidate; do not recreate or overwrite those live modules until production source parity is established.
