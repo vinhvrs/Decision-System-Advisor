@@ -88,5 +88,12 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Run DSA table resolver tests
-        run: php artisan test --filter DsaTablesTest
+      - name: Verify data commands are registered
+        run: |
+          php artisan list --raw | grep -q '^data:periods '
+          php artisan list --raw | grep -q '^data:coverage '
+
+      - name: Run DSA production guard tests
+        run: |
+          php artisan test --filter DsaTablesTest
+          php artisan test --filter SnapshotServiceUuidTest
