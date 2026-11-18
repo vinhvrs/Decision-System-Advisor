@@ -46,6 +46,23 @@ def ensure_snapshot_symbol_table(conn: pymysql.connections.Connection) -> None:
 ensure_snapshot_demo_table = ensure_snapshot_symbol_table
 SNAPSHOT_SYMBOL_TABLE = snapshot_symbol_table()
 
+DEFAULT_HISTORY_PRIORITY_SYMBOLS = (
+    "AMD", "ADBE", "CRM", "CSCO", "ASML",
+    "INTU", "QCOM", "NOW", "PANW", "SNOW",
+)
+
+
+def history_priority_symbols() -> list[str]:
+    raw = os.environ.get(
+        "HISTORY_PRIORITY_SYMBOLS",
+        ",".join(DEFAULT_HISTORY_PRIORITY_SYMBOLS),
+    )
+    return list(dict.fromkeys(
+        s.strip().upper()
+        for s in raw.split(",")
+        if s and s.strip()
+    ))
+
 
 def _doc_id_corporate(symbol: str, title: str, published_at, url: str) -> str:
     raw = f"{(symbol or '').strip().upper()}|{title}|{published_at}|{url}"
@@ -252,12 +269,47 @@ class DSATurbo:
                 return rows
 
             selected_ids = {str(row["id"]) for row in rows if row.get("id")}
+            selected_symbols = {
+                str(row["symbol"]).strip().upper()
+                for row in rows
+                if row.get("symbol")
+            }
             remaining = limit - len(rows)
             if remaining <= 0:
                 return rows
 
-            # Bootstrap symbols that do not yet have a snapshot row. Once daily
-            # OHLC exists, the snapshot/ranking job can rank them normally.
+            # First recover the board symbols that the realtime layer historically
+            # allowed even when they had no persisted OHLC.
+            priority = [
+                sym for sym in history_priority_symbols()
+                if sym not in selected_symbols
+            ]
+            if priority and remaining > 0:
+                ph = ",".join(["%s"] * len(priority))
+                cur.execute(
+                    f"""
+                    SELECT id, symbol
+                    FROM instruments
+                    WHERE type = 'stock'
+                      AND UPPER(TRIM(symbol)) IN ({ph})
+                    ORDER BY symbol ASC
+                    """,
+                    priority,
+                )
+                for row in (cur.fetchall() or []):
+                    iid = str(row.get("id") or "")
+                    sym = str(row.get("symbol") or "").strip().upper()
+                    if not iid or iid in selected_ids or sym in selected_symbols:
+                        continue
+                    rows.append(row)
+                    selected_ids.add(iid)
+                    selected_symbols.add(sym)
+                    remaining -= 1
+                    if remaining <= 0:
+                        return rows
+
+            # Then bootstrap any remaining stock instruments. Once daily OHLC
+            # exists, snapshot/ranking can rank them normally.
             if selected_ids:
                 placeholders = ",".join(["%s"] * len(selected_ids))
                 cur.execute(
