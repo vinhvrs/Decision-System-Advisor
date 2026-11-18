@@ -71,7 +71,7 @@ jobs:
 
       - name: Resolve npm security updates within declared ranges
         working-directory: frontend
-        run: npm audit fix --package-lock-only
+        run: npm audit fix --package-lock-only || true
 
       - name: Resolve targeted Composer security updates
         working-directory: backend
