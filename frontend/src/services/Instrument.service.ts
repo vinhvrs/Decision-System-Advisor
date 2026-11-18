@@ -234,8 +234,8 @@ export const InstrumentService = {
             }
             writeCachedBatchDailyCloses(cacheKey, out);
             return out;
-        } catch {
-            return {};
+        } catch (error) {
+            throw error;
         } finally {
             inflightBatchDailyCloses.delete(cacheKey);
         }
