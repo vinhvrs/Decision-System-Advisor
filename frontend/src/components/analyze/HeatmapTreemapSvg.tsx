@@ -120,7 +120,7 @@ export default function HeatmapTreemapSvg({
               const w = leaf.x1 - leaf.x0;
               const h = leaf.y1 - leaf.y0;
               const sym = String(leaf.data.symbol || "").toUpperCase();
-              const ch = Number(leaf.data.change_pct);
+              const ch = leaf.data.change_pct;
               const clipId = `hm-${idx}-${sym.replace(/[^A-Z0-9]/g, "")}`;
               const label = heatmapTileLabel(w, h, sym);
 
