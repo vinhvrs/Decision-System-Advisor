@@ -36,22 +36,13 @@ function ProfileField({
   mono?: boolean;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium uppercase tracking-wide text-white/40">{label}</label>
-      <div className="relative">
-        <Icon
-          size={16}
-          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25"
-          aria-hidden
-        />
-        <div
-          className={[
-            "w-full rounded-xl border border-white/10 bg-[#0b0e14]/80 px-4 py-3 pl-10 text-white/90",
-            mono ? "font-mono text-sm" : "text-sm",
-          ].join(" ")}
-        >
-          {value || "—"}
-        </div>
+    <div className="grid min-w-0 grid-cols-[132px_minmax(0,1fr)] items-center gap-3 border-b border-[var(--dsa-border)] px-3 py-2.5 last:border-b-0">
+      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+        <Icon size={13} className="shrink-0" aria-hidden />
+        <span>{label}</span>
+      </div>
+      <div className={`min-w-0 truncate text-xs text-white ${mono ? "font-mono" : ""}`}>
+        {value || "—"}
       </div>
     </div>
   );
@@ -99,14 +90,13 @@ export default function ProfilePage() {
   }, [user]);
 
   const { first, last } = useMemo(() => splitDisplayName(displayName), [displayName]);
-
   const initial = displayName.trim().charAt(0).toUpperCase() || "U";
 
   if (!ready) {
     return (
       <ProfileSettingsLayout title="Profile" breadcrumbLabel="Profile">
-        <div className="rounded-2xl border border-white/10 bg-[#161a21] p-8 text-sm text-white/45">
-          Loading your profile…
+        <div className="dsa-terminal-panel flex min-h-28 items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+          Loading profile…
         </div>
       </ProfileSettingsLayout>
     );
@@ -116,39 +106,51 @@ export default function ProfilePage() {
 
   return (
     <ProfileSettingsLayout title="Profile" breadcrumbLabel="Profile">
-      <div className="rounded-2xl border border-white/10 bg-[#161a21] p-6 phone:p-8">
-        <div className="mb-8 flex flex-col gap-5 border-b border-white/10 pb-8 sm:flex-row sm:items-center">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-2xl font-bold text-indigo-100 ring-2 ring-indigo-500/30">
-            {initial}
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-xl font-semibold text-white">{displayName}</h2>
-            <p className="mt-0.5 truncate text-sm text-white/45">{user.email}</p>
-            <span className="mt-3 inline-flex rounded-full border border-indigo-500/25 bg-indigo-500/10 px-2.5 py-0.5 text-xs font-medium text-indigo-200">
+      <div className="space-y-3">
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <div>
+              <p className="text-xs font-semibold text-white">Account identity</p>
+              <p className="text-[10px] text-[var(--dsa-text-muted)]">Session-backed account information.</p>
+            </div>
+            <span className="rounded-[var(--dsa-radius-sm)] border border-[rgba(76,141,255,0.28)] bg-[var(--dsa-accent-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#a9c7ff]">
               {roleLabel(user.role)}
             </span>
           </div>
-        </div>
 
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div className="flex items-center gap-3 border-b border-[var(--dsa-border)] px-3 py-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] font-mono text-sm font-semibold text-[#8ab4ff]">
+              {initial}
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold text-white">{displayName}</h2>
+              <p className="mt-0.5 truncate text-[10px] text-[var(--dsa-text-muted)]">{user.email}</p>
+            </div>
+          </div>
+
+          <div>
             <ProfileField label="First name" value={first} icon={UserIcon} />
             <ProfileField label="Last name" value={last} icon={UserIcon} />
+            <ProfileField label="Display name" value={displayName} icon={UserIcon} />
+            <ProfileField label="Username" value={user.username} icon={AtSign} mono />
+            <ProfileField label="Email" value={user.email} icon={Mail} />
+            <ProfileField label="Phone" value={user.phone || "Not provided"} icon={Phone} />
           </div>
+        </section>
 
-          <ProfileField label="Display name" value={displayName} icon={UserIcon} />
-          <ProfileField label="Username" value={user.username} icon={AtSign} mono />
-          <ProfileField label="Email address" value={user.email} icon={Mail} />
-          <ProfileField label="Phone" value={user.phone || "Not provided"} icon={Phone} />
-
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-white/40">
-            Profile details are loaded from your signed-in session. To change your password, go to{" "}
-            <Link href="/profile/change-password" className="text-indigo-300 hover:text-indigo-200">
-              Security
+        <section className="dsa-terminal-panel px-3 py-2.5">
+          <div className="flex flex-col gap-1 phone:flex-row phone:items-center phone:justify-between">
+            <p className="text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+              Profile details are loaded from your signed-in session.
+            </p>
+            <Link
+              href="/profile/change-password"
+              className="text-[10px] font-semibold text-[#8ab4ff] hover:text-white"
+            >
+              Open security settings →
             </Link>
-            .
           </div>
-        </div>
+        </section>
       </div>
     </ProfileSettingsLayout>
   );
