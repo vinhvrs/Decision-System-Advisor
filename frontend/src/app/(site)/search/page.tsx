@@ -136,7 +136,7 @@ function SearchResults() {
   const loading = hasQuery && resolvedQuery !== debouncedQ.trim();
 
   const popularPanel = (
-    <aside className="dsa-panel overflow-hidden laptop:sticky laptop:top-[calc(var(--dsa-header-height)+16px)] laptop:self-start">
+    <aside className="dsa-terminal-panel overflow-hidden laptop:sticky laptop:top-[calc(var(--dsa-header-height)+16px)] laptop:self-start">
       <div className="border-b border-[var(--dsa-border)] px-3 py-2">
         <p className="dsa-section-label">Popular symbols</p>
       </div>
@@ -168,56 +168,54 @@ function SearchResults() {
   );
 
   return (
-    <div className="-mx-3 min-h-screen bg-[var(--dsa-bg)] text-[var(--dsa-text)] phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
-      <header className="border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-4 phone:px-4 tablet:px-5 laptop:px-6">
-        <div className="dsa-page">
+    <div className="dsa-page space-y-3 bg-[var(--dsa-bg)] text-[var(--dsa-text)]">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
           <p className="dsa-section-label">Global search</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white tablet:text-2xl">
-            Companies & market news
-          </h1>
-          <form onSubmit={submitSearch} className="mt-3 flex max-w-3xl items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dsa-text-muted)]"
-                aria-hidden
-              />
-              <input
-                autoFocus={!hasQuery}
-                value={draftQuery}
-                onChange={(event) => setDraftState({ sourceQuery: q, value: event.target.value })}
-                placeholder="Ticker or company name"
-                aria-label="Search ticker or company"
-                className="dsa-control h-9 w-full pl-9 pr-3 text-sm placeholder:text-[var(--dsa-text-muted)]"
-              />
-            </div>
-            <button type="submit" className="dsa-button-primary h-9 shrink-0 px-4" disabled={draftQuery.trim().length < 2}>
-              Search
-            </button>
-          </form>
-          <p className="mt-2 text-[11px] text-[var(--dsa-text-muted)]">
-            Search requires at least two characters. Company matches come from the indexed instrument catalog; related news is matched separately.
+          <h1 className="mt-0.5 text-sm font-semibold text-white">Companies & market news</h1>
+          <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">
+            Indexed companies and separately matched source-linked news.
           </p>
         </div>
-      </header>
+        <form onSubmit={submitSearch} className="flex w-full items-center gap-2 tablet:w-[min(620px,58vw)]">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--dsa-text-muted)]"
+              aria-hidden
+            />
+            <input
+              autoFocus={!hasQuery}
+              value={draftQuery}
+              onChange={(event) => setDraftState({ sourceQuery: q, value: event.target.value })}
+              placeholder="Ticker or company name"
+              aria-label="Search ticker or company"
+              className="dsa-control h-8 min-h-0 w-full pl-8 pr-3 text-xs placeholder:text-[var(--dsa-text-muted)]"
+            />
+          </div>
+          <button type="submit" className="dsa-button-primary h-8 min-h-0 shrink-0 px-3 text-xs" disabled={draftQuery.trim().length < 2}>
+            Search
+          </button>
+        </form>
+      </section>
 
-      <div className="dsa-page grid gap-4 px-3 py-4 phone:px-4 tablet:px-5 laptop:grid-cols-[minmax(0,1fr)_280px] laptop:px-6">
+      <div className="grid gap-3 laptop:grid-cols-[minmax(0,1fr)_280px]">
         <main className="min-w-0 space-y-4">
           {!hasQuery ? (
-            <section className="dsa-panel p-4">
+            <section className="dsa-terminal-panel p-4">
               <h2 className="text-sm font-semibold text-white">Start with a symbol or company</h2>
               <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">
                 Examples: AAPL, NVIDIA, Microsoft. No result or score is inferred before a query is submitted.
               </p>
             </section>
           ) : searchPending || loading ? (
-            <section className="dsa-panel flex min-h-36 items-center justify-center gap-2 p-4 text-sm text-[var(--dsa-text-muted)]">
+            <section className="dsa-terminal-panel flex min-h-36 items-center justify-center gap-2 p-4 text-sm text-[var(--dsa-text-muted)]">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               Searching…
             </section>
           ) : (
             <>
               {suggestions.length > 0 && (
-                <section className="dsa-panel flex flex-wrap items-center gap-2 px-3 py-2">
+                <section className="dsa-terminal-panel flex flex-wrap items-center gap-2 px-3 py-2">
                   <span className="dsa-section-label mr-1">Suggestions</span>
                   {suggestions.map((suggestion) => (
                     <button
@@ -232,7 +230,7 @@ function SearchResults() {
                 </section>
               )}
 
-              <section className="dsa-panel overflow-hidden">
+              <section className="dsa-terminal-panel overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-[var(--dsa-border)] px-3 py-2">
                   <div>
                     <p className="dsa-section-label">Companies</p>
@@ -267,7 +265,7 @@ function SearchResults() {
                 )}
               </section>
 
-              <section className="dsa-panel overflow-hidden">
+              <section className="dsa-terminal-panel overflow-hidden">
                 <div className="border-b border-[var(--dsa-border)] px-3 py-2">
                   <p className="dsa-section-label">Related news</p>
                 </div>
