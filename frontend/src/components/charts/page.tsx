@@ -21,7 +21,33 @@ import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTr
 import { useAuth, readHasTradingSession } from "@/src/hooks/useAuth";
 import TradingSignInPrompt from "@/src/components/trading/TradingSignInPrompt";
 
-type TF = "daily" | "weekly" | "monthly" | "yearly";
+export type TradingChartPeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+export type TradingChartCandle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  symbol?: string;
+  source?: string;
+};
+
+type TF = TradingChartPeriod;
+
+export type TradingChartMarketData = {
+  symbol: string;
+  period: TradingChartPeriod;
+  candles: TradingChartCandle[];
+  realtimeCandle: TradingChartCandle | null;
+  realtimeQuoteAt: number | null;
+  realtimeQuoteStale: boolean;
+  persistedLastBarAt: number | null;
+  persistedSources: string[];
+  loading: boolean;
+  error: string | null;
+};
 
 interface TradingChartProps {
   defaultSymbol?: string;
@@ -37,6 +63,8 @@ interface TradingChartProps {
   /** Fill parent card instead of full dashboard shell. */
   embed?: boolean;
   onPaperTradingChange?: (snapshot: PaperTradingSnapshot) => void;
+  /** Emits the exact persisted + realtime series rendered by this chart. */
+  onMarketDataChange?: (state: TradingChartMarketData) => void;
 }
 
 type InstrumentLike = Instrument & {
@@ -123,8 +151,8 @@ function getPeriodBucketMs(rawTs: number | string | Date, period: TF): number | 
   return date.getTime();
 }
 
-function normalizeCandles(list: any[], period: TF) {
-  const uniqueMap = new Map<number, any>();
+function normalizeCandles(list: any[], period: TF): TradingChartCandle[] {
+  const uniqueMap = new Map<number, TradingChartCandle>();
 
   list
     .filter((d: any) => d.timestamp || d.timestamps || d.time)
@@ -133,19 +161,23 @@ function normalizeCandles(list: any[], period: TF) {
       const time = getPeriodBucketMs(rawTs, period);
       if (time === null) return;
 
-      const next = {
+      const next: TradingChartCandle = {
         time,
         open: Number(d.open),
         high: Number(d.high),
         low: Number(d.low),
         close: Number(d.close),
         volume: Number(d.volume || 0),
+        source:
+          typeof d.source === "string" && d.source.trim()
+            ? d.source.trim()
+            : undefined,
       };
 
-      if (!uniqueMap.has(time)) {
+      const prev = uniqueMap.get(time);
+      if (!prev) {
         uniqueMap.set(time, next);
       } else {
-        const prev = uniqueMap.get(time);
         uniqueMap.set(time, {
           time,
           open: Number(prev.open),
@@ -153,6 +185,7 @@ function normalizeCandles(list: any[], period: TF) {
           low: Math.min(Number(prev.low), Number(next.low)),
           close: Number(next.close),
           volume: Number(prev.volume || 0) + Number(next.volume || 0),
+          source: next.source ?? prev.source,
         });
       }
     });
@@ -160,8 +193,8 @@ function normalizeCandles(list: any[], period: TF) {
   return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
 }
 
-function mergeCandles(prev: any[], next: any[]) {
-  const map = new Map<number, any>();
+function mergeCandles(prev: TradingChartCandle[], next: TradingChartCandle[]) {
+  const map = new Map<number, TradingChartCandle>();
 
   [...prev, ...next].forEach((c) => {
     if (!c?.time) return;
@@ -185,10 +218,10 @@ function buildRealtimeBucketCandle({
   volume?: number;
   rawTs: number;
   period: TF;
-  previousRealtime: any | null;
-  latestHistorical: any | null;
+  previousRealtime: TradingChartCandle | null;
+  latestHistorical: TradingChartCandle | null;
   /** Current period candle from DB (initial_quote) - open price to avoid gap */
-  currentCandleFromDB: any | null;
+  currentCandleFromDB: TradingChartCandle | null;
   symbol: string;
 }) {
   const bucketTime = getPeriodBucketMs(rawTs, period);
@@ -246,10 +279,13 @@ export default function TradingChart({
   hidePositionsPanel = false,
   embed = false,
   onPaperTradingChange,
+  onMarketDataChange,
 }: TradingChartProps) {
   const [instruments, setInstruments] = useState<InstrumentLike[]>([]);
-  const [candles, setCandles] = useState<any[]>([]);
-  const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
+  const [candles, setCandles] = useState<TradingChartCandle[]>([]);
+  const [realtimeCandle, setRealtimeCandle] = useState<TradingChartCandle | null>(null);
+  const [realtimeQuoteAt, setRealtimeQuoteAt] = useState<number | null>(null);
+  const [realtimeQuoteStale, setRealtimeQuoteStale] = useState(false);
 
   const [selectedInstrument, setSelectedInstrument] =
     useState<InstrumentLike | null>(null);
@@ -318,14 +354,46 @@ export default function TradingChart({
   const loadingMoreCandlesRef = useRef(false);
   const candlePageRef = useRef(1);
   const requestKeyRef = useRef(0);
-  const candlesRef = useRef<any[]>([]);
-  const currentCandleFromDBRef = useRef<any>(null);
+  const candlesRef = useRef<TradingChartCandle[]>([]);
+  const currentCandleFromDBRef = useRef<TradingChartCandle | null>(null);
 
   const PAGE_SIZE = 1000;
 
   useEffect(() => {
     candlesRef.current = candles;
   }, [candles]);
+
+  useEffect(() => {
+    if (!onMarketDataChange) return;
+    onMarketDataChange({
+      symbol: activeSymbol,
+      period: selectedPeriod,
+      candles,
+      realtimeCandle,
+      realtimeQuoteAt,
+      realtimeQuoteStale,
+      persistedLastBarAt: candles.length ? Number(candles[candles.length - 1]?.time) : null,
+      persistedSources: [
+        ...new Set(
+          candles
+            .map((candle) => candle.source?.trim())
+            .filter((source): source is string => Boolean(source)),
+        ),
+      ],
+      loading: loadingChart,
+      error: chartError,
+    });
+  }, [
+    activeSymbol,
+    selectedPeriod,
+    candles,
+    realtimeCandle,
+    realtimeQuoteAt,
+    realtimeQuoteStale,
+    loadingChart,
+    chartError,
+    onMarketDataChange,
+  ]);
 
   const loadCandlePage = useCallback(
     async ({
@@ -429,6 +497,8 @@ export default function TradingChart({
       setChartError(null);
       setCandles([]);
       setRealtimeCandle(null);
+      setRealtimeQuoteAt(null);
+      setRealtimeQuoteStale(false);
       setHasMoreCandles(true);
       setCandlePage(1);
 
@@ -486,14 +556,49 @@ export default function TradingChart({
     currentCandleFromDBRef.current = null;
 
     const socket = new SimpleSocket((data) => {
-      const msg = data as { type?: string; symbol?: string; current_candle?: any };
+      const msg = data as {
+        type?: string;
+        symbol?: string;
+        current_candle?: TradingChartCandle;
+        price?: unknown;
+        quote_ts?: unknown;
+        quote_stale?: boolean;
+      };
       const sym = msg.symbol;
 
       if (msg.type === "initial_quote") {
         if (sym !== selectedSymbol) return;
+
         if (msg.current_candle) {
           currentCandleFromDBRef.current = msg.current_candle;
-          setRealtimeCandle(msg.current_candle);
+        }
+
+        const initialPrice = Number(msg.price);
+        const initialQuoteTs = Number(msg.quote_ts);
+        const hasFreshQuote =
+          Number.isFinite(initialPrice) &&
+          initialPrice > 0 &&
+          Number.isFinite(initialQuoteTs) &&
+          initialQuoteTs > 0;
+
+        if (hasFreshQuote) {
+          setRealtimeQuoteAt(initialQuoteTs);
+          setRealtimeQuoteStale(msg.quote_stale === true);
+          setRealtimeCandle((prev) => {
+            const currentCandles = candlesRef.current;
+            const latestHistorical = currentCandles.length
+              ? currentCandles[currentCandles.length - 1]
+              : null;
+            return buildRealtimeBucketCandle({
+              price: initialPrice,
+              rawTs: initialQuoteTs,
+              period: selectedPeriod,
+              previousRealtime: prev,
+              latestHistorical,
+              currentCandleFromDB: currentCandleFromDBRef.current,
+              symbol: selectedSymbol,
+            });
+          });
         }
         return;
       }
@@ -507,7 +612,9 @@ export default function TradingChart({
 
       if (!Number.isFinite(price) || price <= 0) return;
 
-      setRealtimeCandle((prev: any) => {
+      setRealtimeQuoteAt(ts);
+      setRealtimeQuoteStale(false);
+      setRealtimeCandle((prev) => {
         const currentCandles = candlesRef.current;
         const latestHistorical =
           Array.isArray(currentCandles) && currentCandles.length > 0
@@ -541,6 +648,8 @@ export default function TradingChart({
       clearTimeout(timer);
       socket.disconnect();
       setRealtimeCandle(null);
+      setRealtimeQuoteAt(null);
+      setRealtimeQuoteStale(false);
       currentCandleFromDBRef.current = null;
     };
   }, [selectedSymbol, selectedPeriod]);

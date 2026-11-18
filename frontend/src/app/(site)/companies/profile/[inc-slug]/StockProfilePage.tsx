@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -21,17 +21,19 @@ import {
   Share2,
 } from "lucide-react";
 
-import TradingChart from "@/src/components/charts/page";
+import TradingChart, {
+  type TradingChartCandle,
+  type TradingChartMarketData,
+  type TradingChartPeriod,
+} from "@/src/components/charts/page";
 import SelectDropdown from "@/src/sections/Dropdown";
 import ProfilePaperTradingPanel from "@/src/components/paperTrading/ProfilePaperTradingPanel";
 import ProfileChartPositionsLog from "@/src/components/paperTrading/ProfileChartPositionsLog";
 import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
 import FundamentalRadar from "./FundamentalRadar";
 import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
-import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service";
 import { useWatchlist } from "@/src/hooks/useWatchlist";
-import { SimpleSocket } from "@/src/libs/socket";
 import { stripParentheticals } from "@/src/libs/displayString";
 import {
   newsSourceLabel,
@@ -39,7 +41,7 @@ import {
   resolveNewsHref,
 } from "@/src/libs/newsArticle";
 
-type TF = "daily" | "weekly" | "monthly" | "yearly";
+type TF = TradingChartPeriod;
 
 type ProfileMainTab = "chart" | "markets" | "news" | "fundamentals" | "about";
 
@@ -52,79 +54,6 @@ const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
 function toNumber(value: any, fallback = 0): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
-}
-
-function normalizeTimestamp(raw: any): number | null {
-  if (raw === null || raw === undefined || raw === "") return null;
-
-  if (typeof raw === "number") {
-    return raw < 10_000_000_000 ? raw * 1000 : raw;
-  }
-
-  const str = String(raw).trim();
-  if (!str) return null;
-
-  const date = str.includes("T")
-    ? new Date(str)
-    : new Date(str.replace(" ", "T") + "Z");
-
-  const ms = date.getTime();
-  return Number.isNaN(ms) ? null : ms;
-}
-
-function normalizeCandles(list: any[], period: TF) {
-  const uniqueMap = new Map<number, any>();
-
-  (list || [])
-    .filter((d: any) => d?.timestamp || d?.timestamps || d?.time)
-    .forEach((d: any) => {
-      const rawTs = d.timestamp ?? d.timestamps ?? d.time;
-      const parsedMs = normalizeTimestamp(rawTs);
-      if (!parsedMs) return;
-
-      const date = new Date(parsedMs);
-
-      if (period === "daily") {
-        date.setUTCHours(0, 0, 0, 0);
-      } else if (period === "weekly") {
-        const day = date.getUTCDay() || 7;
-        date.setUTCDate(date.getUTCDate() - day + 1);
-        date.setUTCHours(0, 0, 0, 0);
-      } else if (period === "monthly") {
-        date.setUTCDate(1);
-        date.setUTCHours(0, 0, 0, 0);
-      } else if (period === "yearly") {
-        date.setUTCMonth(0, 1);
-        date.setUTCHours(0, 0, 0, 0);
-      }
-
-      const time = date.getTime();
-
-      const next = {
-        time,
-        open: toNumber(d.open),
-        high: toNumber(d.high),
-        low: toNumber(d.low),
-        close: toNumber(d.close),
-        volume: toNumber(d.volume),
-      };
-
-      if (!uniqueMap.has(time)) {
-        uniqueMap.set(time, next);
-      } else {
-        const prev = uniqueMap.get(time);
-        uniqueMap.set(time, {
-          time,
-          open: toNumber(prev.open),
-          high: Math.max(toNumber(prev.high), toNumber(next.high)),
-          low: Math.min(toNumber(prev.low), toNumber(next.low)),
-          close: toNumber(next.close),
-          volume: toNumber(prev.volume) + toNumber(next.volume),
-        });
-      }
-    });
-
-  return Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time);
 }
 
 function normalizeSymbolFromSlug(slug: string) {
@@ -254,8 +183,23 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [similar, setSimilar] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<TF>("daily");
 
-  const [candles, setCandles] = useState<any[]>([]);
-  const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
+  const [candles, setCandles] = useState<TradingChartCandle[]>([]);
+  const [realtimeCandle, setRealtimeCandle] = useState<TradingChartCandle | null>(null);
+  const [marketDataMeta, setMarketDataMeta] = useState<{
+    realtimeQuoteAt: number | null;
+    realtimeQuoteStale: boolean;
+    persistedLastBarAt: number | null;
+    persistedSources: string[];
+    loading: boolean;
+    error: string | null;
+  }>({
+    realtimeQuoteAt: null,
+    realtimeQuoteStale: false,
+    persistedLastBarAt: null,
+    persistedSources: [],
+    loading: true,
+    error: null,
+  });
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
@@ -271,12 +215,19 @@ export function StockProfilePage({ slug }: { slug: string }) {
   } = useWatchlist();
   const watchlisted = isInWatchlist(symbol);
 
-  const candleRequestIdRef = useRef(0);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       setPaperTrading(null);
       setWatchlistActionMessage(null);
+      setMarketDataMeta({
+        realtimeQuoteAt: null,
+        realtimeQuoteStale: false,
+        persistedLastBarAt: null,
+        persistedSources: [],
+        loading: true,
+        error: null,
+      });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
@@ -292,31 +243,58 @@ export function StockProfilePage({ slug }: { slug: string }) {
   }, [realtimeCandle, candles]);
 
   const changePct = useMemo(() => {
+    if (!candles.length) return null;
+
+    const latestPersisted = candles[candles.length - 1] ?? null;
+    const realtimeClose =
+      realtimeCandle?.close != null && Number.isFinite(Number(realtimeCandle.close))
+        ? Number(realtimeCandle.close)
+        : null;
+
+    if (realtimeClose != null) {
+      const sameBucket =
+        latestPersisted &&
+        realtimeCandle &&
+        Number(latestPersisted.time) === Number(realtimeCandle.time);
+      const reference = sameBucket
+        ? candles[candles.length - 2]?.close
+        : latestPersisted?.close;
+      const ref = toNumber(reference);
+      if (ref > 0) return ((realtimeClose - ref) / ref) * 100;
+    }
+
     if (candles.length < 2) return null;
     const prev = toNumber(candles[candles.length - 2].close);
     const last = toNumber(candles[candles.length - 1].close);
     if (!prev) return null;
     return ((last - prev) / prev) * 100;
-  }, [candles]);
+  }, [candles, realtimeCandle]);
 
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
+  const currentCandle = realtimeCandle ?? lastCandle;
 
   const athAtl = useMemo(() => {
-    if (!candles.length) return { high: null as number | null, low: null as number | null };
+    if (!candles.length && !realtimeCandle) {
+      return { high: null as number | null, low: null as number | null };
+    }
     let hi = -Infinity;
     let lo = Infinity;
     for (const c of candles) {
       hi = Math.max(hi, toNumber(c.high));
       lo = Math.min(lo, toNumber(c.low));
     }
+    if (realtimeCandle) {
+      hi = Math.max(hi, toNumber(realtimeCandle.high));
+      lo = Math.min(lo, toNumber(realtimeCandle.low));
+    }
     return {
       high: Number.isFinite(hi) ? hi : null,
       low: Number.isFinite(lo) ? lo : null,
     };
-  }, [candles]);
+  }, [candles, realtimeCandle]);
 
   const marketCap = toNumber(details?.market_cap);
-  const volShares = lastCandle ? toNumber(lastCandle.volume) : 0;
+  const volShares = currentCandle ? toNumber(currentCandle.volume) : 0;
   const volUsdEst = lastCandle && livePrice ? volShares * livePrice : 0;
   const volToMktPct =
     marketCap > 0 && volUsdEst > 0 ? (volUsdEst / marketCap) * 100 : null;
@@ -399,70 +377,22 @@ export function StockProfilePage({ slug }: { slug: string }) {
     };
   }, [symbol]);
 
-  const fetchCandles = useCallback(async (ticker: string, period: TF) => {
-    if (!ticker || !period) {
-      setCandles([]);
-      return;
-    }
-
-    const requestId = ++candleRequestIdRef.current;
-
-    try {
-      setRealtimeCandle(null);
-
-      const raw = await InstrumentService.getInstrumentData(ticker, period, 1000, 1);
-
-      if (requestId !== candleRequestIdRef.current) return;
-
-      const normalized = normalizeCandles(raw || [], period);
-      setCandles(normalized);
-    } catch (error) {
-      if (requestId !== candleRequestIdRef.current) return;
-      console.error("Fetch candles failed:", error);
-      setCandles([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!symbol) return;
-    fetchCandles(symbol, selectedPeriod);
-  }, [symbol, selectedPeriod, fetchCandles]);
-
-  useEffect(() => {
-    if (!symbol) return;
-
-    const socket = new SimpleSocket((data: any) => {
-      if (!data || data.type !== "quote") return;
-      if (String(data.symbol).toUpperCase() !== symbol) return;
-
-      const price = toNumber(data.price);
-      const ts = normalizeTimestamp(data.ts);
-      if (!ts) return;
-
-      setRealtimeCandle({
-        time: ts,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
+  const handleChartMarketData = useCallback(
+    (state: TradingChartMarketData) => {
+      if (state.symbol !== symbol || state.period !== selectedPeriod) return;
+      setCandles(state.candles);
+      setRealtimeCandle(state.realtimeCandle);
+      setMarketDataMeta({
+        realtimeQuoteAt: state.realtimeQuoteAt,
+        realtimeQuoteStale: state.realtimeQuoteStale,
+        persistedLastBarAt: state.persistedLastBarAt,
+        persistedSources: state.persistedSources,
+        loading: state.loading,
+        error: state.error,
       });
-    });
-
-    socket.connect();
-
-    const timer = setTimeout(() => {
-      socket.send({
-        type: "subscribe",
-        symbols: [symbol],
-      });
-    }, 500);
-
-    return () => {
-      clearTimeout(timer);
-      socket.disconnect();
-      setRealtimeCandle(null);
-    };
-  }, [symbol]);
+    },
+    [symbol, selectedPeriod],
+  );
 
   if (loading) {
     return (
@@ -531,6 +461,53 @@ export function StockProfilePage({ slug }: { slug: string }) {
           onSelect={(opt) => setSelectedPeriod(opt.id as TF)}
         />
       </div>
+      <div className="grid gap-1 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2 text-[10px] text-[var(--dsa-text-muted)] sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <span className="dsa-section-label">History</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {candles.length.toLocaleString("en-US")} persisted {selectedPeriod} bars
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Last persisted</span>
+          <p className="mt-0.5 font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]">
+            {marketDataMeta.persistedLastBarAt
+              ? new Date(marketDataMeta.persistedLastBarAt).toLocaleString()
+              : "Unavailable"}
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">History source</span>
+          <p
+            className="mt-0.5 truncate font-mono text-[10px] normal-case tracking-normal text-[var(--dsa-text-secondary)]"
+            title={marketDataMeta.persistedSources.join(", ") || "Source unavailable"}
+          >
+            {marketDataMeta.persistedSources.length
+              ? marketDataMeta.persistedSources.join(", ")
+              : "Source unavailable"}
+          </p>
+        </div>
+        <div>
+          <span className="dsa-section-label">Quote stream</span>
+          <p
+            className={`mt-0.5 font-mono text-[10px] normal-case tracking-normal ${
+              marketDataMeta.realtimeQuoteStale
+                ? "text-[var(--dsa-warning)]"
+                : marketDataMeta.realtimeQuoteAt
+                  ? "text-[var(--dsa-positive)]"
+                  : "text-[var(--dsa-text-secondary)]"
+            }`}
+          >
+            {marketDataMeta.realtimeQuoteAt
+              ? `${marketDataMeta.realtimeQuoteStale ? "Stale · " : ""}${new Date(
+                  marketDataMeta.realtimeQuoteAt,
+                ).toLocaleString()}`
+              : marketDataMeta.loading
+                ? "Waiting for quote"
+                : "No live quote received"}
+          </p>
+        </div>
+      </div>
       {candles.length < 2 ? (
         <div className="border-b border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-xs text-[#d9bb7a]">
           Persisted {selectedPeriod} history is {candles.length === 1 ? "too short" : "unavailable"} for {symbol}. Realtime price may still update, but historical chart data is not synthesized.
@@ -550,6 +527,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             hidePositionsPanel
             embed
             onPaperTradingChange={setPaperTrading}
+            onMarketDataChange={handleChartMarketData}
           />
         </div>
       </div>
@@ -587,15 +565,15 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </div>
           <Link
             href="/investing"
-            className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
+            className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-xs"
           >
-            Investing site
+            Research workspace
           </Link>
         </nav>
 
         {/* Three-column shell — left stats | center research | right coverage/news */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
-          <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
+          <aside className="order-2 flex flex-col gap-3 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:order-1 xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex gap-3">
                 <img
@@ -608,10 +586,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     {stripParentheticals(details?.company_name) || symbol}
                   </h1>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-md bg-[#2b3139] px-2 py-0.5 font-mono text-xs font-semibold text-white">
+                    <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-0.5 font-mono text-xs font-semibold text-white">
                       {details?.symbol || symbol}
                     </span>
-                    <span className="rounded-md bg-[#f7931a]/20 px-2 py-0.5 text-[11px] font-bold text-[#f0b90b]">EQ</span>
+                    <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+                      Equity
+                    </span>
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         type="button"
@@ -626,7 +606,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <button
                         type="button"
                         onClick={shareProfile}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-white"
+                        className="rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-white"
                         aria-label="Share"
                         title="Share"
                       >
@@ -643,7 +623,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </p>
                 {changePct != null ? (
                   <span
-                    className={`mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${
+                    className={`mt-2 inline-flex items-center gap-1 rounded-[var(--dsa-radius-sm)] px-2 py-1 text-sm font-semibold tabular-nums ${
                       changePct >= 0 ? `bg-[#16c784]/15 ${CMC.green}` : `bg-[#ea3943]/15 ${CMC.red}`
                     }`}
                   >
@@ -666,10 +646,20 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <p className={`mt-3 flex items-center gap-1.5 text-[10px] ${CMC.muted}`}>
                   <span
                     className={`inline-block h-1.5 w-1.5 rounded-full ${
-                      realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
+                      marketDataMeta.realtimeQuoteAt && !marketDataMeta.realtimeQuoteStale
+                        ? "bg-[var(--dsa-positive)]"
+                        : marketDataMeta.realtimeQuoteStale
+                          ? "bg-[var(--dsa-warning)]"
+                          : "bg-[var(--dsa-text-muted)]"
                     }`}
                   />
-                  {realtimeCandle ? "Realtime quote received" : "Realtime quote not received"}
+                  {marketDataMeta.realtimeQuoteAt
+                    ? marketDataMeta.realtimeQuoteStale
+                      ? "Latest quote is stale · persisted OHLC retained"
+                      : "Live quote received · persisted OHLC retained"
+                    : candles.length > 0
+                      ? "Persisted OHLC loaded · live quote unavailable"
+                      : "Persisted OHLC unavailable"}
                 </p>
               </div>
             </div>
@@ -683,7 +673,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <StatTile
                 label="Volume (est.)"
                 value={formatUsdStat(volUsdEst)}
-                hintTitle="Last candle: shares × close. Not full-session exchange volume."
+                hintTitle="Selected period: current/recent bar shares × price. This is an estimate, not consolidated full-session exchange volume."
               />
               <StatTile
                 label="Vol / Mkt cap"
@@ -736,7 +726,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   href={details.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-[#2b3139] bg-[#2b3139]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
+                  className="dsa-button-secondary w-full"
                 >
                   <Globe className="h-4 w-4" />
                   Website
@@ -744,7 +734,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               ) : null}
               <Link
                 href="/search"
-                className={`flex items-center justify-center gap-2 rounded-xl border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
+                className="dsa-button-secondary w-full"
               >
                 <Building2 className="h-4 w-4" />
                 More companies
@@ -805,12 +795,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </summary>
                   <ul className={`mt-3 list-inside list-disc space-y-2 text-xs leading-relaxed ${CMC.muted}`}>
                     <li>
-                      <strong className="text-white/90">% change</strong> compares the last closed bar on this timeframe
-                      to the previous one.
+                      <strong className="text-white/90">% change</strong> uses the live price versus the previous
+                      completed period close when a realtime quote is available; otherwise it compares the latest two
+                      persisted bars.
                     </li>
                     <li>
-                      <strong className="text-white/90">Estimated dollar volume</strong> is last bar share volume times
-                      its closing price.
+                      <strong className="text-white/90">Estimated dollar volume</strong> is the selected period&apos;s
+                      current/recent bar share volume multiplied by the displayed price.
                     </li>
                     <li>
                       <strong className="text-white/90">Volume vs market cap</strong> divides that estimate by the
@@ -824,8 +815,9 @@ export function StockProfilePage({ slug }: { slug: string }) {
             {mainTab === "markets" && (
               <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
-                  <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
-                  <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
+                  <span className="rounded-[var(--dsa-radius-sm)] border border-[rgba(76,141,255,0.32)] bg-[var(--dsa-accent-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#b8d1ff]">
+                    Primary listing
+                  </span>
                 </div>
                 <h2 className="px-4 pt-4 text-lg font-bold text-white">
                   {stripParentheticals(details?.company_name) || symbol}{" "}
@@ -858,7 +850,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <td className="px-4 py-3 font-mono tabular-nums text-white">{formatUsdStat(volUsdEst)}</td>
                         <td className="px-4 py-3">
                           <span
-                            className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${
+                            className={`rounded-[var(--dsa-radius-sm)] px-2 py-0.5 font-mono text-xs font-semibold ${
                               volToMktPct != null ? "bg-[#16c784]/15 text-[#16c784]" : `${CMC.muted} bg-[#2b3139]`
                             }`}
                           >
@@ -902,7 +894,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         </div>
                         <div className="flex gap-3">
                           {thumb ? (
-                            <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
+                            <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                               <img src={thumb} alt="" className="h-full w-full object-cover" />
                             </div>
                           ) : null}
@@ -1019,7 +1011,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <Link
                         key={comp.instrument_id || comp.symbol || idx}
                         href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
-                        className="flex flex-col items-center rounded-xl border border-[#2b3139] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
+                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 text-center transition hover:border-[#3861fb]/45"
                       >
                         <div className="mb-2 h-9 w-9 rounded-lg bg-white p-1">
                           <img
@@ -1040,7 +1032,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
           </main>
 
-          <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
+          <aside className="order-3 flex flex-col gap-3 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1113,7 +1105,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
                       <div className="flex gap-3">
                         {thumb ? (
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
+                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                             <img src={thumb} alt="" className="h-full w-full object-cover" />
                           </div>
                         ) : (
