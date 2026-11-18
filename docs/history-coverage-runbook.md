@@ -113,11 +113,19 @@ DSATurbo writes the production `instrument_data` table and its daily/weekly/mont
 
 **Do not use `php artisan data:periods` for this recovery.** It is intentionally not scheduled now because its legacy raw-Yahoo/timestamp convention differs from DSATurbo and can create duplicate trading-date bars when mixed.
 
-## 5. Refresh snapshot/ranking state after backfill
+## 5. Refresh ranking/snapshot and Redis after manual backfill
 
-The normal Python stock job updates snapshots after scheduled sync. For a manual one-off backfill, restart/re-run the existing snapshot/ranking workflow used by the deployment, then allow the dashboard warm-up to rebuild `dashboard:daily`.
+A scheduled stock cycle performs these follow-up steps automatically. After a manual one-off DSATurbo backfill, run the existing ranking sync and dashboard warm-up explicitly:
 
-Do not invent a new ranking calculation or edit snapshot rows by hand.
+```bash
+docker compose exec data-engine \
+  python3 -c 'from app.jobs.ranking_job import run_ranking_sync; run_ranking_sync()'
+
+docker compose exec data-engine \
+  python3 -m app.warm_up.warm_up --limit 40 --chart-bars 90
+```
+
+This rebuilds `instrument_snapshot`/ranking from persisted OHLC and then republishes `dashboard:daily`. Do not edit snapshot rows by hand.
 
 Then re-run:
 
