@@ -228,6 +228,14 @@ class DSATurbo:
             self.snapshot_limit = snapshot_limit
             self.backfill_days = backfill_days
             self.history_period = history_period
+            self.bootstrap_min_bars = max(
+                2,
+                int(os.environ.get("HISTORY_BOOTSTRAP_MIN_BARS", "180")),
+            )
+            self.bootstrap_days = max(
+                30,
+                int(os.environ.get("HISTORY_BOOTSTRAP_DAYS", "3650")),
+            )
             self.symbols = list(dict.fromkeys(
                 str(symbol).strip().upper()
                 for symbol in (symbols or [])
@@ -382,16 +390,49 @@ class DSATurbo:
         self.conn.commit()
         return p_ids
 
+    def persisted_daily_bar_count(self, daily_period_id: str) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM instrument_data WHERE instrument_period_id=%s",
+                (daily_period_id,),
+            )
+            row = cur.fetchone() or {}
+        try:
+            return max(0, int(row.get("n") or 0))
+        except (TypeError, ValueError):
+            return 0
+
     def update_stock(self, inst_id, symbol):
         p_ids = self.ensure_periods(inst_id, symbol)
         try:
             ticker = yf.Ticker(symbol)
+            existing_daily_bars = self.persisted_daily_bar_count(p_ids["daily"])
+
             if self.backfill_days is not None:
-                start = (datetime.now() - timedelta(days=max(1, int(self.backfill_days)))).strftime("%Y-%m-%d")
+                fetch_days = max(1, int(self.backfill_days))
+                fetch_mode = f"manual:{fetch_days}d"
+                start = (datetime.now() - timedelta(days=fetch_days)).strftime("%Y-%m-%d")
+                df = ticker.history(start=start, interval="1d", auto_adjust=True)
+            elif existing_daily_bars < self.bootstrap_min_bars:
+                fetch_days = self.bootstrap_days
+                fetch_mode = (
+                    f"bootstrap:{fetch_days}d existing={existing_daily_bars} "
+                    f"min={self.bootstrap_min_bars}"
+                )
+                start = (datetime.now() - timedelta(days=fetch_days)).strftime("%Y-%m-%d")
                 df = ticker.history(start=start, interval="1d", auto_adjust=True)
             else:
+                fetch_mode = f"incremental:{self.history_period}"
                 df = ticker.history(period=self.history_period, interval="1d", auto_adjust=True)
-            if df.empty: return
+
+            logger.info(
+                "OHLC sync %s mode=%s",
+                symbol,
+                fetch_mode,
+            )
+            if df.empty:
+                logger.warning("OHLC sync %s returned no daily bars (%s)", symbol, fetch_mode)
+                return
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
@@ -464,7 +505,11 @@ class DSATurbo:
         window = (
             f"{self.backfill_days}d calendar backfill"
             if self.backfill_days is not None
-            else f"period={self.history_period}"
+            else (
+                f"coverage-aware: bootstrap={self.bootstrap_days}d "
+                f"until >= {self.bootstrap_min_bars} daily bars; "
+                f"then incremental period={self.history_period}"
+            )
         )
         print(f"Starting Turbo Sync v3.5 ({window}) for {total} symbols...")
         
