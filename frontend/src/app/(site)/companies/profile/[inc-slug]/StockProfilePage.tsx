@@ -565,15 +565,15 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </div>
           <Link
             href="/investing"
-            className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
+            className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-xs"
           >
-            Investing site
+            Research workspace
           </Link>
         </nav>
 
         {/* Three-column shell — left stats | center research | right coverage/news */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
-          <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
+          <aside className="order-2 flex flex-col gap-3 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:order-1 xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex gap-3">
                 <img
@@ -586,10 +586,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     {stripParentheticals(details?.company_name) || symbol}
                   </h1>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-md bg-[#2b3139] px-2 py-0.5 font-mono text-xs font-semibold text-white">
+                    <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-0.5 font-mono text-xs font-semibold text-white">
                       {details?.symbol || symbol}
                     </span>
-                    <span className="rounded-md bg-[#f7931a]/20 px-2 py-0.5 text-[11px] font-bold text-[#f0b90b]">EQ</span>
+                    <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+                      Equity
+                    </span>
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         type="button"
@@ -604,7 +606,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <button
                         type="button"
                         onClick={shareProfile}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-white"
+                        className="rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-white"
                         aria-label="Share"
                         title="Share"
                       >
@@ -621,7 +623,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </p>
                 {changePct != null ? (
                   <span
-                    className={`mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${
+                    className={`mt-2 inline-flex items-center gap-1 rounded-[var(--dsa-radius-sm)] px-2 py-1 text-sm font-semibold tabular-nums ${
                       changePct >= 0 ? `bg-[#16c784]/15 ${CMC.green}` : `bg-[#ea3943]/15 ${CMC.red}`
                     }`}
                   >
@@ -724,7 +726,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   href={details.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-[#2b3139] bg-[#2b3139]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
+                  className="dsa-button-secondary w-full"
                 >
                   <Globe className="h-4 w-4" />
                   Website
@@ -732,7 +734,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               ) : null}
               <Link
                 href="/search"
-                className={`flex items-center justify-center gap-2 rounded-xl border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
+                className="dsa-button-secondary w-full"
               >
                 <Building2 className="h-4 w-4" />
                 More companies
@@ -813,8 +815,9 @@ export function StockProfilePage({ slug }: { slug: string }) {
             {mainTab === "markets" && (
               <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
-                  <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
-                  <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
+                  <span className="rounded-[var(--dsa-radius-sm)] border border-[rgba(76,141,255,0.32)] bg-[var(--dsa-accent-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#b8d1ff]">
+                    Primary listing
+                  </span>
                 </div>
                 <h2 className="px-4 pt-4 text-lg font-bold text-white">
                   {stripParentheticals(details?.company_name) || symbol}{" "}
@@ -847,7 +850,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <td className="px-4 py-3 font-mono tabular-nums text-white">{formatUsdStat(volUsdEst)}</td>
                         <td className="px-4 py-3">
                           <span
-                            className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${
+                            className={`rounded-[var(--dsa-radius-sm)] px-2 py-0.5 font-mono text-xs font-semibold ${
                               volToMktPct != null ? "bg-[#16c784]/15 text-[#16c784]" : `${CMC.muted} bg-[#2b3139]`
                             }`}
                           >
@@ -891,7 +894,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         </div>
                         <div className="flex gap-3">
                           {thumb ? (
-                            <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
+                            <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                               <img src={thumb} alt="" className="h-full w-full object-cover" />
                             </div>
                           ) : null}
@@ -1008,7 +1011,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <Link
                         key={comp.instrument_id || comp.symbol || idx}
                         href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
-                        className="flex flex-col items-center rounded-xl border border-[#2b3139] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
+                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 text-center transition hover:border-[#3861fb]/45"
                       >
                         <div className="mb-2 h-9 w-9 rounded-lg bg-white p-1">
                           <img
@@ -1029,7 +1032,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
           </main>
 
-          <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
+          <aside className="order-3 flex flex-col gap-3 xl:sticky xl:top-[calc(var(--dsa-header-height)_+_1rem)] xl:max-h-[calc(100vh_-_var(--dsa-header-height)_-_2rem)] xl:overflow-y-auto">
             <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1102,7 +1105,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     <div className={`group rounded-lg border ${CMC.line} bg-[#0d1621]/70 p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
                       <div className="flex gap-3">
                         {thumb ? (
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#2b3139] bg-black/30">
+                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
                             <img src={thumb} alt="" className="h-full w-full object-cover" />
                           </div>
                         ) : (
