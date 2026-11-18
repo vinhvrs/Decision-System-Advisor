@@ -63,7 +63,7 @@ function SearchResults() {
   const debouncedQ = useDebouncedValue(q, 300);
   const [results, setResults] = useState<ElasticCompanyHit[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [resolvedQuery, setResolvedQuery] = useState("");
   const [total, setTotal] = useState(0);
   const [popular, setPopular] = useState<ElasticCompanyHit[]>([]);
   const [newsResults, setNewsResults] = useState<News[]>([]);
@@ -80,7 +80,6 @@ function SearchResults() {
 
     if (query.length < 2) return;
 
-    setLoading(true);
     Promise.all([
       ElasticService.searchCompanies(query, 50),
       newsService.getAllNews({ page: 1, per_page: 120 }),
@@ -112,7 +111,7 @@ function SearchResults() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setResolvedQuery(query);
       });
 
     return () => {
@@ -134,6 +133,7 @@ function SearchResults() {
 
   const searchPending = q.trim() !== debouncedQ.trim();
   const hasQuery = q.trim().length >= 2;
+  const loading = hasQuery && resolvedQuery !== debouncedQ.trim();
 
   const popularPanel = (
     <aside className="dsa-panel overflow-hidden laptop:sticky laptop:top-[calc(var(--dsa-header-height)+16px)] laptop:self-start">
