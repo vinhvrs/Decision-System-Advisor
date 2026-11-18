@@ -710,6 +710,7 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
           ) : (
             <div className="min-h-0 w-full flex-1">
               <IndicatorLightChart
+                viewKey={`${symbol}:${period}`}
                 height={chartHeight}
                 bars={bars}
                 overlays={visibleLightModel.overlays}
