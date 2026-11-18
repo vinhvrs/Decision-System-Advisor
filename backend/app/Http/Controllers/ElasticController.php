@@ -88,7 +88,7 @@ class ElasticController extends Controller
     public function browseSymbols(Request $request): JsonResponse
     {
         try {
-            $limit = min(50, max(1, (int) $request->query('limit', 20)));
+            $limit = min(2000, max(1, (int) $request->query('limit', 20)));
             $ttl = (int) config('performance.elastic_get_ttl', 120);
             $cacheKey = 'elastic.symbol_catalog.v1:'.$limit;
             $result = Cache::remember($cacheKey, max(1, $ttl), function () use ($limit) {
