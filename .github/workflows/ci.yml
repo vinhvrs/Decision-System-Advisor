@@ -161,6 +161,7 @@ jobs:
           bash -n ../scripts/pi-history-audit.sh
           bash -n ../scripts/pi-source-parity.sh
           bash -n ../scripts/pi-backend-deploy.sh
+          bash -n ../scripts/pi-capture-live-only-backend.sh
           grep -q 'compose.runtime.override.yml' ../scripts/pi-backend-deploy.sh
           grep -q 'LIVE_TREE_MODE=non-git' ../scripts/pi-source-parity.sh
           grep -q 'ENGINE_RESOURCE_PROFILE: "pi4"' ../ops/pi/compose.runtime.override.yml
