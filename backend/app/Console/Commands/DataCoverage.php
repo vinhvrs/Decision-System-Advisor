@@ -69,7 +69,7 @@ class DataCoverage extends Command
             ->where('p.period', 'daily')
             ->groupBy('p.instrument_id')
             ->selectRaw(
-                'p.instrument_id, COUNT(d.id) as daily_bars, MIN(d.timestamps) as first_bar, MAX(d.timestamps) as last_bar'
+                'p.instrument_id, COUNT(d.id) as daily_bars, COUNT(DISTINCT DATE(d.timestamps)) as daily_days, MIN(d.timestamps) as first_bar, MAX(d.timestamps) as last_bar'
             );
 
         $rows = DB::table($instrumentsTable.' as i')
@@ -83,6 +83,7 @@ class DataCoverage extends Command
                 's.price as snapshot_price',
                 's.updated_at as snapshot_updated_at',
                 DB::raw('COALESCE(c.daily_bars, 0) as daily_bars'),
+                DB::raw('COALESCE(c.daily_days, 0) as daily_days'),
                 'c.first_bar',
                 'c.last_bar',
             ])
@@ -92,10 +93,14 @@ class DataCoverage extends Command
         $missing = 0;
         $short = 0;
         $ok = 0;
+        $duplicateRows = 0;
 
         foreach ($symbols as $symbol) {
             $row = $rows->get($symbol);
             $bars = $row ? (int) $row->daily_bars : 0;
+            $days = $row ? (int) $row->daily_days : 0;
+            $duplicates = max(0, $bars - $days);
+            $duplicateRows += $duplicates;
 
             if ($bars === 0) {
                 $state = 'MISSING';
@@ -125,6 +130,8 @@ class DataCoverage extends Command
                     : '—',
                 $snapshotAge,
                 $bars,
+                $days,
+                $duplicates,
                 $row && $row->first_bar ? (string) $row->first_bar : '—',
                 $row && $row->last_bar ? (string) $row->last_bar : '—',
                 $state,
@@ -132,24 +139,31 @@ class DataCoverage extends Command
         }
 
         $this->table(
-            ['Symbol', 'Snapshot', 'Snap age', 'Daily bars', 'First bar', 'Last bar', 'State'],
+            ['Symbol', 'Snapshot', 'Snap age', 'Daily bars', 'Daily days', 'Dup rows', 'First bar', 'Last bar', 'State'],
             $table
         );
 
         $this->newLine();
         $this->info(sprintf(
-            'Coverage: %d/%d OK (min %d bars) | SHORT=%d | MISSING=%d | DEV_MODE=%s',
+            'Coverage: %d/%d OK (min %d bars) | SHORT=%d | MISSING=%d | DUP_ROWS=%d | DEV_MODE=%s',
             $ok,
             count($symbols),
             $minBars,
             $short,
             $missing,
+            $duplicateRows,
             DsaTables::devMode()
         ));
 
-        if ($missing > 0 || $short > 0) {
+        if ($duplicateRows > 0) {
             $this->warn(
-                'Backfill affected symbols with: php artisan data:periods --symbols=SYM1,SYM2'
+                'Duplicate daily rows detected. Do not auto-delete them; inspect source/timestamps before cleanup.'
+            );
+        }
+
+        if ($missing > 0 || $short > 0 || $duplicateRows > 0) {
+            $this->warn(
+                'Use the canonical Python DSATurbo/admin market backfill for missing history; data:periods is not scheduled.'
             );
             return self::FAILURE;
         }
