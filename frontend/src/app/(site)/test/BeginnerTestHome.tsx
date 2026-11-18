@@ -393,13 +393,35 @@ function averageClosesSeries(
   return out;
 }
 
-/** Yahoo / python_engine ``quote`` messages: numeric price and changePercent. */
+/** Yahoo / python_engine ``quote`` messages: preserve live fields across Redis/HTTP board refreshes. */
 function mergeBoardQuotes(rows: BeginnerBoardRow[], previous: BeginnerBoardRow[]): BeginnerBoardRow[] {
-  const lastQuotes = new Map(previous.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row]));
-  return rows.map((row) => {
+  const lastQuotes = new Map(
+    previous
+      .filter((row) => row.quote_ts && row.price > 0)
+      .map((row) => [String(row.symbol).toUpperCase(), row]),
+  );
+
+  const merged = rows.map((row) => {
     const quote = lastQuotes.get(String(row.symbol).toUpperCase());
-    return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
+    if (!quote) return row;
+
+    const missing = new Set(row.missing_fields ?? []);
+    if (Number.isFinite(quote.price) && quote.price > 0) missing.delete("price");
+    if (Number.isFinite(quote.change_pct_snapshot)) missing.delete("change_pct");
+
+    return {
+      ...row,
+      price: quote.price,
+      change_pct_snapshot: quote.change_pct_snapshot,
+      candle_move_abs_pct: quote.candle_move_abs_pct,
+      day_bias: quote.day_bias,
+      quote_ts: quote.quote_ts,
+      quote_stale: quote.quote_stale,
+      missing_fields: [...missing],
+    };
   });
+
+  return alignLiveChangeScores(merged);
 }
 
 function parseSocketQuoteNumber(v: unknown): number | null {
@@ -1337,15 +1359,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             if (cancelled) return;
             const built = await buildRedisDailyBoardState(payload);
             if (cancelled || !built) return;
-            setBoardRows((prev) => {
-              const lastQuotes = new Map(
-                prev.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row])
-              );
-              return built.rows.map((row) => {
-                const quote = lastQuotes.get(String(row.symbol).toUpperCase());
-                return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
-              });
-            });
+            setBoardRows((prev) => mergeBoardQuotes(built.rows, prev));
             setBoardLegend(built.legend);
             setDashboardUpdatedAt(built.updatedAt);
           })
@@ -1462,15 +1476,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           invalidateDashboardDailyCache();
           const built = await buildRedisDailyBoardState(msg.payload as BeginnerBoardPayload);
           if (cancelled || !built) return;
-          setBoardRows((prev) => {
-            const lastQuotes = new Map(
-              prev.filter((row) => row.quote_ts && row.price > 0).map((row) => [String(row.symbol).toUpperCase(), row])
-            );
-            return built.rows.map((row) => {
-              const quote = lastQuotes.get(String(row.symbol).toUpperCase());
-              return quote ? { ...row, price: quote.price, quote_ts: quote.quote_ts, quote_stale: quote.quote_stale } : row;
-            });
-          });
+          setBoardRows((prev) => mergeBoardQuotes(built.rows, prev));
           setBoardLegend(built.legend);
           setDashboardUpdatedAt(built.updatedAt);
           setBoardLoading(false);
