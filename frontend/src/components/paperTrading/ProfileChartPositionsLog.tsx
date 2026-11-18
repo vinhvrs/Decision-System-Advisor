@@ -9,10 +9,10 @@ import { calcTicketProfit, formatOpenPnl } from "@/src/libs/tradingPnl";
 import type { PaperTradingSnapshot } from "./paperTradingTypes";
 
 const CMC = {
-  muted: "text-[#848e9c]",
-  line: "border-[#2b3139]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
+  muted: "text-[var(--dsa-text-muted)]",
+  line: "border-[var(--dsa-border)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
 };
 
 function formatOpened(iso?: string | null): string {
@@ -92,7 +92,7 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
         </div>
       ) : !isLoggedIn ? (
         <p className={`text-xs leading-relaxed ${CMC.muted}`}>
-          <Link href="/auth/login" className="font-semibold text-[#7b9cff] hover:underline">
+          <Link href="/auth/login" className="font-semibold text-[#8ab4ff] hover:underline">
             Sign in
           </Link>{" "}
           to view open positions, close tickets, and use paper trading on this chart.
@@ -107,10 +107,10 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
           ) : null}
 
           {error && !String(error).includes("401") ? (
-            <p className={`mb-2 text-xs text-[#ea3943]`}>{error}</p>
+            <p className={`mb-2 text-xs text-[var(--dsa-negative)]`}>{error}</p>
           ) : null}
 
-          <div className={`overflow-x-auto rounded-lg border ${CMC.line} bg-black/20`}>
+          <div className={`overflow-x-auto rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-2)]`}>
             <table className="w-full min-w-[480px] text-left text-[11px]">
               <thead>
                 <tr className={`border-b ${CMC.line} ${CMC.muted}`}>
@@ -170,7 +170,7 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
                             type="button"
                             disabled={isClosing}
                             onClick={() => handleClose(p.id, Number(p.price))}
-                            className="rounded bg-[#2b3139] px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-[#3861fb] disabled:opacity-50"
+                            className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-3)] px-2 py-0.5 text-[10px] font-semibold text-white transition-colors hover:border-[#4c8dff] hover:bg-[var(--dsa-accent-soft)] disabled:opacity-50"
                           >
                             {isClosing ? "…" : "Close"}
                           </button>
@@ -189,7 +189,7 @@ export default function ProfileChartPositionsLog({ symbol, paperState }: Props) 
                 Session fills (this chart)
               </p>
               <ul
-                className={`max-h-32 space-y-1 overflow-y-auto no-scrollbar rounded-lg border ${CMC.line} bg-black/15 p-2`}
+                className={`max-h-32 space-y-1 overflow-y-auto no-scrollbar rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-2)] p-2`}
               >
                 {history.map((t) => (
                   <li key={t.id} className="flex items-center justify-between gap-2 text-[10px]">
