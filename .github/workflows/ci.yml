@@ -49,12 +49,16 @@ jobs:
         run: npm run build
 
   dependency-lock-refresh:
-    name: Security lockfile proposal
+    name: Security lockfile update
     if: github.event_name == 'pull_request' && github.head_ref == 'work/p0-dependency-security-20261118'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
+      - name: Checkout security branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -95,6 +99,14 @@ jobs:
           --no-interaction
           --no-progress
 
+      - name: Verify frontend runtime dependencies are clean
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Verify Composer production dependencies are clean
+        working-directory: backend
+        run: composer audit --locked --no-dev
+
       - name: Show proposed lockfile diff
         run: |
           git diff --stat -- frontend/package-lock.json backend/composer.lock
@@ -109,6 +121,18 @@ jobs:
             backend/composer.lock
           if-no-files-found: error
           retention-days: 3
+
+      - name: Commit patched lockfiles if changed
+        run: |
+          if git diff --quiet -- frontend/package-lock.json backend/composer.lock; then
+            echo "No lockfile changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package-lock.json backend/composer.lock
+          git commit -m "fix(security): update dependency lockfiles"
+          git push origin "HEAD:${{ github.head_ref }}"
 
   python-guards:
     name: Python production guards
