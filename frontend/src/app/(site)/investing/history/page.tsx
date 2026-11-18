@@ -749,20 +749,23 @@ export default function TradingHistoryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0b1220] px-4 py-6 text-[#e5e7eb] tablet:px-8">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Investing History Simulator</h1>
-            <p className="mt-1 text-sm text-white/70">Review past candles, place long-horizon paper decisions, then speed up to your target date.</p>
+    <div className="dsa-page text-[var(--dsa-text)]">
+      <div className="space-y-3">
+        <section className="dsa-terminal-page-head">
+          <div className="min-w-0">
+            <p className="dsa-section-label">Historical research</p>
+            <h1 className="mt-0.5 text-sm font-semibold text-white">Investing history simulator</h1>
+            <p className="mt-0.5 max-w-3xl truncate text-[10px] text-[var(--dsa-text-muted)]">
+              Replay historical candles, test paper decisions, and inspect long-horizon advice context.
+            </p>
           </div>
-          <Link href="/investing" className="rounded-lg border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">
-            Back to Investing
+          <Link href="/investing" className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]">
+            Back to research
           </Link>
-        </div>
+        </section>
 
-        <section className="rounded-2xl border border-[#2b3139] bg-[#111827]/70 p-3">
-          <div className="grid grid-cols-1 gap-2 laptop:grid-cols-8">
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="grid grid-cols-1 gap-2 border-b border-[var(--dsa-border)] bg-[#0b1118] p-3 laptop:grid-cols-8">
             <SelectDropdown
               searchable
               maxRender={50}
@@ -783,8 +786,8 @@ export default function TradingHistoryPage() {
               }
               onSelect={(opt) => setSymbol(opt.id.toUpperCase())}
             />
-            <input type="date" value={fromDate} max={toDate || today} onChange={(e) => setFromDate(e.target.value)} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" />
-            <input type="date" value={toDate} min={fromDate || undefined} max={today} onChange={(e) => setToDate(e.target.value)} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+            <input type="date" value={fromDate} max={toDate || today} onChange={(e) => setFromDate(e.target.value)} className="dsa-control h-8 min-h-0 px-2.5 text-[11px] outline-none" />
+            <input type="date" value={toDate} min={fromDate || undefined} max={today} onChange={(e) => setToDate(e.target.value)} className="dsa-control h-8 min-h-0 px-2.5 text-[11px] outline-none" />
             <SelectDropdown
               options={[
                 { id: "daily", label: "Daily" },
@@ -813,53 +816,53 @@ export default function TradingHistoryPage() {
               }}
               onSelect={(opt) => setCurrency(opt.id as CurrencyCode)}
             />
-            <input type="number" min={100} step={100} value={startingCash} onChange={(e) => setStartingCash(Math.max(100, Number(e.target.value) || 100))} className="rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" placeholder="Starting cash" />
-            <button onClick={loadHistory} disabled={loading || !symbol.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold disabled:opacity-60">{loading ? "Loading..." : "Load History"}</button>
-            <button onClick={resetRun} disabled={!bars.length} className="rounded-lg border border-white/20 px-4 py-2 text-sm disabled:opacity-60">Reset Run</button>
+            <input type="number" min={100} step={100} value={startingCash} onChange={(e) => setStartingCash(Math.max(100, Number(e.target.value) || 100))} className="dsa-control h-8 min-h-0 px-2.5 text-[11px] outline-none" placeholder="Starting cash" />
+            <button onClick={loadHistory} disabled={loading || !symbol.trim()} className="dsa-button-primary min-h-0 px-3 py-1.5 text-[10px] disabled:opacity-50">{loading ? "Loading..." : "Load History"}</button>
+            <button onClick={resetRun} disabled={!bars.length} className="dsa-button-secondary min-h-0 px-3 py-1.5 text-[10px] disabled:opacity-50">Reset Run</button>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-white/65">Long-horizon presets:</span>
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <span className="dsa-section-label">Horizon</span>
             {(Object.keys(HORIZON_DAYS) as HorizonPreset[]).map((preset) => (
               <button
                 key={preset}
                 type="button"
                 onClick={() => applyHorizonPreset(preset)}
-                className={`rounded-md border px-2.5 py-1 text-xs ${
+                className={`rounded-[var(--dsa-radius-sm)] border px-2 py-1 text-[10px] font-semibold ${
                   horizonPreset === preset
-                    ? "border-blue-400 bg-blue-500/20 text-blue-200"
-                    : "border-white/20 bg-black/20 text-white/80 hover:bg-white/10"
+                    ? "border-[rgba(76,141,255,0.4)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+                    : "border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
                 }`}
               >
                 {preset}
               </button>
             ))}
-            <span className="text-[11px] text-white/50">Frontend display helper only. Market period still uses Daily/Weekly/Monthly/Yearly.</span>
+            <span className="text-[9px] text-[var(--dsa-text-muted)]">Preset only changes the displayed date range; market period remains Daily / Weekly / Monthly / Yearly.</span>
           </div>
-          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+          {error ? <p className="border-t border-[rgba(231,91,100,0.28)] bg-[rgba(231,91,100,0.08)] px-3 py-2 text-[10px] text-[var(--dsa-negative)]">{error}</p> : null}
         </section>
 
-        <section className="rounded-2xl border border-[#2b3139] bg-[#0f172a] p-3">
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-white/70">
-            <span className="text-white/50">Chart:</span>
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--dsa-border)] bg-[#0b1118] px-3 py-2 text-[10px] text-[var(--dsa-text-secondary)]">
+            <span className="dsa-section-label">Chart</span>
             <button
               type="button"
               onClick={() => setChartDrawMode(false)}
-              className={`rounded border px-2 py-0.5 ${!chartDrawMode ? "border-blue-400 bg-blue-500/20 text-blue-100" : "border-white/20 hover:bg-white/10"}`}
+              className={`rounded-[var(--dsa-radius-sm)] border px-2 py-1 text-[9px] font-semibold ${!chartDrawMode ? "border-[rgba(76,141,255,0.4)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]" : "border-[var(--dsa-border)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"}`}
             >
               Pan / zoom / hover
             </button>
             <button
               type="button"
               onClick={() => setChartDrawMode(true)}
-              className={`rounded border px-2 py-0.5 ${chartDrawMode ? "border-amber-400 bg-amber-500/20 text-amber-100" : "border-white/20 hover:bg-white/10"}`}
+              className={`rounded-[var(--dsa-radius-sm)] border px-2 py-1 text-[9px] font-semibold ${chartDrawMode ? "border-[rgba(216,163,64,0.4)] bg-[rgba(216,163,64,0.08)] text-[#d9bb7a]" : "border-[var(--dsa-border)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"}`}
             >
               Draw rectangle
             </button>
-            <span className="text-white/45">
+            <span className="text-[9px] text-[var(--dsa-text-muted)]">
               Hover: OHLCV + advice · Right-click candle: investing box (place at that bar) · Double-click a candle with an arrow: close that order at current price · Right-click a drawn zone: remove rectangle
             </span>
           </div>
-          <div className="rounded-lg border border-[#2b3139] bg-[#111827] p-3">
+          <div className="border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-2">
             <div className="h-[min(66vh,760px)] min-h-[420px] w-full">
               <LightChart
                 symbol={symbol.trim().toUpperCase()}
@@ -887,7 +890,7 @@ export default function TradingHistoryPage() {
               ref={investPopupRef}
               role="dialog"
               aria-label="Place paper order at candle"
-              className="fixed z-[200] w-56 rounded-lg border border-white/20 bg-[#111827] p-2.5 text-xs text-[#e5e7eb] shadow-2xl"
+              className="fixed z-[200] w-56 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] p-2.5 text-[10px] text-[var(--dsa-text)] shadow-2xl"
               style={{
                 left: Math.min(
                   Math.max(8, investPopup.clientX),
@@ -911,7 +914,7 @@ export default function TradingHistoryPage() {
                   <select
                     value={orderSide}
                     onChange={(e) => setOrderSide(e.target.value as OrderSide)}
-                    className="min-w-0 flex-1 rounded border border-white/15 bg-[#0b1220] px-1 py-0.5"
+                    className="dsa-control h-7 min-h-0 min-w-0 flex-1 px-1.5 text-[10px]"
                   >
                     <option value="buy">Accumulate</option>
                     <option value="sell">Reduce</option>
@@ -925,7 +928,7 @@ export default function TradingHistoryPage() {
                     step={0.01}
                     value={orderVolume}
                     onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))}
-                    className="w-full rounded border border-white/15 bg-[#0b1220] px-1 py-0.5"
+                    className="dsa-control h-7 min-h-0 w-full px-1.5 text-[10px]"
                   />
                 </label>
                 <label className="flex items-center gap-1 text-[10px] text-white/70">
@@ -936,14 +939,14 @@ export default function TradingHistoryPage() {
                     step={1}
                     value={orderLeverage}
                     onChange={(e) => setOrderLeverage(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full rounded border border-white/15 bg-[#0b1220] px-1 py-0.5"
+                    className="dsa-control h-7 min-h-0 w-full px-1.5 text-[10px]"
                   />
                 </label>
               </div>
               <div className="mt-2 flex gap-1.5">
                 <button
                   type="button"
-                  className="flex-1 rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                  className="flex-1 rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.3)] bg-[rgba(44,182,125,0.1)] px-2 py-1 text-[10px] font-semibold text-[var(--dsa-positive)] hover:bg-[rgba(44,182,125,0.16)]"
                   onClick={() => {
                     const atIso = pickToBarTimestamp(investPopup.pick);
                     placeOrderAt(investPopup.pick.close, atIso, { timeSec: investPopup.pick.timeSec });
@@ -954,7 +957,7 @@ export default function TradingHistoryPage() {
                 </button>
                 <button
                   type="button"
-                  className="rounded border border-white/25 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10"
+                  className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px]"
                   onClick={() => setInvestPopup(null)}
                 >
                   Cancel
@@ -963,7 +966,7 @@ export default function TradingHistoryPage() {
             </div>
           ) : null}
           {drawnRects.length > 0 ? (
-            <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-[11px] text-amber-100/90">
+            <div className="border-t border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.06)] px-3 py-2 text-[10px] text-[#d9bb7a]">
               <span className="font-semibold">Drawn zones ({drawnRects.length})</span>
               <ul className="mt-1 max-h-24 list-inside list-disc overflow-y-auto text-white/70">
                 {drawnRects.map((r, i) => (
@@ -976,33 +979,33 @@ export default function TradingHistoryPage() {
               </ul>
             </div>
           ) : null}
-          <div className="mt-2 rounded-lg border border-white/10 bg-[#111827]/95 p-2 shadow-lg backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/90">Paper Investing Simulator</p>
+          <div className="border-t border-[var(--dsa-border)] bg-[#0b1118] px-3 py-2">
+            <p className="dsa-section-label">Paper investing simulator</p>
             <p className="mt-0.5 text-[11px] text-white/65">Market Price ({currency}) @ {fmtMoney(currentPrice, currency)}</p>
             <p className="mt-1 text-[10px] text-white/70">
               Open: {fmtMoney(Number(currentBar?.open ?? 0), currency)} &nbsp; High: {fmtMoney(Number(currentBar?.high ?? 0), currency)} &nbsp; Low: {fmtMoney(Number(currentBar?.low ?? 0), currency)} &nbsp; Close: {fmtMoney(currentPrice, currency)}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] text-white/70">Decision:</span>
-              <select value={orderSide} onChange={(e) => setOrderSide(e.target.value as OrderSide)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs">
+              <select value={orderSide} onChange={(e) => setOrderSide(e.target.value as OrderSide)} className="dsa-control h-7 min-h-0 px-1.5 text-[10px]">
                 <option value="buy">ACCUMULATE</option>
                 <option value="sell">REDUCE</option>
               </select>
               <span className="text-[10px] text-white/70">By volume:</span>
-              <input type="number" min={0.01} step={0.01} value={orderVolume} onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))} className="w-20 rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
+              <input type="number" min={0.01} step={0.01} value={orderVolume} onChange={(e) => setOrderVolume(Math.max(0.01, Number(e.target.value) || 0.01))} className="dsa-control h-7 min-h-0 w-20 px-1.5 text-[10px]" />
               <span className="text-[10px] text-white/70">By weight:</span>
-              <input type="number" min={1} step={1} value={orderLeverage} onChange={(e) => setOrderLeverage(Math.max(1, Number(e.target.value) || 1))} className="w-16 rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
-              <button onClick={placeOrder} disabled={!currentBar || currentPrice <= 0} className="rounded bg-[#2563eb] px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-60">Place</button>
-              <button onClick={stepForward} disabled={!canStep} className="rounded bg-[#1f2937] px-2.5 py-1 text-xs text-white disabled:opacity-60">Next</button>
+              <input type="number" min={1} step={1} value={orderLeverage} onChange={(e) => setOrderLeverage(Math.max(1, Number(e.target.value) || 1))} className="dsa-control h-7 min-h-0 w-16 px-1.5 text-[10px]" />
+              <button onClick={placeOrder} disabled={!currentBar || currentPrice <= 0} className="dsa-button-primary min-h-0 px-2.5 py-1 text-[10px] disabled:opacity-50">Place</button>
+              <button onClick={stepForward} disabled={!canStep} className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px] disabled:opacity-50">Next</button>
               <span className="text-[10px] text-white/70">Speed:</span>
-              <select value={String(speed)} onChange={(e) => setSpeed(Number(e.target.value) as Speed)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs">
+              <select value={String(speed)} onChange={(e) => setSpeed(Number(e.target.value) as Speed)} className="dsa-control h-7 min-h-0 px-1.5 text-[10px]">
                 <option value="1">1x (0.7s/candle)</option>
                 <option value="2">2x (0.35s/candle)</option>
                 <option value="4">4x (0.15s/candle)</option>
               </select>
-              <input type="date" min={fromDate || undefined} max={toDate || undefined} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="rounded border border-white/10 bg-[#0b1220] px-1.5 py-1 text-xs" />
-              <button onClick={startAuto} disabled={bars.length < 2 || autoRunning} className="rounded bg-[#2563eb] px-2 py-1 text-xs font-semibold disabled:opacity-60">Speed Up</button>
-              <button onClick={stopAuto} disabled={!autoRunning} className="rounded bg-[#1f2937] px-2 py-1 text-xs disabled:opacity-60">Stop</button>
+              <input type="date" min={fromDate || undefined} max={toDate || undefined} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="dsa-control h-7 min-h-0 px-1.5 text-[10px]" />
+              <button onClick={startAuto} disabled={bars.length < 2 || autoRunning} className="dsa-button-primary min-h-0 px-2 py-1 text-[10px] disabled:opacity-50">Speed Up</button>
+              <button onClick={stopAuto} disabled={!autoRunning} className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-50">Stop</button>
             </div>
             <p className="mt-2 text-[10px] text-white/70">
               Position: {shares > 0 ? "Long" : "Flat"} &nbsp; Equity ({currency}): {fmtMoney(equity, currency)} &nbsp; Profit and Loss:{" "}
@@ -1017,14 +1020,14 @@ export default function TradingHistoryPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/80">Investing decision log</h2>
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head"><div><p className="text-xs font-semibold text-white">Investing decision log</p><p className="text-[10px] text-[var(--dsa-text-muted)]">Paper decisions saved for the current simulator run.</p></div><span className="font-mono text-[9px] text-[var(--dsa-text-muted)]">{logs.length} rows</span></div>
           {!logs.length ? (
-            <p className="text-sm text-white/60">No decisions yet.</p>
+            <p className="px-3 py-6 text-center text-xs text-[var(--dsa-text-muted)]">No decisions yet.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-[var(--dsa-border)]">
               {logs.map((t, i) => (
-                <div key={`${t.at}-${i}`} className="rounded-lg border border-white/10 px-3 py-2 text-sm">
+                <div key={`${t.at}-${i}`} className="px-3 py-2 font-mono text-[10px] text-[var(--dsa-text-secondary)]">
                   <span className={t.side === "buy" ? "text-emerald-400" : "text-red-400"}>{investingSideLabel(t.side)}</span>{" "}
                   {t.qty.toLocaleString("en-US")} (x{t.leverage}) @ {fmtMoney(t.price, currency)} on {fmtDate(t.at)} | cash after {fmtMoney(t.cashAfter, currency)}
                 </div>
@@ -1033,14 +1036,19 @@ export default function TradingHistoryPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white/80">History Advice (Demo)</h2>
-          <p className="mb-3 text-xs text-white/60">
-            Simulated 6-attribute investing radar for 10 fixed symbols. Advice is long-horizon oriented.
-          </p>
-          <div className="overflow-x-auto rounded-lg border border-white/10">
-            <table className="w-full min-w-[980px] text-left text-xs">
-              <thead className="bg-white/[0.04] text-white/70">
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <div>
+              <p className="text-xs font-semibold text-white">History advice (demo)</p>
+              <p className="text-[10px] text-[var(--dsa-text-muted)]">
+                Simulated six-factor long-horizon research context for the fixed demo universe.
+              </p>
+            </div>
+            <span className="font-mono text-[9px] text-[var(--dsa-text-muted)]">{demoHistoryAdviceRows.length} rows</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="dsa-terminal-table min-w-[980px]">
+              <thead>
                 <tr>
                   <th className="px-3 py-2">Timestamp</th>
                   <th className="px-3 py-2">Symbol</th>
@@ -1056,7 +1064,7 @@ export default function TradingHistoryPage() {
               </thead>
               <tbody>
                 {demoHistoryAdviceRows.map((row) => (
-                  <tr key={`${row.symbol}-${row.asOf}`} className="border-t border-white/10">
+                  <tr key={`${row.symbol}-${row.asOf}`} >
                     <td className="px-3 py-2 font-mono text-white/75">{row.asOf}</td>
                     <td className="px-3 py-2 font-semibold">{row.symbol}</td>
                     <td className="px-3 py-2">{row.value.toFixed(1)}</td>
@@ -1067,7 +1075,7 @@ export default function TradingHistoryPage() {
                     <td className="px-3 py-2">{row.sentiment.toFixed(1)}</td>
                     <td className="px-3 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 font-semibold ${
+                        className={`rounded-[var(--dsa-radius-sm)] px-1.5 py-0.5 text-[9px] font-semibold ${
                           row.advice === "ACCUMULATE"
                             ? "bg-emerald-500/20 text-emerald-300"
                             : row.advice === "KEEP"
