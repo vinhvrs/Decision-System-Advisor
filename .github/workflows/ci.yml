@@ -64,20 +64,26 @@ jobs:
           python -m py_compile \
             app/analyze/dashboard/dashboard.py \
             app/bootstrap/scheduler_config.py \
+            app/data_collect/history_policy.py \
             app/data_collect/collectors/stock_sync.py \
             app/data_collect/symbol_ingest.py \
+            app/jobs/stock_job.py \
             app/socket/events.py \
-            app/warm_up/warm_up.py
+            app/warm_up/warm_up.py \
+            snapshot_build.py
 
       - name: Verify 40-symbol runtime contract
         run: |
           grep -q 'SYMBOL_INGEST_TOP_N=40' ../../docker-compose.yml
+          grep -q 'HISTORY_BOOTSTRAP_MIN_BARS=180' ../../docker-compose.yml
+          grep -q 'HISTORY_BOOTSTRAP_DAYS=3650' ../../docker-compose.yml
           grep -q 'DASHBOARD_WARM_UP_LIMIT=40' ../../docker-compose.yml
+          grep -q 'DASHBOARD_WARM_UP_CHART_BARS=90' ../../docker-compose.yml
           grep -q 'SYMBOL_INGEST_TOP_N.*"40"' app/bootstrap/scheduler_config.py
           grep -q 'DASHBOARD_WARM_UP_LIMIT.*"40"' app/bootstrap/scheduler_config.py
 
       - name: Run table-mode regression tests
-        run: python -m unittest tests.test_dsa_table_mode
+        run: python -m unittest tests.test_dsa_table_mode tests.test_history_policy
 
   laravel-guards:
     name: Laravel production guards
