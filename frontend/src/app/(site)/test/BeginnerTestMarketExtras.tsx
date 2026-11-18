@@ -272,9 +272,9 @@ export default function BeginnerTestMarketExtras({
         </Link>
       </div>
 
-      <div className={`w-full rounded-2xl ${C.card} p-4`}>
+      <div className={`w-full rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
         <div className="mb-3 flex items-center gap-2">
-          <Newspaper className="h-4 w-4 text-[#7b9cff]" />
+          <Newspaper className="h-4 w-4 text-[var(--dsa-text-muted)]" />
           <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Recent news</h3>
         </div>
         {newsLoading ? (
@@ -306,10 +306,10 @@ export default function BeginnerTestMarketExtras({
       </div>
 
       <div className="flex flex-col gap-3 laptop:flex-row laptop:items-stretch">
-        <div className={`flex min-h-[380px] min-w-0 flex-1 flex-col rounded-2xl ${C.card} px-2 py-3`}>
+        <div className={`flex min-h-[380px] min-w-0 flex-1 flex-col rounded-[var(--dsa-radius-md)] ${C.card} px-2 py-3`}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4 text-amber-400" />
+              <LayoutGrid className="h-4 w-4 text-[var(--dsa-text-muted)]" />
               <h3 className="text-xs font-semibold uppercase tracking-wide text-white">
                 {heatmapTitle}
               </h3>
@@ -329,9 +329,9 @@ export default function BeginnerTestMarketExtras({
           )}
         </div>
 
-        <div className={`flex min-h-[380px] min-w-0 flex-1 flex-col rounded-2xl ${C.card} p-3 phone:p-4`}>
+        <div className={`flex min-h-[380px] min-w-0 flex-1 flex-col rounded-[var(--dsa-radius-md)] ${C.card} p-3 phone:p-4`}>
           <div className="mb-2 flex items-center gap-2">
-            <Activity className="h-4 w-4 text-[#7b9cff]" />
+            <Activity className="h-4 w-4 text-[var(--dsa-text-muted)]" />
             <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Volume movers</h3>
           </div>
           {displayVolumeLoading ? (

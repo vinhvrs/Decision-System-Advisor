@@ -1,8 +1,9 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2, Search } from "lucide-react";
 import { ElasticService, type ElasticCompanyHit } from "@/src/services/Elastic.service";
 import newsService from "@/src/services/newsService";
 import { newsSourceLabel } from "@/src/libs/newsArticle";
@@ -38,8 +39,7 @@ function fuzzyNewsScore(query: string, title: string, content: string): number {
   if (t.includes(q)) score += 14;
   if (c.includes(q)) score += 8;
 
-  const qWords = words(q);
-  for (const w of qWords) {
+  for (const w of words(q)) {
     if (w.length < 2) continue;
     if (t.includes(w)) score += 4;
     else if (c.includes(w)) score += 2;
@@ -48,107 +48,116 @@ function fuzzyNewsScore(query: string, title: string, content: string): number {
   return score;
 }
 
-function teaser(content: string, maxLen = 100): string {
+function teaser(content: string, maxLen = 130): string {
   const firstLine = (content || "").replace(/\s+/g, " ").trim();
-  if (!firstLine) return "Short market brief available.";
+  if (!firstLine) return "Market brief available.";
   return firstLine.length > maxLen ? `${firstLine.slice(0, maxLen).trimEnd()}...` : firstLine;
 }
 
 function SearchResults() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
+  const [draftState, setDraftState] = useState({ sourceQuery: q, value: q });
+  const draftQuery = draftState.sourceQuery === q ? draftState.value : q;
   const debouncedQ = useDebouncedValue(q, 300);
   const [results, setResults] = useState<ElasticCompanyHit[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [resolvedQuery, setResolvedQuery] = useState("");
   const [total, setTotal] = useState(0);
-  const [demoTop, setDemoTop] = useState<ElasticCompanyHit[]>([]);
+  const [popular, setPopular] = useState<ElasticCompanyHit[]>([]);
   const [newsResults, setNewsResults] = useState<News[]>([]);
 
   useEffect(() => {
-    ElasticService.getDemoTopSymbols(20)
-      .then(({ items }) => setDemoTop(items))
-      .catch(() => setDemoTop([]));
+    ElasticService.getTopSymbols(20)
+      .then(({ items }) => setPopular(items))
+      .catch(() => setPopular([]));
   }, []);
 
   useEffect(() => {
     const query = debouncedQ.trim();
     let cancelled = false;
 
-    const timer = window.setTimeout(() => {
-      if (query.length < 2) {
-        setResults([]);
-        setSuggestions([]);
-        setTotal(0);
-        setNewsResults([]);
-        setLoading(false);
-        return;
-      }
+    if (query.length < 2) return;
 
-      setLoading(true);
-      Promise.all([
-        ElasticService.searchCompanies(query, 50),
-        newsService.getAllNews({ page: 1, per_page: 120 }),
-      ])
-        .then(([companyRes, newsRes]) => {
-          if (cancelled) return;
-          setResults(companyRes.items);
-          setTotal(companyRes.total);
-          setSuggestions(companyRes.suggestions ?? []);
+    Promise.all([
+      ElasticService.searchCompanies(query, 50),
+      newsService.getAllNews({ page: 1, per_page: 120 }),
+    ])
+      .then(([companyRes, newsRes]) => {
+        if (cancelled) return;
+        setResults(companyRes.items);
+        setTotal(companyRes.total);
+        setSuggestions(companyRes.suggestions ?? []);
 
-          const newsRows = Array.isArray(newsRes?.data) ? newsRes.data : [];
-          const rankedNews = newsRows
-            .map((n: News) => ({
-              row: n,
-              score: fuzzyNewsScore(query, String(n?.title ?? ""), String(n?.content ?? "")),
-            }))
-            .filter((x) => x.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 8)
-            .map((x) => x.row);
-          setNewsResults(rankedNews);
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setResults([]);
-            setTotal(0);
-            setSuggestions([]);
-            setNewsResults([]);
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    }, 0);
+        const newsRows = Array.isArray(newsRes?.data) ? newsRes.data : [];
+        const rankedNews = newsRows
+          .map((n: News) => ({
+            row: n,
+            score: fuzzyNewsScore(query, String(n?.title ?? ""), String(n?.content ?? "")),
+          }))
+          .filter((x) => x.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 8)
+          .map((x) => x.row);
+        setNewsResults(rankedNews);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResults([]);
+          setTotal(0);
+          setSuggestions([]);
+          setNewsResults([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setResolvedQuery(query);
+      });
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, [debouncedQ]);
 
-  const searchPending = q.trim() !== debouncedQ.trim();
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = draftQuery.trim();
+    if (next.length < 2) return;
+    router.push(`/search?q=${encodeURIComponent(next)}`);
+  };
 
-  const demoColumn = (
-    <aside className="rounded-xl border border-white/10 bg-white/[0.03] p-4 lg:sticky lg:top-20 lg:self-start">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Popular symbols</h2>
-      <p className="mt-1 text-[11px] leading-snug text-white/45">
-        Frequently viewed tickers. Select one to open its company profile.
-      </p>
-      <ul className="mt-3 max-h-[min(70vh,520px)] space-y-1 overflow-y-auto text-sm">
-        {demoTop.length === 0 ? (
-          <li className="text-white/40">This list is temporarily unavailable.</li>
+  const selectSuggestion = (value: string) => {
+    setDraftState({ sourceQuery: value, value });
+    router.push(`/search?q=${encodeURIComponent(value)}`);
+  };
+
+  const searchPending = q.trim() !== debouncedQ.trim();
+  const hasQuery = q.trim().length >= 2;
+  const loading = hasQuery && resolvedQuery !== debouncedQ.trim();
+
+  const popularPanel = (
+    <aside className="dsa-panel overflow-hidden laptop:sticky laptop:top-[calc(var(--dsa-header-height)+16px)] laptop:self-start">
+      <div className="border-b border-[var(--dsa-border)] px-3 py-2">
+        <p className="dsa-section-label">Popular symbols</p>
+      </div>
+      <ul className="max-h-[min(70vh,520px)] overflow-y-auto">
+        {popular.length === 0 ? (
+          <li className="px-3 py-4 text-xs text-[var(--dsa-text-muted)]">This list is temporarily unavailable.</li>
         ) : (
-          demoTop.map((hit, idx) => {
+          popular.map((hit, idx) => {
             const symbol = hit.source?.symbol ?? "—";
+            const name = stripParentheticals(hit.source?.company_name) || "—";
             return (
-              <li key={hit.id ?? `${symbol}-${idx}`}>
+              <li key={hit.id ?? `${symbol}-${idx}`} className="border-b border-[var(--dsa-border)] last:border-b-0">
                 <Link
                   href={`/companies/profile/${symbol.toLowerCase()}`}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-white/80 hover:bg-white/5"
+                  className="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-[var(--dsa-surface-2)]"
                 >
-                  <span className="w-6 text-[10px] text-white/30">{idx + 1}</span>
-                  <span className="font-mono font-semibold text-indigo-300">{symbol}</span>
+                  <span className="w-5 shrink-0 font-mono text-[10px] tabular-nums text-[var(--dsa-text-muted)]">
+                    {idx + 1}
+                  </span>
+                  <span className="w-14 shrink-0 font-mono text-xs font-semibold text-[var(--dsa-text)]">{symbol}</span>
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--dsa-text-secondary)]">{name}</span>
                 </Link>
               </li>
             );
@@ -158,127 +167,157 @@ function SearchResults() {
     </aside>
   );
 
-  if (q.trim().length < 2) {
-    return (
-      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-12 lg:grid-cols-[1fr_260px]">
-        <div className="text-center lg:text-left">
-          <h1 className="text-xl font-semibold text-white">Search companies</h1>
-          <p className="mt-2 text-sm text-white/55">
-            Enter at least <strong className="text-white/80">two characters</strong> in the search box (or add{" "}
-            <code className="rounded bg-white/10 px-1 text-xs">?q=</code> to the address bar). We match company names and
-            descriptions and show spelling suggestions for longer queries.
+  return (
+    <div className="-mx-3 min-h-screen bg-[var(--dsa-bg)] text-[var(--dsa-text)] phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
+      <header className="border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-4 phone:px-4 tablet:px-5 laptop:px-6">
+        <div className="dsa-page">
+          <p className="dsa-section-label">Global search</p>
+          <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white tablet:text-2xl">
+            Companies & market news
+          </h1>
+          <form onSubmit={submitSearch} className="mt-3 flex max-w-3xl items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dsa-text-muted)]"
+                aria-hidden
+              />
+              <input
+                autoFocus={!hasQuery}
+                value={draftQuery}
+                onChange={(event) => setDraftState({ sourceQuery: q, value: event.target.value })}
+                placeholder="Ticker or company name"
+                aria-label="Search ticker or company"
+                className="dsa-control h-9 w-full pl-9 pr-3 text-sm placeholder:text-[var(--dsa-text-muted)]"
+              />
+            </div>
+            <button type="submit" className="dsa-button-primary h-9 shrink-0 px-4" disabled={draftQuery.trim().length < 2}>
+              Search
+            </button>
+          </form>
+          <p className="mt-2 text-[11px] text-[var(--dsa-text-muted)]">
+            Search requires at least two characters. Company matches come from the indexed instrument catalog; related news is matched separately.
           </p>
         </div>
-        {demoColumn}
-      </div>
-    );
-  }
+      </header>
 
-  if (searchPending || loading) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-        <p className="mt-4 text-white/50">Searching…</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto grid max-w-5xl gap-8 px-4 py-8 lg:grid-cols-[1fr_260px]">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold text-white">
-          Results for &quot;{q}&quot;
-        </h1>
-        <p className="mt-1 text-sm text-white/50">
-          {total} {total === 1 ? "company" : "companies"} found
-        </p>
-
-        {suggestions.length > 0 && (
-          <div className="mt-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/80">Did you mean</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {suggestions.map((s) => (
-                <Link
-                  key={s}
-                  href={`/search?q=${encodeURIComponent(s)}`}
-                  className="rounded-lg bg-indigo-500/20 px-3 py-1.5 text-sm text-indigo-200 hover:bg-indigo-500/30"
-                >
-                  {s}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {results.length === 0 ? (
-          <p className="py-8 text-white/50">No results. Try a suggestion above or a shorter prefix.</p>
-        ) : (
-          <ul className="mt-6 space-y-1">
-            {results.map((hit, idx) => {
-              const symbol = hit.source?.symbol ?? "—";
-              const name = stripParentheticals(hit.source?.company_name) || "—";
-              return (
-                <li key={hit.id ?? `${symbol}-${idx}`}>
-                  <Link
-                    href={`/companies/profile/${symbol.toLowerCase()}`}
-                    className="flex items-center gap-4 rounded-xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-white/10 hover:bg-white/10"
-                  >
-                    <span className="w-8 text-sm text-slate-400">#{idx + 1}</span>
-                    <span className="w-20 shrink-0 font-semibold uppercase text-white">{symbol}</span>
-                    <span className="flex-1 truncate text-white/80">{name}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <section className="mt-8">
-          <h2 className="text-base font-semibold text-white">Related news</h2>
-          <p className="mt-1 text-xs text-white/45">Headlines that mention your search terms. Open an item for the full story.</p>
-          {newsResults.length === 0 ? (
-            <p className="py-4 text-sm text-white/50">No related news found for this keyword.</p>
+      <div className="dsa-page grid gap-4 px-3 py-4 phone:px-4 tablet:px-5 laptop:grid-cols-[minmax(0,1fr)_280px] laptop:px-6">
+        <main className="min-w-0 space-y-4">
+          {!hasQuery ? (
+            <section className="dsa-panel p-4">
+              <h2 className="text-sm font-semibold text-white">Start with a symbol or company</h2>
+              <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">
+                Examples: AAPL, NVIDIA, Microsoft. No result or score is inferred before a query is submitted.
+              </p>
+            </section>
+          ) : searchPending || loading ? (
+            <section className="dsa-panel flex min-h-36 items-center justify-center gap-2 p-4 text-sm text-[var(--dsa-text-muted)]">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              Searching…
+            </section>
           ) : (
-            <ul className="mt-3 space-y-2">
-              {newsResults.map((n, idx) => {
-                const href = n.id ? `/news?n=${encodeURIComponent(String(n.id))}` : "/news";
-                const title = String(n.title || "Untitled");
-                const meta = newsSourceLabel({ source: n.source, author: n.author });
-                const ts = n.published_at ? new Date(n.published_at).toISOString().slice(0, 10) : "—";
-                const desc = teaser(String(n.content ?? ""));
-                const baseClass =
-                  "block rounded-xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-white/10 hover:bg-white/10";
-                return (
-                  <li key={`${n.id ?? title}-${idx}`}>
-                    <Link href={href} className={baseClass}>
-                      <p className="text-sm font-medium text-white">{title}</p>
-                      <p className="mt-1 text-xs text-white/45">{meta} · {ts}</p>
-                      <p className="mt-2 text-sm text-white/70">{desc}</p>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              {suggestions.length > 0 && (
+                <section className="dsa-panel flex flex-wrap items-center gap-2 px-3 py-2">
+                  <span className="dsa-section-label mr-1">Suggestions</span>
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => selectSuggestion(suggestion)}
+                      className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1 text-xs text-[var(--dsa-text-secondary)] hover:border-[var(--dsa-border-strong)] hover:text-white"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </section>
+              )}
+
+              <section className="dsa-panel overflow-hidden">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--dsa-border)] px-3 py-2">
+                  <div>
+                    <p className="dsa-section-label">Companies</p>
+                    <h2 className="mt-0.5 text-sm font-semibold text-white">Results for “{q}”</h2>
+                  </div>
+                  <span className="font-mono text-xs tabular-nums text-[var(--dsa-text-muted)]">{total} found</span>
+                </div>
+
+                {results.length === 0 ? (
+                  <p className="px-3 py-6 text-sm text-[var(--dsa-text-muted)]">
+                    No company results. Try a suggestion or shorter prefix.
+                  </p>
+                ) : (
+                  <ul>
+                    {results.map((hit, idx) => {
+                      const symbol = hit.source?.symbol ?? "—";
+                      const name = stripParentheticals(hit.source?.company_name) || "—";
+                      return (
+                        <li key={hit.id ?? `${symbol}-${idx}`} className="border-b border-[var(--dsa-border)] last:border-b-0">
+                          <Link
+                            href={`/companies/profile/${symbol.toLowerCase()}`}
+                            className="grid grid-cols-[36px_72px_minmax(0,1fr)] items-center gap-2 px-3 py-2.5 transition-colors hover:bg-[var(--dsa-surface-2)]"
+                          >
+                            <span className="font-mono text-[10px] tabular-nums text-[var(--dsa-text-muted)]">#{idx + 1}</span>
+                            <span className="font-mono text-xs font-semibold text-white">{symbol}</span>
+                            <span className="truncate text-xs text-[var(--dsa-text-secondary)]">{name}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              <section className="dsa-panel overflow-hidden">
+                <div className="border-b border-[var(--dsa-border)] px-3 py-2">
+                  <p className="dsa-section-label">Related news</p>
+                </div>
+                {newsResults.length === 0 ? (
+                  <p className="px-3 py-5 text-sm text-[var(--dsa-text-muted)]">
+                    No related headlines found for this query.
+                  </p>
+                ) : (
+                  <ul>
+                    {newsResults.map((item, idx) => {
+                      const href = item.id ? `/news?n=${encodeURIComponent(String(item.id))}` : "/news";
+                      const title = String(item.title || "Untitled");
+                      const meta = newsSourceLabel({ source: item.source, author: item.author });
+                      const date = item.published_at ? new Date(item.published_at) : null;
+                      const ts = date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : "—";
+                      return (
+                        <li key={`${item.id ?? title}-${idx}`} className="border-b border-[var(--dsa-border)] last:border-b-0">
+                          <Link href={href} className="block px-3 py-3 transition-colors hover:bg-[var(--dsa-surface-2)]">
+                            <p className="text-sm font-medium text-white">{title}</p>
+                            <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">{meta} · {ts}</p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--dsa-text-secondary)]">
+                              {teaser(String(item.content ?? ""))}
+                            </p>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            </>
           )}
-        </section>
+        </main>
+
+        {popularPanel}
       </div>
-      {demoColumn}
     </div>
   );
 }
 
 export default function SearchPage() {
   return (
-    <div className="min-h-screen bg-[#0B1220]">
-      <Suspense
-        fallback={
-          <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          </div>
-        }
-      >
-        <SearchResults />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div className="-mx-3 min-h-screen bg-[var(--dsa-bg)] px-4 py-16 text-center text-sm text-[var(--dsa-text-muted)] phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
+          Loading search…
+        </div>
+      }
+    >
+      <SearchResults />
+    </Suspense>
   );
 }
