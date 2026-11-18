@@ -47,6 +47,42 @@ INVESTING_BOARD_YAHOO_SYMBOLS: Set[str] = {
     "AMD", "ADBE", "CRM", "CSCO", "ASML", "INTU", "QCOM", "NOW", "PANW", "SNOW",
 }
 
+try:
+    MARKET_BOARD_SYMBOL_LIMIT = max(1, min(500, int(os.environ.get("MARKET_BOARD_SYMBOL_LIMIT", "40"))))
+except ValueError:
+    MARKET_BOARD_SYMBOL_LIMIT = 40
+
+
+def _load_allowed_stock_symbols() -> Set[str]:
+    """Use the DB instrument catalog as the stock quote whitelist."""
+    conn = None
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT UPPER(TRIM(symbol)) AS symbol
+                FROM instruments
+                WHERE type = 'stock'
+                  AND symbol IS NOT NULL
+                  AND TRIM(symbol) <> ''
+                """
+            )
+            return {
+                str(row["symbol"]).upper()
+                for row in (cur.fetchall() or [])
+                if row.get("symbol")
+            }
+    except Exception as e:
+        logger.warning("[Socket] failed to load stock whitelist from instruments: %s", e)
+        return set()
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
 
 def _empty_market_overview() -> Dict[str, Any]:
     return {
@@ -149,9 +185,12 @@ class ConnectionManager:
         await asyncio.gather(*(self._send_safe(ws, text) for ws in targets))
 
     def update_subscription(self, websocket: WebSocket, symbols: List[str], period: str = "daily"):
-        from app.config.market_universe import BY_SYMBOL
-        allowed = set(BY_SYMBOL) | DASHBOARD_YAHOO_SYMBOLS | INVESTING_BOARD_YAHOO_SYMBOLS
-        new_symbols = {s.upper() for s in symbols if isinstance(s, str) and s.upper() in allowed}
+        allowed = _load_allowed_stock_symbols() | DASHBOARD_YAHOO_SYMBOLS | INVESTING_BOARD_YAHOO_SYMBOLS
+        new_symbols = {
+            s.upper()
+            for s in symbols
+            if isinstance(s, str) and s.upper() in allowed
+        }
         with self._lock:
             self.active_connections[websocket] = new_symbols
 
@@ -415,8 +454,21 @@ async def startup_event():
     try:
         conn = pymysql.connect(**DB_CONFIG)
         with conn.cursor() as cur:
-            cur.execute("SELECT symbol FROM instrument_snapshot LIMIT 10")
-            manager.base_symbols = {r['symbol'].upper() for r in cur.fetchall()}
+            cur.execute(
+                """
+                SELECT symbol
+                FROM instrument_snapshot
+                WHERE symbol IS NOT NULL AND TRIM(symbol) <> ''
+                ORDER BY volume DESC
+                LIMIT %s
+                """,
+                (MARKET_BOARD_SYMBOL_LIMIT,),
+            )
+            manager.base_symbols = {
+                str(r["symbol"]).upper()
+                for r in (cur.fetchall() or [])
+                if r.get("symbol")
+            }
             manager.start_or_restart_engine()
     except Exception:
         # TEMP stocks-only: was BTC-USD, ETH-USD
