@@ -390,9 +390,19 @@ class DSATurbo:
         return p_ids
 
     def persisted_daily_bar_count(self, daily_period_id: str) -> int:
+        """Count distinct persisted trading dates, not raw rows.
+
+        Legacy/raw and canonical collectors may have written different timestamps
+        for the same trading date. Raw COUNT(*) can therefore overstate coverage
+        and incorrectly suppress the long bootstrap for under-covered symbols.
+        """
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) AS n FROM instrument_data WHERE instrument_period_id=%s",
+                """
+                SELECT COUNT(DISTINCT DATE(timestamps)) AS n
+                FROM instrument_data
+                WHERE instrument_period_id=%s
+                """,
                 (daily_period_id,),
             )
             row = cur.fetchone() or {}
@@ -400,6 +410,61 @@ class DSATurbo:
             return max(0, int(row.get("n") or 0))
         except (TypeError, ValueError):
             return 0
+
+    def persisted_daily_frame(self, daily_period_id: str) -> pd.DataFrame:
+        """Load canonical aggregation input from persisted daily history.
+
+        Aggregates must be rebuilt from stored daily OHLC, not from the latest
+        Yahoo fetch window. Otherwise an incremental 7d fetch can overwrite a
+        monthly/yearly bar with only a few recent sessions.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT timestamps, open, high, low, close, volume
+                FROM instrument_data
+                WHERE instrument_period_id=%s
+                ORDER BY timestamps ASC
+                """,
+                (daily_period_id,),
+            )
+            rows = list(cur.fetchall() or [])
+
+        if not rows:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(rows)
+        frame["timestamps"] = pd.to_datetime(frame["timestamps"], errors="coerce")
+        frame = frame.dropna(subset=["timestamps"]).copy()
+        if frame.empty:
+            return pd.DataFrame()
+
+        # Different collectors historically used different intraday timestamps.
+        # Do not silently choose between duplicate trading-date rows; ambiguity
+        # must be resolved by data:coverage before aggregate bars are rewritten.
+        trade_dates = frame["timestamps"].dt.date
+        if trade_dates.duplicated().any():
+            duplicate_days = sorted(
+                {str(day) for day in trade_dates[trade_dates.duplicated(keep=False)].tolist()}
+            )
+            raise RuntimeError(
+                "duplicate persisted daily trading dates; aggregation withheld: "
+                + ",".join(duplicate_days[:10])
+            )
+
+        frame = frame.set_index("timestamps")
+        frame = frame.rename(
+            columns={
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
+            }
+        )
+        for column in ("Open", "High", "Low", "Close", "Volume"):
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        return frame.dropna(subset=["Open", "High", "Low", "Close"])
 
     def update_stock(self, inst_id, symbol):
         p_ids = self.ensure_periods(inst_id, symbol)
@@ -451,8 +516,10 @@ class DSATurbo:
             if daily_values:
                 self._execute_upsert(daily_values)
 
-            # Resampled weekly / monthly / yearly
-            self.aggregate_for_symbol(symbol, p_ids, df, now_str)
+            # Resample from the persisted daily table, never from this fetch window.
+            # This keeps incremental 7d syncs from truncating monthly/yearly OHLC.
+            persisted_daily = self.persisted_daily_frame(p_ids["daily"])
+            self.aggregate_for_symbol(symbol, p_ids, persisted_daily, now_str)
 
         except Exception as e:
             print(f"Error {symbol}: {e}")
