@@ -2,6 +2,8 @@
 namespace App\Console;
 use App\Console\Commands\ElasticReindexCommand;
 use App\Console\Commands\ElasticSetupCommand;
+use App\Console\Commands\DataPeriods;
+use App\Console\Commands\DataCoverage;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +13,8 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         ElasticSetupCommand::class,
         ElasticReindexCommand::class,
+        DataPeriods::class,
+        DataCoverage::class,
     ];
     protected $middlewareGroups = [
         'api' => [
@@ -24,8 +28,11 @@ class Kernel extends ConsoleKernel
     {
         Log::info('schedule() invoked in Console Kernel.');
 
+        // Historical OHLC persistence is separate from realtime quotes.
+        // Running the Yahoo daily-history job every 15 seconds can throttle later
+        // symbols in the universe and leave them realtime-only.
         $schedule->command('data:periods')
-            ->everyFifteenSeconds()
+            ->everyFifteenMinutes()
             ->evenInMaintenanceMode()
             ->withoutOverlapping()
             ->runInBackground()

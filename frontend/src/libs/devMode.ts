@@ -3,6 +3,10 @@
  * Set `DEV_MODE=dev` in `.env.local` (exposed as `NEXT_PUBLIC_DEV_MODE` via next.config).
  */
 export function isDemoDevMode(): boolean {
+  // Public production builds must never silently switch to seeded/demo market rows.
+  // NEXT_PUBLIC_DEV_MODE is only honored in non-production environments.
+  if (process.env.NODE_ENV === "production") return false;
+
   const raw = (process.env.NEXT_PUBLIC_DEV_MODE ?? "").trim().toLowerCase();
   if (!raw) return false;
   if (raw === "prod" || raw === "production" || raw === "false" || raw === "0") return false;

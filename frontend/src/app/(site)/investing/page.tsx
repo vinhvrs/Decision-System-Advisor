@@ -1,6 +1,3 @@
-/* eslint-disable @next/next/no-html-link-for-pages */
-import Image from "next/image";
-import bgImg from "@/src/assets/images/bg-landingpage.jpg";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import HomeLiveMarketSection from "@/src/components/home/HomeLiveMarketSection";
@@ -14,113 +11,100 @@ import {
 
 export default function InvestingHomePage() {
   return (
-    <div className="text-white bg-[#0b1220]">
-      <section className="relative flex min-h-[200px] max-h-[320px] items-end overflow-hidden phone:min-h-[220px] tablet:min-h-[240px] laptop:min-h-[260px]">
-        <Image
-          src={bgImg}
-          alt="Background"
-          fill
-          priority
-          className="object-cover object-center"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/10" />
-
-        <div className="relative z-10 w-full px-4 pb-8 phone:px-5 tablet:px-6 tablet:pb-10">
-          <div className="max-w-5xl mx-0 phone:mx-4 tablet:mx-6">
-            <h1 className="text-2xl font-bold leading-tight phone:text-3xl tablet:text-4xl">
-              Decision Stocks Advisor
+    <div className="-mx-3 bg-[var(--dsa-bg)] phone:-mx-4 tablet:-mx-5 laptop:-mx-6">
+      <section className="border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-4 phone:px-4 tablet:px-5 laptop:px-6">
+        <div className="dsa-page flex flex-col gap-3 tablet:flex-row tablet:items-end tablet:justify-between">
+          <div>
+            <p className="dsa-section-label">Market research</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white tablet:text-2xl">
+              Investing workspace
             </h1>
-            <p className="mt-2 text-sm text-white/80 phone:mt-3 phone:text-base tablet:text-lg">
-              All information you need for investing — chart, indicators, news, heatmap, and market movers in one place.
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[var(--dsa-text-secondary)] tablet:text-[13px]">
+              Charts, market movers, watchlist context, news, and heatmaps in a single research flow.
+              Directional labels describe market bias and are not trade instructions.
             </p>
+          </div>
 
-            <div className="mt-4 flex flex-col gap-2 phone:mt-5 phone:flex-row phone:gap-3">
-              <a
-                href="#dashboard"
-                className="px-5 py-2 rounded bg-white text-black font-semibold"
-              >
-                View Dashboard
-              </a>
-              <Link
-                href="/investing/history"
-                className="px-5 py-2 rounded border border-blue-400/70 text-blue-200 hover:bg-blue-500/10"
-              >
-                Investing History Simulator
-              </Link>
-              <a
-                href="#market-news"
-                className="px-5 py-2 rounded border border-white/60 text-white"
-              >
-                Explore News
-              </a>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <a href="#dashboard" className="dsa-button-primary">
+              Dashboard
+            </a>
+            <Link href="/investing/history" className="dsa-button-secondary">
+              History simulator
+            </Link>
+            <a href="#market-news" className="dsa-button-secondary">
+              News
+            </a>
           </div>
         </div>
       </section>
 
-      <section
-        id="dashboard"
-        className="-mx-4 bg-[#0b1220] px-0 py-6 phone:-mx-5 tablet:-mx-6 tablet:py-8 laptop:py-10"
-      >
-        <div className="mx-auto max-w-screen-xl space-y-6 phone:space-y-8">
-          <div className="px-4 phone:px-5 tablet:px-6">
-            <h2 className="text-xl font-bold phone:text-2xl">Stock investing</h2>
-            <p className="mt-1 text-sm text-white/70 phone:text-base">
-              Real-time market chart and decision tools.
-            </p>
+      <section id="dashboard" className="px-3 py-5 phone:px-4 tablet:px-5 tablet:py-6 laptop:px-6">
+        <div className="dsa-page space-y-4">
+          <div>
+            <p className="dsa-section-label">Dashboard</p>
+            <div className="mt-1 flex flex-col gap-1 phone:flex-row phone:items-end phone:justify-between">
+              <div>
+                <h2 className="dsa-section-title">Market charts & decision context</h2>
+                <p className="mt-1 text-xs text-[var(--dsa-text-muted)]">
+                  Use chart state, source freshness, and supporting indicators together.
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-6 px-2 phone:px-3 tablet:px-4">
-            <HomeDashboardCharts />
-          </div>
-
+          <HomeDashboardCharts />
           <HomeLiveMarketSection watchlist={<HomeWatchlistCard />} />
         </div>
       </section>
 
-      <section id="market-news" className="px-4 py-6 phone:px-5 tablet:px-6 tablet:py-10 bg-[#0b1220]">
-        <div className="max-w-screen-xl mx-auto space-y-2">
-            <div className="flex flex-col phone:flex-row phone:items-start phone:justify-between gap-4">
+      <section
+        id="market-news"
+        className="border-t border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-5 phone:px-4 tablet:px-5 tablet:py-6 laptop:px-6"
+      >
+        <div className="dsa-page space-y-3">
+          <div className="flex flex-col gap-2 phone:flex-row phone:items-end phone:justify-between">
             <div>
-              <h2 className="text-xl phone:text-2xl font-bold">Hot Market News</h2>
-              <p className="text-white/70 mt-1 text-sm phone:text-base">
-              Highlighted stories affecting the market right now.
+              <p className="dsa-section-label">News</p>
+              <h2 className="dsa-section-title mt-1">Market headlines</h2>
+              <p className="mt-1 text-xs text-[var(--dsa-text-muted)]">
+                Recent stories that may affect the instruments and themes being monitored.
               </p>
             </div>
             <Link
               href="/news"
-              className="text-sm text-blue-400 hover:underline flex items-center gap-1 group shrink-0"
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#8ab4ff] hover:text-white"
             >
               View all
-              <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+              <ChevronRight size={13} />
             </Link>
-            </div>
+          </div>
           <HomeHotNews />
         </div>
       </section>
 
-      <section className="px-4 py-10 phone:px-5 tablet:px-6 tablet:py-12 laptop:py-16 bg-[#0b1220] border-t border-white/5">
-        <div className="max-w-screen-xl mx-auto space-y-2">
+      <section className="border-t border-[var(--dsa-border)] px-3 py-5 phone:px-4 tablet:px-5 tablet:py-6 laptop:px-6">
+        <div className="dsa-page space-y-3">
           <div>
-            <h2 className="text-xl phone:text-2xl font-bold">Top Gainers / Losers</h2>
-            <p className="text-white/70 mt-1 text-sm phone:text-base">
-              Daily market movers ranked by strongest positive and negative performance.
+            <p className="dsa-section-label">Breadth</p>
+            <h2 className="dsa-section-title mt-1">Top gainers / losers</h2>
+            <p className="mt-1 text-xs text-[var(--dsa-text-muted)]">
+              Daily movers ordered by positive and negative performance.
             </p>
           </div>
-
           <HomeGainLoss />
         </div>
       </section>
 
-      <section className="px-4 py-10 phone:px-5 tablet:px-6 tablet:py-12 laptop:py-16 bg-[#0b1220] border-t border-white/5">
-        <div className="max-w-screen-xl mx-auto space-y-4">
+      <section className="border-t border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-5 phone:px-4 tablet:px-5 tablet:py-6 laptop:px-6">
+        <div className="dsa-page space-y-3">
           <div>
-            <h2 className="text-xl phone:text-2xl font-bold">Market Heatmap</h2>
-            <p className="text-white/70 mt-1 text-sm phone:text-base">
+            <p className="dsa-section-label">Cross-section</p>
+            <h2 className="dsa-section-title mt-1">Market heatmap</h2>
+            <p className="mt-1 text-xs text-[var(--dsa-text-muted)]">
               Sector and stock performance overview by size and daily change.
             </p>
           </div>
-
           <HomeHeatmapCard />
         </div>
       </section>

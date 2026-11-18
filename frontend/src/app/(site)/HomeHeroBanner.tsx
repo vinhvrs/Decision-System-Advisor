@@ -1,42 +1,36 @@
-import Image from "next/image";
-import bannerSrc from "@/src/assets/images/bg-landingpage.jpg";
-import { BRAND_ACRONYM, BRAND_FULL_NAME } from "@/src/constants/brand";
-
-/** Hero above the beginner dashboard on `/` — image + motto. */
+/** Compact research header for the primary market workspace. */
 export default function HomeHeroBanner() {
   return (
     <section
-      className="relative mb-8 min-h-[200px] overflow-hidden rounded-xl border border-white/10 shadow-lg shadow-black/20 tablet:mb-10 tablet:min-h-[260px] laptop:min-h-[280px]"
+      className="border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-4 phone:px-4 tablet:px-5 laptop:px-6"
       aria-labelledby="home-hero-heading"
     >
-      <Image
-        src={bannerSrc}
-        alt=""
-        fill
-        priority
-        className="object-cover object-center"
-        sizes="(max-width: 768px) 100vw, min(896px, 100vw)"
-      />
-      <div
-        className="absolute inset-0 bg-gradient-to-r from-[#0b1220]/95 via-[#0b1220]/78 to-[#0b1220]/40"
-        aria-hidden
-      />
-      <div className="relative z-10 px-5 py-8 tablet:px-8 tablet:py-10">
-        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-violet-300/90">
-          <span className="text-violet-200">{BRAND_ACRONYM}</span>
-          <span className="mx-2 text-white/35">·</span>
-          <span className="text-violet-200/85">{BRAND_FULL_NAME}</span>
-        </p>
-        <h1
-          id="home-hero-heading"
-          className="mt-2 text-2xl font-semibold tracking-tight text-[#f3f4f6] drop-shadow-sm tablet:text-3xl laptop:text-[2rem]"
-        >
-          Decision support for your next move
-        </h1>
-        <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-[#e5e7eb]/90 tablet:text-sm">
-          Rankings, fundamentals, indicators, and news — surfaced clearly so you spend less time digging and more time
-          deciding.
-        </p>
+      <div className="dsa-page flex flex-col gap-3 tablet:flex-row tablet:items-end tablet:justify-between">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Research workspace</p>
+          <h1
+            id="home-hero-heading"
+            className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white tablet:text-2xl"
+          >
+            Market overview
+          </h1>
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[var(--dsa-text-secondary)] tablet:text-[13px]">
+            Ranked market context, multi-factor signals, price action, liquidity, and watchlist interest.
+            Incomplete inputs remain Not Rated instead of being converted into directional signals.
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+          <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1">
+            Source-aware
+          </span>
+          <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1">
+            Eligibility-gated
+          </span>
+          <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-2 py-1">
+            Research only
+          </span>
+        </div>
       </div>
     </section>
   );

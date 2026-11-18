@@ -42,12 +42,7 @@ export default function Header() {
 
   useEffect(() => {
     const q = searchQuery.trim();
-    if (q.length < MIN_SEARCH_LENGTH) {
-      setSearchResults([]);
-      setSearchSuggestions([]);
-      setSearchLoading(false);
-      return;
-    }
+    if (q.length < MIN_SEARCH_LENGTH) return;
     const t = setTimeout(() => {
       setSearchLoading(true);
       ElasticService.searchCompanies(q, 10)
@@ -102,7 +97,7 @@ export default function Header() {
   if (isCheckingAuth) {
     return (
       <header
-        className="sticky top-0 z-50 h-14 phone:h-16 border-b border-white/5 bg-[#0b0e14]/90 backdrop-blur-md"
+        className="sticky top-0 z-50 h-[var(--dsa-header-height)] border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]"
         aria-busy="true"
       />
     );
@@ -121,7 +116,7 @@ export default function Header() {
     <>
       <Link
         href="/auth/login"
-        className="flex items-center gap-1 text-sm font-medium text-white/80 hover:text-white transition"
+        className="dsa-nav-link gap-1 px-2"
       >
         <LogIn size={16} />
         Sign In
@@ -129,7 +124,7 @@ export default function Header() {
 
       <Link
         href="/auth/login"
-        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-700 phone:px-4"
+        className="dsa-button-primary shrink-0 gap-1 whitespace-nowrap px-3"
       >
         <UserPlus size={16} className="shrink-0" />
         <span className="hidden phone:inline">Sign Up</span>
@@ -141,22 +136,32 @@ export default function Header() {
   return (
     <header
       className={[
-        "sticky top-0 z-50 overflow-visible border-b transition",
+        "sticky top-0 z-50 overflow-visible border-b transition-colors",
         isScrolled
-          ? "bg-[#0b0e14]/90 backdrop-blur-md border-white/10"
-          : "bg-transparent border-transparent",
+          ? "border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-1)]"
+          : "border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]",
       ].join(" ")}
     >
-      <div className="mx-auto flex h-14 max-w-[100vw] items-center justify-between gap-2 overflow-visible px-3 phone:h-16 phone:px-4 tablet:gap-3 tablet:px-6 laptop:px-8">
+      <div className="mx-auto flex h-[var(--dsa-header-height)] max-w-[1600px] items-center justify-between gap-2 overflow-visible px-3 phone:px-4 tablet:gap-3 laptop:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-2 tablet:gap-4 laptop:gap-6">
           <SiteLogo priority />
 
-          <div ref={searchRef} className="relative hidden md:block w-64 lg:w-96">
+          <div ref={searchRef} className="relative hidden w-72 md:block laptop:w-[360px]">
             <input
               type="text"
-              placeholder="Search company name or symbol..."
+              aria-label="Search company name or ticker"
+              placeholder="Search ticker or company"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSearchQuery(value);
+                if (value.trim().length < MIN_SEARCH_LENGTH) {
+                  setSearchResults([]);
+                  setSearchSuggestions([]);
+                  setSearchLoading(false);
+                  setSearchOpen(false);
+                }
+              }}
               onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && searchQuery.trim().length >= 2) {
@@ -164,19 +169,18 @@ export default function Header() {
                   router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
                 }
               }}
-              className="py-2 pl-10 pr-10 rounded-xl w-full bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:bg-white/10 transition-all"
+              className="dsa-control h-8 w-full py-1.5 pl-9 pr-9 text-[13px] placeholder:text-[var(--dsa-text-muted)] focus:outline-none"
             />
             {searchLoading ? (
-              <Loader2 size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 animate-spin" />
+              <Loader2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--dsa-text-muted)]" />
             ) : (
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--dsa-text-muted)]" />
             )}
             {searchOpen && (searchResults.length > 0 || searchSuggestions.length > 0) && (
-              <div className="absolute top-full left-0 right-0 mt-1 py-2 rounded-xl bg-[#0B1220] border border-white/10 shadow-xl max-h-72 overflow-y-auto z-50">
+              <div className="dsa-panel-raised absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto py-1">
                 {searchSuggestions.length > 0 && (
-                  <div className="border-b border-white/5 px-3 pb-2 mb-1">
-                    <p className="text-[10px] uppercase tracking-wider text-white/35 mb-1.5">Suggestions</p>
+                  <div className="mb-1 border-b border-[var(--dsa-border)] px-3 pb-2">
+                    <p className="dsa-section-label mb-1.5">Suggestions</p>
                     <div className="flex flex-wrap gap-1.5">
                       {searchSuggestions.map((s) => (
                         <button
@@ -186,7 +190,7 @@ export default function Header() {
                             setSearchQuery(s);
                             setSearchOpen(true);
                           }}
-                          className="rounded-lg bg-indigo-500/15 px-2.5 py-1 text-xs text-indigo-200 hover:bg-indigo-500/25"
+                          className="rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-accent-soft)] px-2.5 py-1 text-xs text-[#b8d1ff] hover:bg-[rgba(76,141,255,0.2)]"
                         >
                           {s}
                         </button>
@@ -199,10 +203,10 @@ export default function Header() {
                     key={hit.id ?? `${hit.source?.symbol ?? "x"}-${idx}`}
                     type="button"
                     onClick={() => handleSelectCompany(hit)}
-                    className="w-full px-4 py-2.5 text-left hover:bg-white/5 transition flex items-center gap-3"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-[var(--dsa-surface-3)]"
                   >
-                    <span className="font-semibold text-white uppercase">{hit.source?.symbol ?? "—"}</span>
-                    <span className="text-white/70 text-sm truncate flex-1">
+                    <span className="w-16 shrink-0 font-mono text-xs font-semibold uppercase text-white">{hit.source?.symbol ?? "—"}</span>
+                    <span className="flex-1 truncate text-xs text-[var(--dsa-text-secondary)]">
                       {stripParentheticals(hit.source?.company_name) || "—"}
                     </span>
                   </button>
@@ -210,7 +214,7 @@ export default function Header() {
                 <Link
                   href={`/search?q=${encodeURIComponent(searchQuery.trim())}`}
                   onClick={() => setSearchOpen(false)}
-                  className="block px-4 py-2.5 text-indigo-400 hover:bg-white/5 text-sm font-medium border-t border-white/5 mt-1"
+                  className="mt-1 block border-t border-[var(--dsa-border)] px-3 py-2 text-xs font-medium text-[#8ab4ff] hover:bg-[var(--dsa-surface-3)]"
                 >
                   View all results →
                 </Link>
@@ -220,7 +224,7 @@ export default function Header() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 tablet:gap-3">
-          <nav className="hidden min-w-0 laptop:flex laptop:max-w-[min(52vw,42rem)] laptop:items-center laptop:space-x-0.5 laptop:overflow-x-auto laptop:mr-2 laptop:[scrollbar-width:none] laptop:[&::-webkit-scrollbar]:hidden">
+          <nav className="no-scrollbar mr-1 hidden min-w-0 laptop:flex laptop:max-w-[min(50vw,40rem)] laptop:items-center laptop:space-x-0.5 laptop:overflow-x-auto">
             {SITE_NAV_LINKS.map((link) => {
               const active = isActive(link.href);
               return (
@@ -228,10 +232,8 @@ export default function Header() {
                   key={link.href}
                   href={link.href}
                   className={[
-                    "px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                    active
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:text-white hover:bg-white/5",
+                    "dsa-nav-link",
+                    active ? "dsa-nav-link-active" : "",
                   ].join(" ")}
                 >
                   {link.label}
@@ -248,7 +250,7 @@ export default function Header() {
             )}
 
             <button
-              className="laptop:hidden p-2 rounded-lg hover:bg-white/5 transition"
+              className="laptop:hidden rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-secondary)] transition hover:bg-[var(--dsa-surface-2)] hover:text-white"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X size={24} className="text-white" /> : <Menu size={24} className="text-white" />}
@@ -260,8 +262,8 @@ export default function Header() {
       {/* Mobile Menu */}
       <div
         className={`laptop:hidden transition-all duration-300 ease-in-out overflow-hidden ${
-          isMenuOpen ? "max-h-screen opacity-100 py-4 bg-[#0b0e14]" : "max-h-0 opacity-0"
-        } border-t border-white/10`}
+          isMenuOpen ? "max-h-screen bg-[var(--dsa-surface-1)] py-3 opacity-100" : "max-h-0 opacity-0"
+        } border-t border-[var(--dsa-border)]`}
       >
         <nav className="flex flex-col space-y-1 px-4">
           {SITE_NAV_LINKS.map((link) => {
@@ -272,8 +274,10 @@ export default function Header() {
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
                 className={[
-                  "px-4 py-3 rounded-xl text-base font-medium transition",
-                  active ? "bg-indigo-600/20 text-indigo-400" : "text-white/70 hover:bg-white/5",
+                  "rounded-[var(--dsa-radius-sm)] px-3 py-2.5 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-[var(--dsa-accent-soft)] text-[#b8d1ff]"
+                    : "text-[var(--dsa-text-secondary)] hover:bg-[var(--dsa-surface-2)] hover:text-white",
                 ].join(" ")}
               >
                 {link.label}
@@ -282,17 +286,17 @@ export default function Header() {
           })}
 
           {!user && (
-            <div className="flex flex-col gap-3 pt-4 border-t border-white/10 mt-4">
+            <div className="mt-3 flex flex-col gap-2 border-t border-[var(--dsa-border)] pt-3">
               <Link
                 href="/auth/login"
-                className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white/80 border border-white/10 hover:bg-white/5"
+                className="dsa-button-secondary"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <LogIn size={18} /> Sign In
               </Link>
               <Link
                 href="/auth/login"
-                className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700"
+                className="dsa-button-primary"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <UserPlus size={18} /> Sign Up

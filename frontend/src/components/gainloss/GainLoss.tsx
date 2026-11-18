@@ -10,19 +10,21 @@ import { formatCompactVolume, stripParentheticals, symbolLogoUrl } from "@/src/l
 function VolumeListLogo({ symbol, url }: { symbol: string; url?: string | null }) {
   const [broken, setBroken] = useState(false);
   const src = symbolLogoUrl(symbol, url);
+
   if (!broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt=""
-        className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/10"
+        className="h-7 w-7 shrink-0 rounded-[var(--dsa-radius-sm)] object-cover ring-1 ring-[var(--dsa-border)]"
         onError={() => setBroken(true)}
       />
     );
   }
+
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white ring-1 ring-white/10">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-surface-3)] text-[10px] font-semibold text-white ring-1 ring-[var(--dsa-border)]">
       {symbol.slice(0, 1)}
     </span>
   );
@@ -44,12 +46,14 @@ export default function GainLoss() {
         setUpdatedNote(updated_note);
       } catch (error) {
         console.error("Failed to fetch market movers:", error);
+        setGainers([]);
+        setLosers([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMarketMovers();
+    void fetchMarketMovers();
   }, []);
 
   const StockItem = ({ stock, type }: { stock: any; type: "gainer" | "loser" }) => {
@@ -58,99 +62,93 @@ export default function GainLoss() {
     const showName = name && name.toUpperCase() !== String(stock.symbol || "").toUpperCase();
 
     return (
-      <li className="border-b border-white/5 py-3 last:border-0">
+      <li className="border-b border-[var(--dsa-border)] last:border-0">
         <Link
           href={`/companies/profile/${String(stock.symbol || "").toLowerCase()}`}
-          className="group flex cursor-pointer items-center gap-3 transition-all hover:translate-x-0.5"
+          className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--dsa-surface-2)]"
         >
-          <VolumeListLogo symbol={String(stock.symbol || "")} url={stock.logo_url} />
-          <div className="min-w-0 flex-1">
-            <span className="block font-bold text-white/90 transition-colors group-hover:text-blue-400">
-              {stock.symbol}
-            </span>
-            {showName ? (
-              <span className="mt-0.5 block truncate text-[11px] font-medium leading-snug text-white/40">
-                {name}
-              </span>
-            ) : null}
+          <div className="flex min-w-0 items-center gap-2">
+            <VolumeListLogo symbol={String(stock.symbol || "")} url={stock.logo_url} />
+            <div className="min-w-0">
+              <span className="block font-mono text-xs font-semibold text-white">{stock.symbol}</span>
+              {showName ? (
+                <span className="mt-0.5 block max-w-[220px] truncate text-[10px] text-[var(--dsa-text-muted)]">
+                  {name}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <div className="shrink-0 text-right font-mono text-xs tabular-nums text-white/80">
+
+          <span className="min-w-[5rem] text-right font-mono text-[11px] tabular-nums text-[var(--dsa-text-secondary)]">
             {formatCompactVolume(Number(stock.volume))}
-          </div>
-          <div className="w-[4.5rem] shrink-0 text-right">
-            <span
-              className={`font-mono text-sm font-bold tabular-nums ${
-                type === "gainer" ? "text-green-400" : "text-red-400"
-              }`}
-            >
-              {type === "gainer" ? "+" : ""}
-              {Number.isFinite(ch) ? `${ch.toFixed(2)}%` : "—"}
-            </span>
-          </div>
+          </span>
+
+          <span
+            className={`min-w-[4.75rem] text-right font-mono text-xs font-semibold tabular-nums ${
+              type === "gainer" ? "dsa-data-positive" : "dsa-data-negative"
+            }`}
+          >
+            {Number.isFinite(ch) ? `${ch > 0 ? "+" : ""}${ch.toFixed(2)}%` : "—"}
+          </span>
         </Link>
       </li>
     );
   };
 
-  return (
-    <section className="border-t border-white/5 bg-[#0b1220] px-4 py-10 phone:px-5 tablet:px-6 tablet:py-12 laptop:py-16">
-      <div className="mx-auto max-w-7xl">
-        {loading ? (
-          <div className="flex h-[300px] flex-col items-center justify-center gap-4 text-blue-500/50">
-            <Loader2 className="animate-spin" size={32} />
-            <span className="text-xs font-black uppercase tracking-[0.2em]">Analyzing Market...</span>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 gap-6 tablet:grid-cols-2 tablet:gap-8">
-              <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#161D2C]/80 p-5 shadow-2xl backdrop-blur-xl tablet:rounded-[2rem] tablet:p-8">
-                <div className="absolute -right-16 -top-16 h-32 w-32 rounded-full bg-green-500/5 blur-3xl transition-all group-hover:bg-green-500/10" />
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-green-400">Top Gainers</h3>
-                </div>
-                <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/10 pb-2 text-[9px] font-semibold uppercase tracking-wide text-white/35">
-                  <span className="min-w-0 flex-1 pl-12">Symbol</span>
-                  <span className="shrink-0">Volume</span>
-                  <span className="w-[4.5rem] shrink-0 text-right">Change</span>
-                </div>
-                <ul className="space-y-0">
-                  {gainers.length > 0 ? (
-                    gainers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="gainer" />)
-                  ) : (
-                    <p className="text-xs italic text-gray-600">No gainers found</p>
-                  )}
-                </ul>
-              </div>
-
-              <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#161D2C]/80 p-5 shadow-2xl backdrop-blur-xl tablet:rounded-[2rem] tablet:p-8">
-                <div className="absolute -right-16 -top-16 h-32 w-32 rounded-full bg-red-500/5 blur-3xl transition-all group-hover:bg-red-500/10" />
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-red-400">Top Losers</h3>
-                </div>
-                <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/10 pb-2 text-[9px] font-semibold uppercase tracking-wide text-white/35">
-                  <span className="min-w-0 flex-1 pl-12">Symbol</span>
-                  <span className="shrink-0">Volume</span>
-                  <span className="w-[4.5rem] shrink-0 text-right">Change</span>
-                </div>
-                <ul className="space-y-0">
-                  {losers.length > 0 ? (
-                    losers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="loser" />)
-                  ) : (
-                    <p className="text-xs italic text-gray-600">No losers found</p>
-                  )}
-                </ul>
-              </div>
-            </div>
-            {updatedNote ? (
-              <p className="mx-auto mt-6 max-w-4xl text-center text-[10px] leading-relaxed text-white/35">
-                {updatedNote}
-              </p>
-            ) : null}
-          </>
-        )}
+  if (loading) {
+    return (
+      <div className="dsa-panel flex h-[180px] items-center justify-center gap-2 text-xs text-[var(--dsa-text-muted)]">
+        <Loader2 className="animate-spin" size={16} />
+        Loading market movers…
       </div>
-    </section>
+    );
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2">
+        <section className="dsa-panel overflow-hidden">
+          <header className="flex items-center justify-between border-b border-[var(--dsa-border)] px-3 py-2">
+            <h3 className="text-xs font-semibold text-[var(--dsa-positive)]">Top gainers</h3>
+            <span className="text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">Volume-ranked</span>
+          </header>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+            <span>Symbol</span>
+            <span className="min-w-[5rem] text-right">Volume</span>
+            <span className="min-w-[4.75rem] text-right">Change</span>
+          </div>
+          <ul>
+            {gainers.length > 0 ? (
+              gainers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="gainer" />)
+            ) : (
+              <li className="px-3 py-5 text-center text-xs text-[var(--dsa-text-muted)]">No positive movers available.</li>
+            )}
+          </ul>
+        </section>
+
+        <section className="dsa-panel overflow-hidden">
+          <header className="flex items-center justify-between border-b border-[var(--dsa-border)] px-3 py-2">
+            <h3 className="text-xs font-semibold text-[var(--dsa-negative)]">Top losers</h3>
+            <span className="text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">Volume-ranked</span>
+          </header>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+            <span>Symbol</span>
+            <span className="min-w-[5rem] text-right">Volume</span>
+            <span className="min-w-[4.75rem] text-right">Change</span>
+          </div>
+          <ul>
+            {losers.length > 0 ? (
+              losers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="loser" />)
+            ) : (
+              <li className="px-3 py-5 text-center text-xs text-[var(--dsa-text-muted)]">No negative movers available.</li>
+            )}
+          </ul>
+        </section>
+      </div>
+
+      {updatedNote ? (
+        <p className="mt-2 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">{updatedNote}</p>
+      ) : null}
+    </div>
   );
 }

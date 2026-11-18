@@ -47,8 +47,20 @@ export type BeginnerBoardRow = {
   change_pct_snapshot: number;
   /** Derived from change_pct_snapshot for UI (not advice). */
   day_bias?: "buy" | "sell" | "flat";
+  /**
+   * Explicit analytic eligibility. False means the row may still be displayed,
+   * but must not be converted into Buy/Sell conviction or a numeric Str score.
+   */
+  analysis_eligible?: boolean;
+  /** Provenance/quality state for user-facing trust handling. */
+  data_state?: "ok" | "missing" | "partial" | "synthetic" | "stale";
+  analysis_reason?: string | null;
+  missing_fields?: string[];
   /** Pre-serialized daily closes (e.g. Redis ``dashboard:daily``), oldest → newest. */
   chart?: number[];
+  /** Persisted daily-bar coverage before any realtime snapshot price is appended. */
+  history_points?: number;
+  history_state?: "ok" | "short" | "missing";
   /** When set, advisory upside uses ((target − price) / price)×100 (12m consensus style). */
   analyst_consensus_target_price?: number | null;
 };
@@ -70,6 +82,10 @@ export type BeginnerFormalRadarPayload = {
   scores: Record<string, number>;
   /** Five-spoke strong count (same as beginner board Str); from API. */
   strong_count?: number;
+  analysis_eligible?: boolean;
+  data_state?: "ok" | "missing" | "partial" | "synthetic" | "stale";
+  analysis_reason?: string | null;
+  missing_fields?: string[];
   change_pct_snapshot: number;
   fear_greed: { value: number; label: string };
   pool_limit: number;

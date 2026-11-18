@@ -160,8 +160,6 @@ export const AdviceService = {
     const analysts = Math.max(num_analysts_eps || 0, num_analysts_revenue || 0);
 
     const rec = recommendation?.toUpperCase() || 'HOLD';
-    const emoji = rec === 'BUY' ? '🟢' : rec === 'SELL' ? '🔴' : '🟡';
-
     let tone = '';
     const reasoning = [];
 
@@ -195,19 +193,19 @@ export const AdviceService = {
       reasoning.push(`Based on insights from ${analysts} analysts`);
     }
 
-    // Chọn tone văn bản
+    // Present the model as research bias, not a trade instruction.
     if (rec === 'BUY') {
-      tone = "Overall, this stock presents a <b>promising opportunity</b>, especially for investors seeking growth.";
+      tone = "Overall, the available inputs indicate a <b>bullish research bias</b>. This describes model direction, not an instruction to buy.";
     } else if (rec === 'SELL') {
-      tone = "Given the data, caution is advised, and it may be wise to <b>reduce exposure</b> to this stock.";
+      tone = "Overall, the available inputs indicate a <b>bearish research bias</b>. This describes model direction, not an instruction to sell.";
     } else {
-      tone = "The stock appears to be in a <b>neutral position</b>, with no strong signals for immediate action.";
+      tone = "Overall, the available inputs indicate a <b>neutral research bias</b>, with no clear directional edge.";
     }
 
     // Kết luận
     //const explanation = `${emoji} As of ${date}, the forecast indicates revenue: ${revenue.toFixed(2)}M, EBITDA: ${ebitda.toFixed(2)}M, EBIT: ${ebit.toFixed(2)}M, and net income: ${netIncome.toFixed(2)}M. ${reasoning.join('. ')}. ${tone}`;
 
-    const explanation = `This recommendation was made based on the latest financial forecasts as of <b>${date}</b>, indicating expected revenue of <b>${revenue.toFixed(2)}M</b>, EBITDA of <b>${ebitda.toFixed(2)}M</b>, EBIT of <b>${ebit.toFixed(2)}M</b>, and net income of <b>${netIncome.toFixed(2)}M</b>. ${reasoning.join('. ')}. ${tone}`;
+    const explanation = `This research view is based on the latest financial forecasts as of <b>${date}</b>, indicating expected revenue of <b>${revenue.toFixed(2)}M</b>, EBITDA of <b>${ebitda.toFixed(2)}M</b>, EBIT of <b>${ebit.toFixed(2)}M</b>, and net income of <b>${netIncome.toFixed(2)}M</b>. ${reasoning.join('. ')}. ${tone}`;
     if (type === 'RSI Indicator') {
       return `Based on the RSI indicator analysis, the stock is currently in an overbought/oversold condition which may impact its short-term price movements.`;
     }

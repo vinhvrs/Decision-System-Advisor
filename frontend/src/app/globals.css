@@ -1,14 +1,39 @@
 /*
- * DSA UI: Tailwind utilities; shell ~#0b1220; cards slate with border-white/10; links blue-400;
- * positive/negative green-400 / red-400; responsive names phone / tablet / laptop / pc where used.
+ * DSA research-terminal UI foundation.
+ * Principles: dense, neutral, source-first, low decoration, visible interaction affordances.
  */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
+  color-scheme: dark;
+
+  --background: #090d12;
+  --foreground: #e6edf5;
+
+  --dsa-bg: #090d12;
+  --dsa-surface-1: #0e141b;
+  --dsa-surface-2: #121a23;
+  --dsa-surface-3: #17212c;
+  --dsa-border: #202b37;
+  --dsa-border-strong: #2c3947;
+
+  --dsa-text: #e6edf5;
+  --dsa-text-secondary: #a7b2c0;
+  --dsa-text-muted: #778493;
+
+  --dsa-accent: #4c8dff;
+  --dsa-accent-soft: rgba(76, 141, 255, 0.12);
+  --dsa-positive: #2cb67d;
+  --dsa-negative: #e75b64;
+  --dsa-warning: #d8a340;
+
+  --dsa-radius-sm: 4px;
+  --dsa-radius-md: 6px;
+  --dsa-radius-lg: 8px;
+
+  --dsa-header-height: 54px;
 }
 
 @theme inline {
@@ -18,30 +43,52 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0B1220;
-    --foreground: #E5E7EB;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--dsa-bg);
+  color: var(--dsa-text);
+  scrollbar-gutter: stable;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--dsa-bg);
+  color: var(--dsa-text);
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1, "cv04" 1;
+  text-rendering: optimizeLegibility;
 }
 
-html,
-body,
+/* Keep scrollbars available for dense tables/charts instead of hiding them globally. */
 * {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #344150 transparent;
 }
 
 *::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #344150;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #465668;
+  background-clip: padding-box;
 }
 
 .no-scrollbar {
@@ -53,16 +100,148 @@ body,
   display: none;
 }
 
+::selection {
+  background: rgba(76, 141, 255, 0.28);
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(76, 141, 255, 0.82);
+  outline-offset: 2px;
+}
+
 @layer components {
+  .dsa-shell {
+    @apply min-h-screen;
+    background: var(--dsa-bg);
+    color: var(--dsa-text);
+  }
+
+  .dsa-page {
+    @apply mx-auto w-full min-w-0;
+    max-width: 1600px;
+  }
+
+  .dsa-panel {
+    border: 1px solid var(--dsa-border);
+    border-radius: var(--dsa-radius-md);
+    background: var(--dsa-surface-1);
+  }
+
+  .dsa-panel-raised {
+    border: 1px solid var(--dsa-border-strong);
+    border-radius: var(--dsa-radius-md);
+    background: var(--dsa-surface-2);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  }
+
+  .dsa-section-label {
+    color: var(--dsa-text-muted);
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    line-height: 1rem;
+    text-transform: uppercase;
+  }
+
+  .dsa-section-title {
+    color: var(--dsa-text);
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .dsa-control {
+    min-height: 34px;
+    border: 1px solid var(--dsa-border);
+    border-radius: var(--dsa-radius-sm);
+    background: var(--dsa-surface-2);
+    color: var(--dsa-text);
+  }
+
+  .dsa-control:hover {
+    border-color: var(--dsa-border-strong);
+    background: var(--dsa-surface-3);
+  }
+
+  .dsa-control:focus,
+  .dsa-control:focus-within {
+    border-color: rgba(76, 141, 255, 0.7);
+  }
+
+  .dsa-button-primary {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold transition-colors;
+    min-height: 34px;
+    border: 1px solid #4c8dff;
+    border-radius: var(--dsa-radius-sm);
+    background: #3978df;
+    color: #ffffff;
+  }
+
+  .dsa-button-primary:hover {
+    background: #4685eb;
+  }
+
+  .dsa-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors;
+    min-height: 34px;
+    border: 1px solid var(--dsa-border-strong);
+    border-radius: var(--dsa-radius-sm);
+    background: var(--dsa-surface-1);
+    color: var(--dsa-text-secondary);
+  }
+
+  .dsa-button-secondary:hover {
+    background: var(--dsa-surface-2);
+    color: var(--dsa-text);
+  }
+
+  .dsa-nav-link {
+    @apply inline-flex h-8 items-center whitespace-nowrap px-2.5 text-[13px] font-medium transition-colors;
+    border-radius: var(--dsa-radius-sm);
+    color: var(--dsa-text-secondary);
+  }
+
+  .dsa-nav-link:hover {
+    background: var(--dsa-surface-2);
+    color: var(--dsa-text);
+  }
+
+  .dsa-nav-link-active {
+    background: var(--dsa-accent-soft);
+    color: #dce9ff;
+  }
+
+  .dsa-data-positive {
+    color: var(--dsa-positive);
+  }
+
+  .dsa-data-negative {
+    color: var(--dsa-negative);
+  }
+
+  .dsa-data-muted {
+    color: var(--dsa-text-muted);
+  }
+
+  .dsa-data-number {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
   select.dsa-select {
-    @apply rounded-lg border border-white/10 bg-[#262a3b] px-3 py-2.5 text-sm font-medium text-white outline-none transition;
+    @apply px-3 py-2 text-sm font-medium outline-none transition-colors;
+    min-height: 34px;
+    border: 1px solid var(--dsa-border);
+    border-radius: var(--dsa-radius-sm);
+    background: var(--dsa-surface-2);
+    color: var(--dsa-text);
   }
 
   select.dsa-select:hover {
-    @apply border-white/20;
+    border-color: var(--dsa-border-strong);
   }
 
   select.dsa-select:focus {
-    @apply border-[#3861fb]/50;
+    border-color: rgba(76, 141, 255, 0.7);
   }
 }

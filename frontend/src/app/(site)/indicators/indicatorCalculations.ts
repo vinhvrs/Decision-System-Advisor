@@ -253,7 +253,6 @@ export function computeADX(
   for (let i = 1; i < n; i++) {
     const h = bars[i].h;
     const l = bars[i].l;
-    const c = bars[i].c;
     const hp = bars[i - 1].h;
     const lp = bars[i - 1].l;
     const cp = bars[i - 1].c;

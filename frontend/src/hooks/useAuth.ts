@@ -19,11 +19,12 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    const initialRefresh = window.setTimeout(refresh, 0);
     const onAuth = () => refresh();
     window.addEventListener("storage", onAuth);
     window.addEventListener("auth-changed", onAuth);
     return () => {
+      window.clearTimeout(initialRefresh);
       window.removeEventListener("storage", onAuth);
       window.removeEventListener("auth-changed", onAuth);
     };

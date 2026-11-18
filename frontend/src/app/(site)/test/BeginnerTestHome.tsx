@@ -33,7 +33,6 @@ import {
   Heart,
   TrendingUp,
   BarChart3,
-  Gauge,
   Droplets,
   Users,
   Clock,
@@ -71,6 +70,7 @@ function periodChangeForRow(row: BeginnerBoardRow, closes: number[], period: Per
     }
     return null;
   }
+  if (row.missing_fields?.includes("change_pct")) return null;
   if (Number.isFinite(row.change_pct_snapshot)) return row.change_pct_snapshot;
   if (closes.length >= 2) {
     return pctChange(closes[closes.length - 2]!, closes[closes.length - 1]!);
@@ -78,16 +78,16 @@ function periodChangeForRow(row: BeginnerBoardRow, closes: number[], period: Per
   return null;
 }
 
-/** CMC-like palette */
+/** Shared research-terminal palette. */
 const C = {
-  page: "bg-[#0b0e11]",
-  surface: "bg-[#171a1f]",
-  card: "bg-[#1e2329] border border-[#2b3139]",
-  text: "text-[#eaecef]",
-  muted: "text-[#848e9c]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
-  line: "border-[#2b3139]",
+  page: "bg-[var(--dsa-bg)]",
+  surface: "bg-[var(--dsa-surface-1)]",
+  card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
+  text: "text-[var(--dsa-text)]",
+  muted: "text-[var(--dsa-text-muted)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
+  line: "border-[var(--dsa-border)]",
 };
 
 /** Short list for the beginner board (API + UI). */
@@ -186,6 +186,10 @@ function syntheticDevBoardRow(seed: SymbolDevCompany): BeginnerBoardRow {
     candle_move_abs_pct: 0,
     change_pct_snapshot: 0,
     day_bias: "flat",
+    analysis_eligible: false,
+    data_state: "synthetic",
+    analysis_reason: "No validated ranking/radar inputs are available for this symbol.",
+    missing_fields: ["price", "volume", "liquidity", "change_pct"],
   };
 }
 
@@ -215,6 +219,19 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
     const strong = Number.isFinite(Number(formal?.strong_count))
       ? Number(formal!.strong_count)
       : 0;
+    const formalScoreKeys = [
+      "reputation",
+      "price_period",
+      "candle_change",
+      "volume",
+      "liquidity",
+      "people_care",
+    ] as const;
+    const formalScoresComplete =
+      !!formal &&
+      formal.analysis_eligible !== false &&
+      Number.isFinite(Number(formal.strong_count)) &&
+      formalScoreKeys.every((key) => Number.isFinite(Number(formal.scores?.[key])));
 
     return {
       rank: 0,
@@ -231,6 +248,12 @@ async function hydrateDevBoardRowFromApi(seed: SymbolDevCompany): Promise<Beginn
       candle_move_abs_pct: Math.abs(chg),
       change_pct_snapshot: Math.round(chg * 100) / 100,
       day_bias: bias,
+      analysis_eligible: formalScoresComplete,
+      data_state: formalScoresComplete ? "ok" : "partial",
+      analysis_reason: formalScoresComplete
+        ? null
+        : "Ranking/radar inputs are incomplete; conviction is intentionally withheld.",
+      missing_fields: formal?.missing_fields ?? [],
     };
   } catch {
     return null;
@@ -380,7 +403,7 @@ function parseSocketQuoteNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell";
+type Conviction5 = "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" | "unrated";
 
 function radarScoresAverage(r: BeginnerBoardRow): number {
   const s = r.scores;
@@ -391,8 +414,35 @@ function radarScoresAverage(r: BeginnerBoardRow): number {
   return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
 
-/** Five-tier stance from Python-engine indicators only (Str + radar averages). */
+function isRowEligibleForConviction(r: BeginnerBoardRow): boolean {
+  if (r.analysis_eligible === false) return false;
+  if (r.data_state === "missing" || r.data_state === "partial" || r.data_state === "synthetic") {
+    return false;
+  }
+  const s = r.scores;
+  const scoreValues = [
+    s?.reputation,
+    s?.price_period,
+    s?.candle_change,
+    s?.volume,
+    s?.liquidity,
+    s?.people_care,
+  ].map((value) => Number(value));
+  const strong = Number(r.strong_count);
+  return (
+    scoreValues.length === 6 &&
+    scoreValues.every((value) => Number.isFinite(value) && value >= 1 && value <= 5) &&
+    Number.isFinite(strong) &&
+    strong >= 0 &&
+    strong <= 5 &&
+    Array.isArray(r.radar) &&
+    r.radar.length >= 5
+  );
+}
+
+/** Five-tier research bias from validated Python-engine indicators only (strength + radar averages). */
 function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
+  if (!isRowEligibleForConviction(r)) return "unrated";
   const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
   const avg = radarScoresAverage(r);
   const indicatorTilt = (st - 2.5) * 1.25 + (avg - 3) * 1.1;
@@ -415,42 +465,48 @@ function convictionSortOrder(c: Conviction5): number {
       return 1;
     case "strong_sell":
       return 0;
+    case "unrated":
+      return -1;
     default:
-      return 2;
+      return -1;
   }
 }
 
 function convictionLabel(c: Conviction5): string {
   switch (c) {
     case "strong_buy":
-      return "Strong Buy";
+      return "Strong Bullish";
     case "buy":
-      return "Buy";
+      return "Bullish";
     case "hold":
-      return "Hold";
+      return "Neutral";
     case "sell":
-      return "Sell";
+      return "Bearish";
     case "strong_sell":
-      return "Strong Sell";
+      return "Strong Bearish";
+    case "unrated":
+      return "Not Rated";
     default:
-      return "Hold";
+      return "Not Rated";
   }
 }
 
 function convictionInvestingTitle(c: Conviction5): string {
   switch (c) {
     case "strong_buy":
-      return "Strong Buy — overweight / accumulate (indicator signal: Str + radar). Not investment advice.";
+      return "Strong Bullish — the multi-factor indicator composite has a materially positive tilt. Research signal, not investment advice.";
     case "buy":
-      return "Buy — modest overweight / add on dips (indicator signal). Not investment advice.";
+      return "Bullish — the multi-factor indicator composite has a positive tilt. Research signal, not investment advice.";
     case "hold":
-      return "Hold — neutral / marketweight while indicators are mixed. Not investment advice.";
+      return "Neutral — the multi-factor indicator composite is balanced or mixed. Research signal, not investment advice.";
     case "sell":
-      return "Sell — trim / underweight as indicators weaken. Not investment advice.";
+      return "Bearish — the multi-factor indicator composite has a negative tilt. Research signal, not investment advice.";
     case "strong_sell":
-      return "Strong Sell — reduce materially / defensive underweight (indicator signal). Not investment advice.";
+      return "Strong Bearish — the multi-factor indicator composite has a materially negative tilt. Research signal, not investment advice.";
+    case "unrated":
+      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
     default:
-      return "";
+      return "Not Rated — required ranking/radar inputs are incomplete or synthetic.";
   }
 }
 
@@ -466,8 +522,10 @@ function convictionBorderClass(c: Conviction5): string {
       return "border-l-[3px] border-l-[#ea3943]";
     case "strong_sell":
       return "border-l-[3px] border-l-[#c82a35]";
+    case "unrated":
+      return "border-l-[3px] border-l-[#5e6673]";
     default:
-      return "border-l-[3px] border-l-transparent";
+      return "border-l-[3px] border-l-[#5e6673]";
   }
 }
 
@@ -483,6 +541,8 @@ function convictionBadgeClass(c: Conviction5): string {
       return "bg-[#ea3943]/12 text-[#ea3943]";
     case "strong_sell":
       return "bg-[#ea3943]/22 text-[#ff7a82]";
+    case "unrated":
+      return `${C.muted} bg-white/[0.06]`;
     default:
       return `${C.muted} bg-white/[0.06]`;
   }
@@ -493,28 +553,15 @@ function _clamp(n: number, lo: number, hi: number): number {
 }
 
 /**
- * Implied 12m consensus-style uplift (%) when real analyst target is absent — from radar + Str only.
- */
-function impliedConsensusUpliftPctWhenNoTarget(r: BeginnerBoardRow): number {
-  const avg = radarScoresAverage(r);
-  const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
-  const raw = 5 + (avg - 2.5) * 4 + (st / 5) * 14;
-  return _clamp(raw, 3, 32);
-}
-
-/**
- * Advisory upside: ((Target − Current) / Current) × 100. Uses API target when present; else synthetic target from radar.
+ * Consensus upside: ((analyst target − current price) / current price) × 100.
+ * Missing analyst targets stay missing; DSA does not synthesize a target from radar scores.
  */
 function upsideAdvisoryPct(r: BeginnerBoardRow): number {
   const price = Number(r.price);
   if (!Number.isFinite(price) || price <= 0) return Number.NaN;
   const tgt = r.analyst_consensus_target_price;
-  if (typeof tgt === "number" && Number.isFinite(tgt) && tgt > 0) {
-    return ((tgt - price) / price) * 100;
-  }
-  const uplift = impliedConsensusUpliftPctWhenNoTarget(r);
-  const syntheticTarget = price * (1 + uplift / 100);
-  return ((syntheticTarget - price) / price) * 100;
+  if (typeof tgt !== "number" || !Number.isFinite(tgt) || tgt <= 0) return Number.NaN;
+  return ((tgt - price) / price) * 100;
 }
 
 /**
@@ -559,11 +606,11 @@ function upsideTooltipLines(r: BeginnerBoardRow, closes: number[]): string {
     Number.isFinite(r.analyst_consensus_target_price) &&
     r.analyst_consensus_target_price > 0;
   const advNote = hasRealTarget
-    ? "Uplift vs analyst consensus target."
-    : "Uplift vs model-based target (no consensus on file).";
+    ? "Upside vs analyst consensus target."
+    : "Analyst consensus target unavailable; no synthetic target is generated.";
   const lines = [
     advNote,
-    Number.isFinite(adv) ? `Advisory uplift: ${adv.toFixed(2)}%` : "Advisory uplift: —",
+    Number.isFinite(adv) ? `Consensus upside: ${adv.toFixed(2)}%` : "Consensus upside: —",
     Number.isFinite(tech) ? `Technical room to highs: ${tech.toFixed(2)}%` : "Technical room: —",
     Number.isFinite(down) ? `Downside to support (approx.): ${down.toFixed(2)}%` : "Downside: —",
     Number.isFinite(ratio)
@@ -580,64 +627,6 @@ function upsidePotentialToneClass(pct: number): string {
   if (pct > 0) return "text-[#eaecef]/90";
   return C.muted;
 }
-
-const MiniSparkline = memo(function MiniSparkline({
-  values,
-  className,
-  netChangePct,
-}: {
-  values: number[];
-  className?: string;
-  /** When set, line color matches the same sign as the dashboard % badge (snapshot / mean). */
-  netChangePct?: number | null;
-}) {
-  const w = 120;
-  const h = 36;
-  const pad = 2;
-  const poly = useMemo(() => {
-    if (values.length < 2) return null;
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-    const pts = values
-      .map((v, i) => {
-        const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
-        const y = h - pad - ((v - min) / range) * (h - 2 * pad);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
-    let stroke: string;
-    if (netChangePct != null && Number.isFinite(netChangePct)) {
-      if (netChangePct > 0) stroke = "#16c784";
-      else if (netChangePct < 0) stroke = "#ea3943";
-      else stroke = "#848e9c";
-    } else {
-      stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
-    }
-    return { pts, stroke };
-  }, [values, netChangePct]);
-
-  if (values.length < 2 || !poly) {
-    return (
-      <div
-        className={`h-9 w-full max-w-[120px] rounded bg-white/[0.04] ${className ?? ""}`}
-        aria-hidden
-      />
-    );
-  }
-  return (
-    <svg
-      width="100%"
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className={className}
-      aria-hidden
-    >
-      <polyline fill="none" stroke={poly.stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" points={poly.pts} />
-    </svg>
-  );
-});
 
 const RowAvatar = memo(function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | null }) {
   const [broken, setBroken] = useState(false);
@@ -690,7 +679,14 @@ const TableSparkline = memo(function TableSparkline({ values }: { values: number
   }, [values]);
 
   if (values.length < 2 || !poly) {
-    return <div className="mx-auto h-7 w-[88px] rounded bg-white/[0.05]" aria-hidden />;
+    return (
+      <div
+        className="mx-auto flex h-7 w-[88px] items-center justify-center text-[9px] font-medium text-[var(--dsa-text-muted)]"
+        title="Persisted history is unavailable or too short"
+      >
+        No history
+      </div>
+    );
   }
   return (
     <svg
@@ -717,43 +713,6 @@ function effectiveChangeForFearGreed(
 ): number | null {
   const series = closes ?? [];
   return periodChangeForRow(row, series, period);
-}
-
-function FearGreedGauge({ value }: { value: number }) {
-  const cx = 60;
-  const cy = 58;
-  const needleLen = 32;
-  const deg = -90 + (value / 100) * 180;
-  return (
-    <svg viewBox="0 0 120 64" className="w-full max-w-[140px]" aria-hidden>
-      <defs>
-        <linearGradient id="fgArc" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#ea3943" />
-          <stop offset="35%" stopColor="#f0b90b" />
-          <stop offset="70%" stopColor="#a3e635" />
-          <stop offset="100%" stopColor="#16c784" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M 14 58 A 46 46 0 0 1 106 58"
-        fill="none"
-        stroke="url(#fgArc)"
-        strokeWidth={7}
-        strokeLinecap="round"
-      />
-      <line
-        x1={cx}
-        y1={cy}
-        x2={cx}
-        y2={cy - needleLen}
-        stroke="#eaecef"
-        strokeWidth={2}
-        strokeLinecap="round"
-        transform={`rotate(${deg} ${cx} ${cy})`}
-      />
-      <circle cx={cx} cy={cy} r={4} fill="#eaecef" />
-    </svg>
-  );
 }
 
 const PctBadge = memo(function PctBadge({ pct }: { pct: number }) {
@@ -840,7 +799,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
       onMouseEnter={(e) => onRowEnter(symUp, e)}
       onMouseMove={onRowMove}
       onMouseLeave={onRowLeave}
-      className={`cursor-default border-b border-[#2b3139]/80 transition hover:bg-white/[0.04] ${
+      className={`cursor-default border-b border-[var(--dsa-border)]/80 transition hover:bg-white/[0.04] ${
         stripe ? "bg-white/[0.015]" : ""
       } ${convictionBorderClass(conviction)}`}
     >
@@ -881,8 +840,16 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         </span>
       </td>
       <td className="px-3 py-2.5 text-center font-mono tabular-nums">
-        <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-        <span className={C.muted}>/5</span>
+        {isRowEligibleForConviction(r) ? (
+          <>
+            <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+            <span className={C.muted}>/5</span>
+          </>
+        ) : (
+          <span className={C.muted} title={r.analysis_reason ?? "Insufficient validated inputs"}>
+            —
+          </span>
+        )}
       </td>
       <td className="px-2 py-2.5 text-center lg:px-3">
         <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
@@ -891,7 +858,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         {formatUsd(r.liquidity)}
       </td>
       <td className="px-2 py-2.5 text-right font-mono tabular-nums lg:px-3">{r.people_watching}</td>
-      <td className="border-l border-[#2b3139]/60 px-1 py-1.5 align-middle">
+      <td className="border-l border-[var(--dsa-border)]/60 px-1 py-1.5 align-middle">
         {sparklinesLoading ? (
           <div className="mx-auto h-7 w-[88px] animate-pulse rounded bg-white/[0.06]" />
         ) : (
@@ -924,7 +891,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
   const conviction = convictionFromRow(r);
   return (
     <div
-      className={`rounded-xl border border-[#2b3139]/80 p-3 transition ${
+      className={`rounded-xl border border-[var(--dsa-border)]/80 p-3 transition ${
         stripe ? "bg-white/[0.02]" : ""
       } ${convictionBorderClass(conviction)}`}
     >
@@ -967,7 +934,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
           </div>
         </div>
         <div className="col-span-2 phone:col-span-1">
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Stance / Str</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Bias / Strength</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <span
               className={`inline-block max-w-[6.5rem] rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${convictionBadgeClass(conviction)}`}
@@ -976,13 +943,21 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
               {convictionLabel(conviction)}
             </span>
             <span className="font-mono tabular-nums">
-              <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
-              <span className={C.muted}>/5</span>
+              {isRowEligibleForConviction(r) ? (
+                <>
+                  <span className="font-semibold text-[#3861fb]">{r.strong_count}</span>
+                  <span className={C.muted}>/5</span>
+                </>
+              ) : (
+                <span className={C.muted} title={r.analysis_reason ?? "Insufficient validated inputs"}>
+                  —
+                </span>
+              )}
             </span>
           </div>
         </div>
         <div className="col-span-2 phone:col-span-1">
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Upside</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Room to high</p>
           <div className="mt-0.5">
             <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
           </div>
@@ -1005,7 +980,10 @@ function sparklineValuesForRow(
   period: Period,
 ): number[] {
   const cap = period === "daily" ? 48 : 24;
-  if (period === "daily" && row.chart && row.chart.length >= 2) {
+  const embeddedHistoryUsable =
+    row.history_state === "ok" ||
+    (row.history_state == null && Array.isArray(row.chart) && row.chart.length >= 2);
+  if (period === "daily" && embeddedHistoryUsable && row.chart && row.chart.length >= 2) {
     return row.chart.length <= cap ? row.chart : row.chart.slice(-cap);
   }
   const sym = row.symbol;
@@ -1013,38 +991,12 @@ function sparklineValuesForRow(
   return arr.length <= cap ? arr : arr.slice(-cap);
 }
 
-/**
- * Fallback when a symbol has snapshot price but no daily close series.
- * This keeps row sparklines visible (e.g. BE) by deriving a 2-point line
- * from snapshot price and snapshot percent change.
- */
-function ensureSparklineValuesForRow(
-  row: BeginnerBoardRow,
-  batchMap: Record<string, number[]>,
-  period: Period,
-): number[] {
-  const values = sparklineValuesForRow(row, batchMap, period);
-  if (values.length >= 2) return values;
-  if (period === "annual") return values;
-
-  const price = Number(row.price);
-  if (!Number.isFinite(price) || price <= 0) return values;
-
-  const ch = Number(row.change_pct_snapshot);
-  if (Number.isFinite(ch) && ch > -99.9) {
-    const prev = price / (1 + ch / 100);
-    if (Number.isFinite(prev) && prev > 0) return [prev, price];
-  }
-
-  return [price * 0.995, price];
-}
-
 function upsideTechnicalForSort(
   row: BeginnerBoardRow,
   sparkMap: Record<string, number[]>,
   period: Period,
 ): number {
-  const closes = ensureSparklineValuesForRow(row, sparkMap, period);
+  const closes = sparklineValuesForRow(row, sparkMap, period);
   return upsideTechnicalPct(row, closes);
 }
 
@@ -1163,7 +1115,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   const dashboardWsRef = useRef<SimpleSocket | null>(null);
 
   useEffect(() => {
-    setRowSparklines({});
+    const frame = window.requestAnimationFrame(() => setRowSparklines({}));
+    return () => window.cancelAnimationFrame(frame);
   }, [period]);
 
   useEffect(() => {
@@ -1205,7 +1158,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [isRedisDaily, boardRows.length]);
 
   useEffect(() => {
-    setPortalReady(true);
+    const frame = window.requestAnimationFrame(() => setPortalReady(true));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -1363,6 +1317,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           price?: unknown;
           change?: unknown;
           quote_ts?: number;
+          ts?: number;
           quote_stale?: boolean;
           payload?: BeginnerBoardPayload & { ranking_board?: BeginnerBoardRow[] };
         };
@@ -1382,13 +1337,17 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               if (String(r.symbol).toUpperCase() !== sym) return r;
               touched = true;
               const row = { ...r };
-              if (price != null && price > 0) row.price = price;
+              if (price != null && price > 0) {
+                row.price = price;
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
+              }
               row.quote_stale = isInitial && (msg.quote_stale === true || quoteAge > 90_000);
               row.quote_ts = quoteTs;
               if (!isInitial && chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
                 row.day_bias = chg > 0 ? "buy" : chg < 0 ? "sell" : "flat";
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "change_pct");
               }
               return row;
             });
@@ -1452,9 +1411,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   useEffect(() => {
     if (!boardSparklineSymKey) {
-      setRowSparklines({});
-      setSparklinesLoading(false);
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setRowSparklines({});
+        setSparklinesLoading(false);
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
     let cancelled = false;
 
@@ -1462,27 +1423,40 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       const rows = boardRowsRef.current;
       if (!rows.length) return;
 
-      if (showSpinner) setSparklinesLoading(true);
       const syms = rows.map((r) => r.symbol);
+      const hasEmbedded =
+        period === "daily" &&
+        rows.some(
+          (r) =>
+            r.history_state === "ok" ||
+            (r.history_state == null && Array.isArray(r.chart) && r.chart.length >= 2),
+        );
       const allEmbedded =
         period === "daily" &&
-        rows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
+        rows.every(
+          (r) =>
+            r.history_state === "ok" ||
+            (r.history_state == null && Array.isArray(r.chart) && r.chart.length >= 2),
+        );
 
       const applyMap = (map: Record<string, number[]>) => {
         if (cancelled) return;
         const latest = boardRowsRef.current;
         const next: Record<string, number[]> = {};
         for (const r of latest) {
-          next[r.symbol] = ensureSparklineValuesForRow(r, map, period);
+          next[r.symbol] = sparklineValuesForRow(r, map, period);
         }
         setRowSparklines(next);
       };
 
-      if (allEmbedded) {
+      if (hasEmbedded) {
         applyMap({});
-        if (!cancelled) setSparklinesLoading(false);
-        return;
+        setSparklinesLoading(false);
+      } else if (showSpinner) {
+        setSparklinesLoading(true);
       }
+
+      if (allEmbedded) return;
 
       const sparkLimit = period === "daily" ? 40 : 24;
       InstrumentService.batchDailyCloses(syms, sparkLimit, periodToApiSlug(period))
@@ -1490,7 +1464,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           applyMap(map);
         })
         .catch(() => {
-          if (!cancelled && showSpinner) setRowSparklines({});
+          // Keep the last known good or embedded history on transient API failure.
         })
         .finally(() => {
           if (!cancelled) setSparklinesLoading(false);
@@ -1520,15 +1494,16 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       sumC = 0,
       sumW = 0;
     for (const r of boardRows) {
-      if (Number.isFinite(r.price)) {
+      const missing = new Set(r.missing_fields ?? []);
+      if (!missing.has("price") && Number.isFinite(r.price) && r.price > 0) {
         sumP += r.price;
         np++;
       }
-      if (Number.isFinite(r.liquidity)) {
+      if (!missing.has("liquidity") && Number.isFinite(r.liquidity)) {
         sumL += r.liquidity;
         nl++;
       }
-      if (Number.isFinite(r.volume)) {
+      if (!missing.has("volume") && Number.isFinite(r.volume)) {
         sumV += r.volume;
         nv++;
       }
@@ -1551,6 +1526,51 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       sumWatchers: sumW,
     };
   }, [boardRows, rowSparklines, period]);
+
+  const boardProvenance = useMemo(() => {
+    const total = boardRows.length;
+    let liveQuotes = 0;
+    let historyOk = 0;
+    let historyShort = 0;
+    let historyMissing = 0;
+    let notRated = 0;
+
+    for (const row of boardRows) {
+      if (Number.isFinite(Number(row.quote_ts)) && row.quote_stale !== true) {
+        liveQuotes++;
+      }
+
+      const historyState =
+        row.history_state ??
+        (Array.isArray(row.chart) && row.chart.length >= 2
+          ? "ok"
+          : Array.isArray(row.chart) && row.chart.length === 1
+            ? "short"
+            : "missing");
+
+      if (historyState === "ok") historyOk++;
+      else if (historyState === "short") historyShort++;
+      else historyMissing++;
+
+      if (!isRowEligibleForConviction(row)) notRated++;
+    }
+
+    return { total, liveQuotes, historyOk, historyShort, historyMissing, notRated };
+  }, [boardRows]);
+
+  const boardSnapshotLabel = useMemo(() => {
+    if (!dashboardUpdatedAt) return "Unavailable";
+    const parsed = new Date(dashboardUpdatedAt);
+    if (Number.isNaN(parsed.getTime())) return "Unavailable";
+    return parsed.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }, [dashboardUpdatedAt]);
 
   const rowPeriodChanges = useMemo(() => {
     const out: Record<string, number | null> = {};
@@ -1635,7 +1655,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   }, [boardRows, tableSort, rowSparklines, rowPeriodChanges, period]);
 
   const fearGreed = useMemo(() => {
-    if (period === "daily") return fearGreedFromBoardRows(boardRows);
+    if (period === "daily") {
+      return fearGreedFromBoardRows(
+        boardRows.filter((row) => !row.missing_fields?.includes("change_pct"))
+      );
+    }
     return fearGreedFromChangePct(boardAggregates?.avgChangePct);
   }, [boardRows, period, boardAggregates?.avgChangePct]);
 
@@ -1644,7 +1668,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
   return (
     <div className={`min-h-screen ${C.page} ${C.text} font-sans antialiased`}>
       {/* Top strip — CMC-style compact header */}
-      <header className={`sticky top-0 z-40 border-b ${C.line} ${C.surface}/95 backdrop-blur-md`}>
+      <header className={`sticky top-[var(--dsa-header-height)] z-30 border-b ${C.line} ${C.surface}`}>
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
           <h1 className="min-w-0 text-sm font-semibold tracking-tight text-white sm:text-base">
             Market view
@@ -1667,111 +1691,130 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
               className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
             >
               <Home className="h-3.5 w-3.5 shrink-0" />
-              Investing site
+              Research workspace
             </Link>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-[1600px] px-2 py-4 phone:px-3 sm:px-4 sm:py-5">
-        {/* Stat widgets — stack on small screens, grid on medium, optional horizontal scroll on very wide */}
-        <section className="mb-4 grid grid-cols-1 gap-3 phone:grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-3 xl:grid-cols-5 xl:gap-3">
-          <div
-            className={`relative min-w-0 overflow-hidden rounded-2xl ${C.card} p-4 xl:min-w-[200px] xl:shrink-0 2xl:min-w-[220px]`}
-          >
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-8 opacity-[0.35]">
-              <MiniSparkline values={boardAvgSparkline} netChangePct={boardAggregates?.avgChangePct ?? null} />
-            </div>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg price</p>
+        <section
+          className="mb-3 grid gap-px overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-5"
+          aria-label="Market data provenance"
+        >
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Research snapshot</p>
+            <p className="mt-1 font-mono text-[11px] tabular-nums text-[var(--dsa-text-secondary)]">
+              {boardSnapshotLabel}
+            </p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Realtime quotes</p>
+            <p className="mt-1 font-mono text-xs tabular-nums text-white">
+              {boardProvenance.liveQuotes}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Received and not marked stale</p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Persisted history</p>
+            <p
+              className={`mt-1 font-mono text-xs tabular-nums ${
+                boardProvenance.historyMissing || boardProvenance.historyShort
+                  ? "text-[var(--dsa-warning)]"
+                  : "text-[var(--dsa-positive)]"
+              }`}
+            >
+              {boardProvenance.historyOk}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">
+              {boardProvenance.historyShort} short · {boardProvenance.historyMissing} missing
+            </p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Analysis eligibility</p>
+            <p className="mt-1 font-mono text-xs tabular-nums text-white">
+              {Math.max(0, boardProvenance.total - boardProvenance.notRated)}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">{boardProvenance.notRated} Not Rated</p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Data model</p>
+            <p className="mt-1 text-[10px] font-medium text-[var(--dsa-text-secondary)]">
+              Realtime quote ≠ persisted OHLC
+            </p>
+            <p className="mt-0.5 text-[9px] leading-snug text-[var(--dsa-text-muted)]">
+              Missing history stays missing; it is not rebuilt from the latest quote.
+            </p>
+          </div>
+        </section>
+
+        {/* Dense market metric strip */}
+        <section className="mb-3 grid gap-px overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-5">
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Average price</p>
             {!headerStatsReady ? (
-              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
-            ) : boardAggregates?.avgPrice != null ? (
-              <>
-                <p className="relative mt-1 font-mono text-2xl font-semibold tabular-nums tracking-tight">
-                  {formatUsd(boardAggregates.avgPrice)}
-                </p>
-                <div className="relative mt-1">
-                  {boardAggregates.avgChangePct != null ? (
-                    <PctBadge pct={boardAggregates.avgChangePct} />
-                  ) : (
-                    <span className={`text-sm ${C.muted}`}>—</span>
-                  )}
-                </div>
-              </>
+              <p className="mt-1 h-5 w-20 animate-pulse rounded bg-white/10" />
             ) : (
-              <p className={`relative mt-2 text-sm ${C.muted}`}>—</p>
-            )}
-          </div>
-
-          <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[180px] xl:shrink-0 2xl:min-w-[200px]`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg Vol $</p>
-            {!headerStatsReady ? (
-              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
-            ) : boardAggregates?.avgLiquidity != null ? (
-              <>
-                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatUsd(boardAggregates.avgLiquidity)}</p>
-              </>
-            ) : (
-              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
-            )}
-          </div>
-
-          <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[160px] xl:shrink-0`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg volume</p>
-            {!headerStatsReady ? (
-              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
-            ) : boardAggregates?.avgVolume != null ? (
-              <>
-                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatShares(boardAggregates.avgVolume)}</p>
-                <p className={`mt-1 text-[11px] ${C.muted}`}>Mean shares (last snapshot)</p>
-              </>
-            ) : (
-              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
-            )}
-          </div>
-
-          <div className={`min-w-0 rounded-2xl ${C.card} p-4 xl:min-w-[180px] xl:shrink-0`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Board Vol $ (sum)</p>
-            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{formatUsd(boardLiquiditySum)}</p>
-            <p className={`mt-1 text-[11px] ${C.muted}`}>Sum of price × volume for rows on this list (not market cap)</p>
-          </div>
-
-          <div className={`relative flex min-w-0 flex-row items-center gap-3 overflow-hidden rounded-2xl ${C.card} p-3 xl:min-w-[220px] xl:flex-1 xl:shrink-0 2xl:min-w-[260px]`}>
-            <div className="shrink-0">
-              <FearGreedGauge value={fearGreed.value} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <Gauge className="h-3.5 w-3.5 text-[#f0b90b]" aria-hidden />
-                <p className={`text-[11px] font-semibold uppercase tracking-wider ${C.muted}`}>Fear & Greed</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="font-mono text-base font-semibold tabular-nums text-white">
+                  {boardAggregates?.avgPrice != null ? formatUsd(boardAggregates.avgPrice) : "—"}
+                </span>
+                {boardAggregates?.avgChangePct != null ? <PctBadge pct={boardAggregates.avgChangePct} /> : null}
               </div>
-              <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-white">{fearGreed.value}</p>
-              <p className="text-xs font-medium text-[#eaecef]">{fearGreed.label}</p>
+            )}
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Average dollar volume</p>
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums text-white">
+              {headerStatsReady && boardAggregates?.avgLiquidity != null ? formatUsd(boardAggregates.avgLiquidity) : "—"}
+            </p>
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Average share volume</p>
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums text-white">
+              {headerStatsReady && boardAggregates?.avgVolume != null ? formatShares(boardAggregates.avgVolume) : "—"}
+            </p>
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Board dollar volume</p>
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums text-white">{formatUsd(boardLiquiditySum)}</p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Σ price × volume · not market cap</p>
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Market mood</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-mono text-base font-semibold tabular-nums text-white">{fearGreed.value}</span>
+              <span className="text-[11px] font-medium text-[var(--dsa-text-secondary)]">{fearGreed.label}</span>
             </div>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Derived from eligible board moves</p>
           </div>
         </section>
 
         {/* Chips + toolbar */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#16c784]/35 bg-[#16c784]/10 px-3 py-1 text-[11px] font-semibold text-[#16c784]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--dsa-radius-sm)] border border-[#16c784]/30 bg-[#16c784]/10 px-2 py-1 text-[11px] font-semibold text-[#16c784]"
           >
-            Buy
+            Bullish
           </span>
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#ea3943]/35 bg-[#ea3943]/10 px-3 py-1 text-[11px] font-semibold text-[#ea3943]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--dsa-radius-sm)] border border-[#ea3943]/30 bg-[#ea3943]/10 px-2 py-1 text-[11px] font-semibold text-[#ea3943]"
           >
-            Sell
+            Bearish
           </span>
-          <span className={`rounded-full border ${C.line} px-3 py-1 text-[11px] ${C.muted}`}>
-            Green / red = snapshot day up or down
+          <span className={`rounded-[var(--dsa-radius-sm)] border ${C.line} px-2 py-1 text-[11px] ${C.muted}`}>
+            Green / red = positive / negative session bias
           </span>
-          <span className={`rounded-full border border-[#3861fb]/30 bg-[#3861fb]/10 px-3 py-1 text-[11px] font-medium text-[#7b9cff]`}>
+          <span className={`rounded-[var(--dsa-radius-sm)] border border-[#3861fb]/30 bg-[#3861fb]/10 px-2 py-1 text-[11px] font-medium text-[#7b9cff]`}>
             Hover a row for radar
           </span>
           <Link
             href="/search"
-            className="inline-flex items-center gap-1 rounded-full bg-[#a855f7]/15 px-3 py-1 text-[11px] font-semibold text-[#c4a3ff] hover:bg-[#a855f7]/25"
+            className="inline-flex items-center gap-1 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-2 py-1 text-[11px] font-semibold text-[#c4a3ff] hover:bg-[#a855f7]/25"
           >
             <Search className="h-3 w-3" />
             Search
@@ -1788,12 +1831,12 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
         )}
 
         {/* Main ranking + radar */}
-        <section className={`rounded-2xl ${C.card} overflow-hidden`}>
+        <section className={`rounded-[var(--dsa-radius-md)] ${C.card} overflow-hidden`}>
           <div className={`flex flex-col gap-2 border-b ${C.line} px-3 py-3 phone:px-4 sm:flex-row sm:items-center sm:justify-between`}>
             <div className="flex min-w-0 items-center gap-2">
               <Trophy className="h-5 w-5 shrink-0 text-[#f0b90b]" />
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-white">Ideal Investing Ranking</h2>
+                <h2 className="text-sm font-semibold text-white">Multi-factor research ranking</h2>
               </div>
             </div>
             <p className={`min-w-0 text-[11px] ${C.muted} sm:shrink-0`}>
@@ -1831,7 +1874,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                 ))}
               </div>
 
-              <div className="hidden overflow-x-auto rounded-lg border border-[#2b3139]/80 tablet:block [-webkit-overflow-scrolling:touch]">
+              <div className="hidden overflow-x-auto rounded-lg border border-[var(--dsa-border)]/80 tablet:block [-webkit-overflow-scrolling:touch]">
                 <table className="w-full min-w-[700px] text-left text-sm laptop:min-w-[800px]">
                   <thead>
                     <tr className={`sticky top-0 z-10 ${C.surface} text-[11px] font-semibold uppercase tracking-wide ${C.muted}`}>
@@ -1861,8 +1904,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Stance"
-                          title={`Blend of model signals (strength + multi-factor scores). Shown separately from the ${periodChangeLabel(period)} column.`}
+                          label="Bias"
+                          title={`Directional research bias from strength + validated multi-factor scores. Shown separately from the ${periodChangeLabel(period)} column.`}
                           columnKey="bias"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1870,7 +1913,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Str"
+                          label="Strength"
                           columnKey="strong"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1878,8 +1921,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Upside"
-                          title="Room to recent highs vs last price. Hover the cell for target and risk context."
+                          label="Room to high"
+                          title="Technical room to recent highs vs last price. Hover the cell for consensus-target and risk context."
                           columnKey="upside"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1896,7 +1939,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`hidden border-b ${C.line} px-2 py-2.5 sm:table-cell lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Care"
+                          label="Watchers"
                           columnKey="care"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1956,16 +1999,15 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                       window is up or down overall.
                     </li>
                     <li>
-                      <strong className="text-white/80">Radar</strong> blends five quality and momentum scores.{" "}
-                      <strong className="text-white/80">Str</strong> counts how many of those scores are in the top tier.
+                      <strong className="text-white/80">Radar</strong> shows six validated factors.{" "}
+                      <strong className="text-white/80">Strength</strong> counts the five configured strong-trait inputs at or above the strong threshold.
                     </li>
                     <li>
-                      <strong className="text-white/80">Upside</strong> compares the last price to the highs in the same
-                      window and includes analyst targets when available. For education only — not a recommendation to
-                      trade.
+                      <strong className="text-white/80">Room to high</strong> compares the last price with recent highs.
+                      Analyst consensus targets are shown only when sourced; no synthetic target is generated.
                     </li>
                     <li>
-                      <strong className="text-white/80">Stance</strong> summarizes the model outlook; it does not replace
+                      <strong className="text-white/80">Bias</strong> summarizes the directional research view; it does not replace
                       the {periodChangeLabel(period)} column.
                     </li>
                   </ul>
@@ -1976,7 +2018,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
         {/* Detail cards — same content, CMC-style tiles */}
         <div className="mt-6 grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
-          <div className={`rounded-2xl ${C.card} p-4`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
             <div className="flex items-center gap-2">
               <Heart className="h-4 w-4 text-pink-400" />
               <h3 className="text-sm font-semibold">Watchlist saves (list)</h3>
@@ -1989,7 +2031,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-[#16c784]" />
               <h3 className="text-sm font-semibold">Avg move (list)</h3>
@@ -2010,7 +2052,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4 tablet:col-span-2 laptop:col-span-1`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4 tablet:col-span-2 laptop:col-span-1`}>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-amber-400" />
               <h3 className="text-sm font-semibold">Avg close trajectory</h3>
@@ -2041,7 +2083,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4`}>
             <div className="flex items-center gap-2">
               <Droplets className="h-4 w-4 text-cyan-400" />
               <h3 className="text-sm font-semibold">Avg liquidity & volume</h3>
@@ -2058,7 +2100,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             )}
           </div>
 
-          <div className={`rounded-2xl ${C.card} p-4 tablet:col-span-2`}>
+          <div className={`rounded-[var(--dsa-radius-md)] ${C.card} p-4 tablet:col-span-2`}>
             <div className="flex items-start gap-2">
               <Users className="mt-0.5 h-4 w-4 text-[#3861fb]" />
               <div>
@@ -2094,7 +2136,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             role="link"
             aria-label={`Open ${hoverRadarRow.symbol} company profile`}
             style={{ top: radarPopover.top, left: radarPopover.left }}
-            className={`fixed z-[200] block w-[min(340px,calc(100vw-24px))] cursor-pointer overflow-visible rounded-xl border border-[#2b3139] bg-[#1e2329] p-3 shadow-2xl shadow-black/70 no-underline outline-none transition-colors pointer-events-auto hover:border-[#3861fb]/45 hover:bg-[#23272e] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50`}
+            className={`fixed z-[200] block w-[min(340px,calc(100vw-24px))] cursor-pointer overflow-visible rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-3 shadow-2xl shadow-black/70 no-underline outline-none transition-colors pointer-events-auto hover:border-[#3861fb]/45 hover:bg-[#23272e] focus-visible:ring-2 focus-visible:ring-[#3861fb]/50`}
             onMouseEnter={cancelRadarHide}
             onMouseLeave={scheduleRadarHide}
           >
@@ -2113,7 +2155,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             <div className="pointer-events-none">
               <BeginnerRadarChart
                 data={hoverRadarRow.radar}
-                fearGreed={fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol] ?? undefined)}
+                fearGreed={
+                  Number.isFinite(rowPeriodChanges[hoverRadarRow.symbol])
+                    ? fearGreedFromChangePct(rowPeriodChanges[hoverRadarRow.symbol]!)
+                    : null
+                }
               />
             </div>
           </Link>,

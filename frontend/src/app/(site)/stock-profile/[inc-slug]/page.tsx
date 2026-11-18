@@ -126,16 +126,17 @@ const StockProfile = ({ params }: Props) => {
   /** * 3. REALTIME WEBSOCKET (FASTAPI IMPLEMENTATION)
    * Thay thế hoàn toàn Echo bằng SimpleSocket
    */
-  useEffect(() => {
-    if (!instrument || !selectedPeriod) return;
+  const realtimeSymbol = instrument?.symbol ?? "";
+  const realtimePeriodId = selectedPeriod?.id ?? "";
 
-    // Khởi tạo kết nối tới server FastAPI (Cổng 8000)
+  useEffect(() => {
+    if (!realtimeSymbol || !realtimePeriodId) return;
+
     const socket = new SimpleSocket((data: any) => {
-      // Logic xử lý dữ liệu nhận được từ server Python
-      if (data.type === "quote" && data.symbol === instrument.symbol) {
+      if (data.type === "quote" && data.symbol === realtimeSymbol) {
         setRealtimeCandle({
-          time: data.ts,        // Timestamp từ Python server
-          open: data.price,     // Đưa giá hiện tại vào cấu trúc nến
+          time: data.ts,
+          open: data.price,
           high: data.price,
           low: data.price,
           close: data.price,
@@ -145,11 +146,10 @@ const StockProfile = ({ params }: Props) => {
 
     socket.connect();
 
-    // Subscribe mã cổ phiếu hiện tại
     const timer = setTimeout(() => {
       socket.send({
         type: "subscribe",
-        symbols: [instrument.symbol]
+        symbols: [realtimeSymbol],
       });
     }, 500);
 
@@ -158,7 +158,7 @@ const StockProfile = ({ params }: Props) => {
       socket.disconnect();
       setRealtimeCandle(null);
     };
-  }, [instrument?.symbol, selectedPeriod?.id]);
+  }, [realtimeSymbol, realtimePeriodId]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">

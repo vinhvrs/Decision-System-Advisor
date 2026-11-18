@@ -6,7 +6,7 @@ Key: ``dashboard`` (Redis DB from ``REDIS_DB`` in ``python_engine/.env``).
 Each ranking row includes:
   - name / symbol — company display name and ticker
   - change — daily snapshot % change (open→close)
-  - bias / suggestion — buy | sell | flat + short copy (informational, not advice)
+  - bias / suggestion — internal buy | sell | flat states rendered as Bullish | Bearish | Neutral research context
   - str — count of “strong” radar attributes (scores ≥ 4 on five spokes, same as Laravel beginner board)
   - liquidity, care (watchlist saves)
   - chart — recent daily close prices for sparkline-style UI
@@ -102,6 +102,17 @@ def _analysis_key(symbol: str) -> str:
     return f"{settings.REDIS_PREFIX}:analysis:{(symbol or '').strip().upper()}"
 
 
+def _finite_float_or_none(value: Any) -> Optional[float]:
+    """Preserve missing/non-finite market inputs as None instead of silently coercing them to zero."""
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def quintile_scores_by_symbol(symbol_to_value: Dict[str, float]) -> Dict[str, int]:
     pairs: List[Tuple[str, float]] = []
     for sym, v in symbol_to_value.items():
@@ -188,10 +199,10 @@ def parse_analysis_confidence(raw: Optional[str]) -> Optional[float]:
 
 def bias_suggestion(bias: str) -> str:
     if bias == "buy":
-        return "Snapshot up day — informational only, not advice."
+        return "Bullish session bias — snapshot is positive; descriptive only, not investment advice."
     if bias == "sell":
-        return "Snapshot down day — informational only, not advice."
-    return "Flat snapshot — no directional bias from open/close."
+        return "Bearish session bias — snapshot is negative; descriptive only, not investment advice."
+    return "Neutral session bias — snapshot is flat; descriptive only, not investment advice."
 
 
 def beginner_vs_prev_close_abs_pct(
@@ -441,22 +452,52 @@ def build_ranking_rows(
         logo = r.get("company_logo")
         logo_url = str(logo).strip() if logo else None
 
-        snap_price = float(r.get("price") or 0)
-        snap_change = float(r.get("change_pct") or 0)
+        snap_price = _finite_float_or_none(r.get("price"))
+        snap_change = _finite_float_or_none(r.get("change_pct"))
+        raw_volume = _finite_float_or_none(r.get("volume"))
+        raw_liquidity = _finite_float_or_none(r.get("liquidity"))
         last_close, prev_close = last_prev_close.get(iid, (0.0, None))
+        last_close = _finite_float_or_none(last_close)
+        prev_close = _finite_float_or_none(prev_close)
+
         # Dashboard should reflect "today" style move: current snapshot price vs previous close.
-        # If snapshot price is unavailable, fall back to latest daily close; if prev close missing,
-        # keep snapshot-provided change.
-        price = snap_price if snap_price > 0 else last_close
-        if prev_close is not None and prev_close > 0 and price > 0:
+        # A latest daily close can safely backfill a missing snapshot price, but an absent value must
+        # never be converted into zero and ranked as real market data.
+        price = snap_price if snap_price is not None and snap_price > 0 else (
+            last_close if last_close is not None and last_close > 0 else None
+        )
+        if (
+            prev_close is not None
+            and prev_close > 0
+            and price is not None
+            and price > 0
+        ):
             change_pct = (price - prev_close) / prev_close * 100.0
         else:
             change_pct = snap_change
+
+        missing_fields: List[str] = []
+        if price is None or price <= 0:
+            missing_fields.append("price")
+        if raw_volume is None or raw_volume < 0:
+            missing_fields.append("volume")
+        if raw_liquidity is None or raw_liquidity < 0:
+            missing_fields.append("liquidity")
+        if change_pct is None:
+            missing_fields.append("change_pct")
+
         # Keep the Change spoke aligned with the displayed 24H % column.
-        candle_move = abs(float(change_pct))
+        candle_move = abs(change_pct) if change_pct is not None else None
         chart_vals = [round(x, 4) for x in charts.get(iid, [])]
-        if price > 0:
-            # Keep sparkline aligned with displayed price by appending latest snapshot value.
+        persisted_history_points = len(chart_vals)
+        history_state = (
+            "ok"
+            if persisted_history_points >= 2
+            else ("short" if persisted_history_points == 1 else "missing")
+        )
+        if price is not None and price > 0:
+            # Append the current snapshot only after measuring persisted history coverage.
+            # A realtime quote must not masquerade as historical storage.
             if not chart_vals or abs(chart_vals[-1] - round(price, 4)) > 1e-9:
                 chart_vals = chart_vals + [round(price, 4)]
         if len(chart_vals) > chart_bars:
@@ -466,20 +507,43 @@ def build_ranking_rows(
             "instrument_id": iid,
             "company_name": str(r.get("company_name") or sym),
             "logo_url": logo_url,
-            "price": price,
-            "volume": float(r.get("volume") or 0),
-            "liquidity": float(r.get("liquidity") or 0),
-            "change_pct": change_pct,
+            # Legacy display fields stay numeric for compatibility; score inputs preserve missingness.
+            "price": price or 0.0,
+            "volume": raw_volume if raw_volume is not None else 0.0,
+            "liquidity": raw_liquidity if raw_liquidity is not None else 0.0,
+            "change_pct": change_pct if change_pct is not None else 0.0,
+            "price_for_score": price,
+            "volume_for_score": raw_volume,
+            "liquidity_for_score": raw_liquidity,
+            "change_pct_for_score": change_pct,
             "people_watching": people,
-            "candle_move_abs_pct": round(candle_move, 4),
+            "candle_move_abs_pct": round(candle_move, 4) if candle_move is not None else None,
             "chart": chart_vals,
+            "history_points": persisted_history_points,
+            "history_state": history_state,
+            "analysis_eligible": len(missing_fields) == 0,
+            "data_state": "ok" if not missing_fields else "partial",
+            "analysis_reason": (
+                None
+                if not missing_fields
+                else "Required market inputs are missing; conviction is intentionally withheld."
+            ),
+            "missing_fields": missing_fields,
         }
 
-    price_scores = quintile_scores_by_symbol({s: d["price"] for s, d in by_symbol.items() if d["price"] > 0})
-    vol_scores = quintile_scores_by_symbol({s: d["volume"] for s, d in by_symbol.items()})
-    liq_scores = quintile_scores_by_symbol({s: d["liquidity"] for s, d in by_symbol.items()})
+    price_scores = quintile_scores_by_symbol(
+        {s: d["price_for_score"] for s, d in by_symbol.items() if d["price_for_score"] is not None}
+    )
+    vol_scores = quintile_scores_by_symbol(
+        {s: d["volume_for_score"] for s, d in by_symbol.items() if d["volume_for_score"] is not None}
+    )
+    liq_scores = quintile_scores_by_symbol(
+        {s: d["liquidity_for_score"] for s, d in by_symbol.items() if d["liquidity_for_score"] is not None}
+    )
     people_scores = quintile_scores_by_symbol({s: float(d["people_watching"]) for s, d in by_symbol.items()})
-    candle_scores = quintile_scores_by_symbol({s: d["candle_move_abs_pct"] for s, d in by_symbol.items()})
+    candle_scores = quintile_scores_by_symbol(
+        {s: d["candle_move_abs_pct"] for s, d in by_symbol.items() if d["candle_move_abs_pct"] is not None}
+    )
 
     ranked: List[Dict[str, Any]] = []
     for sym, d in by_symbol.items():
@@ -497,18 +561,27 @@ def build_ranking_rows(
             "watchlist_reputation": watch_rep,
             "analysis_confidence": conf,
         }
-        sc = strong_count_five(scores)
+        score_inputs_complete = all(
+            sym in score_map
+            for score_map in (price_scores, candle_scores, vol_scores, liq_scores, people_scores)
+        )
+        analysis_eligible = bool(d["analysis_eligible"]) and score_inputs_complete
+        sc = strong_count_five(scores) if analysis_eligible else 0
         chg = round(float(d["change_pct"]), 2)
         bias = "buy" if chg > 0 else ("sell" if chg < 0 else "flat")
 
-        radar = [
-            {"subject": "Signal", "value": scores["reputation"]},
-            {"subject": "Price", "value": scores["price_period"]},
-            {"subject": "Change", "value": scores["candle_change"]},
-            {"subject": "Volume", "value": scores["volume"]},
-            {"subject": "Liquidity", "value": scores["liquidity"]},
-            {"subject": "Watchers", "value": scores["people_care"]},
-        ]
+        radar = (
+            [
+                {"subject": "Signal", "value": scores["reputation"]},
+                {"subject": "Price", "value": scores["price_period"]},
+                {"subject": "Change", "value": scores["candle_change"]},
+                {"subject": "Volume", "value": scores["volume"]},
+                {"subject": "Liquidity", "value": scores["liquidity"]},
+                {"subject": "Watchers", "value": scores["people_care"]},
+            ]
+            if analysis_eligible
+            else []
+        )
 
         ranked.append(
             {
@@ -525,6 +598,15 @@ def build_ranking_rows(
                 "candle_move_abs_pct": d["candle_move_abs_pct"],
                 "change_pct_snapshot": chg,
                 "day_bias": bias,
+                "analysis_eligible": analysis_eligible,
+                "data_state": "ok" if analysis_eligible else "partial",
+                "analysis_reason": (
+                    None
+                    if analysis_eligible
+                    else d.get("analysis_reason")
+                    or "Required ranking inputs are incomplete; conviction is intentionally withheld."
+                ),
+                "missing_fields": d.get("missing_fields", []),
                 # Flattened dashboard row (user-facing names)
                 "name": d["company_name"],
                 "change": chg,
@@ -533,12 +615,15 @@ def build_ranking_rows(
                 "str": sc,
                 "care": d["people_watching"],
                 "chart": d["chart"],
+                "history_points": d["history_points"],
+                "history_state": d["history_state"],
             }
         )
 
-    # Str (strong_count) primary; tie-breakers match Laravel beginner board; symbol last for stable Redis diffs.
+    # Eligible rows first, then Str (strong_count); tie-breakers match Laravel beginner board.
     ranked.sort(
         key=lambda row: (
+            0 if row.get("analysis_eligible") else 1,
             -row["strong_count"],
             -row["liquidity"],
             -row["volume"],
@@ -566,7 +651,7 @@ def compute_dashboard(limit: int = 20) -> Dict[str, Any]:
             "legend": {
                 "strong_rule": "Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).",
                 "tie_break": "Pool = top symbols by snapshot volume. Tie-break: liquidity → volume → watchlist saves.",
-                "buy_sell": "Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.",
+                "buy_sell": "Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It describes direction, not a trade instruction.",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -612,10 +697,15 @@ def validate_dashboard_daily_payload(
         if sc != sc_alt:
             issues.append(f"{sym}: str ({sc}) != strong_count ({sc_alt})")
         scores = row.get("scores")
+        eligible = bool(row.get("analysis_eligible", True))
         if isinstance(scores, dict):
             recomputed = strong_count_five(scores)
-            if sc != recomputed:
+            if eligible and sc != recomputed:
                 issues.append(f"{sym}: str ({sc}) != recomputed from scores ({recomputed})")
+            if not eligible and sc not in (0, None):
+                issues.append(f"{sym}: ineligible row must not expose a non-zero Str ({sc})")
+        if not eligible and row.get("radar"):
+            issues.append(f"{sym}: ineligible row must not expose radar scores")
         chg = row.get("change")
         chg2 = row.get("change_pct_snapshot")
         if not _payload_float_match(chg, chg2, abs_tol=1e-4):
@@ -643,8 +733,16 @@ def validate_dashboard_daily_payload(
             issues.append(f"{sym}: str not int-compatible")
             str_sequence.append(0)
 
-    if str_sequence != sorted(str_sequence, reverse=True):
-        issues.append("rows are not sorted by str (strong_count) non-increasing")
+    eligible_sequence = [1 if bool(row.get("analysis_eligible", True)) else 0 for row in rows if isinstance(row, dict)]
+    if eligible_sequence != sorted(eligible_sequence, reverse=True):
+        issues.append("eligible rows must sort before ineligible rows")
+    eligible_str_sequence = [
+        int(row.get("strong_count") or 0)
+        for row in rows
+        if isinstance(row, dict) and bool(row.get("analysis_eligible", True))
+    ]
+    if eligible_str_sequence != sorted(eligible_str_sequence, reverse=True):
+        issues.append("eligible rows are not sorted by str (strong_count) non-increasing")
 
     return len(issues) == 0, issues
 
@@ -664,6 +762,8 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
         r = settings.redis_client()
         rows = build_ranking_rows(conn, r, snapshot_rows, chart_bars=chart_bars)
         chart_lens = [len(r.get("chart") or []) for r in rows] if rows else []
+        history_missing = sum(1 for r in rows if r.get("history_state") == "missing")
+        history_short = sum(1 for r in rows if r.get("history_state") == "short")
         return {
             "axes": RADAR_AXES,
             "ranking_board": rows,
@@ -671,7 +771,7 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
             "legend": {
                 "strong_rule": "Str counts scores ≥ 4 on five radar spokes: Signal, Change, Volume, Liquidity, Watchers (Price is not counted).",
                 "tie_break": "Sorted by Str (strong trait count) descending, then liquidity, volume, watchlist saves, then symbol. Pool = top N symbols by snapshot volume.",
-                "buy_sell": "Bias uses the same daily snapshot % change as the dashboard (up vs down). Not financial advice.",
+                "buy_sell": "Bullish / Bearish session bias is derived from the same daily snapshot % change as the dashboard. It describes direction, not a trade instruction.",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "source": "python_engine:warm_up",
@@ -682,6 +782,9 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
                 "row_count": len(rows),
                 "chart_length_min": min(chart_lens) if chart_lens else 0,
                 "chart_length_max": max(chart_lens) if chart_lens else 0,
+                "history_missing_count": history_missing,
+                "history_short_count": history_short,
+                "history_ok_count": len(rows) - history_missing - history_short,
             },
         }
     finally:

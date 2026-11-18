@@ -371,6 +371,19 @@ function pointerOffsetInChartContainer(
 
 const NO_HISTORY_DRAWN_RECTS: HistoryRectPick[] = [];
 
+function researchBiasLabel(advice: HistoryAdviceHover["advice"]): string {
+  switch (advice) {
+    case "BUY":
+      return "Bullish";
+    case "HOLD":
+      return "Neutral";
+    case "WATCH":
+      return "Watch";
+    default:
+      return "Not Rated";
+  }
+}
+
 function HistorySimulatorHoverTip(props: {
   tip: { x: number; y: number; pick: HistoryCandlePick };
   symbol: string;
@@ -390,7 +403,7 @@ function HistorySimulatorHoverTip(props: {
 
   return (
     <div
-      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-md border border-white/20 bg-[#0b1220]/95 px-2.5 py-2 text-[10px] leading-snug text-[#e5e7eb] shadow-xl backdrop-blur-sm"
+      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] px-2.5 py-2 text-[10px] leading-snug text-[var(--dsa-text)] shadow-xl"
       style={{
         left: tip.x + 12,
         top: tip.y + 12,
@@ -416,11 +429,11 @@ function HistorySimulatorHoverTip(props: {
       {adv ? (
         <div className="mt-2 border-t border-white/10 pt-1.5">
           <div className="mb-1 flex flex-wrap items-center gap-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-white/45">Advice</span>
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-white/45">Research bias</span>
             <span className="text-[9px] text-white/35">· as of {adv.asOfDate}</span>
           </div>
           <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${adviceCls}`}>
-            {adv.advice}
+            {researchBiasLabel(adv.advice)}
           </span>
           {adv.note ? (
             <p className="mt-1 text-[9px] leading-relaxed text-white/65">{adv.note}</p>
@@ -554,12 +567,13 @@ export default function LightChart({
       : null;
 
   useEffect(() => {
+    let frame = 0;
+
     if (!expandedChart) {
-      setExpandedOverlayBox(null);
-      return;
+      frame = requestAnimationFrame(() => setExpandedOverlayBox(null));
+      return () => cancelAnimationFrame(frame);
     }
 
-    let frame = 0;
     const updateOverlayBox = () => {
       const rect = chartWrapperRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -574,7 +588,6 @@ export default function LightChart({
       });
     };
 
-    updateOverlayBox();
     frame = requestAnimationFrame(updateOverlayBox);
     window.addEventListener("resize", updateOverlayBox);
     window.addEventListener("scroll", updateOverlayBox, true);
@@ -689,8 +702,9 @@ export default function LightChart({
     closedTicketIdsRef.current = new Set();
     const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
     positionRef.current = flat;
-    setPosition(flat);
     positionSyncedFromApiRef.current = false;
+    const frame = requestAnimationFrame(() => setPosition(flat));
+    return () => cancelAnimationFrame(frame);
   }, [symbol]);
 
   const markTicketsClosing = useCallback((ids: string[]) => {
@@ -707,13 +721,15 @@ export default function LightChart({
   }, []);
 
   useEffect(() => {
-    if (historyInteraction?.drawMode || !historyInteraction?.showHoverDetail) {
-      setHistoryHoverTipIfChanged(null);
-    }
+    if (!(historyInteraction?.drawMode || !historyInteraction?.showHoverDetail)) return;
+    const frame = requestAnimationFrame(() => setHistoryHoverTipIfChanged(null));
+    return () => cancelAnimationFrame(frame);
   }, [historyInteraction?.drawMode, historyInteraction?.showHoverDetail, setHistoryHoverTipIfChanged]);
 
   useEffect(() => {
-    if (!historyInteraction?.drawMode) setRectDrag(null);
+    if (historyInteraction?.drawMode) return;
+    const frame = requestAnimationFrame(() => setRectDrag(null));
+    return () => cancelAnimationFrame(frame);
   }, [historyInteraction?.drawMode]);
 
   const [historyCommittedRectStyles, setHistoryCommittedRectStyles] = useState<
@@ -723,8 +739,8 @@ export default function LightChart({
   useEffect(() => {
     const rects = historyDrawnRects ?? NO_HISTORY_DRAWN_RECTS;
     if (!rects.length) {
-      setHistoryCommittedRectStyles([]);
-      return;
+      const emptyFrame = requestAnimationFrame(() => setHistoryCommittedRectStyles([]));
+      return () => cancelAnimationFrame(emptyFrame);
     }
 
     let raf = 0;
@@ -765,7 +781,7 @@ export default function LightChart({
     const el = containerRef.current;
     const ro =
       el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-    el && ro?.observe(el);
+    if (el) ro?.observe(el);
 
     return () => {
       window.clearTimeout(afterChart);
@@ -799,8 +815,9 @@ export default function LightChart({
       if (positionSyncedFromApiRef.current) {
         const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
         positionRef.current = flat;
-        setPosition(flat);
+        const frame = requestAnimationFrame(() => setPosition(flat));
         positionSyncedFromApiRef.current = false;
+        return () => cancelAnimationFrame(frame);
       }
       return;
     }
@@ -824,8 +841,9 @@ export default function LightChart({
       const lev = buyTickets[0]?.leverage ?? 1;
       const newPos = { side: "long" as const, qty: net, avgPrice: avg, leverage: lev };
       positionRef.current = newPos;
-      setPosition(newPos);
+      const frame = requestAnimationFrame(() => setPosition(newPos));
       positionSyncedFromApiRef.current = true;
+      return () => cancelAnimationFrame(frame);
     } else if (net < 0) {
       const totalVol = sellTickets.reduce((s, t) => s + Number(t.volume || 0), 0);
       const avg = totalVol > 0
@@ -834,13 +852,16 @@ export default function LightChart({
       const lev = sellTickets[0]?.leverage ?? 1;
       const newPos = { side: "short" as const, qty: Math.abs(net), avgPrice: avg, leverage: lev };
       positionRef.current = newPos;
-      setPosition(newPos);
+      const frame = requestAnimationFrame(() => setPosition(newPos));
       positionSyncedFromApiRef.current = true;
+      return () => cancelAnimationFrame(frame);
     } else {
       ticketIdsRef.current = [];
       positionRef.current = { side: "flat", qty: 0, avgPrice: 0 };
-      setPosition({ side: "flat", qty: 0, avgPrice: 0 });
+      const flat = { side: "flat" as const, qty: 0, avgPrice: 0 };
+      const frame = requestAnimationFrame(() => setPosition(flat));
       positionSyncedFromApiRef.current = false;
+      return () => cancelAnimationFrame(frame);
     }
   }, [positionsForSymbol, pruneClosedTicketIds]);
 
@@ -870,20 +891,20 @@ export default function LightChart({
       width: Math.max(1, el.clientWidth),
       height: Math.max(minChartHeight, el.clientHeight || minChartHeight),
       layout: {
-        background: { type: ColorType.Solid, color: "#0B1220" },
-        textColor: "#DDD",
+        background: { type: ColorType.Solid, color: "#090d12" },
+        textColor: "#a7b2c0",
       },
       grid: {
-        vertLines: { color: "#1E222D" },
-        horzLines: { color: "#1E222D" },
+        vertLines: { color: "#202b37" },
+        horzLines: { color: "#202b37" },
       },
       timeScale: {
-        borderColor: "#334155",
+        borderColor: "#2c3947",
         timeVisible: true,
         secondsVisible: false,
       },
       rightPriceScale: {
-        borderColor: "#334155",
+        borderColor: "#2c3947",
       },
     });
 
@@ -1018,6 +1039,7 @@ export default function LightChart({
     const handleWindowResize = () => syncChartSize();
     window.addEventListener("resize", handleWindowResize);
     requestAnimationFrame(() => syncChartSize());
+    const displayMap = displayMapRef.current;
 
     return () => {
       chart.unsubscribeCrosshairMove(crosshairMove);
@@ -1029,7 +1051,7 @@ export default function LightChart({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", handleWindowResize);
       indicatorSeriesRef.current = [];
-      displayMapRef.current.clear();
+      displayMap.clear();
       try {
         seriesMarkersRef.current?.detach?.();
       } catch {}
@@ -1251,7 +1273,6 @@ export default function LightChart({
     latestBarTime,
     marketContext.time,
     chartBarTimes,
-    realtimeCandle,
     period,
   ]);
 
