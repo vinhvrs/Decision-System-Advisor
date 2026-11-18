@@ -489,8 +489,15 @@ def build_ranking_rows(
         # Keep the Change spoke aligned with the displayed 24H % column.
         candle_move = abs(change_pct) if change_pct is not None else None
         chart_vals = [round(x, 4) for x in charts.get(iid, [])]
+        persisted_history_points = len(chart_vals)
+        history_state = (
+            "ok"
+            if persisted_history_points >= 2
+            else ("short" if persisted_history_points == 1 else "missing")
+        )
         if price is not None and price > 0:
-            # Keep sparkline aligned with displayed price by appending latest snapshot value.
+            # Append the current snapshot only after measuring persisted history coverage.
+            # A realtime quote must not masquerade as historical storage.
             if not chart_vals or abs(chart_vals[-1] - round(price, 4)) > 1e-9:
                 chart_vals = chart_vals + [round(price, 4)]
         if len(chart_vals) > chart_bars:
@@ -512,6 +519,8 @@ def build_ranking_rows(
             "people_watching": people,
             "candle_move_abs_pct": round(candle_move, 4) if candle_move is not None else None,
             "chart": chart_vals,
+            "history_points": persisted_history_points,
+            "history_state": history_state,
             "analysis_eligible": len(missing_fields) == 0,
             "data_state": "ok" if not missing_fields else "partial",
             "analysis_reason": (
@@ -606,6 +615,8 @@ def build_ranking_rows(
                 "str": sc,
                 "care": d["people_watching"],
                 "chart": d["chart"],
+                "history_points": d["history_points"],
+                "history_state": d["history_state"],
             }
         )
 
@@ -751,6 +762,8 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
         r = settings.redis_client()
         rows = build_ranking_rows(conn, r, snapshot_rows, chart_bars=chart_bars)
         chart_lens = [len(r.get("chart") or []) for r in rows] if rows else []
+        history_missing = sum(1 for r in rows if r.get("history_state") == "missing")
+        history_short = sum(1 for r in rows if r.get("history_state") == "short")
         return {
             "axes": RADAR_AXES,
             "ranking_board": rows,
@@ -769,6 +782,9 @@ def compute_dashboard_daily(limit: int = 100, chart_bars: int = CHART_BARS_DAILY
                 "row_count": len(rows),
                 "chart_length_min": min(chart_lens) if chart_lens else 0,
                 "chart_length_max": max(chart_lens) if chart_lens else 0,
+                "history_missing_count": history_missing,
+                "history_short_count": history_short,
+                "history_ok_count": len(rows) - history_missing - history_short,
             },
         }
     finally:
