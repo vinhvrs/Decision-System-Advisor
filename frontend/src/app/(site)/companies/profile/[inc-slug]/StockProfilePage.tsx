@@ -264,8 +264,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlisted, setWatchlisted] = useState(false);
-  const [sentimentBull, setSentimentBull] = useState(42);
-  const [sentimentBear, setSentimentBear] = useState(8);
+  const [sentimentState, setSentimentState] = useState<{
+    symbol: string;
+    bull: number;
+    bear: number;
+  }>({ symbol: "", bull: 0, bear: 0 });
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -320,8 +323,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const hasRecentSidebarNews =
     latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
+  const sentimentBull = sentimentState.symbol === symbol ? sentimentState.bull : 0;
+  const sentimentBear = sentimentState.symbol === symbol ? sentimentState.bear : 0;
   const sentimentTotal = sentimentBull + sentimentBear;
-  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
+  const bullishPct =
+    sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -346,25 +352,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
       if (!raw) return;
       const j = JSON.parse(raw) as { bull?: number; bear?: number };
       if (typeof j.bull === "number" && typeof j.bear === "number" && j.bull + j.bear > 0) {
-        setSentimentBull(j.bull);
-        setSentimentBear(j.bear);
+        setSentimentState({
+          symbol,
+          bull: Math.max(0, j.bull),
+          bear: Math.max(0, j.bear),
+        });
       }
     } catch {
       /* ignore */
     }
   }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      sessionStorage.setItem(
-        sentimentStorageKey(symbol),
-        JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [symbol, sentimentBull, sentimentBear]);
 
   useEffect(() => {
     let cancelled = false;
@@ -494,7 +491,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
       socket.disconnect();
       setRealtimeCandle(null);
     };
-  }, [symbol, selectedPeriod]);
+  }, [symbol]);
 
   if (loading) {
     return (
@@ -537,8 +534,27 @@ export function StockProfilePage({ slug }: { slug: string }) {
     })();
   };
 
-  const voteBullish = () => setSentimentBull((b) => b + 1);
-  const voteBearish = () => setSentimentBear((b) => b + 1);
+  const saveLocalSentiment = (bull: number, bear: number) => {
+    try {
+      sessionStorage.setItem(sentimentStorageKey(symbol), JSON.stringify({ bull, bear }));
+    } catch {
+      /* local sentiment remains usable for this render even if storage is blocked */
+    }
+  };
+
+  const voteBullish = () => {
+    const bull = sentimentBull + 1;
+    const bear = sentimentBear;
+    setSentimentState({ symbol, bull, bear });
+    saveLocalSentiment(bull, bear);
+  };
+
+  const voteBearish = () => {
+    const bull = sentimentBull;
+    const bear = sentimentBear + 1;
+    setSentimentState({ symbol, bull, bear });
+    saveLocalSentiment(bull, bear);
+  };
 
   const chartBlock = (
     <div className={`overflow-hidden rounded-xl ${CMC.card}`}>
@@ -679,8 +695,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </div>
 
                 <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      realtimeCandle ? "bg-[#16c784]" : "bg-[#848e9c]"
+                    }`}
+                  />
+                  {realtimeCandle ? "Realtime quote observed" : "Stored OHLC · waiting for realtime quote"}
                 </p>
               </div>
             </div>
@@ -1080,16 +1100,24 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 </button>
               </div>
               <p className={`mt-3 text-xs font-semibold ${CMC.muted}`}>Community sentiment</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
-                <div
-                  className="h-full rounded-full bg-[#16c784] transition-all duration-300"
-                  style={{ width: `${bullishPct}%` }}
-                />
-              </div>
-              <div className="mt-1 flex justify-between text-[11px] font-semibold">
-                <span className={CMC.green}>{bullishPct}% Bullish</span>
-                <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
-              </div>
+              {bullishPct == null ? (
+                <div className={`mt-2 rounded-md border ${CMC.line} px-3 py-2 text-[11px] ${CMC.muted}`}>
+                  No votes yet on this device. No sentiment percentage is inferred.
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
+                    <div
+                      className="h-full rounded-full bg-[#16c784] transition-all duration-300"
+                      style={{ width: `${bullishPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 flex justify-between text-[11px] font-semibold">
+                    <span className={CMC.green}>{bullishPct}% Bullish</span>
+                    <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
+                  </div>
+                </>
+              )}
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
