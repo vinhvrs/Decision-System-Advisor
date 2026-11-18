@@ -603,16 +603,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </div>
           <Link
             href="/investing"
-            className="shrink-0 rounded-lg border border-[#2b3139] px-2.5 py-1 font-semibold text-[#7b9cff] transition hover:border-[#3861fb]/50 hover:text-white"
+            className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-xs"
           >
-            Investing site
+            Research workspace
           </Link>
         </nav>
 
         {/* Three-column shell — left stats | center tabs | right community */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,260px)_minmax(0,1fr)_minmax(0,280px)] xl:items-start xl:gap-5">
           <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-3`}>
               <div className="flex gap-3">
                 <img
                   src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
@@ -678,9 +678,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <FundamentalRadar symbol={symbol} compact />
                 </div>
 
-                <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                <p className={`mt-3 text-[10px] leading-relaxed ${CMC.muted}`}>
+                  Stored OHLC remains the chart source. Realtime quotes update the current price when the stream is available.
                 </p>
               </div>
             </div>
@@ -723,14 +722,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <StatTile label="IPO" value={formatDate(details?.ipo_date)} />
             </div>
 
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-3`}>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className={`text-xs font-semibold ${CMC.muted}`}>Profile score</span>
                 <span className="text-xs font-bold text-[#f0b90b]">{profileScore}%</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-[#2b3139]">
+              <div className="h-1.5 overflow-hidden bg-[var(--dsa-surface-3)]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#c99400] to-[#f0b90b]"
+                  className="h-full bg-[#d8a340]"
                   style={{ width: `${profileScore}%` }}
                 />
               </div>
@@ -762,7 +761,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </Link>
             </div>
 
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-3`}>
               <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${CMC.muted}`}>Listing</p>
               <div className="flex items-center gap-2 text-sm">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-[#3861fb]" />
@@ -774,14 +773,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </aside>
 
           <main className="order-1 min-w-0 xl:order-2">
-            <div className={`mb-3 flex flex-col gap-3 rounded-xl ${CMC.card} px-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4`}>
-              <div className="no-scrollbar flex gap-0 overflow-x-auto border-b border-transparent sm:border-0">
+            <div className={`mb-3 flex flex-col gap-2 border-b ${CMC.line} bg-[var(--dsa-surface-1)] px-1 py-1 sm:flex-row sm:items-center sm:justify-between`}>
+              <div className="no-scrollbar flex gap-0 overflow-x-auto">
                 {MAIN_TABS.map((t) => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => setMainTab(t.id)}
-                    className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${
+                    className={`shrink-0 border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${
                       mainTab === t.id ? CMC.tabActive : CMC.tabIdle
                     }`}
                   >
@@ -793,23 +792,17 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={toggleWatchlist}
-                  className="rounded-lg bg-[#3861fb] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#3861fb]/20 transition hover:bg-[#2f56e0]"
+                  className="dsa-button-primary min-h-0 px-3 py-1.5 text-xs"
                 >
                   {watchlisted ? "Watching" : "Track symbol"}
                 </button>
-                <span
-                  className={`hidden rounded-lg border px-3 py-2 text-[11px] font-semibold sm:inline ${CMC.line} ${CMC.muted}`}
-                  title="Advanced layout and alerts (coming soon)"
-                >
-                  Pro view
-                </span>
               </div>
             </div>
 
             {mainTab === "chart" && (
               <div className="space-y-4">
                 {chartBlock}
-                <details className={`rounded-xl ${CMC.card} p-4`}>
+                <details className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-3`}>
                   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#7b9cff]">
                     <Info className="h-4 w-4" />
                     How chart stats are read
@@ -833,7 +826,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "markets" && (
-              <section className={`rounded-xl ${CMC.card} overflow-hidden`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
                   <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
                   <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
@@ -894,7 +887,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </span>
                 </div>
                 {news.length === 0 ? (
-                  <p className={`rounded-xl ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
+                  <p className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
                     No news items for this symbol yet.
                   </p>
                 ) : (
@@ -902,7 +895,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     const { kind, href } = resolveNewsHref(item);
                     const label = newsSourceLabel(item);
                     const thumb = pickNewsThumbImage(item);
-                    const cardClass = `block rounded-xl ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
+                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-3 transition hover:border-[#3861fb]/45`;
                     const inner = (
                       <>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
@@ -950,7 +943,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "holders" && (
-              <section className={`rounded-xl ${CMC.card} p-8 text-center`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center`}>
                 <Layers className="mx-auto mb-3 h-10 w-10 text-[#3861fb] opacity-60" />
                 <h2 className="text-lg font-bold text-white">Holder distribution</h2>
                 <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
@@ -1063,7 +1056,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </main>
 
           <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-3`}>
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-white line-clamp-1">
