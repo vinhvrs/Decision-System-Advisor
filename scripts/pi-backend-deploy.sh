@@ -54,8 +54,12 @@ SYNC_EXCLUDES=(
   --exclude 'vendor/'
   --exclude 'node_modules/'
   --exclude 'certs/'
+  --exclude 'platform/'
   --exclude 'Dockerfile.pi'
   --exclude 'public/storage'
+  --exclude 'public/build/'
+  --exclude 'public/hot'
+  --exclude '.phpunit.result.cache'
   --exclude '__pycache__/'
   --exclude '*.pyc'
 )
@@ -178,6 +182,10 @@ if [ -f "$OVERRIDE_FILE" ]; then
 fi
 printf '%s\n' "$target_sha" > "$BACKUP/target.sha"
 printf '%s\n' "$TARGET_BRANCH" > "$BACKUP/target.branch"
+mkdir -p "$LIVE_ROOT/.deploy-state"
+printf '%s\n' "$target_sha" > "$LIVE_ROOT/.deploy-state/target.sha"
+printf '%s\n' "$TARGET_BRANCH" > "$LIVE_ROOT/.deploy-state/target.branch"
+printf '%s\n' "$STAMP" > "$LIVE_ROOT/.deploy-state/deployed-at"
 
 echo
 echo "== Backend source change plan =="
