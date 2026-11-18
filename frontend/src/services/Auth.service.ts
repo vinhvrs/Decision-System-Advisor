@@ -51,6 +51,16 @@ export const AuthService = {
         return response.data as { message: string };
     },
 
+    changePassword: async (data: {
+        current_password: string;
+        password: string;
+        password_confirmation: string;
+    }) => {
+        const response = await api.post(`/auth/password/change`, data);
+        clearClientSession();
+        return response.data as { message: string };
+    },
+
     login: async (data: { email: string; password: string; remember?: boolean }) => {
         const response = await api.post(`/auth/login`, data);
         const token = response.data.token;
