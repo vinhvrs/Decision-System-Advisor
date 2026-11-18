@@ -738,7 +738,14 @@ const TableSparkline = memo(function TableSparkline({ values }: { values: number
   }, [values]);
 
   if (values.length < 2 || !poly) {
-    return <div className="mx-auto h-7 w-[88px] rounded bg-white/[0.05]" aria-hidden />;
+    return (
+      <div
+        className="mx-auto flex h-7 w-[88px] items-center justify-center text-[9px] font-medium text-[var(--dsa-text-muted)]"
+        title="Persisted history is unavailable or too short"
+      >
+        No history
+      </div>
+    );
   }
   return (
     <svg
@@ -1069,7 +1076,10 @@ function sparklineValuesForRow(
   period: Period,
 ): number[] {
   const cap = period === "daily" ? 48 : 24;
-  if (period === "daily" && row.chart && row.chart.length >= 2) {
+  const embeddedHistoryUsable =
+    row.history_state === "ok" ||
+    (row.history_state == null && Array.isArray(row.chart) && row.chart.length >= 2);
+  if (period === "daily" && embeddedHistoryUsable && row.chart && row.chart.length >= 2) {
     return row.chart.length <= cap ? row.chart : row.chart.slice(-cap);
   }
   const sym = row.symbol;
@@ -1077,38 +1087,12 @@ function sparklineValuesForRow(
   return arr.length <= cap ? arr : arr.slice(-cap);
 }
 
-/**
- * Fallback when a symbol has snapshot price but no daily close series.
- * This keeps row sparklines visible (e.g. BE) by deriving a 2-point line
- * from snapshot price and snapshot percent change.
- */
-function ensureSparklineValuesForRow(
-  row: BeginnerBoardRow,
-  batchMap: Record<string, number[]>,
-  period: Period,
-): number[] {
-  const values = sparklineValuesForRow(row, batchMap, period);
-  if (values.length >= 2) return values;
-  if (period === "annual") return values;
-
-  const price = Number(row.price);
-  if (!Number.isFinite(price) || price <= 0) return values;
-
-  const ch = Number(row.change_pct_snapshot);
-  if (Number.isFinite(ch) && ch > -99.9) {
-    const prev = price / (1 + ch / 100);
-    if (Number.isFinite(prev) && prev > 0) return [prev, price];
-  }
-
-  return [price * 0.995, price];
-}
-
 function upsideTechnicalForSort(
   row: BeginnerBoardRow,
   sparkMap: Record<string, number[]>,
   period: Period,
 ): number {
-  const closes = ensureSparklineValuesForRow(row, sparkMap, period);
+  const closes = sparklineValuesForRow(row, sparkMap, period);
   return upsideTechnicalPct(row, closes);
 }
 
@@ -1535,27 +1519,40 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
       const rows = boardRowsRef.current;
       if (!rows.length) return;
 
-      if (showSpinner) setSparklinesLoading(true);
       const syms = rows.map((r) => r.symbol);
+      const hasEmbedded =
+        period === "daily" &&
+        rows.some(
+          (r) =>
+            r.history_state === "ok" ||
+            (r.history_state == null && Array.isArray(r.chart) && r.chart.length >= 2),
+        );
       const allEmbedded =
         period === "daily" &&
-        rows.every((r) => Array.isArray(r.chart) && r.chart.length >= 2);
+        rows.every(
+          (r) =>
+            r.history_state === "ok" ||
+            (r.history_state == null && Array.isArray(r.chart) && r.chart.length >= 2),
+        );
 
       const applyMap = (map: Record<string, number[]>) => {
         if (cancelled) return;
         const latest = boardRowsRef.current;
         const next: Record<string, number[]> = {};
         for (const r of latest) {
-          next[r.symbol] = ensureSparklineValuesForRow(r, map, period);
+          next[r.symbol] = sparklineValuesForRow(r, map, period);
         }
         setRowSparklines(next);
       };
 
-      if (allEmbedded) {
+      if (hasEmbedded) {
         applyMap({});
-        if (!cancelled) setSparklinesLoading(false);
-        return;
+        setSparklinesLoading(false);
+      } else if (showSpinner) {
+        setSparklinesLoading(true);
       }
+
+      if (allEmbedded) return;
 
       const sparkLimit = period === "daily" ? 40 : 24;
       InstrumentService.batchDailyCloses(syms, sparkLimit, periodToApiSlug(period))
@@ -1563,7 +1560,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           applyMap(map);
         })
         .catch(() => {
-          if (!cancelled && showSpinner) setRowSparklines({});
+          // Keep the last known good or embedded history on transient API failure.
         })
         .finally(() => {
           if (!cancelled) setSparklinesLoading(false);
