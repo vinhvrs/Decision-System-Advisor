@@ -20,6 +20,19 @@ This procedure does not change ranking formulas and never manufactures missing c
 - If duplicate trading-date rows exist, inspect their source/timestamp/adjustment semantics before cleanup.
 - Keep the currently serving checkpoint available for rollback.
 
+## Fast path — one-command non-destructive audit
+
+On the Raspberry Pi checkout at `/home/trivi/Decision-System-Advisor`:
+
+```bash
+cd /home/trivi/Decision-System-Advisor
+bash scripts/pi-history-audit.sh
+```
+
+The script does not restart services, migrate schemas, delete rows or perform backfill. It prints the Git checkpoint, Compose service state, runtime 40-symbol contract, registered data commands and `data:coverage --limit=40 --min-bars=90`.
+
+A non-zero exit means the live release gate is not met; continue with the targeted recovery steps below.
+
 ## 1. Record the live checkpoint
 
 From the DSA checkout:
