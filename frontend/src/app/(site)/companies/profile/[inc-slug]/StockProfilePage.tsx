@@ -30,6 +30,7 @@ import FundamentalRadar from "./FundamentalRadar";
 import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
 import { InstrumentService } from "@/src/services/Instrument.service";
 import { CompanyService } from "@/src/services/Company.service";
+import { useWatchlist } from "@/src/hooks/useWatchlist";
 import { SimpleSocket } from "@/src/libs/socket";
 import { stripParentheticals } from "@/src/libs/displayString";
 import {
@@ -40,7 +41,7 @@ import {
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
-type ProfileMainTab = "chart" | "markets" | "news" | "holders" | "fundamentals" | "about";
+type ProfileMainTab = "chart" | "markets" | "news" | "fundamentals" | "about";
 
 const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -178,15 +179,15 @@ function formatUsdStat(n: number): string {
 
 /** Dark theme surface tokens for company profile */
 const CMC = {
-  bg: "bg-[#0b0e11]",
-  card: "bg-[#1e2329] border border-[#2b3139]",
-  text: "text-[#eaecef]",
-  muted: "text-[#848e9c]",
-  green: "text-[#16c784]",
-  red: "text-[#ea3943]",
-  line: "border-[#2b3139]",
-  tabActive: "border-[#3861fb] text-white",
-  tabIdle: "border-transparent text-[#848e9c] hover:text-[#eaecef]",
+  bg: "bg-[var(--dsa-bg)]",
+  card: "bg-[var(--dsa-surface-1)] border border-[var(--dsa-border)]",
+  text: "text-[var(--dsa-text)]",
+  muted: "text-[var(--dsa-text-muted)]",
+  green: "text-[var(--dsa-positive)]",
+  red: "text-[var(--dsa-negative)]",
+  line: "border-[var(--dsa-border)]",
+  tabActive: "border-[var(--dsa-accent)] text-white",
+  tabIdle: "border-transparent text-[var(--dsa-text-muted)] hover:text-white",
 };
 
 function computeProfileScore(d: any): number {
@@ -210,10 +211,6 @@ function computeProfileScore(d: any): number {
   return Math.round((filled / keys.length) * 100);
 }
 
-function sentimentStorageKey(sym: string) {
-  return `dsa-profile-sentiment-${sym}`;
-}
-
 function StatTile({
   label,
   value,
@@ -226,7 +223,7 @@ function StatTile({
   sub?: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-xl border ${CMC.line} bg-[#0d1621]/90 p-3`}>
+    <div className={`rounded-[var(--dsa-radius-md)] border ${CMC.line} bg-[var(--dsa-surface-2)] p-3`}>
       <div className="mb-1 flex items-center gap-1">
         <span className={`text-[11px] font-medium leading-tight ${CMC.muted}`}>{label}</span>
         {hintTitle ? (
@@ -245,7 +242,6 @@ const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "chart", label: "Chart" },
   { id: "markets", label: "Markets" },
   { id: "news", label: "News" },
-  { id: "holders", label: "Holders" },
   { id: "fundamentals", label: "Fundamentals" },
   { id: "about", label: "About" },
 ];
@@ -263,15 +259,26 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
-  const [watchlisted, setWatchlisted] = useState(false);
-  const [sentimentBull, setSentimentBull] = useState(42);
-  const [sentimentBear, setSentimentBear] = useState(8);
+  const [watchlistMutating, setWatchlistMutating] = useState(false);
+  const [watchlistActionMessage, setWatchlistActionMessage] = useState<string | null>(null);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
+
+  const {
+    loading: watchlistLoading,
+    add: addToWatchlist,
+    remove: removeFromWatchlist,
+    isInWatchlist,
+  } = useWatchlist();
+  const watchlisted = isInWatchlist(symbol);
 
   const candleRequestIdRef = useRef(0);
 
   useEffect(() => {
-    setPaperTrading(null);
+    const frame = window.requestAnimationFrame(() => {
+      setPaperTrading(null);
+      setWatchlistActionMessage(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
 
   const livePrice = useMemo(() => {
@@ -320,51 +327,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const hasRecentSidebarNews =
     latestNewsMs > 0 && Date.now() - latestNewsMs < 1000 * 60 * 60 * 24 * 30;
 
-  const sentimentTotal = sentimentBull + sentimentBear;
-  const bullishPct = sentimentTotal > 0 ? Math.round((sentimentBull / sentimentTotal) * 100) : 50;
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "fundamentals") setMainTab("fundamentals");
     else setMainTab("chart");
   }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      setWatchlisted(sessionStorage.getItem(`dsa-watch-${symbol}`) === "1");
-    } catch {
-      /* ignore */
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      const raw = sessionStorage.getItem(sentimentStorageKey(symbol));
-      if (!raw) return;
-      const j = JSON.parse(raw) as { bull?: number; bear?: number };
-      if (typeof j.bull === "number" && typeof j.bear === "number" && j.bull + j.bear > 0) {
-        setSentimentBull(j.bull);
-        setSentimentBear(j.bear);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !symbol) return;
-    try {
-      sessionStorage.setItem(
-        sentimentStorageKey(symbol),
-        JSON.stringify({ bull: sentimentBull, bear: sentimentBear }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [symbol, sentimentBull, sentimentBear]);
 
   useEffect(() => {
     let cancelled = false;
@@ -498,11 +466,9 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b0e11] flex flex-col items-center justify-center text-blue-500 font-mono">
-        <Loader2 className="animate-spin mb-4" size={40} />
-        <span className="uppercase tracking-[0.3em] text-sm animate-pulse">
-          Syncing Market Data...
-        </span>
+      <div className="flex min-h-[55vh] flex-col items-center justify-center bg-[var(--dsa-bg)] text-[var(--dsa-text-muted)]">
+        <Loader2 className="mb-3 animate-spin" size={20} />
+        <span className="text-xs">Loading company research…</span>
       </div>
     );
   }
@@ -512,15 +478,25 @@ export function StockProfilePage({ slug }: { slug: string }) {
       ? "24h vs previous daily close"
       : `Change vs previous ${selectedPeriod} bar`;
 
-  const toggleWatchlist = () => {
-    const next = !watchlisted;
-    setWatchlisted(next);
-    if (typeof window !== "undefined" && symbol) {
-      try {
-        sessionStorage.setItem(`dsa-watch-${symbol}`, next ? "1" : "0");
-      } catch {
-        /* ignore */
+  const toggleWatchlist = async () => {
+    if (!symbol || watchlistMutating || watchlistLoading) return;
+
+    setWatchlistActionMessage(null);
+    setWatchlistMutating(true);
+
+    try {
+      if (watchlisted) {
+        const removed = await removeFromWatchlist(symbol);
+        if (!removed) setWatchlistActionMessage("Could not remove this symbol from your watchlist.");
+        return;
       }
+
+      const result = await addToWatchlist(symbol);
+      if (!result.ok) {
+        setWatchlistActionMessage(result.message ?? "Could not add this symbol to your watchlist.");
+      }
+    } finally {
+      setWatchlistMutating(false);
     }
   };
 
@@ -537,17 +513,16 @@ export function StockProfilePage({ slug }: { slug: string }) {
     })();
   };
 
-  const voteBullish = () => setSentimentBull((b) => b + 1);
-  const voteBearish = () => setSentimentBear((b) => b + 1);
-
   const chartBlock = (
-    <div className={`overflow-hidden rounded-xl ${CMC.card}`}>
+    <div className={`overflow-hidden rounded-[var(--dsa-radius-md)] ${CMC.card}`}>
       <div
         className={`flex flex-col gap-3 border-b ${CMC.line} px-3 py-3 sm:flex-row sm:items-center sm:justify-between`}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md bg-white/[0.08] px-2 py-1 text-[11px] font-semibold text-white">Price</span>
-          <span className={`rounded-md px-2 py-1 text-[11px] font-medium ${CMC.muted}`}>Market cap</span>
+          <span className="rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-accent-soft)] px-2 py-1 text-[11px] font-semibold text-[#c5d9ff]">
+            Price history
+          </span>
+          <span className={`text-[10px] font-medium ${CMC.muted}`}>Persisted OHLC</span>
         </div>
         <SelectDropdown
           className="w-[140px]"
@@ -556,6 +531,15 @@ export function StockProfilePage({ slug }: { slug: string }) {
           onSelect={(opt) => setSelectedPeriod(opt.id as TF)}
         />
       </div>
+      {candles.length < 2 ? (
+        <div className="border-b border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-xs text-[#d9bb7a]">
+          Persisted {selectedPeriod} history is {candles.length === 1 ? "too short" : "unavailable"} for {symbol}. Realtime price may still update, but historical chart data is not synthesized.
+        </div>
+      ) : (
+        <div className="border-b border-[var(--dsa-border)] px-3 py-1.5 text-[10px] text-[var(--dsa-text-muted)]">
+          {candles.length.toLocaleString("en-US")} persisted {selectedPeriod} bars loaded.
+        </div>
+      )}
       <div className="flex h-[min(520px,68vh)] min-h-[300px] w-full flex-col p-2 pb-3">
         <div className="min-h-0 flex-1">
           <TradingChart
@@ -609,10 +593,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </Link>
         </nav>
 
-        {/* Three-column shell — left stats | center tabs | right community */}
+        {/* Three-column shell — left stats | center research | right coverage/news */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,300px)] xl:items-start xl:gap-5">
           <aside className="order-2 flex flex-col gap-4 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="flex gap-3">
                 <img
                   src={details?.image || `https://images.financialmodelingprep.com/symbol/${symbol}.png`}
@@ -631,12 +615,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={toggleWatchlist}
-                        className="rounded-lg p-2 text-[#848e9c] transition hover:bg-white/5 hover:text-[#f0b90b]"
+                        onClick={() => void toggleWatchlist()}
+                        className="rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-[#8ab4ff] disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
-                        title="Watchlist"
+                        title={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
+                        disabled={watchlistLoading || watchlistMutating}
                       >
-                        <Star className={`h-4 w-4 ${watchlisted ? "fill-[#f0b90b] text-[#f0b90b]" : ""}`} />
+                        <Star className={`h-4 w-4 ${watchlisted ? "fill-[#8ab4ff] text-[#8ab4ff]" : ""}`} />
                       </button>
                       <button
                         type="button"
@@ -678,9 +663,13 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   <FundamentalRadar symbol={symbol} compact />
                 </div>
 
-                <p className={`mt-3 flex items-center gap-1 text-[10px] ${CMC.muted}`}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#16c784]" />
-                  Live stream when connected
+                <p className={`mt-3 flex items-center gap-1.5 text-[10px] ${CMC.muted}`}>
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      realtimeCandle ? "bg-[var(--dsa-positive)]" : "bg-[var(--dsa-text-muted)]"
+                    }`}
+                  />
+                  {realtimeCandle ? "Realtime quote received" : "Realtime quote not received"}
                 </p>
               </div>
             </div>
@@ -723,14 +712,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
               <StatTile label="IPO" value={formatDate(details?.ipo_date)} />
             </div>
 
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile score</span>
-                <span className="text-xs font-bold text-[#f0b90b]">{profileScore}%</span>
+                <span className={`text-xs font-semibold ${CMC.muted}`}>Profile completeness</span>
+                <span className="font-mono text-xs font-semibold tabular-nums text-[#8ab4ff]">{profileScore}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#2b3139]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#c99400] to-[#f0b90b]"
+                  className="h-full rounded-full bg-[#4c8dff]"
                   style={{ width: `${profileScore}%` }}
                 />
               </div>
@@ -762,7 +751,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </Link>
             </div>
 
-            <div className={`rounded-xl ${CMC.card} p-4`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
               <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${CMC.muted}`}>Listing</p>
               <div className="flex items-center gap-2 text-sm">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-[#3861fb]" />
@@ -774,7 +763,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </aside>
 
           <main className="order-1 min-w-0 xl:order-2">
-            <div className={`mb-3 flex flex-col gap-3 rounded-xl ${CMC.card} px-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4`}>
+            <div className={`mb-3 flex flex-col gap-3 rounded-[var(--dsa-radius-md)] ${CMC.card} px-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4`}>
               <div className="no-scrollbar flex gap-0 overflow-x-auto border-b border-transparent sm:border-0">
                 {MAIN_TABS.map((t) => (
                   <button
@@ -789,27 +778,27 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </button>
                 ))}
               </div>
-              <div className="flex shrink-0 items-center gap-2 px-1 sm:px-0">
+              <div className="flex shrink-0 flex-col items-end gap-1 px-1 sm:px-0">
                 <button
                   type="button"
-                  onClick={toggleWatchlist}
-                  className="rounded-lg bg-[#3861fb] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#3861fb]/20 transition hover:bg-[#2f56e0]"
+                  onClick={() => void toggleWatchlist()}
+                  className="dsa-button-primary px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={watchlistLoading || watchlistMutating}
                 >
-                  {watchlisted ? "Watching" : "Track symbol"}
+                  {watchlistMutating ? "Updating…" : watchlisted ? "Watching" : "Watch symbol"}
                 </button>
-                <span
-                  className={`hidden rounded-lg border px-3 py-2 text-[11px] font-semibold sm:inline ${CMC.line} ${CMC.muted}`}
-                  title="Advanced layout and alerts (coming soon)"
-                >
-                  Pro view
-                </span>
+                {watchlistActionMessage ? (
+                  <span className="max-w-[260px] text-right text-[10px] leading-snug text-[var(--dsa-warning)]">
+                    {watchlistActionMessage}
+                  </span>
+                ) : null}
               </div>
             </div>
 
             {mainTab === "chart" && (
               <div className="space-y-4">
                 {chartBlock}
-                <details className={`rounded-xl ${CMC.card} p-4`}>
+                <details className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
                   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#7b9cff]">
                     <Info className="h-4 w-4" />
                     How chart stats are read
@@ -833,7 +822,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             )}
 
             {mainTab === "markets" && (
-              <section className={`rounded-xl ${CMC.card} overflow-hidden`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
                   <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
                   <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
@@ -894,7 +883,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   </span>
                 </div>
                 {news.length === 0 ? (
-                  <p className={`rounded-xl ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
+                  <p className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center text-sm ${CMC.muted}`}>
                     No news items for this symbol yet.
                   </p>
                 ) : (
@@ -902,7 +891,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     const { kind, href } = resolveNewsHref(item);
                     const label = newsSourceLabel(item);
                     const thumb = pickNewsThumbImage(item);
-                    const cardClass = `block rounded-xl ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
+                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
                     const inner = (
                       <>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
@@ -949,19 +938,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
               </section>
             )}
 
-            {mainTab === "holders" && (
-              <section className={`rounded-xl ${CMC.card} p-8 text-center`}>
-                <Layers className="mx-auto mb-3 h-10 w-10 text-[#3861fb] opacity-60" />
-                <h2 className="text-lg font-bold text-white">Holder distribution</h2>
-                <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
-                  Blockchain-style holder lists do not apply to this equity profile. Connect a cap-table or institutional
-                  holdings feed to show concentration and top holders here.
-                </p>
-              </section>
-            )}
-
             {mainTab === "fundamentals" && (
-              <section className={`rounded-xl ${CMC.card} p-5`}>
+              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                 <h2 className="mb-1 text-lg font-bold text-white">Fundamentals (SEC)</h2>
                 <p className={`mb-4 text-xs ${CMC.muted}`}>
                   Long-term financial quality and growth derived from SEC XBRL. Technical columns (price, stance, trend,
@@ -973,7 +951,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
             {mainTab === "about" && (
               <div className="space-y-4">
-                <section className={`rounded-xl ${CMC.card} p-5`}>
+                <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                   <div className="mb-3 flex items-center gap-2">
                     <Info className="h-5 w-5 text-[#3861fb]" />
                     <h2 className="text-base font-bold text-white">
@@ -1014,19 +992,19 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   ) : null}
                 </section>
 
-                <section className={`rounded-xl ${CMC.card} p-5`}>
+                <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                   <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-white">
                     <Activity className="h-4 w-4 text-[#3861fb]" />
                     Signal radar
                   </h3>
                   <p className={`mb-3 text-[11px] leading-snug ${CMC.muted}`}>
-                    Five drivers — momentum, price action, volume, liquidity, and community interest — plus a daily mood
-                    strip. Scores are relative to large-cap peers for context.
+                    Validated Market View radar inputs for Signal, Price, Change, Volume, Liquidity, and Watchers, with the
+                    daily mood strip shown only when change data is available.
                   </p>
                   <FundamentalRadar symbol={symbol} />
                 </section>
 
-                <section className={`rounded-xl ${CMC.card} p-5`}>
+                <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-5`}>
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-white">
                       <Layers className="h-4 w-4 text-[#3861fb]" />
@@ -1063,52 +1041,53 @@ export function StockProfilePage({ slug }: { slug: string }) {
           </main>
 
           <aside className="order-3 flex flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:overflow-y-auto">
-            <div className={`rounded-xl ${CMC.card} p-4`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-white line-clamp-1">
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-4`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="line-clamp-1 text-sm font-semibold text-white">
                     {stripParentheticals(details?.company_name) || symbol}
                   </p>
-                  <p className={`text-[11px] ${CMC.muted}`}>{sentimentTotal} votes on this device</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-[var(--dsa-text-muted)]">{symbol}</p>
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 rounded-lg bg-[#3861fb] px-3 py-1.5 text-[11px] font-bold text-white"
-                  title="Coming soon"
+                  onClick={() => void toggleWatchlist()}
+                  className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={watchlistLoading || watchlistMutating}
                 >
-                  + Follow
+                  {watchlistMutating ? "Updating…" : watchlisted ? "Watching" : "Watch"}
                 </button>
               </div>
-              <p className={`mt-3 text-xs font-semibold ${CMC.muted}`}>Community sentiment</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/40">
-                <div
-                  className="h-full rounded-full bg-[#16c784] transition-all duration-300"
-                  style={{ width: `${bullishPct}%` }}
-                />
-              </div>
-              <div className="mt-1 flex justify-between text-[11px] font-semibold">
-                <span className={CMC.green}>{bullishPct}% Bullish</span>
-                <span className={CMC.red}>{100 - bullishPct}% Bearish</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={voteBullish}
-                  className={`rounded-xl border-2 border-[#16c784]/50 py-2.5 text-xs font-bold ${CMC.green} transition hover:bg-[#16c784]/10`}
-                >
-                  Bullish
-                </button>
-                <button
-                  type="button"
-                  onClick={voteBearish}
-                  className={`rounded-xl border-2 border-[#ea3943]/50 py-2.5 text-xs font-bold ${CMC.red} transition hover:bg-[#ea3943]/10`}
-                >
-                  Bearish
-                </button>
+
+              <div className="mt-4 border-t border-[var(--dsa-border)] pt-3">
+                <p className="dsa-section-label">Data coverage</p>
+                <dl className="mt-2 space-y-2 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[var(--dsa-text-muted)]">Persisted {selectedPeriod} bars</dt>
+                    <dd className={`font-mono tabular-nums ${candles.length >= 2 ? "text-white" : "text-[var(--dsa-warning)]"}`}>
+                      {candles.length >= 2 ? candles.length.toLocaleString("en-US") : candles.length === 1 ? "1 · short" : "Unavailable"}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[var(--dsa-text-muted)]">Realtime quote</dt>
+                    <dd className={realtimeCandle ? "text-[var(--dsa-positive)]" : "text-[var(--dsa-text-muted)]"}>
+                      {realtimeCandle ? "Received" : "Not received"}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[var(--dsa-text-muted)]">Period change</dt>
+                    <dd className="font-mono tabular-nums text-white">
+                      {changePct != null ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` : "Unavailable"}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+                  Realtime price updates independently from persisted OHLC history. DSA does not fabricate historical bars when coverage is missing.
+                </p>
               </div>
             </div>
 
-            <div className={`rounded-xl ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
+            <div className={`rounded-[var(--dsa-radius-md)] ${CMC.card} flex min-h-[280px] flex-1 flex-col overflow-hidden`}>
               <div className={`flex items-center justify-between gap-3 border-b ${CMC.line} px-3 py-3`}>
                 <div className="min-w-0">
                   <span className="block text-xs font-bold text-white">Latest</span>
