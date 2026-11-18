@@ -792,7 +792,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   href={details.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-3)]/50 py-2.5 text-sm font-semibold text-white transition hover:border-[#3861fb]/50 hover:bg-[#3861fb]/10"
+                  className="dsa-button-secondary w-full"
                 >
                   <Globe className="h-4 w-4" />
                   Website
@@ -800,7 +800,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
               ) : null}
               <Link
                 href="/search"
-                className={`flex items-center justify-center gap-2 rounded-[var(--dsa-radius-md)] border ${CMC.line} py-2.5 text-sm font-semibold ${CMC.muted} transition hover:border-[#3861fb]/40 hover:text-white`}
+                className="dsa-button-secondary w-full"
               >
                 <Building2 className="h-4 w-4" />
                 More companies
@@ -875,8 +875,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
             {mainTab === "markets" && (
               <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} overflow-hidden`}>
                 <div className={`flex flex-wrap items-center gap-2 border-b ${CMC.line} px-4 py-3`}>
-                  <span className="rounded-md bg-[#3861fb] px-2.5 py-1 text-[11px] font-bold text-white">ALL</span>
-                  <span className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${CMC.muted}`}>Primary</span>
+                  <span className="rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-accent-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#b8d1ff]">Primary listing</span>
                 </div>
                 <h2 className="px-4 pt-4 text-lg font-bold text-white">
                   {stripParentheticals(details?.company_name) || symbol}{" "}
@@ -910,7 +909,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                         <td className="px-4 py-3">
                           <span
                             className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${
-                              volToMktPct != null ? "bg-[#16c784]/15 text-[#16c784]" : `${CMC.muted} bg-[var(--dsa-surface-3)]`
+                              volToMktPct != null ? "bg-[rgba(44,182,125,0.12)] text-[var(--dsa-positive)]" : `${CMC.muted} bg-[var(--dsa-surface-3)]`
                             }`}
                           >
                             {volToMktPct != null ? `${volToMktPct.toFixed(1)}%` : "—"}
@@ -942,11 +941,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     const { kind, href } = resolveNewsHref(item);
                     const label = newsSourceLabel(item);
                     const thumb = pickNewsThumbImage(item);
-                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition hover:border-[#3861fb]/45`;
+                    const cardClass = `block rounded-[var(--dsa-radius-md)] ${CMC.card} p-4 transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]`;
                     const inner = (
                       <>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                          <span className="rounded border border-[#3861fb]/20 bg-[#3861fb]/10 px-2 py-0.5 font-bold uppercase text-[#8ab4ff]">
+                          <span className="rounded-[var(--dsa-radius-sm)] border border-[rgba(76,141,255,0.28)] bg-[var(--dsa-accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#a9c7ff]">
                             {label}
                           </span>
                           <span className={CMC.muted}>{formatDate(item.published_at)}</span>
@@ -1024,7 +1023,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       },
                       { label: "IPO", value: formatDate(details?.ipo_date) },
                     ].map((x) => (
-                      <div key={x.label} className="rounded-[var(--dsa-radius-sm)] bg-black/25 px-3 py-2.5">
+                      <div key={x.label} className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-3 py-2.5">
                         <p className={`text-[10px] font-bold uppercase tracking-wide ${CMC.muted}`}>{x.label}</p>
                         <p className="mt-0.5 text-sm font-medium text-white">{x.value}</p>
                       </div>
@@ -1049,8 +1048,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     Signal radar
                   </h3>
                   <p className={`mb-3 text-[11px] leading-snug ${CMC.muted}`}>
-                    Five drivers — momentum, price action, volume, liquidity, and community interest — plus a daily mood
-                    strip. Scores are relative to large-cap peers for context.
+                    Multi-factor research context covering signal, price action, volume, liquidity, and watchlist interest,
+                    with the same scoring semantics used by Market View.
                   </p>
                   <FundamentalRadar symbol={symbol} />
                 </section>
@@ -1070,7 +1069,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                       <Link
                         key={comp.instrument_id || comp.symbol || idx}
                         href={`/companies/profile/${String(comp.symbol || "").toLowerCase()}`}
-                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-black/20 p-3 text-center transition hover:border-[#3861fb]/45"
+                        className="flex flex-col items-center rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 text-center transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]"
                       >
                         <div className="mb-2 h-9 w-9 rounded-[var(--dsa-radius-sm)] bg-white p-1">
                           <img
@@ -1125,14 +1124,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={voteBullish}
-                  className={`rounded-[var(--dsa-radius-md)] border-2 border-[#16c784]/50 py-2.5 text-xs font-bold ${CMC.green} transition hover:bg-[#16c784]/10`}
+                  className={`rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.4)] py-2 text-xs font-semibold ${CMC.green} transition-colors hover:bg-[rgba(44,182,125,0.1)]`}
                 >
                   Bullish
                 </button>
                 <button
                   type="button"
                   onClick={voteBearish}
-                  className={`rounded-[var(--dsa-radius-md)] border-2 border-[#ea3943]/50 py-2.5 text-xs font-bold ${CMC.red} transition hover:bg-[#ea3943]/10`}
+                  className={`rounded-[var(--dsa-radius-sm)] border border-[rgba(231,91,100,0.4)] py-2 text-xs font-semibold ${CMC.red} transition-colors hover:bg-[rgba(231,91,100,0.1)]`}
                 >
                   Bearish
                 </button>
@@ -1150,7 +1149,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={() => setMainTab("news")}
-                  className="shrink-0 rounded-md border border-[#3861fb]/30 px-2 py-1 text-[10px] font-bold text-[#8ab4ff] transition hover:bg-[#3861fb]/10"
+                  className="shrink-0 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] px-2 py-1 text-[10px] font-semibold text-[#8ab4ff] transition-colors hover:bg-[var(--dsa-surface-2)]"
                 >
                   View all
                 </button>
@@ -1162,20 +1161,20 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   const thumb = pickNewsThumbImage(item);
                   const itemSymbol = String(item?.symbol || symbol).trim().toUpperCase();
                   const content = (
-                    <div className={`group rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-1)] p-3 transition hover:border-[#3861fb]/45 hover:bg-[#111b2a]`}>
+                    <div className={`group rounded-[var(--dsa-radius-sm)] border ${CMC.line} bg-[var(--dsa-surface-1)] p-3 transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]`}>
                       <div className="flex gap-3">
                         {thumb ? (
                           <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-black/30">
                             <img src={thumb} alt="" className="h-full w-full object-cover" />
                           </div>
                         ) : (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-[#3861fb]/15 text-[#8ab4ff]">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-[var(--dsa-accent-soft)] text-[#8ab4ff]">
                             <Newspaper className="h-4 w-4" aria-hidden />
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-2">
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#3861fb]/20 text-[9px] font-bold text-[#9bb4ff]">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--dsa-accent-soft)] text-[9px] font-semibold text-[#a9c7ff]">
                               {sourceBadgeText(label)}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white">
