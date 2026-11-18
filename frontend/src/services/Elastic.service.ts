@@ -59,8 +59,8 @@ export const ElasticService = {
     };
   },
 
-  /** Demo list (symbol ASC) for empty state / onboarding — default 20. */
-  async getDemoTopSymbols(limit = 20): Promise<ElasticSearchResult> {
+  /** Alphabetical company-symbol catalog for empty-search browsing. */
+  async browseSymbols(limit = 20): Promise<ElasticSearchResult> {
     if (isDemoDevMode()) {
       const rows = await getSymbolDevRows();
       const slice = rows.slice(0, limit);
@@ -70,7 +70,7 @@ export const ElasticService = {
         suggestions: [],
       };
     }
-    const res = await api.get("/elastic/demo/top-symbols", {
+    const res = await api.get("/elastic/symbols", {
       params: { limit },
     });
     const data = res.data?.data;
@@ -80,5 +80,10 @@ export const ElasticService = {
       items: data.items ?? [],
       suggestions: [],
     };
+  },
+
+  /** @deprecated Use browseSymbols(). */
+  async getDemoTopSymbols(limit = 20): Promise<ElasticSearchResult> {
+    return this.browseSymbols(limit);
   },
 };
