@@ -11,6 +11,7 @@ import {
   Loader2,
   Globe,
   Newspaper,
+  Layers,
   Building2,
   Link as LinkIcon,
   Activity,
@@ -972,8 +973,8 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     Signal radar
                   </h3>
                   <p className={`mb-3 text-[11px] leading-snug ${CMC.muted}`}>
-                    Five drivers — momentum, price action, volume, liquidity, and community interest — plus a daily mood
-                    strip. Scores are relative to large-cap peers for context.
+                    Validated Market View radar inputs for Signal, Price, Change, Volume, Liquidity, and Watchers, with the
+                    daily mood strip shown only when change data is available.
                   </p>
                   <FundamentalRadar symbol={symbol} />
                 </section>
