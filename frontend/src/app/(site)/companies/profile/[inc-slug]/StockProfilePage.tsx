@@ -40,7 +40,7 @@ import {
 
 type TF = "daily" | "weekly" | "monthly" | "yearly";
 
-type ProfileMainTab = "chart" | "markets" | "news" | "holders" | "fundamentals" | "about";
+type ProfileMainTab = "chart" | "markets" | "news" | "fundamentals" | "about";
 
 const PERIOD_OPTIONS: Array<{ id: TF; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -245,7 +245,6 @@ const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "chart", label: "Chart" },
   { id: "markets", label: "Markets" },
   { id: "news", label: "News" },
-  { id: "holders", label: "Holders" },
   { id: "fundamentals", label: "Fundamentals" },
   { id: "about", label: "About" },
 ];
@@ -260,6 +259,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const [candles, setCandles] = useState<any[]>([]);
   const [realtimeCandle, setRealtimeCandle] = useState<any>(null);
+  const [realtimeChangePct, setRealtimeChangePct] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
@@ -285,13 +285,18 @@ export function StockProfilePage({ slug }: { slug: string }) {
     return 0;
   }, [realtimeCandle, candles]);
 
-  const changePct = useMemo(() => {
+  const historicalChangePct = useMemo(() => {
     if (candles.length < 2) return null;
     const prev = toNumber(candles[candles.length - 2].close);
     const last = toNumber(candles[candles.length - 1].close);
     if (!prev) return null;
     return ((last - prev) / prev) * 100;
   }, [candles]);
+
+  const changePct =
+    selectedPeriod === "daily" && realtimeChangePct != null
+      ? realtimeChangePct
+      : historicalChangePct;
 
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
 
@@ -393,6 +398,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
         setSimilar([]);
         setCandles([]);
         setRealtimeCandle(null);
+        setRealtimeChangePct(null);
         setSelectedPeriod("daily");
 
         if (!symbol) {
@@ -457,6 +463,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
     try {
       setRealtimeCandle(null);
+      setRealtimeChangePct(null);
 
       const raw = await InstrumentService.getInstrumentData(ticker, period, 1000, 1);
 
@@ -484,6 +491,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
       if (String(data.symbol).toUpperCase() !== symbol) return;
 
       const price = toNumber(data.price);
+      const rawChange = Number(data.change);
+      if (Number.isFinite(rawChange)) {
+        setRealtimeChangePct(rawChange);
+      }
       const ts = normalizeTimestamp(data.ts);
       if (!ts) return;
 
@@ -509,6 +520,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
       clearTimeout(timer);
       socket.disconnect();
       setRealtimeCandle(null);
+      setRealtimeChangePct(null);
     };
   }, [symbol, selectedPeriod]);
 
@@ -523,8 +535,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const changeLabel =
     selectedPeriod === "daily"
-      ? "24h vs previous daily close"
-      : `Change vs previous ${selectedPeriod} bar`;
+      ? realtimeChangePct != null
+        ? "Live session change"
+        : "Last closed daily bar vs previous"
+      : `Last closed ${selectedPeriod} bar vs previous`;
 
   const toggleWatchlist = () => {
     const next = !watchlisted;
@@ -559,9 +573,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
       <div
         className={`flex flex-col gap-3 border-b ${CMC.line} px-3 py-3 sm:flex-row sm:items-center sm:justify-between`}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md bg-white/[0.08] px-2 py-1 text-[11px] font-semibold text-white">Price</span>
-          <span className={`rounded-md px-2 py-1 text-[11px] font-medium ${CMC.muted}`}>Market cap</span>
+        <div>
+          <p className="dsa-section-label">Price history</p>
+          <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">
+            Persisted candles with realtime price overlay when available
+          </p>
         </div>
         <SelectDropdown
           className="w-[140px]"
@@ -970,17 +986,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
                     );
                   })
                 )}
-              </section>
-            )}
-
-            {mainTab === "holders" && (
-              <section className={`rounded-[var(--dsa-radius-md)] ${CMC.card} p-8 text-center`}>
-                <Layers className="mx-auto mb-3 h-10 w-10 text-[#8ab4ff] opacity-60" />
-                <h2 className="text-lg font-bold text-white">Holder distribution</h2>
-                <p className={`mx-auto mt-2 max-w-md text-sm ${CMC.muted}`}>
-                  Blockchain-style holder lists do not apply to this equity profile. Connect a cap-table or institutional
-                  holdings feed to show concentration and top holders here.
-                </p>
               </section>
             )}
 
