@@ -165,10 +165,10 @@ function normalizeCandles(list: any[], period: TF): TradingChartCandle[] {
         volume: Number(d.volume || 0),
       };
 
-      if (!uniqueMap.has(time)) {
+      const prev = uniqueMap.get(time);
+      if (!prev) {
         uniqueMap.set(time, next);
       } else {
-        const prev = uniqueMap.get(time);
         uniqueMap.set(time, {
           time,
           open: Number(prev.open),
