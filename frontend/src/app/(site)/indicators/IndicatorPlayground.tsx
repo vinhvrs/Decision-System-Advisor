@@ -7,6 +7,7 @@ import { INDICATOR_DEFAULTS } from './indicatorDefaults';
 import { buildIndicatorLightModel } from './indicatorLightModel';
 import type { SimulatorIndicatorId } from './indicatorTypes';
 import { InstrumentService } from '@/src/services/Instrument.service';
+import { BeginnerService } from '@/src/services/Beginner.service';
 import {
   computeADX,
   computeBollingerSeries,
@@ -45,7 +46,7 @@ const INDICATOR_OPTIONS: { id: SimulatorIndicatorId; label: string }[] = [
   { id: 'stoch', label: 'Stochastic (%K / %D)' },
 ];
 
-const MARKET_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA', 'AMD', 'IBM', 'ORCL'] as const;
+const FALLBACK_MARKET_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA', 'AMD', 'IBM', 'ORCL'] as const;
 
 const PERIOD_OPTIONS = [
   { id: 'daily', label: 'Daily' },
@@ -66,8 +67,8 @@ type LineToggleConfig = {
 };
 
 const SUBTITLES: Record<SimulatorIndicatorId, string> = {
-  ls: 'Liquidity Score — real OHLCV',
-  vol: 'Volatility proxy — rolling vol on real closes',
+  ls: 'Liquidity Score — persisted OHLCV',
+  vol: 'Volatility proxy — rolling vol on persisted closes',
   adx: 'Trend strength (ADX)',
   mfi: 'Money Flow Index (MFI)',
   sma: 'Simple moving average on close',
@@ -80,6 +81,7 @@ const SUBTITLES: Record<SimulatorIndicatorId, string> = {
 
 export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }: Props) {
   const [symbol, setSymbol] = useState<string>('AAPL');
+  const [marketSymbols, setMarketSymbols] = useState<string[]>([...FALLBACK_MARKET_SYMBOLS]);
   const [period, setPeriod] = useState<MarketPeriod>('daily');
   const [marketBars, setMarketBars] = useState<SampleBar[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,11 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
   const [hiddenLineIds, setHiddenLineIds] = useState<string[]>([]);
   const [expandedChart, setExpandedChart] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(720);
+
+  const symbolOptions = useMemo(
+    () => [...new Set([symbol, ...marketSymbols].map((item) => item.trim().toUpperCase()).filter(Boolean))],
+    [symbol, marketSymbols],
+  );
 
   const [volMult, setVolMult] = useState(INDICATOR_DEFAULTS.volumeScale);
   const [lsSmooth, setLsSmooth] = React.useState(INDICATOR_DEFAULTS.liquiditySmoothingPeriod);
@@ -104,6 +111,28 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
   const [bbK, setBbK] = useState(INDICATOR_DEFAULTS.bollingerStdDevMultiplier);
   const [stochK, setStochK] = useState(INDICATOR_DEFAULTS.stochasticKPeriod);
   const [stochD, setStochD] = useState(INDICATOR_DEFAULTS.stochasticDPeriod);
+
+  useEffect(() => {
+    let cancelled = false;
+    void BeginnerService.getDashboardDaily({ maxAgeMs: 30_000, staleWhileRevalidateMs: 5 * 60_000 })
+      .then((payload) => {
+        if (cancelled) return;
+        const symbols = [
+          ...new Set(
+            (payload?.rows ?? [])
+              .map((row) => String(row.symbol || '').trim().toUpperCase())
+              .filter(Boolean),
+          ),
+        ];
+        if (symbols.length > 0) setMarketSymbols(symbols.slice(0, 40));
+      })
+      .catch(() => {
+        // Keep the small fallback catalog when the dashboard universe is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const updateViewportHeight = () => setViewportHeight(window.innerHeight);
@@ -136,13 +165,13 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
           const mapped = mapInstrumentDataToSampleBars(raw || []).slice(-DISPLAY_MAX_BARS);
           setMarketBars(mapped);
           if (!mapped.length) {
-            setFetchError(`No ${period} candles for ${sym}. Sync instrument data or try another symbol.`);
+            setFetchError(`Persisted ${period} history is unavailable for ${sym}.`);
           }
         })
         .catch(() => {
           if (!cancelled) {
             setMarketBars([]);
-            setFetchError(`Could not load ${sym} (${period}). Check API / database.`);
+            setFetchError(`Could not load persisted ${period} history for ${sym}.`);
           }
         })
         .finally(() => {
@@ -264,8 +293,8 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
 
   const chartHeight = expandedChart ? Math.max(420, viewportHeight - 170) : 340;
   const chartPanelClass = expandedChart
-    ? 'fixed inset-4 z-50 flex min-w-0 flex-col rounded-xl border border-indigo-500/40 bg-[#0b0e14] p-4 shadow-2xl shadow-black/60'
-    : 'min-w-0 rounded-xl border border-gray-800 bg-[#0b0e14] p-4';
+    ? 'fixed inset-4 z-50 flex min-w-0 flex-col rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-bg)] p-4 shadow-2xl shadow-black/60'
+    : 'min-w-0 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3';
 
   const lastPlaygroundValue = (() => {
     const pick = (label: string, value: string) => ({ label, value });
@@ -334,38 +363,38 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
   return (
     <div
       id="indicator-sim"
-      className="mt-10 scroll-mt-24 rounded-2xl border border-indigo-500/20 bg-[#12151c] p-6 shadow-lg shadow-indigo-950/20"
+      className="mt-5 scroll-mt-24 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 tablet:p-4"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-white">Indicator simulation</h2>
-          <p className="mt-1 max-w-2xl text-xs text-gray-500">
-            Real OHLCV from your database (last {DISPLAY_MAX_BARS} bars). MACD defaults{" "}
-            {INDICATOR_DEFAULTS.macdFastPeriod} / {INDICATOR_DEFAULTS.macdSlowPeriod} /{" "}
-            {INDICATOR_DEFAULTS.macdSignalPeriod}; periods adjustable 1–300.
+          <p className="dsa-section-label">Research lab</p>
+          <h2 className="mt-1 text-sm font-semibold text-white">Indicator calculation workspace</h2>
+          <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+            Calculated from persisted OHLCV for the selected symbol and timeframe. Up to {DISPLAY_MAX_BARS} bars are
+            displayed; insufficient history stays unavailable. Formula defaults remain configurable below.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
-            <span className="whitespace-nowrap font-medium text-gray-500">Symbol</span>
+          <label className="flex flex-col gap-1 text-xs text-[var(--dsa-text-secondary)] sm:flex-row sm:items-center sm:gap-2">
+            <span className="whitespace-nowrap font-medium text-[var(--dsa-text-muted)]">Symbol</span>
             <select
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              className="min-w-[100px] rounded-lg border border-gray-700 bg-[#0b0e14] px-3 py-2 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/40"
+              className="dsa-control min-w-[100px] px-2.5 py-1.5 text-xs font-medium outline-none"
             >
-              {MARKET_SYMBOLS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {symbolOptions.map((marketSymbol) => (
+                <option key={marketSymbol} value={marketSymbol}>
+                  {marketSymbol}
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
-            <span className="whitespace-nowrap font-medium text-gray-500">Period</span>
+          <label className="flex flex-col gap-1 text-xs text-[var(--dsa-text-secondary)] sm:flex-row sm:items-center sm:gap-2">
+            <span className="whitespace-nowrap font-medium text-[var(--dsa-text-muted)]">Period</span>
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value as MarketPeriod)}
-              className="min-w-[100px] rounded-lg border border-gray-700 bg-[#0b0e14] px-3 py-2 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/40"
+              className="dsa-control min-w-[100px] px-2.5 py-1.5 text-xs font-medium outline-none"
             >
               {PERIOD_OPTIONS.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -374,12 +403,12 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
-            <span className="whitespace-nowrap font-medium text-gray-500">Indicator</span>
+          <label className="flex flex-col gap-1 text-xs text-[var(--dsa-text-secondary)] sm:flex-row sm:items-center sm:gap-2">
+            <span className="whitespace-nowrap font-medium text-[var(--dsa-text-muted)]">Indicator</span>
             <select
               value={indicatorId}
               onChange={(e) => onIndicatorChange(e.target.value as SimulatorIndicatorId)}
-              className="min-w-[200px] max-w-[min(100vw-3rem,320px)] rounded-lg border border-gray-700 bg-[#0b0e14] px-3 py-2 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/40"
+              className="dsa-control min-w-[200px] max-w-[min(100vw_-_3rem,320px)] px-2.5 py-1.5 text-xs font-medium outline-none"
             >
               {INDICATOR_OPTIONS.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -392,7 +421,7 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-1 rounded-lg border border-gray-700 p-2 text-gray-400 hover:border-red-500/40 hover:text-red-300"
+              className="dsa-button-secondary min-h-0 p-2 text-[var(--dsa-text-muted)] hover:text-[var(--dsa-negative)]"
               aria-label="Close simulator"
             >
               <X size={18} />
@@ -401,11 +430,11 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-gray-600">{SUBTITLES[indicatorId]}</p>
+      <p className="mt-2 text-[10px] text-[var(--dsa-text-muted)]">{SUBTITLES[indicatorId]}</p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,260px)_1fr]">
-        <div className="space-y-4 rounded-xl border border-gray-800 bg-[#0b0e14] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Parameters</p>
+      <div className="mt-4 grid gap-3 laptop:grid-cols-[minmax(0,250px)_1fr]">
+        <div className="space-y-4 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-3">
+          <p className="dsa-section-label">Parameters</p>
 
           {indicatorId === 'ls' && (
             <>
@@ -627,11 +656,11 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
           )}
 
           {lastPlaygroundValue && (
-            <div className="border-t border-gray-800 pt-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-600">Last candle</p>
-              <p className="mt-1 break-words font-mono text-lg font-bold text-indigo-300 sm:text-xl">
+            <div className="border-t border-[var(--dsa-border)] pt-3">
+              <p className="dsa-section-label">Latest calculated value</p>
+              <p className="mt-1 break-words font-mono text-base font-semibold text-[#b8d1ff] tablet:text-lg">
                 {lastPlaygroundValue.value}
-                <span className="ml-2 block text-xs font-normal text-gray-500 sm:inline">
+                <span className="ml-2 block text-xs font-normal text-[var(--dsa-text-muted)] sm:inline">
                   {lastPlaygroundValue.label}
                 </span>
               </p>
@@ -655,7 +684,7 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
             <button
               type="button"
               onClick={() => setExpandedChart((v) => !v)}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-400 hover:border-indigo-400/50 hover:text-indigo-200"
+              className="dsa-button-secondary min-h-0 h-8 w-8 shrink-0 p-0"
               aria-label={expandedChart ? 'Exit full-window chart' : 'Expand chart to full window'}
               title={expandedChart ? 'Exit full-window chart' : 'Expand chart'}
             >
@@ -663,20 +692,20 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
             </button>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-400" style={{ height: chartHeight }}>
+            <div className="flex items-center justify-center gap-2 text-xs text-[var(--dsa-text-muted)]" style={{ height: chartHeight }}>
               <Loader2 className="h-5 w-5 animate-spin" />
               Loading {symbol} ({period})…
             </div>
           ) : fetchError ? (
             <div
-              className="flex items-center justify-center px-4 text-center text-sm text-amber-200/90"
+              className="flex items-center justify-center px-4 text-center text-xs text-[var(--dsa-text-muted)]"
               style={{ height: chartHeight }}
             >
               {fetchError}
             </div>
           ) : bars.length === 0 ? (
-            <div className="flex items-center justify-center text-sm text-gray-500" style={{ height: chartHeight }}>
-              No bars to chart.
+            <div className="flex items-center justify-center px-4 text-center text-xs text-[var(--dsa-text-muted)]" style={{ height: chartHeight }}>
+              Persisted history is unavailable for this selection.
             </div>
           ) : (
             <div className="min-h-0 w-full flex-1">
@@ -718,7 +747,7 @@ function Slider({
   onToggleLine?: (id: string) => void;
 }) {
   return (
-    <div className="block text-xs text-gray-400">
+    <div className="block text-xs text-[var(--dsa-text-secondary)]">
       <span className="flex items-center justify-between gap-2">
         <span>{label}</span>
         {lineToggles.length > 0 && (
