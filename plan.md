@@ -62,7 +62,7 @@ Source of tickets: [audit.md](audit.md). End-state: [roadmap.md](roadmap.md).
 - [~] M3 Indicators tab shell now respects global header; chart interaction consistency still pending.
 - [!] M4 BLOCKED: Data Health / Market Analytics live routes are not present in the selected GitHub baseline candidate; source parity must be resolved before editing them.
 - [~] M5 News and Documents received trust/UI cleanup; Events source is not yet verified in this baseline.
-- [~] M6 Instrument detail/history: company profile/chart shell flattened into research-terminal styling; fake community sentiment and unsupported Holders/Pro view removed; chart states now distinguish persisted history from realtime overlay. Source/as-of provenance and full visual QA remain.
+- [~] M6 Instrument detail/history: company profile/chart shell flattened into research-terminal styling; fake community sentiment, metadata-generated radar and unsupported Holders/Pro view removed; chart states distinguish persisted history from realtime overlay; fundamentals use end-user-safe empty states. Source/as-of provenance and full visual QA remain.
 **Exit:** each module has before/after captures, smoke/visual/functional tests; no console or blocking API errors.
 
 ### Phase 5 — Polish, performance, security and release (P2)
