@@ -266,7 +266,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [watchlisted, setWatchlisted] = useState(false);
   const [sentimentBull, setSentimentBull] = useState(0);
   const [sentimentBear, setSentimentBear] = useState(0);
-  const [sentimentHydrated, setSentimentHydrated] = useState(false);
+  const [sentimentReadySymbol, setSentimentReadySymbol] = useState("");
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
 
   const candleRequestIdRef = useRef(0);
@@ -342,7 +342,6 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (typeof window === "undefined" || !symbol) return;
-    setSentimentHydrated(false);
     const frame = window.requestAnimationFrame(() => {
       setSentimentBull(0);
       setSentimentBear(0);
@@ -365,14 +364,14 @@ export function StockProfilePage({ slug }: { slug: string }) {
       } catch {
         /* ignore */
       } finally {
-        setSentimentHydrated(true);
+        setSentimentReadySymbol(symbol);
       }
     });
     return () => window.cancelAnimationFrame(frame);
   }, [symbol]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !symbol || !sentimentHydrated) return;
+    if (typeof window === "undefined" || !symbol || sentimentReadySymbol !== symbol) return;
     try {
       sessionStorage.setItem(
         sentimentStorageKey(symbol),
@@ -381,7 +380,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
     } catch {
       /* ignore */
     }
-  }, [symbol, sentimentBull, sentimentBear, sentimentHydrated]);
+  }, [symbol, sentimentBull, sentimentBear, sentimentReadySymbol]);
 
   useEffect(() => {
     let cancelled = false;
