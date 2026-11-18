@@ -57,6 +57,26 @@ const PERIOD_OPTIONS = [
 
 type MarketPeriod = (typeof PERIOD_OPTIONS)[number]['id'];
 
+const INDICATOR_LAB_CONTEXT_KEY = 'dsa:indicator-lab:context:v1';
+
+function readIndicatorLabContext(): { symbol: string; period: MarketPeriod } {
+  const fallback = { symbol: 'AAPL', period: 'daily' as MarketPeriod };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.sessionStorage.getItem(INDICATOR_LAB_CONTEXT_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as { symbol?: unknown; period?: unknown };
+    const symbol = String(parsed.symbol ?? '').trim().toUpperCase();
+    const period = String(parsed.period ?? '') as MarketPeriod;
+    return {
+      symbol: symbol || fallback.symbol,
+      period: PERIOD_OPTIONS.some((item) => item.id === period) ? period : fallback.period,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 const FETCH_LIMIT = 400;
 const DISPLAY_MAX_BARS = 200;
 
@@ -80,9 +100,9 @@ const SUBTITLES: Record<SimulatorIndicatorId, string> = {
 };
 
 export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }: Props) {
-  const [symbol, setSymbol] = useState<string>('AAPL');
+  const [symbol, setSymbol] = useState<string>(() => readIndicatorLabContext().symbol);
   const [marketSymbols, setMarketSymbols] = useState<string[]>([...FALLBACK_MARKET_SYMBOLS]);
-  const [period, setPeriod] = useState<MarketPeriod>('daily');
+  const [period, setPeriod] = useState<MarketPeriod>(() => readIndicatorLabContext().period);
   const [marketBars, setMarketBars] = useState<SampleBar[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -111,6 +131,17 @@ export function IndicatorPlayground({ indicatorId, onIndicatorChange, onClose }:
   const [bbK, setBbK] = useState(INDICATOR_DEFAULTS.bollingerStdDevMultiplier);
   const [stochK, setStochK] = useState(INDICATOR_DEFAULTS.stochasticKPeriod);
   const [stochD, setStochD] = useState(INDICATOR_DEFAULTS.stochasticDPeriod);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        INDICATOR_LAB_CONTEXT_KEY,
+        JSON.stringify({ symbol, period }),
+      );
+    } catch {
+      /* UI context only; market data is never persisted here. */
+    }
+  }, [symbol, period]);
 
   useEffect(() => {
     let cancelled = false;
