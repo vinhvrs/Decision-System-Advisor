@@ -3,6 +3,29 @@ import api from "@/src/libs/api";
 import chatbot from "@/src/libs/chatbot";
 import { stockMapper } from "@/src/libs/mapper";
 
+function researchBiasLabel(value: unknown): string {
+    const normalized = String(value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+    switch (normalized) {
+        case "STRONG_BUY":
+        case "STRONG_BULLISH":
+            return "Strong Bullish";
+        case "BUY":
+        case "BULLISH":
+            return "Bullish";
+        case "SELL":
+        case "BEARISH":
+            return "Bearish";
+        case "STRONG_SELL":
+        case "STRONG_BEARISH":
+            return "Strong Bearish";
+        case "HOLD":
+        case "NEUTRAL":
+            return "Neutral";
+        default:
+            return value == null || String(value).trim() === "" ? "Not Rated" : String(value);
+    }
+}
+
 export const AdviceService = {
     handleChatbot: async (message: string) => {
         try {
@@ -116,8 +139,8 @@ export const AdviceService = {
             const symbolData = { ...symbolResponse?.data, type };
             const nameData = nameResponse?.data;
             const payload = {
-                symbol: symbolData?.recommendation || 'Hold',
-                name: nameData?.recommendation || 'Hold',
+                symbol: researchBiasLabel(symbolData?.recommendation),
+                name: researchBiasLabel(nameData?.recommendation),
                 question: (question as any)?.answer,
                 explain: symbol ? AdviceService.generateExplanation(symbolData) : name ? AdviceService.generateExplanation(nameData) : undefined
             };
