@@ -390,7 +390,7 @@ function HistorySimulatorHoverTip(props: {
 
   return (
     <div
-      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-md border border-white/20 bg-[#0b1220]/95 px-2.5 py-2 text-[10px] leading-snug text-[#e5e7eb] shadow-xl backdrop-blur-sm"
+      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] px-2.5 py-2 text-[10px] leading-snug text-[var(--dsa-text)] shadow-lg"
       style={{
         left: tip.x + 12,
         top: tip.y + 12,
@@ -534,7 +534,7 @@ export default function LightChart({
             <button
               type="button"
               onClick={() => setExpandedChart(false)}
-              className="fixed z-[10000] inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-slate-950/80 text-slate-200 shadow hover:border-indigo-400/50 hover:text-white"
+              className="fixed z-[10000] inline-flex h-8 w-8 items-center justify-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] text-[var(--dsa-text-secondary)] hover:border-[#4c8dff] hover:text-white"
               style={
                 expandedOverlayBox
                   ? {
@@ -878,30 +878,30 @@ export default function LightChart({
       width: Math.max(1, el.clientWidth),
       height: Math.max(minChartHeight, el.clientHeight || minChartHeight),
       layout: {
-        background: { type: ColorType.Solid, color: "#0B1220" },
-        textColor: "#DDD",
+        background: { type: ColorType.Solid, color: "#090d12" },
+        textColor: "#a7b2c0",
       },
       grid: {
-        vertLines: { color: "#1E222D" },
-        horzLines: { color: "#1E222D" },
+        vertLines: { color: "#17212c" },
+        horzLines: { color: "#17212c" },
       },
       timeScale: {
-        borderColor: "#334155",
+        borderColor: "#2c3947",
         timeVisible: true,
         secondsVisible: false,
       },
       rightPriceScale: {
-        borderColor: "#334155",
+        borderColor: "#2c3947",
       },
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderUpColor: "#26a69a",
-      borderDownColor: "#ef5350",
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
+      upColor: "#2cb67d",
+      downColor: "#e75b64",
+      borderUpColor: "#2cb67d",
+      borderDownColor: "#e75b64",
+      wickUpColor: "#2cb67d",
+      wickDownColor: "#e75b64",
     });
 
     chartRef.current = chart;
@@ -1198,7 +1198,7 @@ export default function LightChart({
               return {
                 time,
                 position: (t.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
-                color: t.side === "buy" ? "#26A69A" : "#EF5350",
+                color: t.side === "buy" ? "#2CB67D" : "#E75B64",
                 shape: (t.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
                 text: `${t.side.toUpperCase()} ${t.volume}×${t.leverage} @ ${formatMarkerPrice(t.price)}`,
               } as Marker;
@@ -1218,7 +1218,7 @@ export default function LightChart({
         return {
           time,
           position: (isBuy ? "belowBar" : "aboveBar") as Marker["position"],
-          color: isBuy ? "#26A69A" : "#EF5350",
+          color: isBuy ? "#2CB67D" : "#E75B64",
           shape: (isBuy ? "arrowUp" : "arrowDown") as Marker["shape"],
           text: `${isBuy ? "BUY" : "SELL"} ${vol}×${lev} @ ${formatMarkerPrice(px)}`,
         };
@@ -1230,7 +1230,7 @@ export default function LightChart({
         ? historyOrderMarkers.map((m) => ({
             time: m.timeSec as Time,
             position: (m.side === "buy" ? "belowBar" : "aboveBar") as Marker["position"],
-            color: m.side === "buy" ? "#26A69A" : "#EF5350",
+            color: m.side === "buy" ? "#2CB67D" : "#E75B64",
             shape: (m.side === "buy" ? "arrowUp" : "arrowDown") as Marker["shape"],
             text: `${m.side === "buy" ? "ACC" : "RED"} ${m.qty}×${m.leverage}`,
           }))
@@ -1358,7 +1358,7 @@ export default function LightChart({
           {
             time,
             position: isProfit ? "aboveBar" : "belowBar",
-            color: isProfit ? "#22C55E" : "#EF4444",
+            color: isProfit ? "#2CB67D" : "#E75B64",
             shape: "square",
             text: `${isProfit ? "+" : "-"}${Math.abs(realized).toFixed(4)}`,
           },
@@ -1501,7 +1501,7 @@ export default function LightChart({
       return;
     }
 
-    const color = position.side === "long" ? "#26A69A" : "#EF5350";
+    const color = position.side === "long" ? "#2CB67D" : "#E75B64";
     const title = `${position.side.toUpperCase()} AVG`;
 
     if (!positionPriceLineRef.current) {
@@ -1743,7 +1743,7 @@ export default function LightChart({
         indicatorSeriesRef.current.push(rsiSeries);
 
         const rsi70 = chart.addSeries(LineSeries, {
-          color: "#EF5350",
+          color: "#E75B64",
           lineWidth: 1,
           lineStyle: 2,
           title: "RSI 70",
@@ -1752,7 +1752,7 @@ export default function LightChart({
         });
 
         const rsi30 = chart.addSeries(LineSeries, {
-          color: "#26A69A",
+          color: "#2CB67D",
           lineWidth: 1,
           lineStyle: 2,
           title: "RSI 30",
@@ -1817,7 +1817,7 @@ export default function LightChart({
         indicatorSeriesRef.current.push(kSeries, dSeries);
 
         const overbought = chart.addSeries(LineSeries, {
-          color: "#EF5350",
+          color: "#E75B64",
           lineWidth: 1,
           lineStyle: 2,
           title: "80",
@@ -1826,7 +1826,7 @@ export default function LightChart({
         });
 
         const oversold = chart.addSeries(LineSeries, {
-          color: "#26A69A",
+          color: "#2CB67D",
           lineWidth: 1,
           lineStyle: 2,
           title: "20",
