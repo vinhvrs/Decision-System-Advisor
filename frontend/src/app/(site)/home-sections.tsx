@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Card from "@/src/sections/Card";
 
 const skeleton = (className: string) => {
   function SectionSkeleton() {
@@ -58,9 +57,5 @@ export function HomeGainLoss() {
 }
 
 export function HomeHeatmapCard() {
-  return (
-    <Card bodyClassName="px-2 tablet:px-3 pb-3 tablet:pb-4 pt-1 tablet:pt-2">
-      <Heatmap />
-    </Card>
-  );
+  return <Heatmap />;
 }
