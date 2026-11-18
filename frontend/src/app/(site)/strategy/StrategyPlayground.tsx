@@ -241,28 +241,26 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
   return (
     <div
       id="strategy-sim"
-      className="mt-14 scroll-mt-24 rounded-2xl border border-indigo-500/20 bg-[#12151c] p-6 shadow-lg shadow-indigo-950/20"
+      className="mt-5 scroll-mt-24 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3 tablet:p-4"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-white">Strategy walkthrough</h2>
-          <p className="mt-1 max-w-2xl text-xs text-gray-500">
-            Same <strong className="text-gray-400">{SIMULATION_CANDLES}</strong> synthetic candles as the indicator lab.
-            With <strong className="text-gray-400">Explain: indicator</strong>, hybrid{' '}
-            <strong className="text-gray-400">MACD</strong> (SMA<sub>fast</sub> − EMA<sub>slow</sub>, signal = EMA of that spread)
-            appears in the lower pane. With <strong className="text-gray-400">6 + F&amp;G</strong>, MACD is hidden and board scores
-            overlay the main chart; buy/sell arrows still use the same playbook rules (including MACD math behind the scenes). Switch between{' '}
-            <strong className="text-gray-400">{LINK_LABEL[ind]}</strong> and{' '}
-            <strong className="text-gray-400">six board-style scores (stacked column per day) + Fear &amp; Greed</strong>.
+          <p className="dsa-section-label">Synthetic education</p>
+          <h2 className="mt-1 text-sm font-semibold text-white">Strategy walkthrough</h2>
+          <p className="mt-1 max-w-3xl text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+            This walkthrough uses a fixed sequence of <strong className="text-[var(--dsa-text-secondary)]">{SIMULATION_CANDLES}</strong>{' '}
+            synthetic candles. It is intentionally separate from the Indicator Lab, which uses persisted market OHLCV.
+            Indicator mode overlays <strong className="text-[var(--dsa-text-secondary)]">{LINK_LABEL[ind]}</strong> and hybrid MACD;
+            6 + F&amp;G mode shows synthetic board-style attributes. Buy/sell markers are illustrative playbook actions, not live signals or backtest results.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <label className="flex flex-col gap-1 text-xs text-gray-400 sm:flex-row sm:items-center sm:gap-2">
-            <span className="whitespace-nowrap font-medium text-gray-500">Strategy</span>
+          <label className="flex flex-col gap-1 text-xs text-[var(--dsa-text-secondary)] sm:flex-row sm:items-center sm:gap-2">
+            <span className="whitespace-nowrap font-medium text-[var(--dsa-text-muted)]">Strategy</span>
             <select
               value={strategy.id}
               onChange={(e) => onStrategyChange(e.target.value as StrategyId)}
-              className="min-w-[200px] max-w-[min(100vw-3rem,280px)] rounded-lg border border-gray-700 bg-[#0b0e14] px-3 py-2 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/40"
+              className="dsa-control min-w-[200px] max-w-[min(100vw_-_3rem,280px)] px-2.5 py-1.5 text-xs font-medium outline-none"
             >
               {STRATEGY_DEFINITIONS.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -271,12 +269,12 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
               ))}
             </select>
           </label>
-          <div className="flex rounded-lg border border-gray-700 bg-[#0b0e14] p-0.5">
+          <div className="flex rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-0.5">
             <button
               type="button"
               onClick={() => setExplainMode('indicator')}
               className={`rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-                explainMode === 'indicator' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
+                explainMode === 'indicator' ? 'bg-[var(--dsa-accent-soft)] text-[#c5d9ff]' : 'text-[var(--dsa-text-muted)] hover:text-white'
               }`}
             >
               Explain: indicator
@@ -285,7 +283,7 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
               type="button"
               onClick={() => setExplainMode('attributes')}
               className={`rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-                explainMode === 'attributes' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
+                explainMode === 'attributes' ? 'bg-[var(--dsa-accent-soft)] text-[#c5d9ff]' : 'text-[var(--dsa-text-muted)] hover:text-white'
               }`}
             >
               Explain: 6 + F&amp;G
@@ -294,21 +292,21 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-gray-600">
-        {strategy.name} · {LINK_LABEL[ind]} in indicator mode · MACD strip only in indicator mode · arrows = illustrative signals
+      <p className="mt-2 text-[10px] text-[var(--dsa-text-muted)]">
+        {strategy.name} · synthetic dataset · {LINK_LABEL[ind]} in indicator mode · markers = illustrative playbook actions
       </p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,280px)_1fr]">
-        <div className="space-y-4 rounded-xl border border-gray-800 bg-[#0b0e14] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Parameters</p>
-          <p className="text-[10px] leading-relaxed text-gray-600">
+      <div className="mt-4 grid gap-3 laptop:grid-cols-[minmax(0,280px)_1fr]">
+        <div className="space-y-4 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] p-3">
+          <p className="dsa-section-label">Parameters</p>
+          <p className="text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
             Sliders tune the linked technical series (visible when &quot;Explain: indicator&quot; is on). Board + F&amp;G
             uses the same OHLCV but does not use those periods. Hybrid MACD periods apply in both views.
           </p>
 
-          <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/20 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/90">Hybrid MACD</p>
-            <p className="mt-1 text-[10px] text-gray-500">Line = SMA(close, fast) − EMA(close, slow). Histogram = line − signal.</p>
+          <div className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
+            <p className="dsa-section-label">Hybrid MACD</p>
+            <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">Line = SMA(close, fast) − EMA(close, slow). Histogram = line − signal.</p>
             <div className="mt-2 space-y-2">
               <Slider
                 label="Fast SMA period"
@@ -384,15 +382,15 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
             </>
           )}
 
-          <div className="border-t border-gray-800 pt-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+          <div className="border-t border-[var(--dsa-border)] pt-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--dsa-text-muted)]">
               {explainMode === 'indicator' ? 'Why this indicator' : 'Why board + F&G'}
             </p>
-            <p className="mt-2 text-xs leading-relaxed text-gray-400">{explainBody}</p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--dsa-text-secondary)]">{explainBody}</p>
           </div>
         </div>
 
-        <div className="min-w-0 space-y-3 rounded-xl border border-gray-800 bg-[#0b0e14] p-4">
+        <div className="min-w-0 space-y-3 rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-3">
           <div className="h-[380px] w-full">
             <IndicatorLightChart
               height={380}
@@ -403,10 +401,10 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
               tradeMarkers={tradeMarkers}
             />
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--dsa-text-muted)]">
             {explainMode === 'indicator' ? (
               <>
-                <span className="w-full text-[9px] uppercase tracking-wide text-gray-600">Lower pane</span>
+                <span className="w-full text-[9px] uppercase tracking-wide text-[var(--dsa-text-muted)]">Lower pane</span>
                 <span>
                   <span className="font-mono text-indigo-300">▮</span> MACD hist
                 </span>
@@ -416,8 +414,8 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 <span>
                   <span className="font-mono text-[#f472b6]">━━</span> Signal
                 </span>
-                <span className="text-gray-600">+ {LINK_LABEL[ind]} (see chart)</span>
-                <span className="w-full text-[9px] uppercase tracking-wide text-gray-600">Markers</span>
+                <span className="text-[var(--dsa-text-muted)]">+ {LINK_LABEL[ind]} (see chart)</span>
+                <span className="w-full text-[9px] uppercase tracking-wide text-[var(--dsa-text-muted)]">Markers</span>
                 <span>
                   <span className="font-mono text-emerald-400">▲</span> Buy hint
                 </span>
@@ -427,11 +425,11 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
               </>
             ) : (
               <>
-                <span className="w-full text-[9px] uppercase tracking-wide text-gray-600">Main chart overlay (0–100)</span>
+                <span className="w-full text-[9px] uppercase tracking-wide text-[var(--dsa-text-muted)]">Main chart overlay (0–100)</span>
                 <span>
                   <span className="font-mono text-gray-300">━━</span> F&amp;G
                 </span>
-                <span className="text-gray-600">Stacked column (bottom→top):</span>
+                <span className="text-[var(--dsa-text-muted)]">Stacked column (bottom→top):</span>
                 <span>
                   <span className="font-mono text-[#3861fb]">▮</span> Reputation
                 </span>
@@ -450,7 +448,7 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 <span>
                   <span className="font-mono text-[#f472b6]">▮</span> People care
                 </span>
-                <span className="w-full text-[9px] uppercase tracking-wide text-gray-600">Markers</span>
+                <span className="w-full text-[9px] uppercase tracking-wide text-[var(--dsa-text-muted)]">Markers</span>
                 <span>
                   <span className="font-mono text-emerald-400">▲</span> Buy hint
                 </span>
@@ -461,13 +459,13 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
             )}
           </div>
 
-          <div className="border-t border-gray-800 pt-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Illustrative buy / sell ideas</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-gray-600">
-              Not live signals — narrative checks you can line up with the chart markers
+          <div className="border-t border-[var(--dsa-border)] pt-4">
+            <p className="dsa-section-label">Illustrative playbook actions</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
+              Synthetic examples only — not live signals, backtest results, or expected performance. They can be compared with the chart markers
               {explainMode === 'indicator' ? ' and MACD strip' : ''}.
             </p>
-            <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-gray-500">
+            <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--dsa-text-muted)]">
               <span className="inline-flex items-center gap-1 font-medium text-emerald-400/95">
                 <ArrowUp className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
                 <span>↑ Long / buy-side examples</span>
@@ -477,14 +475,14 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                 <span>↓ Exit / sell-side examples</span>
               </span>
             </p>
-            <ul className="mt-3 space-y-2.5 text-[11px] leading-snug text-gray-400">
+            <ul className="mt-3 space-y-2.5 text-[11px] leading-snug text-[var(--dsa-text-secondary)]">
               {strategy.buyCases.map((c) => (
                 <li
                   key={`b-${c.label}`}
-                  className="flex gap-2.5 rounded-r-lg border-l-2 border-emerald-500/55 bg-emerald-500/[0.06] py-2 pl-2 pr-2"
+                  className="flex gap-2.5 rounded-r-[var(--dsa-radius-sm)] border-l-2 border-emerald-500/55 bg-emerald-500/[0.06] py-2 pl-2 pr-2"
                 >
                   <span
-                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
                     title="Buy-side example"
                     aria-label="Buy-side example"
                   >
@@ -493,7 +491,7 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                   <div className="min-w-0">
                     <span className="font-semibold text-emerald-400/95">Buy · </span>
                     <span className="font-medium text-gray-300">{c.label}</span>
-                    <span className="text-gray-500">: </span>
+                    <span className="text-[var(--dsa-text-muted)]">: </span>
                     {c.when}
                   </div>
                 </li>
@@ -501,10 +499,10 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
               {strategy.sellCases.map((c) => (
                 <li
                   key={`s-${c.label}`}
-                  className="flex gap-2.5 rounded-r-lg border-l-2 border-rose-500/55 bg-rose-500/[0.06] py-2 pl-2 pr-2"
+                  className="flex gap-2.5 rounded-r-[var(--dsa-radius-sm)] border-l-2 border-rose-500/55 bg-rose-500/[0.06] py-2 pl-2 pr-2"
                 >
                   <span
-                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--dsa-radius-sm)] bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30"
                     title="Sell-side example"
                     aria-label="Sell-side example"
                   >
@@ -513,7 +511,7 @@ export function StrategyPlayground({ strategyId, onStrategyChange }: Props) {
                   <div className="min-w-0">
                     <span className="font-semibold text-rose-400/95">Sell · </span>
                     <span className="font-medium text-gray-300">{c.label}</span>
-                    <span className="text-gray-500">: </span>
+                    <span className="text-[var(--dsa-text-muted)]">: </span>
                     {c.when}
                   </div>
                 </li>
@@ -544,7 +542,7 @@ function Slider({
   fmt: (v: number) => string;
 }) {
   return (
-    <label className="block text-xs text-gray-400">
+    <label className="block text-xs text-[var(--dsa-text-secondary)]">
       {label}
       <input
         type="range"
