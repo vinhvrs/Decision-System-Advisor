@@ -173,14 +173,7 @@ jobs:
           grep -q 'NEW_MIGRATIONS_FILE' ../scripts/pi-backend-deploy.sh
           grep -q 'Applying reviewed migration only' ../scripts/pi-backend-deploy.sh
           grep -q 'skipping php artisan migrate' ../scripts/pi-backend-deploy.sh
-          ! grep -Eq 'php artisan migrate --force[[:space:]]*
-
-      - name: Run DSA production guard tests
-        run: |
-          php artisan test --filter DsaTablesTest
-          php artisan test --filter SnapshotServiceUuidTest
- ../scripts/pi-backend-deploy.sh
-
+          ! grep -Eq '^[[:space:]]*compose_cmd exec -T app php artisan migrate --force[[:space:]]*$' ../scripts/pi-backend-deploy.sh
 
       - name: Run DSA production guard tests
         run: |
