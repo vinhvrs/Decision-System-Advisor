@@ -12,7 +12,7 @@ class DataCoverage extends Command
     protected $signature = 'data:coverage
         {--symbols= : Comma-separated symbol override}
         {--limit=100 : Maximum symbols from snapshot/all-stock universe}
-        {--min-bars=40 : Minimum persisted daily bars required for chart coverage}';
+        {--min-bars=90 : Minimum distinct persisted daily trading days required for chart coverage}';
 
     protected $description = 'Audit persisted daily OHLC coverage versus the live dashboard snapshot universe.';
 
@@ -102,12 +102,14 @@ class DataCoverage extends Command
             $duplicates = max(0, $bars - $days);
             $duplicateRows += $duplicates;
 
-            if ($bars === 0) {
+            if ($days === 0) {
                 $state = 'MISSING';
                 $missing++;
-            } elseif ($bars < $minBars) {
+            } elseif ($days < $minBars) {
                 $state = 'SHORT';
                 $short++;
+            } elseif ($duplicates > 0) {
+                $state = 'DUPLICATE';
             } else {
                 $state = 'OK';
                 $ok++;
@@ -145,7 +147,7 @@ class DataCoverage extends Command
 
         $this->newLine();
         $this->info(sprintf(
-            'Coverage: %d/%d OK (min %d bars) | SHORT=%d | MISSING=%d | DUP_ROWS=%d | DEV_MODE=%s',
+            'Coverage: %d/%d OK (min %d distinct daily days) | SHORT=%d | MISSING=%d | DUP_ROWS=%d | DEV_MODE=%s',
             $ok,
             count($symbols),
             $minBars,
