@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('elastic')->group(function () {
     Route::get('/health', [ElasticController::class, 'health']);
     Route::get('/search', [ElasticController::class, 'search']);
+    Route::get('/top-symbols', [ElasticController::class, 'demoTopSymbols']);
+    // Legacy compatibility alias. Production data still comes from the real Elasticsearch index.
     Route::get('/demo/top-symbols', [ElasticController::class, 'demoTopSymbols']);
 
     Route::get('/companies', [ElasticController::class, 'searchCompanies']);
