@@ -959,9 +959,10 @@ class SnapshotService
             $chart = $closesByIid[$iid] ?? [];
             $persistedHistoryPoints = count($chart);
             $row['history_points'] = $persistedHistoryPoints;
-            $row['history_state'] = $persistedHistoryPoints >= 2
+            $row['history_required_points'] = $chartBars;
+            $row['history_state'] = $persistedHistoryPoints >= $chartBars
                 ? 'ok'
-                : ($persistedHistoryPoints === 1 ? 'short' : 'missing');
+                : ($persistedHistoryPoints > 0 ? 'short' : 'missing');
 
             $price = (float) $row['price'];
             if ($price > 0 && (count($chart) === 0 || abs(end($chart) - round($price, 4)) > 1e-9)) {
