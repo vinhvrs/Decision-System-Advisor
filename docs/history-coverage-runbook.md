@@ -66,8 +66,8 @@ The command reports, per symbol:
 - symbol
 - current snapshot price and snapshot age
 - persisted daily-row count and distinct trading-day count
-- distinct daily-date count
 - duplicate rows on the same trading date
+- OHLC source set for the symbol (for example `yfinance_v3.5` vs legacy `yahoo_finance`)
 - first persisted bar
 - last persisted bar
 - `OK`, `SHORT` or `MISSING`
@@ -135,9 +135,13 @@ docker compose exec app php artisan data:coverage --limit=40 --min-bars=90
 
 Expected exit status: `0`.
 
-## 6. If duplicate daily rows are reported
+## 6. If duplicate or mixed-source daily history is reported
 
-Do **not** delete by date automatically.
+Do **not** delete or rewrite rows automatically.
+
+If the `Sources` column contains more than one source (for example legacy `yahoo_finance` plus canonical `yfinance_v3.5`), first compare overlapping dates around known splits/dividends and verify whether each source is adjusted or raw. A mixed source set is a diagnostic signal, not proof that a row is wrong.
+
+If duplicate daily rows are reported, also inspect the exact timestamps before cleanup.
 
 First inspect the duplicate rows for a sample symbol and compare:
 
@@ -198,6 +202,7 @@ Stop promotion if any of the following remains:
 
 - coverage is not 40/40 OK for the intended universe;
 - duplicate trading-date rows are unresolved;
+- mixed-source OHLC semantics are unresolved when sources disagree on adjusted/raw prices;
 - UUID instrument IDs are not preserved;
 - history disappears when realtime price stops moving;
 - transient history API failure clears previously valid chart data;
