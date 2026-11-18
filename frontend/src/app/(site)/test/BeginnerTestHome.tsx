@@ -1442,10 +1442,13 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           const sym = String(msg.symbol).toUpperCase();
           const price = parseSocketQuoteNumber(msg.price);
           const chg = parseSocketQuoteNumber(msg.change);
-          const quoteTs = Number(msg.quote_ts ?? msg.ts);
           const isInitial = msg.type === "initial_quote";
-          const quoteAge = Date.now() - quoteTs;
-          if (isInitial && (!Number.isFinite(quoteAge) || quoteAge < 0 || quoteAge > 24 * 60 * 60 * 1000)) return;
+          // For initial_quote, only quote_ts proves when the market quote was
+          // observed. msg.ts is merely the websocket envelope send time.
+          const rawQuoteTs = isInitial ? msg.quote_ts : (msg.quote_ts ?? msg.ts);
+          const quoteTs = rawQuoteTs == null ? Number.NaN : Number(rawQuoteTs);
+          const quoteAge = Number.isFinite(quoteTs) ? Date.now() - quoteTs : Number.NaN;
+          if (isInitial && msg.quote_ts != null && (!Number.isFinite(quoteAge) || quoteAge < 0 || quoteAge > 24 * 60 * 60 * 1000)) return;
           if (!isInitial && (!Number.isFinite(quoteAge) || quoteAge < -60_000 || quoteAge > 90_000)) return;
           setBoardRows((prev) => {
             let touched = false;
@@ -1457,8 +1460,12 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                 row.price = price;
                 row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
               }
-              row.quote_stale = isInitial && (msg.quote_stale === true || quoteAge > 90_000);
-              row.quote_ts = quoteTs;
+              if (Number.isFinite(quoteTs)) {
+                row.quote_stale = isInitial
+                  ? msg.quote_stale === true || quoteAge > 90_000
+                  : false;
+                row.quote_ts = quoteTs;
+              }
               if (!isInitial && chg != null && period === "daily") {
                 row.change_pct_snapshot = Math.round(chg * 100) / 100;
                 row.candle_move_abs_pct = Math.abs(chg);
