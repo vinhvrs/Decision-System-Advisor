@@ -87,6 +87,7 @@ export default function StockRankingPage() {
   const [selectedStock, setSelectedStock] = useState<any | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const detailsCacheRef = useRef<Record<string, any>>({});
   const hoverFetchIdRef = useRef(0);
@@ -101,7 +102,12 @@ export default function StockRankingPage() {
         setSelectedStock((current: any) => current ?? next[0] ?? null);
       })
       .catch(() => {
-        if (!cancelled) setStocks([]);
+        if (!cancelled) {
+          setStocks([]);
+          setSelectedStock(null);
+          setSelectedDetails(null);
+          setLoadError("Company ranking data is temporarily unavailable.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -163,7 +169,7 @@ export default function StockRankingPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
-          <span>{stocks.length || 20} liquid names</span>
+          <span>{loading ? "Loading universe" : `${stocks.length} names loaded`}</span>
           <span className="text-[var(--dsa-border-strong)]">|</span>
           <span>Rank: liquidity</span>
           <span className="text-[var(--dsa-border-strong)]">|</span>
@@ -208,6 +214,15 @@ export default function StockRankingPage() {
             </div>
           </div>
 
+          {loadError ? (
+            <div className="border-b border-[rgba(231,91,100,0.28)] bg-[rgba(231,91,100,0.08)] px-3 py-2">
+              <p className="text-xs font-medium text-[var(--dsa-negative)]">{loadError}</p>
+              <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">
+                No company count, ranking, price or radar is inferred while the source is unavailable.
+              </p>
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto">
             <table className="dsa-terminal-table min-w-[760px]">
               <thead>
@@ -242,7 +257,11 @@ export default function StockRankingPage() {
                 ) : (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-xs text-[var(--dsa-text-muted)]">
-                      No companies match this filter.
+                      {query.trim()
+                        ? "No companies match this filter."
+                        : loadError
+                          ? "Company ranking unavailable."
+                          : "No company rows returned."}
                     </td>
                   </tr>
                 )}
