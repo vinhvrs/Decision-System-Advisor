@@ -94,6 +94,7 @@ export default function StockRankingPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
     CompanyService.topCompanies(20, "liquidity")
       .then((rows) => {
         if (cancelled) return;
@@ -102,7 +103,12 @@ export default function StockRankingPage() {
         setSelectedStock((current: any) => current ?? next[0] ?? null);
       })
       .catch(() => {
-        if (!cancelled) setStocks([]);
+        if (!cancelled) {
+          setStocks([]);
+          setSelectedStock(null);
+          setSelectedDetails(null);
+          setLoadError("Company ranking data is temporarily unavailable.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
