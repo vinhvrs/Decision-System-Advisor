@@ -312,7 +312,7 @@ const StockProfile = ({ params }: Props) => {
           <div className="laptop:col-span-4 space-y-4 tablet:space-y-6">
             <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800 shadow-2xl">
                <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-6 text-center italic">Fundamental Analysis</h2>
-               <FundamentalRadar details={details} />
+               <FundamentalRadar symbol={instrument?.symbol} />
             </section>
 
             <section className="bg-[#131722] p-6 rounded-2xl border border-gray-800">
