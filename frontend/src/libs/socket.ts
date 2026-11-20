@@ -82,70 +82,101 @@ export class SimpleSocket {
   private url: string;
   private onMessageCallback: (data: unknown) => void;
   private onOpenCallback?: () => void;
+  private onConnectionChange?: (connected: boolean) => void;
   private disconnectRequested = false;
 
-  constructor(onMessage: (data: unknown) => void, onOpen?: () => void) {
+  constructor(onMessage: (data: unknown) => void, onOpen?: () => void, onConnectionChange?: (connected: boolean) => void) {
     const base = resolveWsBase();
     const path = process.env.NEXT_PUBLIC_SOCKET_PATH || "/ws/quotes";
     this.url = joinWsUrl(base, path);
     this.onMessageCallback = onMessage;
     this.onOpenCallback = onOpen;
+    this.onConnectionChange = onConnectionChange;
   }
 
-  connect() {
-    this.disconnectRequested = false;
-    this.ws = new WebSocket(this.url);
-    if (process.env.NODE_ENV === "development") {
-      console.log("[WS] Connecting:", this.url);
-    }
-    this.ws.onopen = () => {
-      if (process.env.NODE_ENV === "development") {
-        console.log("[WS] Connected");
-      }
-      try {
-        this.onOpenCallback?.();
-      } catch (e) {
-        console.error("[WS] onOpen error:", e);
-      }
-    };
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private heartbeatDeadline: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatAwaitingPong = false;
+  private subscription: unknown = null;
+  private retries = 0;
 
-    this.ws.onmessage = (event) => {
+  connect() {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+    this.disconnectRequested = false;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    const ws = new WebSocket(this.url);
+    this.ws = ws;
+    ws.onopen = () => {
+      if (this.ws !== ws || this.disconnectRequested) return;
+      this.retries = 0;
+      this.onConnectionChange?.(true);
+      if (this.subscription) ws.send(JSON.stringify(this.subscription));
+      this.onOpenCallback?.();
+      this.clearHeartbeat();
+      this.heartbeatTimer = setInterval(() => {
+        if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return;
+        if (this.heartbeatAwaitingPong) return;
+        this.heartbeatAwaitingPong = true;
+        ws.send(JSON.stringify({ type: "ping", sent_at: Date.now() }));
+        this.heartbeatDeadline = setTimeout(() => {
+          if (this.ws === ws && ws.readyState === WebSocket.OPEN && this.heartbeatAwaitingPong) ws.close(4000, "quote heartbeat timeout");
+        }, 65_000);
+      }, 25_000);
+    };
+    ws.onmessage = (event) => {
+      if (this.ws !== ws || this.disconnectRequested) return;
       try {
         const data = JSON.parse(event.data);
-        this.onMessageCallback(data);
-      } catch (err) {
-        console.error("[WS] Parse error:", err);
-      }
-    };
-
-    this.ws.onclose = () => {
-      this.ws = null;
-      if (!this.disconnectRequested) {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[WS] Disconnected, reconnect in 3s");
+        if (data?.type === "pong") {
+          this.heartbeatAwaitingPong = false;
+          if (this.heartbeatDeadline) clearTimeout(this.heartbeatDeadline);
+          this.heartbeatDeadline = null;
+          return;
         }
-        setTimeout(() => this.connect(), 3000);
+        this.onMessageCallback(data);
+      }
+      catch (error) { console.warn("Quote message failed", error); }
+    };
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.clearHeartbeat();
+      this.ws = null;
+      this.onConnectionChange?.(false);
+      if (!this.disconnectRequested) {
+        const delay = Math.min(30_000, 1000 * 2 ** this.retries++);
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null;
+          if (!this.disconnectRequested) this.connect();
+        }, delay);
       }
     };
-
-    this.ws.onerror = () => {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("[WS] connection issue");
-      }
-    };
+    ws.onerror = () => { if (this.ws === ws) ws.close(); };
   }
 
   send(data: unknown) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
-    }
+    if (data && typeof data === "object" && "type" in data && data.type === "subscribe") this.subscription = data;
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(data));
   }
 
   disconnect() {
     this.disconnectRequested = true;
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
+    this.onConnectionChange?.(false);
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.subscription = null;
+    this.clearHeartbeat();
+    const ws = this.ws;
+    this.ws = null;
+    ws?.close();
+  }
+
+  private clearHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.heartbeatDeadline) clearTimeout(this.heartbeatDeadline);
+    this.heartbeatTimer = null;
+    this.heartbeatDeadline = null;
+    this.heartbeatAwaitingPong = false;
   }
 }

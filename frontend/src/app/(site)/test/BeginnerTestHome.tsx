@@ -47,6 +47,13 @@ import {
 
 type Period = "daily" | "annual";
 
+// Yahoo reports share volume for these US equities. Keep market-wide/futures/FX
+// volume semantics intact instead of treating every asset's volume as shares.
+const LIVE_BOARD_EQUITY_SYMBOLS = new Set([
+  "NVDA", "TSLA", "AAPL", "GOOGL", "AMZN", "MSFT", "META", "AVGO", "ORCL", "IBM",
+  "AMD", "ADBE", "CRM", "CSCO", "ASML", "INTU", "QCOM", "NOW", "PANW", "SNOW",
+]);
+
 /** Socket / instrument API use `yearly` slug for annual bars. */
 function periodToApiSlug(period: Period): "daily" | "yearly" {
   return period === "annual" ? "yearly" : "daily";
@@ -846,7 +853,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         </Link>
       </td>
       <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">
-        <span title={r.quote_stale && r.quote_ts ? `Last quote: ${new Date(r.quote_ts).toLocaleString()}` : undefined}>
+        <span title={r.quote_stale && r.quote_ts ? `Last quote: ${new Date(r.quote_ts).toLocaleString()}. Freshness status is independent of exchange session hours.` : "Quote freshness is independent of exchange session hours."}>
           {formatUsd(r.price)}{r.quote_stale && <span className="ml-1 text-[10px] text-amber-400">stale</span>}
         </span>
       </td>
@@ -1344,6 +1351,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           symbol?: string;
           price?: unknown;
           change?: unknown;
+          volume?: unknown;
           quote_ts?: number;
           ts?: number;
           quote_stale?: boolean;
@@ -1354,6 +1362,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           const sym = String(msg.symbol).toUpperCase();
           const price = parseSocketQuoteNumber(msg.price);
           const chg = parseSocketQuoteNumber(msg.change);
+          const isShareVolume = LIVE_BOARD_EQUITY_SYMBOLS.has(sym);
+          const volume = isShareVolume ? parseSocketQuoteNumber(msg.volume) : null;
           const isInitial = msg.type === "initial_quote";
           // For initial_quote, only quote_ts proves when the market quote was
           // observed. msg.ts is merely the websocket envelope send time.
@@ -1372,6 +1382,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                 row.price = price;
                 row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
               }
+              if (isShareVolume && volume != null && volume >= 0) {
+                row.volume = volume;
+                row.liquidity = (price != null && price > 0 ? price : row.price) * volume;
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "volume" && field !== "liquidity");
+              }
               if (Number.isFinite(quoteTs)) {
                 row.quote_stale = isInitial
                   ? msg.quote_stale === true || quoteAge > 90_000
@@ -1388,6 +1403,18 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             });
             return touched ? alignLiveChangeScores(next) : prev;
           });
+          // Keep the latest chart point in step with the live quote; the rest of
+          // the persisted close history remains unchanged.
+          if (!isInitial && price != null && price > 0) {
+            setRowSparklines((prev) => {
+              const row = boardRowsRef.current.find((item) => String(item.symbol || "").toUpperCase() === sym);
+              const values = prev[sym] ?? (row ? sparklineValuesForRow(row, {}, period) : []);
+              if (values.length < 2) return prev;
+              const next = [...values.slice(0, -1), price];
+              if (prev[sym] && prev[sym].length === next.length && prev[sym].at(-1) === price) return prev;
+              return { ...prev, [sym]: next };
+            });
+          }
           return;
         }
 
