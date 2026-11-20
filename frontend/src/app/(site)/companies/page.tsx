@@ -87,6 +87,7 @@ export default function StockRankingPage() {
   const [selectedStock, setSelectedStock] = useState<any | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const detailsCacheRef = useRef<Record<string, any>>({});
   const hoverFetchIdRef = useRef(0);
