@@ -37,6 +37,7 @@ import {
   type FundamentalCoverageState,
 } from "@/src/components/investing/FundamentalSection";
 import { CompanyService } from "@/src/services/Company.service";
+import { FundamentalsService } from "@/src/services/Fundamentals.service";
 import { useWatchlist } from "@/src/hooks/useWatchlist";
 import { stripParentheticals } from "@/src/libs/displayString";
 import {
@@ -347,6 +348,58 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "fundamentals") setMainTab("fundamentals");
     else setMainTab("chart");
+  }, [symbol]);
+
+  useEffect(() => {
+    if (!symbol) return;
+    let cancelled = false;
+
+    setFundamentalCoverage({ financials: "loading", kpis: "loading" });
+
+    void Promise.allSettled([
+      FundamentalsService.annual(symbol, 20),
+      FundamentalsService.score(symbol),
+    ]).then(([annualResult, scoreResult]) => {
+      if (cancelled) return;
+
+      if (annualResult.status === "rejected" && scoreResult.status === "rejected") {
+        setFundamentalCoverage({ financials: "error", kpis: "error" });
+        return;
+      }
+
+      const annualRaw =
+        annualResult.status === "fulfilled"
+          ? (annualResult.value as { data?: unknown })?.data
+          : [];
+      const hasAnnual = Array.isArray(annualRaw) && annualRaw.length > 0;
+
+      const scoreData =
+        scoreResult.status === "fulfilled"
+          ? ((scoreResult.value as { data?: Record<string, unknown> | null })?.data ?? null)
+          : null;
+      const hasKpis =
+        scoreData != null &&
+        [
+          "growth_score",
+          "profitability_score",
+          "balance_sheet_score",
+          "cash_flow_score",
+          "capital_efficiency_score",
+          "overall_score",
+        ].some((key) => {
+          const value = scoreData[key];
+          return value != null && Number.isFinite(Number(value));
+        });
+
+      setFundamentalCoverage({
+        financials: hasAnnual ? "available" : "awaiting",
+        kpis: hasKpis ? "available" : hasAnnual ? "partial" : "awaiting",
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [symbol]);
 
   useEffect(() => {
