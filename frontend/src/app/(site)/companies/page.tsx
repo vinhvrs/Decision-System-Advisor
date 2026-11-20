@@ -215,6 +215,15 @@ export default function StockRankingPage() {
             </div>
           </div>
 
+          {loadError ? (
+            <div className="border-b border-[rgba(231,91,100,0.28)] bg-[rgba(231,91,100,0.08)] px-3 py-2">
+              <p className="text-xs font-medium text-[var(--dsa-negative)]">{loadError}</p>
+              <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">
+                No company count, ranking, price or radar is inferred while the source is unavailable.
+              </p>
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto">
             <table className="dsa-terminal-table min-w-[760px]">
               <thead>
