@@ -31,7 +31,11 @@ import ProfilePaperTradingPanel from "@/src/components/paperTrading/ProfilePaper
 import ProfileChartPositionsLog from "@/src/components/paperTrading/ProfileChartPositionsLog";
 import type { PaperTradingSnapshot } from "@/src/components/paperTrading/paperTradingTypes";
 import FundamentalRadar from "./FundamentalRadar";
-import { FundamentalSection } from "@/src/components/investing/FundamentalSection";
+import {
+  FundamentalSection,
+  type FundamentalCoverage,
+  type FundamentalCoverageState,
+} from "@/src/components/investing/FundamentalSection";
 import { CompanyService } from "@/src/services/Company.service";
 import { useWatchlist } from "@/src/hooks/useWatchlist";
 import { stripParentheticals } from "@/src/libs/displayString";
@@ -175,15 +179,21 @@ const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
   { id: "about", label: "Company" },
 ];
 
-const RESEARCH_COVERAGE = [
-  { label: "Financials", state: "available" },
-  { label: "KPIs", state: "available" },
-  { label: "Estimates", state: "awaiting" },
-  { label: "Valuation", state: "awaiting" },
-  { label: "Earnings", state: "awaiting" },
-  { label: "Ownership", state: "awaiting" },
-  { label: "Filings", state: "awaiting" },
-] as const;
+function coverageStateLabel(state: FundamentalCoverageState): string {
+  if (state === "available") return "Available";
+  if (state === "partial") return "Partial data";
+  if (state === "loading") return "Checking…";
+  if (state === "error") return "Unavailable";
+  return "Awaiting data";
+}
+
+function coverageStateClass(state: FundamentalCoverageState): string {
+  if (state === "available") return "text-[var(--dsa-positive)]";
+  if (state === "partial" || state === "loading" || state === "awaiting") {
+    return "text-[var(--dsa-warning)]";
+  }
+  return "text-[var(--dsa-text-muted)]";
+}
 
 export function StockProfilePage({ slug }: { slug: string }) {
   const symbol = useMemo(() => normalizeSymbolFromSlug(slug), [slug]);
@@ -216,6 +226,10 @@ export function StockProfilePage({ slug }: { slug: string }) {
   const [watchlistMutating, setWatchlistMutating] = useState(false);
   const [watchlistActionMessage, setWatchlistActionMessage] = useState<string | null>(null);
   const [paperTrading, setPaperTrading] = useState<PaperTradingSnapshot | null>(null);
+  const [fundamentalCoverage, setFundamentalCoverage] = useState<FundamentalCoverage>({
+    financials: "loading",
+    kpis: "loading",
+  });
 
   const {
     loading: watchlistLoading,
@@ -230,6 +244,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const frame = window.requestAnimationFrame(() => {
       setPaperTrading(null);
       setWatchlistActionMessage(null);
+      setFundamentalCoverage({ financials: "loading", kpis: "loading" });
       setMarketDataMeta({
         realtimeQuoteAt: null,
         realtimeQuoteStale: false,
@@ -310,6 +325,18 @@ export function StockProfilePage({ slug }: { slug: string }) {
     marketCap > 0 && volUsdEst > 0 ? (volUsdEst / marketCap) * 100 : null;
 
   const profileScore = useMemo(() => computeProfileScore(details), [details]);
+  const researchCoverage = useMemo(
+    () => [
+      { label: "Financials", state: fundamentalCoverage.financials },
+      { label: "KPIs", state: fundamentalCoverage.kpis },
+      { label: "Estimates", state: "awaiting" as FundamentalCoverageState },
+      { label: "Valuation", state: "awaiting" as FundamentalCoverageState },
+      { label: "Earnings", state: "awaiting" as FundamentalCoverageState },
+      { label: "Ownership", state: "awaiting" as FundamentalCoverageState },
+      { label: "Filings", state: "awaiting" as FundamentalCoverageState },
+    ],
+    [fundamentalCoverage],
+  );
   const sidebarNews = useMemo(() => sortNewsByDateDesc(news).slice(0, 8), [news]);
   const latestNewsMs = sidebarNews.length ? newsPublishedMs(sidebarNews[0]) : 0;
   const hasRecentSidebarNews =
@@ -602,19 +629,15 @@ export function StockProfilePage({ slug }: { slug: string }) {
             </span>
           </div>
           <div className="grid gap-px bg-[var(--dsa-border)] phone:grid-cols-2 tablet:grid-cols-4 laptop:grid-cols-7">
-            {RESEARCH_COVERAGE.map((item) => (
+            {researchCoverage.map((item) => (
               <div key={item.label} className="bg-[var(--dsa-surface-1)] px-3 py-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
                   {item.label}
                 </p>
                 <p
-                  className={
-                    item.state === "available"
-                      ? "mt-1 text-[11px] font-medium text-[var(--dsa-positive)]"
-                      : "mt-1 text-[11px] font-medium text-[var(--dsa-warning)]"
-                  }
+                  className={`mt-1 text-[11px] font-medium ${coverageStateClass(item.state)}`}
                 >
-                  {item.state === "available" ? "Available" : "Awaiting data"}
+                  {coverageStateLabel(item.state)}
                 </p>
               </div>
             ))}
@@ -987,7 +1010,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                   Long-term financial quality and growth derived from SEC XBRL. Technical columns (price, stance, trend,
                   etc.) stay on the Chart tab.
                 </p>
-                <FundamentalSection symbol={symbol} />
+                <FundamentalSection symbol={symbol} onCoverageChange={setFundamentalCoverage} />
               </section>
             )}
 
