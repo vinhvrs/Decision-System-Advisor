@@ -498,6 +498,11 @@ export function StockProfilePage({ slug }: { slug: string }) {
       ? "Daily vs previous close"
       : `Change vs previous ${selectedPeriod} bar`;
 
+  const livePriceLabel =
+    livePrice > 0
+      ? `${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : "—";
+
   const toggleWatchlist = async () => {
     if (!symbol || watchlistMutating || watchlistLoading) return;
 
@@ -657,9 +662,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-right">
               <p className="font-mono text-sm font-semibold tabular-nums text-white">
-                {livePrice > 0
-                  ? `${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : "—"}
+                {livePriceLabel}
               </p>
               <p className={`font-mono text-[10px] tabular-nums ${changePct == null ? CMC.muted : changePct >= 0 ? CMC.green : CMC.red}`}>
                 {changePct == null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`}
@@ -747,7 +750,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
               <div className="mt-4">
                 <p className="font-mono text-2xl font-semibold tabular-nums text-white">
-                  ${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {livePriceLabel}
                 </p>
                 {changePct != null ? (
                   <span
