@@ -115,25 +115,27 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white flex">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-[var(--dsa-bg)] text-[var(--dsa-text)]">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0f172a] border-r border-white/10 transform transition-transform laptop:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-[208px] border-r border-[var(--dsa-border)] bg-[#0b1118] transition-transform laptop:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
-          <Link href="/admin" className="font-bold text-lg">
-            DSA Admin
+        <div className="flex h-12 items-center justify-between border-b border-[var(--dsa-border)] px-3">
+          <Link href="/admin" className="font-mono text-xs font-semibold tracking-[0.06em] text-white">
+            DSA ADMIN
           </Link>
           <button
-            className="laptop:hidden p-2"
+            type="button"
+            className="rounded-[var(--dsa-radius-sm)] p-1.5 text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white laptop:hidden"
             onClick={() => setSidebarOpen(false)}
+            aria-label="Close admin navigation"
           >
-            <X size={20} />
+            <X size={17} />
           </button>
         </div>
-        <nav className="p-4 space-y-1">
+
+        <nav className="space-y-0.5 p-2">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
@@ -141,55 +143,76 @@ export default function AdminLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                  isActive ? "bg-blue-600/20 text-blue-400" : "text-white/70 hover:bg-white/5 hover:text-white"
+                className={`flex min-h-9 items-center gap-2 rounded-[var(--dsa-radius-sm)] border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? "border-[rgba(76,141,255,0.28)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+                    : "border-transparent text-[var(--dsa-text-secondary)] hover:border-[var(--dsa-border)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
                 }`}
                 onClick={() => setSidebarOpen(false)}
               >
-                <Icon size={18} />
-                <span className="flex-1">{item.label}</span>
+                <Icon size={14} className="shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {item.href === "/admin/email" && contactUnread > 0 ? (
-                  <span className="shrink-0 text-xs font-semibold text-amber-300" aria-label={`${contactUnread} unread contacts`}>
-                    ({contactUnread > 99 ? "99+" : contactUnread})
+                  <span className="shrink-0 font-mono text-[9px] font-semibold text-[var(--dsa-warning)]" aria-label={`${contactUnread} unread contacts`}>
+                    {contactUnread > 99 ? "99+" : contactUnread}
                   </span>
                 ) : null}
               </Link>
             );
           })}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-red-400 hover:bg-red-500/10 transition-all"
+
+        <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--dsa-border)] p-2">
+          <Link
+            href="/"
+            className="mb-1 flex min-h-8 items-center rounded-[var(--dsa-radius-sm)] px-2.5 text-[10px] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
           >
-            <LogOut size={18} />
+            ← Public terminal
+          </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex min-h-9 w-full items-center gap-2 rounded-[var(--dsa-radius-sm)] px-2.5 py-1.5 text-[11px] text-[var(--dsa-negative)] hover:bg-[rgba(231,91,100,0.08)]"
+          >
+            <LogOut size={14} />
             Logout
           </button>
         </div>
       </aside>
 
-      {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 laptop:hidden"
+          className="fixed inset-0 z-30 bg-black/55 laptop:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main */}
-      <div className="flex-1 laptop:ml-64">
-        <header className="sticky top-0 z-20 h-16 bg-[#0b1220]/90 backdrop-blur border-b border-white/10 flex items-center px-4 gap-4">
-          <button
-            className="laptop:hidden p-2"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu size={24} />
-          </button>
-          <span className="text-sm text-white/60">
-            {user?.name} <span className="text-blue-400">({user?.role})</span>
-          </span>
+      <div className="min-w-0 laptop:ml-[208px]">
+        <header className="sticky top-0 z-20 flex h-11 items-center justify-between gap-3 border-b border-[var(--dsa-border)] bg-[#0b1118]/95 px-3 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              className="rounded-[var(--dsa-radius-sm)] p-1.5 text-[var(--dsa-text-secondary)] hover:bg-[var(--dsa-surface-2)] hover:text-white laptop:hidden"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open admin navigation"
+            >
+              <Menu size={18} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.07em] text-[var(--dsa-text-muted)]">Administration</p>
+              <p className="truncate text-[11px] font-medium text-white">{pathname.replace(/^\/admin\/?/, "") || "dashboard"}</p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 text-[10px] text-[var(--dsa-text-muted)]">
+            <span className="hidden phone:inline">{user?.name}</span>
+            <span className="rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)] px-1.5 py-0.5 font-mono uppercase text-[#8ab4ff]">
+              {user?.role}
+            </span>
+          </div>
         </header>
-        <main className="p-4 tablet:p-6">{children}</main>
+
+        <main className="min-w-0 p-3 tablet:p-4">{children}</main>
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ export default function Header() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const handleSelectCompany = useCallback(
     (hit: ElasticCompanyHit) => {
@@ -69,6 +70,21 @@ export default function Header() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  useEffect(() => {
+    const onShortcut = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      if (!searchInputRef.current || window.innerWidth < 768) return;
+      e.preventDefault();
+      searchInputRef.current.focus();
+      if (searchResults.length > 0 || searchSuggestions.length > 0) setSearchOpen(true);
+    };
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, [searchResults.length, searchSuggestions.length]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -148,8 +164,10 @@ export default function Header() {
 
           <div ref={searchRef} className="relative hidden w-72 md:block laptop:w-[360px]">
             <input
+              ref={searchInputRef}
               type="text"
               aria-label="Search company name or ticker"
+              aria-keyshortcuts="/"
               placeholder="Search ticker or company"
               value={searchQuery}
               onChange={(e) => {
@@ -224,23 +242,10 @@ export default function Header() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 tablet:gap-3">
-          <nav className="no-scrollbar mr-1 hidden min-w-0 laptop:flex laptop:max-w-[min(50vw,40rem)] laptop:items-center laptop:space-x-0.5 laptop:overflow-x-auto">
-            {SITE_NAV_LINKS.map((link) => {
-              const active = isActive(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={[
-                    "dsa-nav-link",
-                    active ? "dsa-nav-link-active" : "",
-                  ].join(" ")}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="mr-1 hidden items-center gap-2 border-r border-[var(--dsa-border)] pr-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--dsa-text-muted)] laptop:flex">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--dsa-positive)]" />
+            <span>Research terminal</span>
+          </div>
 
           <div className="flex shrink-0 items-center gap-2">
             {user ? (
@@ -249,7 +254,18 @@ export default function Header() {
               renderAuthButtons()
             )}
 
+            <Link
+              href="/search"
+              aria-label="Search symbols and companies"
+              className="laptop:hidden rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-secondary)] transition hover:bg-[var(--dsa-surface-2)] hover:text-white"
+            >
+              <Search size={20} aria-hidden />
+            </Link>
+
             <button
+              type="button"
+              aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={isMenuOpen}
               className="laptop:hidden rounded-[var(--dsa-radius-sm)] p-2 text-[var(--dsa-text-secondary)] transition hover:bg-[var(--dsa-surface-2)] hover:text-white"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >

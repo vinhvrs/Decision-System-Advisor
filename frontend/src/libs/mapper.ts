@@ -50,6 +50,7 @@ export function instrumentDataMapper(apiData: InstrumentDataAPI[]): InstrumentDa
         close: data.close,
         volume: data.volume,
         slug: data.slug,
+        source: data.source ?? null,
     }));
 }
 

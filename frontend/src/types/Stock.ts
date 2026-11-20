@@ -55,7 +55,7 @@ export type Stock = {
  * @property {number} num_analysts_revenue - The number of analysts contributing to the revenue estimate.
  * @property {number} num_analysts_eps - The number of analysts contributing to the EPS estimate.
  * @property {number} confidence_score - A score indicating the confidence level of the estimates.
- * @property {string} recommendation - The recommendation or rating for the stock (e.g., "Buy", "Hold", "Sell").
+ * @property {string} recommendation - Backend compatibility recommendation enum; presentation maps it to Bullish / Neutral / Bearish research bias.
  */
 export interface StockAPI {
     id: string;

@@ -1,117 +1,168 @@
 /* eslint-disable @next/next/no-img-element */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Clock } from "lucide-react"; // Thêm icon Clock cho đẹp
+import { ChevronRight, Clock } from "lucide-react";
 import newsService from "@/src/services/News.service";
+import {
+  newsSourceLabel,
+  pickNewsThumbImage,
+  resolveNewsHref,
+} from "@/src/libs/newsArticle";
+import type { News } from "@/src/types/News";
+
+function formatRelativeDate(value: string | Date | null | undefined): string {
+  if (!value) return "Time unavailable";
+  const published = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(published.getTime())) return "Time unavailable";
+
+  const now = Date.now();
+  const diffMs = Math.max(0, now - published.getTime());
+  const minutes = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(diffMs / 3_600_000);
+
+  if (hours < 1) return `${Math.max(1, minutes)}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+
+  return published.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function HotNews() {
-  const [hotNews, setHotNews] = useState<any[]>([]);
+  const [hotNews, setHotNews] = useState<News[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // --- Logic xử lý thời gian ---
-  const formatRelativeDate = (dateString: string) => {
-    const now = new Date();
-    const publishedDate = new Date(dateString);
-    const diffInMs = now.getTime() - publishedDate.getTime();
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-
-    if (diffInHours < 1) {
-      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-      return `${diffInMinutes <= 0 ? 1 : diffInMinutes} minutes ago`;
-    }
-
-    if (diffInHours < 24) {
-      return `${diffInHours} hours ago`;
-    }
-
-    // Nếu qua ngày hôm sau thì hiển thị DD/MM/YYYY
-    return publishedDate.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  // Helper tách ảnh từ content
-  const parseContent = (content: string) => {
-    const imgPrefix = "Image URL: ";
-    if (content?.startsWith(imgPrefix)) {
-      const parts = content.split("\n\n");
-      const imageUrl = parts[0].replace(imgPrefix, "").trim();
-      return { imageUrl: imageUrl !== "null" ? imageUrl : null };
-    }
-    return { imageUrl: null };
-  };
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    const fetchHotNews = async () => {
-      try {
-        setIsLoading(true);
-        const newsRes = await newsService.getAllNews({ page: 1, per_page: 4 });
-        setHotNews(newsRes.data || []);
-      } catch (e) {
-        console.error("Failed to load hot news", e);
-      } finally {
-        setIsLoading(false);
-      }
+    let cancelled = false;
+
+    void newsService
+      .getAllNews({ page: 1, per_page: 4 })
+      .then((response) => {
+        if (cancelled) return;
+        setHotNews(Array.isArray(response?.data) ? response.data : []);
+        setLoadError(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHotNews([]);
+        setLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    fetchHotNews();
   }, []);
 
-  if (!isLoading && hotNews.length === 0) return null;
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="h-[220px] animate-pulse rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)]"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="dsa-panel px-3 py-5 text-xs text-[var(--dsa-text-muted)]">
+        Market headlines are temporarily unavailable.
+      </div>
+    );
+  }
+
+  if (hotNews.length === 0) {
+    return (
+      <div className="dsa-panel px-3 py-5 text-xs text-[var(--dsa-text-muted)]">
+        No recent market headlines are available.
+      </div>
+    );
+  }
 
   return (
-    <section className="px-4 phone:px-5 tablet:px-6 py-6 tablet:py-10 bg-[#0B1220] border-t border-white/5">
-      <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-4 gap-4 tablet:gap-6">
-        {isLoading
-          ? [1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[320px] rounded-[2rem] bg-white/5 animate-pulse" />
-          ))
-          : hotNews.map((news) => {
-            const { imageUrl } = parseContent(news.content || "");
-            return (
-              <Link
-                href={`/news/${news.id}`}
-                key={news.id}
-                className="group p-5 rounded-[2rem] bg-[#161D2C]/80 border border-white/10 hover:border-blue-500/40 transition-all flex flex-col shadow-lg"
-              >
-                {imageUrl && (
-                  <div className="relative h-40 w-full mb-4 overflow-hidden rounded-2xl border border-white/5">
-                    <img
-                      src={imageUrl}
-                      alt="news"
-                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700"
-                      onError={(e: any) => (e.currentTarget.parentElement.style.display = 'none')}
-                    />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 text-[10px] text-white/40 mb-2 uppercase font-bold tracking-widest">
-                    <span className="text-blue-400">{news.author?.split(',')[0]}</span>
-                    <span>•</span>
-                    <div className="flex items-center gap-1">
-                      <Clock size={10} />
-                      {formatRelativeDate(news.published_at)}
-                    </div>
-                  </div>
-                  <h3 className="text-sm font-semibold line-clamp-3 leading-snug group-hover:text-blue-400 transition-colors">
-                    {news.title}
-                  </h3>
-                </div>
-                <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded bg-green-500/10 text-green-400 uppercase">
-                    Analysis Ready
-                  </span>
-                  <ChevronRight size={14} className="text-white/20 group-hover:text-blue-400 transform group-hover:translate-x-1 transition-all" />
-                </div>
-              </Link>
-            );
-          })
+    <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-4">
+      {hotNews.map((news) => {
+        const imageUrl = pickNewsThumbImage(news);
+        const target = resolveNewsHref(news);
+        const source = newsSourceLabel(news);
+        const dateValue = news.published_at || news.created_at;
+
+        const inner = (
+          <>
+            {imageUrl ? (
+              <div className="relative h-28 w-full overflow-hidden border-b border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
+                <img
+                  src={imageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) parent.style.display = "none";
+                  }}
+                />
+              </div>
+            ) : null}
+
+            <div className="flex min-h-0 flex-1 flex-col p-3">
+              <div className="mb-2 flex min-w-0 items-center gap-2 text-[10px] text-[var(--dsa-text-muted)]">
+                <span className="min-w-0 truncate font-medium text-[#8ab4ff]">
+                  {source}
+                </span>
+                <span aria-hidden>·</span>
+                <span className="inline-flex shrink-0 items-center gap-1">
+                  <Clock size={10} />
+                  {formatRelativeDate(dateValue)}
+                </span>
+              </div>
+
+              <h3 className="line-clamp-3 text-xs font-semibold leading-relaxed text-white transition-colors group-hover:text-[#a9c7ff]">
+                {news.title}
+              </h3>
+
+              <div className="mt-auto flex items-center justify-end pt-3">
+                <ChevronRight
+                  size={13}
+                  className="text-[var(--dsa-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#8ab4ff]"
+                />
+              </div>
+            </div>
+          </>
+        );
+
+        const className =
+          "group flex h-full min-h-[190px] flex-col overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] transition-colors hover:border-[var(--dsa-border-strong)]";
+
+        if (target.kind === "external") {
+          return (
+            <a
+              key={news.id}
+              href={target.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={className}
+            >
+              {inner}
+            </a>
+          );
         }
-      </div>
-    </section>
+
+        return (
+          <Link key={news.id} href={target.href} className={className}>
+            {inner}
+          </Link>
+        );
+      })}
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import HomeHeroBanner from "../HomeHeroBanner";
 import HomeMarketView from "../HomeMarketView";
 
 export const metadata: Metadata = {
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
 export default function TestHomeClonePage() {
   return (
     <>
-      <HomeHeroBanner />
       <HomeMarketView variant="dashboard-daily" />
     </>
   );

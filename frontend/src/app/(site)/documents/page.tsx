@@ -911,7 +911,7 @@ export default function DocumentsPage() {
       type: "Web",
       size: "On-site",
       updatedAt: "On-site reference",
-      icon: <Calculator className="text-cyan-400" size={24} />,
+      icon: <Calculator className="text-cyan-400" size={15} />,
       href: "/documents#ranking",
     },
     {
@@ -922,7 +922,7 @@ export default function DocumentsPage() {
       type: "Web",
       size: "On-site",
       updatedAt: "On-site reference",
-      icon: <Sigma className="text-green-400" size={24} />,
+      icon: <Sigma className="text-green-400" size={15} />,
       href: "/documents#formula",
     },
     {
@@ -933,7 +933,7 @@ export default function DocumentsPage() {
       type: "Web",
       size: "On-site",
       updatedAt: "On-site reference",
-      icon: <Shield className="text-emerald-400" size={24} />,
+      icon: <Shield className="text-emerald-400" size={15} />,
       href: "/documents#privacy",
     },
   ];
@@ -948,16 +948,29 @@ export default function DocumentsPage() {
     }`;
 
   return (
-    <div className="-mx-3 -my-4 min-h-screen bg-[var(--dsa-bg)] px-3 py-4 text-[var(--dsa-text)] phone:-mx-4 phone:px-4 tablet:-mx-5 tablet:px-5 laptop:-mx-6 laptop:px-6">
-      <div className="dsa-page">
-        <div className="mb-5 flex flex-wrap items-center gap-1 border-b border-[var(--dsa-border)] pb-2">
+    <div className="dsa-page space-y-3 text-[var(--dsa-text)]">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Reference library</p>
+          <h1 className="mt-0.5 text-sm font-semibold text-white">
+            {mainView === "library"
+              ? "Documents & methodology"
+              : docTab === "ranking"
+                ? "Ranking & snapshot methodology"
+                : docTab === "indicators"
+                  ? "Indicator calculations"
+                  : "Privacy & policies"}
+          </h1>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1">
           <button type="button" onClick={goLibrary} className={tabBtn(mainView === "library")}>
-            Documents library
+            Library
           </button>
           <button type="button" onClick={() => goDocs("ranking")} className={tabBtn(mainView === "docs" && docTab === "ranking")}>
-            <span className="inline-flex items-center gap-2">
-              <Calculator size={16} aria-hidden />
-              Functional calculation
+            <span className="inline-flex items-center gap-1.5">
+              <Calculator size={13} aria-hidden />
+              Ranking
             </span>
           </button>
           <button
@@ -965,133 +978,115 @@ export default function DocumentsPage() {
             onClick={() => goDocs("indicators")}
             className={tabBtn(mainView === "docs" && docTab === "indicators")}
           >
-            <span className="inline-flex items-center gap-2">
-              <Sigma size={16} aria-hidden />
-              Indicator calculations
+            <span className="inline-flex items-center gap-1.5">
+              <Sigma size={13} aria-hidden />
+              Indicators
             </span>
           </button>
           <button type="button" onClick={() => goDocs("privacy")} className={tabBtn(mainView === "docs" && docTab === "privacy")}>
-            <span className="inline-flex items-center gap-2">
-              <Shield size={16} aria-hidden />
-              Privacy &amp; policies
+            <span className="inline-flex items-center gap-1.5">
+              <Shield size={13} aria-hidden />
+              Policy
             </span>
           </button>
         </div>
+      </section>
 
-        {mainView === "docs" && (
-          <div className="mb-10 max-w-4xl">
+      {mainView === "docs" && (
+        <section className="dsa-terminal-panel min-w-0 overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <p className="text-[10px] uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">
+              On-site reference · formulas and definitions remain source-aligned
+            </p>
+            <button type="button" onClick={goLibrary} className="text-[10px] font-semibold text-[#8ab4ff] hover:text-white">
+              Back to library
+            </button>
+          </div>
+          <div className="max-w-5xl px-4 py-5 tablet:px-6 tablet:py-6">
             {docTab === "ranking" && <RankingCalculationsContent />}
             {docTab === "indicators" && <IndicatorCalculationsContent />}
             {docTab === "privacy" && <PrivacyPoliciesContent />}
           </div>
-        )}
+        </section>
+      )}
 
-        {mainView === "library" && (
-          <>
-            <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+      {mainView === "library" && (
+        <>
+          <section className="grid gap-px overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-4">
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">References</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-white">{documents.length}</p>
+            </div>
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">Methodology</p>
+              <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">Ranking + indicators</p>
+            </div>
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">Policy</p>
+              <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">Privacy & usage</p>
+            </div>
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">Scope</p>
+              <p className="mt-1 text-xs text-[var(--dsa-text-secondary)]">On-site references only</p>
+            </div>
+          </section>
+
+          <section className="dsa-terminal-panel overflow-hidden">
+            <div className="dsa-terminal-panel-head">
               <div>
-                <p className="dsa-section-label">Methodology & policy</p>
-                <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white tablet:text-2xl">Documents</h1>
-                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[var(--dsa-text-secondary)]">
-                  Access our latest market reports, technical guides, and legal documents. Open{" "}
-                  <button
-                    type="button"
-                    onClick={() => goDocs("ranking")}
-                    className="text-indigo-400 underline-offset-2 hover:underline"
-                  >
-                    Functional calculation
-                  </button>
-                  ,{" "}
-                  <button
-                    type="button"
-                    onClick={() => goDocs("indicators")}
-                    className="text-indigo-400 underline-offset-2 hover:underline"
-                  >
-                    Indicator calculations
-                  </button>
-                  , or{" "}
-                  <button
-                    type="button"
-                    onClick={() => goDocs("privacy")}
-                    className="text-indigo-400 underline-offset-2 hover:underline"
-                  >
-                    Privacy &amp; policies
-                  </button>{" "}
-                  for on-site definitions.
+                <p className="text-xs font-semibold text-white">Reference directory</p>
+                <p className="text-[10px] text-[var(--dsa-text-muted)]">
+                  Product methodology, calculation definitions, and policy notes.
                 </p>
               </div>
-
-              <div className="relative w-full md:w-96">
+              <div className="relative w-[230px] max-w-[48vw]">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--dsa-text-muted)]" />
                 <input
                   type="text"
-                  placeholder="Search documents..."
+                  placeholder="Filter references"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="dsa-control h-9 w-full py-2 pl-10 pr-3 text-sm outline-none"
+                  className="dsa-control h-7 min-h-0 w-full py-1 pl-8 pr-2 text-[11px] outline-none"
                 />
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--dsa-text-muted)]" />
               </div>
             </div>
 
-            <div id="library" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {filteredDocs.map((doc) => {
-                const CardInner = (
-                  <>
-                    <div className="mb-4 flex items-start justify-between">
-                      <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 transition-all group-hover:border-indigo-500/20 group-hover:bg-indigo-500/10">
-                        {doc.icon}
-                      </div>
-                      <span
-                        className="rounded-[var(--dsa-radius-sm)] p-1.5 text-[#8ab4ff]"
-                        title="Open on-site reference"
-                      >
-                        <ExternalLink size={16} aria-hidden />
-                      </span>
+            {filteredDocs.length ? (
+              <div id="library" className="divide-y divide-[var(--dsa-border)]">
+                {filteredDocs.map((doc) => (
+                  <Link
+                    key={doc.id}
+                    href={doc.href}
+                    className="group grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3 px-3 py-3 transition-colors hover:bg-[var(--dsa-surface-2)] tablet:grid-cols-[34px_minmax(220px,1fr)_120px_100px_130px_24px]"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-2)]">
+                      {doc.icon}
+                    </span>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-white group-hover:text-[#a9c7ff]">{doc.title}</p>
+                      <p className="mt-0.5 line-clamp-1 text-[10px] text-[var(--dsa-text-muted)]">{doc.description}</p>
                     </div>
 
-                    <h3 className="mb-2 text-lg font-bold text-white transition-colors group-hover:text-indigo-400">
-                      {doc.title}
-                    </h3>
-                    <p className="mb-6 line-clamp-2 text-sm leading-relaxed text-gray-400">{doc.description}</p>
-
-                    <div className="mt-auto flex items-center justify-between border-t border-gray-800/50 pt-4">
-                      <div className="flex items-center gap-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <span className="size-1.5 rounded-full bg-indigo-500" />
-                          {doc.type}
-                        </span>
-                        <span>{doc.size}</span>
-                      </div>
-                      <span className="text-[11px] font-medium text-[var(--dsa-text-muted)]">{doc.updatedAt}</span>
-                    </div>
-                  </>
-                );
-
-                const wrapClass =
-                  "group rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] p-4 transition-colors hover:border-[var(--dsa-border-strong)] hover:bg-[var(--dsa-surface-2)]";
-
-                return "href" in doc && doc.href ? (
-                  <Link key={doc.id} href={doc.href} className={`${wrapClass} block`}>
-                    {CardInner}
+                    <span className="hidden text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-secondary)] tablet:block">
+                      {doc.category}
+                    </span>
+                    <span className="hidden font-mono text-[10px] text-[var(--dsa-text-muted)] tablet:block">{doc.type}</span>
+                    <span className="hidden text-[10px] text-[var(--dsa-text-muted)] tablet:block">{doc.updatedAt}</span>
+                    <ExternalLink className="hidden h-3.5 w-3.5 text-[#8ab4ff] tablet:block" aria-hidden />
                   </Link>
-                ) : (
-                  <div key={doc.id} className={wrapClass}>
-                    {CardInner}
-                  </div>
-                );
-              })}
-            </div>
-
-            {filteredDocs.length === 0 && (
-              <div className="rounded-[var(--dsa-radius-md)] border border-dashed border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] py-14 text-center">
-                <FileText size={48} className="mx-auto mb-4 text-gray-700" />
-                <h3 className="text-xl font-semibold text-white">No documents found</h3>
-                <p className="mt-2 text-gray-500">Try adjusting your search or filters.</p>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-10 text-center">
+                <FileText size={28} className="mx-auto mb-2 text-[var(--dsa-text-muted)]" />
+                <p className="text-xs font-semibold text-white">No references found</p>
+                <p className="mt-1 text-[10px] text-[var(--dsa-text-muted)]">Adjust the filter and try again.</p>
               </div>
             )}
-          </>
-        )}
-      </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

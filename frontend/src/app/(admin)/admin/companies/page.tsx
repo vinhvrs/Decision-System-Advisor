@@ -53,99 +53,104 @@ export default function AdminCompaniesPage() {
   }, [debouncedSearch, fetchCompanies]);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-2">Company / Symbol Management</h1>
-      <p className="mb-6 text-sm text-white/50">
-        Demo universe only — symbols from the resolved instruments table (
-        <span className="font-mono text-white/70">instrument_demo</span> when{" "}
-        <span className="font-mono text-white/70">DEV_MODE=dev</span>)
-        (10 US tech names). Search and pagination apply within this set.
-      </p>
+    <div className="space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Market data</p>
+          <h1 className="mt-0.5 text-sm font-semibold text-white">Company / symbol management</h1>
+          <p className="mt-0.5 max-w-3xl truncate text-[10px] text-[var(--dsa-text-muted)]">
+            Resolved instrument universe; search and pagination stay inside the configured admin dataset.
+          </p>
+        </div>
+        <div className="font-mono text-[10px] text-[var(--dsa-text-muted)]">
+          Page {pagination.current_page}/{pagination.last_page}
+        </div>
+      </section>
 
-      <div className="flex flex-wrap gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search by symbol or company name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchCompanies(1, search)}
-          className="px-4 py-2 rounded-lg bg-[#161D2C] border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500/50 min-w-[250px]"
-        />
-        <button
-          onClick={() => fetchCompanies(1, search)}
-          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
-        >
-          Search
-        </button>
-      </div>
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <input
+            type="text"
+            placeholder="Filter symbol / company"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && fetchCompanies(1, search)}
+            className="dsa-control h-7 min-h-0 w-[280px] max-w-[65vw] px-2.5 text-[11px] outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => fetchCompanies(1, search)}
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[11px]"
+          >
+            Refresh
+          </button>
+        </div>
 
-      <div className="rounded-xl border border-white/10 overflow-hidden bg-[#161D2C]">
         {loading ? (
-          <div className="p-12 text-center text-white/60 flex items-center justify-center gap-2">
-            <Loader2 size={20} className="animate-spin" />
-            Loading...
+          <div className="flex min-h-40 items-center justify-center gap-2 text-xs text-[var(--dsa-text-muted)]">
+            <Loader2 size={15} className="animate-spin" />
+            Loading companies…
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="dsa-terminal-table min-w-[820px]">
               <thead>
-                <tr className="border-b border-white/10 text-left text-sm text-white/60">
-                  <th className="p-4 font-medium">Symbol</th>
-                  <th className="p-4 font-medium">Company Name</th>
-                  <th className="p-4 font-medium">Industry</th>
-                  <th className="p-4 font-medium">Sector</th>
-                  <th className="p-4 font-medium">Exchange</th>
+                <tr>
+                  <th className="text-left">Symbol</th>
+                  <th className="text-left">Company</th>
+                  <th className="text-left">Industry</th>
+                  <th className="text-left">Sector</th>
+                  <th className="text-left">Exchange</th>
                 </tr>
               </thead>
               <tbody>
-                {companies.map((c) => (
-                  <tr
-                    key={`${String(c.symbol || "").toUpperCase()}-${c.exchange ?? "na"}`}
-                    className="border-b border-white/5 hover:bg-white/5"
-                  >
-                    <td className="p-4 font-mono font-bold">
+                {companies.map((company) => (
+                  <tr key={`${String(company.symbol || "").toUpperCase()}-${company.exchange ?? "na"}`}>
+                    <td>
                       <Link
-                        href={`/companies/profile/${String(c.symbol || "").toLowerCase()}`}
+                        href={`/companies/profile/${String(company.symbol || "").toLowerCase()}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-blue-400 hover:underline"
+                        className="font-mono font-semibold text-[#8ab4ff] hover:underline"
                       >
-                        {c.symbol}
+                        {company.symbol}
                       </Link>
                     </td>
-                    <td className="p-4">{c.company_name}</td>
-                    <td className="p-4">{c.industry ?? "—"}</td>
-                    <td className="p-4">{c.sector ?? "—"}</td>
-                    <td className="p-4">{c.exchange ?? "—"}</td>
+                    <td className="font-medium text-white">{company.company_name}</td>
+                    <td className="text-[var(--dsa-text-secondary)]">{company.industry ?? "—"}</td>
+                    <td className="text-[var(--dsa-text-secondary)]">{company.sector ?? "—"}</td>
+                    <td className="font-mono text-[var(--dsa-text-muted)]">{company.exchange ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
 
-      {pagination.last_page > 1 && (
-        <div className="flex justify-center gap-2 mt-4">
-          <button
-            disabled={pagination.current_page <= 1}
-            onClick={() => fetchCompanies(pagination.current_page - 1)}
-            className="px-4 py-2 rounded-lg bg-white/10 disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span className="px-4 py-2 text-white/60">
-            {pagination.current_page} / {pagination.last_page}
-          </span>
-          <button
-            disabled={pagination.current_page >= pagination.last_page}
-            onClick={() => fetchCompanies(pagination.current_page + 1)}
-            className="px-4 py-2 rounded-lg bg-white/10 disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
-      )}
+        {pagination.last_page > 1 && (
+          <div className="flex items-center justify-between border-t border-[var(--dsa-border)] px-3 py-2">
+            <span className="font-mono text-[10px] text-[var(--dsa-text-muted)]">
+              {pagination.current_page} / {pagination.last_page}
+            </span>
+            <div className="flex gap-1.5">
+              <button
+                disabled={pagination.current_page <= 1}
+                onClick={() => fetchCompanies(pagination.current_page - 1)}
+                className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                disabled={pagination.current_page >= pagination.last_page}
+                onClick={() => fetchCompanies(pagination.current_page + 1)}
+                className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

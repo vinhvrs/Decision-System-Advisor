@@ -3,6 +3,9 @@ set -u
 
 ROOT="${DSA_ROOT:-/home/trivi/Decision-System-Advisor}"
 OUT="${1:-}"
+COMPOSE_FILE="${DSA_COMPOSE_FILE:-$ROOT/compose.pi.yml}"
+OVERRIDE_FILE="${DSA_OVERRIDE_FILE:-$ROOT/ops/pi/compose.runtime.override.yml}"
+PROJECT="${DSA_COMPOSE_PROJECT:-dsa-pi}"
 
 if [ -n "$OUT" ]; then
   mkdir -p "$(dirname "$OUT")"
@@ -14,43 +17,62 @@ cd "$ROOT" || {
   exit 2
 }
 
+compose_cmd() {
+  if [ -f "$OVERRIDE_FILE" ]; then
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" "$@"
+  else
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
+  fi
+}
+
 echo "======================================================"
 echo "DSA LIVE SOURCE PARITY CAPTURE"
 echo "======================================================"
 echo "ROOT=$ROOT"
+echo "COMPOSE_FILE=$COMPOSE_FILE"
+echo "PROJECT=$PROJECT"
 echo "TIME=$(date -Is)"
 echo
 
-echo "== Git checkpoint =="
-printf "branch="
-git branch --show-current 2>/dev/null || true
-printf "head="
-git rev-parse HEAD 2>/dev/null || true
-git log -1 --date=iso-strict --pretty='commit_date=%cd%ncommit_subject=%s' 2>/dev/null || true
+echo "== Source checkpoint =="
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf "branch="
+  git -C "$ROOT" branch --show-current 2>/dev/null || true
+  printf "head="
+  git -C "$ROOT" rev-parse HEAD 2>/dev/null || true
+  git -C "$ROOT" log -1 --date=iso-strict --pretty='commit_date=%cd%ncommit_subject=%s' 2>/dev/null || true
+  echo
+  echo "-- working tree --"
+  git -C "$ROOT" status --short || true
+  echo
+else
+  echo "LIVE_TREE_MODE=non-git"
+  if [ -f "$ROOT/.deploy-state/target.sha" ]; then
+    echo "target_sha=$(cat "$ROOT/.deploy-state/target.sha")"
+  fi
+fi
 echo
 
-echo "== Working tree =="
-git status --short || true
-echo
-echo "-- changed paths --"
-git diff --name-status 2>/dev/null || true
-git diff --cached --name-status 2>/dev/null || true
-echo
-echo "-- untracked paths --"
-git ls-files --others --exclude-standard 2>/dev/null || true
-echo
+hash_tree_git() {
+  local prefix="$1"
+  git -C "$ROOT" ls-files -z "$prefix" 2>/dev/null     | sort -z     | while IFS= read -r -d '' p; do
+        sha256sum "$ROOT/$p" 2>/dev/null
+      done     | sha256sum     | awk -v p="$prefix" '{print p "_sha256=" $1}'
+}
+
+hash_tree_fs() {
+  local prefix="$1"
+  find "$ROOT/$prefix" -type f     ! -path '*/.next/*'     ! -path '*/node_modules/*'     ! -path '*/vendor/*'     ! -path '*/storage/*'     ! -path '*/bootstrap/cache/*'     ! -path '*/__pycache__/*'     ! -name '.env'     ! -name '.env.*'     ! -name '*.pyc'     -print0 2>/dev/null     | sort -z     | xargs -0 sha256sum 2>/dev/null     | sha256sum     | awk -v p="$prefix" '{print p "_sha256=" $1}'
+}
 
 echo "== Source tree fingerprints =="
-hash_tree() {
-  local prefix="$1"
-  if git ls-files -z "$prefix" 2>/dev/null | grep -qz .; then
-    git ls-files -z "$prefix"       | sort -z       | xargs -0 sha256sum 2>/dev/null       | sha256sum       | awk -v p="$prefix" '{print p "_sha256=" $1}'
-  else
-    echo "${prefix}_sha256=UNAVAILABLE"
-  fi
-}
-hash_tree frontend
-hash_tree backend
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  hash_tree_git frontend
+  hash_tree_git backend
+else
+  hash_tree_fs frontend
+  hash_tree_fs backend
+fi
 echo
 
 echo "== Source route manifest =="
@@ -72,45 +94,22 @@ for needle in data-health market-analytics chart-data-map; do
 done
 echo
 
-echo "== Next build fingerprints/manifests =="
-if [ -f frontend/.next/BUILD_ID ]; then
-  echo "next_build_id=$(cat frontend/.next/BUILD_ID)"
-else
-  echo "next_build_id=UNAVAILABLE"
-fi
-for manifest in   frontend/.next/server/app-paths-manifest.json   frontend/.next/routes-manifest.json   frontend/.next/server/middleware-manifest.json
-do
-  if [ -f "$manifest" ]; then
-    echo "-- $manifest --"
-    sha256sum "$manifest"
-    if [[ "$manifest" == *app-paths-manifest.json ]]; then
-      python3 - "$manifest" <<'PY' 2>/dev/null || true
-import json, sys
-path=sys.argv[1]
-data=json.load(open(path, encoding="utf-8"))
-for route in sorted(data):
-    print(route)
-PY
-    fi
-  fi
-done
+echo "== Docker runtime =="
+compose_cmd config --services 2>/dev/null || true
+echo
+compose_cmd ps 2>/dev/null || true
 echo
 
-echo "== Docker runtime =="
-docker compose config --services 2>/dev/null || true
-echo
-docker compose ps 2>/dev/null || true
-echo
 echo "-- all DSA-like containers/images --"
 docker ps --format '{{.Names}}	{{.Image}}	{{.Status}}' 2>/dev/null   | grep -Ei 'dsa|decision|advisor|frontend|next|nginx|data-engine|api'   || true
 echo
 
-echo "== Runtime 40-symbol contract (non-secret) =="
-docker compose config 2>/dev/null   | grep -E 'SYMBOL_INGEST_(MODE|TOP_N)|HISTORY_BOOTSTRAP_(MIN_BARS|DAYS)|DASHBOARD_WARM_UP_(LIMIT|CHART_BARS)|MARKET_BOARD_SYMBOL_LIMIT'   || true
+echo "== Runtime 40-symbol / Pi contract (non-secret) =="
+compose_cmd config 2>/dev/null   | grep -E 'ENGINE_RESOURCE_PROFILE|SCHEDULER_MAX_WORKERS|AUTO_ANALYZE_(CONCURRENCY|SCHEDULE_LIMIT)|SYMBOL_INGEST_(MODE|TOP_N)|HISTORY_BOOTSTRAP_(MIN_BARS|DAYS)|DASHBOARD_WARM_UP_(LIMIT|CHART_BARS)|MARKET_BOARD_SYMBOL_LIMIT'   || true
 echo
 
 echo "== Data-engine resolved contract =="
-docker compose exec -T data-engine python3 - <<'PY' 2>/dev/null || true
+compose_cmd exec -T data-engine python3 - <<'PY' 2>/dev/null || true
 from app.bootstrap.scheduler_config import (
     SYMBOL_INGEST_MODE,
     SYMBOL_INGEST_TOP_N,
@@ -129,6 +128,8 @@ print("DASHBOARD_WARM_UP_CHART_BARS=", WARM_UP_CHART_BARS)
 print("MARKET_BOARD_SYMBOL_LIMIT=", os.environ.get("MARKET_BOARD_SYMBOL_LIMIT", ""))
 print("HISTORY_BOOTSTRAP_MIN_BARS=", os.environ.get("HISTORY_BOOTSTRAP_MIN_BARS", ""))
 print("HISTORY_BOOTSTRAP_DAYS=", os.environ.get("HISTORY_BOOTSTRAP_DAYS", ""))
+print("ENGINE_RESOURCE_PROFILE=", os.environ.get("ENGINE_RESOURCE_PROFILE", ""))
+print("SCHEDULER_MAX_WORKERS=", os.environ.get("SCHEDULER_MAX_WORKERS", ""))
 PY
 echo
 

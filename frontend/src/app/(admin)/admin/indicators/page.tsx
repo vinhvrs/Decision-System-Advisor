@@ -224,17 +224,16 @@ export default function AdminIndicatorsPage() {
   };
 
   return (
-    <div className="max-w-5xl space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <SlidersHorizontal className="text-emerald-400" size={28} />
+    <div className="space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Analysis configuration</p>
+          <h1 className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-white">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--dsa-positive)]" />
             Indicator parameters
           </h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/55">
-            Tune periods and thresholds per indicator. Values are stored in MySQL and used by the Laravel API and
-            Python analysis engine (60s cache). Env vars in <code className="text-emerald-200/90">backend/.env</code>{" "}
-            are fallbacks only when a row is missing or inactive.
+          <p className="mt-0.5 max-w-3xl truncate text-[10px] text-[var(--dsa-text-muted)]">
+            MySQL-backed periods and thresholds consumed by Laravel and the Python analysis engine.
           </p>
         </div>
         <button
@@ -252,299 +251,307 @@ export default function AdminIndicatorsPage() {
               setLoading(false);
             }
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px] disabled:opacity-50"
         >
-          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
           Refresh
         </button>
-      </div>
+      </section>
 
       {loading ? (
-        <p className="text-sm text-white/45">Loading…</p>
+        <section className="dsa-terminal-panel flex min-h-32 items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+          Loading indicator catalog…
+        </section>
       ) : catalog.length === 0 ? (
-        <p className="text-sm text-amber-200/90">
-          No rows in the indicators catalog yet. Run{" "}
-          <code className="rounded bg-black/40 px-1.5 py-0.5 text-xs">php artisan db:seed --class=IndicatorCatalogSeeder</code>{" "}
-          from <code className="rounded bg-black/40 px-1.5 py-0.5 text-xs">backend/</code>.
-        </p>
+        <section className="dsa-terminal-panel border-[rgba(216,163,64,0.3)] bg-[rgba(216,163,64,0.06)] px-3 py-3 text-[10px] text-[#d9bb7a]">
+          No rows in the indicators catalog. Seed the catalog before editing parameters.
+        </section>
       ) : (
         <>
-          <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-white/60">Indicator</label>
-            <select
-              value={selectedId}
-              onChange={(e) => {
-                cancelEdit();
-                setSelectedId(e.target.value);
-              }}
-              className="w-full max-w-xl rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            >
-              {catalog.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.slug})
-                </option>
-              ))}
-            </select>
+          <section className="dsa-terminal-panel overflow-hidden">
+            <div className="dsa-terminal-panel-head">
+              <div>
+                <p className="text-xs font-semibold text-white">Indicator scope</p>
+                <p className="text-[10px] text-[var(--dsa-text-muted)]">
+                  Select the indicator whose runtime parameters you want to inspect.
+                </p>
+              </div>
+              <select
+                value={selectedId}
+                onChange={(e) => {
+                  cancelEdit();
+                  setSelectedId(e.target.value);
+                }}
+                className="dsa-control h-7 min-h-0 max-w-[380px] px-2 text-[11px] outline-none"
+              >
+                {catalog.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name} ({row.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
             {selectedIndicator?.description ? (
-              <p className="mt-2 text-xs text-white/50">{selectedIndicator.description}</p>
+              <p className="border-t border-[var(--dsa-border)] px-3 py-2 text-[10px] text-[var(--dsa-text-secondary)]">
+                {selectedIndicator.description}
+              </p>
             ) : null}
           </section>
 
-          <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-white/80">Existing parameters</h2>
+          <section className="dsa-terminal-panel overflow-hidden">
+            <div className="dsa-terminal-panel-head">
+              <div>
+                <p className="text-xs font-semibold text-white">Existing parameters</p>
+                <p className="text-[10px] text-[var(--dsa-text-muted)]">{params.length} rows</p>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="dsa-terminal-table min-w-[900px]">
                 <thead>
-                  <tr className="border-b border-white/10 text-xs uppercase text-white/45">
-                    <th className="py-2 pr-2">Key</th>
-                    <th className="py-2 pr-2">Value</th>
-                    <th className="py-2 pr-2">Type</th>
-                    <th className="py-2 pr-2">Label</th>
-                    <th className="py-2 pr-2">Order</th>
-                    <th className="py-2 pr-2">Active</th>
-                    <th className="py-2 text-right">Actions</th>
+                  <tr>
+                    <th className="text-left">Key</th>
+                    <th className="text-left">Value</th>
+                    <th className="text-left">Type</th>
+                    <th className="text-left">Label</th>
+                    <th className="text-right">Order</th>
+                    <th className="text-center">Active</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {params.map((p) => {
-                    const isEditing = editingId === p.id;
+                  {params.map((param) => {
+                    const isEditing = editingId === param.id;
                     return (
-                    <tr key={p.id} className="border-b border-white/5 align-top">
-                      <td className="py-2 pr-2 font-mono text-xs text-emerald-200/95">{p.param_key}</td>
-                      <td className="py-2 pr-2 text-xs text-white/80">
-                        {isEditing ? (
-                          <input
-                            value={editDraft.param_value}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, param_value: e.target.value }))}
-                            className="w-full min-w-[5rem] rounded border border-white/15 bg-black/40 px-2 py-1 font-mono text-white"
-                          />
-                        ) : (
-                          <span className="max-w-[200px] truncate block" title={p.param_value ?? ""}>
-                            {p.param_value ?? "—"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-2 text-xs text-white/60">
-                        {isEditing ? (
-                          <select
-                            value={editDraft.value_type}
-                            onChange={(e) =>
-                              setEditDraft((d) => ({
-                                ...d,
-                                value_type: e.target.value as (typeof VALUE_TYPES)[number],
-                              }))
-                            }
-                            className="rounded border border-white/15 bg-black/40 px-2 py-1 text-white"
-                          >
-                            {VALUE_TYPES.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          p.value_type
-                        )}
-                      </td>
-                      <td className="py-2 pr-2 text-xs text-white/60">
-                        {isEditing ? (
-                          <input
-                            value={editDraft.label}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, label: e.target.value }))}
-                            className="w-full min-w-[5rem] rounded border border-white/15 bg-black/40 px-2 py-1 text-white"
-                          />
-                        ) : (
-                          p.label ?? "—"
-                        )}
-                      </td>
-                      <td className="py-2 pr-2 text-xs tabular-nums text-white/60">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min={0}
-                            value={editDraft.sort_order}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, sort_order: e.target.value }))}
-                            className="w-16 rounded border border-white/15 bg-black/40 px-2 py-1 text-white"
-                          />
-                        ) : (
-                          p.sort_order
-                        )}
-                      </td>
-                      <td className="py-2 pr-2">
-                        {isEditing ? (
-                          <label className="inline-flex items-center gap-1.5 text-[11px] text-white/70">
-                            <input
-                              type="checkbox"
-                              checked={editDraft.is_active}
-                              onChange={(e) => setEditDraft((d) => ({ ...d, is_active: e.target.checked }))}
-                              className="rounded border-white/20"
-                            />
-                            Active
-                          </label>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={busy || isEditing}
-                            onClick={() => void onToggleActive(p)}
-                            className={`rounded px-2 py-0.5 text-[11px] font-bold ${
-                              p.is_active ? "bg-emerald-500/20 text-emerald-200" : "bg-white/10 text-white/50"
-                            }`}
-                          >
-                            {p.is_active ? "On" : "Off"}
-                          </button>
-                        )}
-                      </td>
-                      <td className="py-2 text-right">
-                        <div className="flex flex-wrap items-center justify-end gap-1">
+                      <tr key={param.id} className="align-top">
+                        <td className="font-mono text-[10px] font-semibold text-[#8fd3ae]">{param.param_key}</td>
+                        <td className="max-w-[230px]">
                           {isEditing ? (
-                            <>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => void onSaveEdit(p)}
-                                className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/25"
-                              >
-                                <Check className="h-3 w-3" />
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={cancelEdit}
-                                className="inline-flex items-center gap-1 rounded border border-white/15 px-2 py-1 text-[11px] text-white/70 hover:bg-white/5"
-                              >
-                                <X className="h-3 w-3" />
-                                Cancel
-                              </button>
-                            </>
+                            <input
+                              value={editDraft.param_value}
+                              onChange={(e) => setEditDraft((draft) => ({ ...draft, param_value: e.target.value }))}
+                              className="dsa-control h-7 min-h-0 w-full min-w-[7rem] px-2 font-mono text-[10px]"
+                            />
                           ) : (
-                            <>
-                              <button
-                                type="button"
-                                disabled={busy || editingId != null}
-                                onClick={() => startEdit(p)}
-                                className="inline-flex items-center gap-1 rounded border border-white/15 px-2 py-1 text-[11px] text-white/80 hover:bg-white/5 disabled:opacity-40"
-                              >
-                                <Pencil className="h-3 w-3" />
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy || editingId != null}
-                                onClick={() => void onDelete(p)}
-                                className="inline-flex items-center gap-1 rounded border border-red-500/30 px-2 py-1 text-[11px] text-red-200 hover:bg-red-500/10 disabled:opacity-40"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                                Delete
-                              </button>
-                            </>
+                            <span className="block truncate font-mono text-[10px] text-white" title={param.param_value ?? ""}>
+                              {param.param_value ?? "—"}
+                            </span>
                           )}
-                        </div>
-                        {isEditing ? (
-                          <textarea
-                            value={editDraft.description}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
-                            rows={2}
-                            placeholder="Description (optional)"
-                            className="mt-2 w-full min-w-[10rem] rounded border border-white/15 bg-black/40 px-2 py-1 text-[11px] text-white"
-                          />
-                        ) : null}
-                      </td>
-                    </tr>
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <select
+                              value={editDraft.value_type}
+                              onChange={(e) =>
+                                setEditDraft((draft) => ({
+                                  ...draft,
+                                  value_type: e.target.value as (typeof VALUE_TYPES)[number],
+                                }))
+                              }
+                              className="dsa-control h-7 min-h-0 px-2 text-[10px]"
+                            >
+                              {VALUE_TYPES.map((type) => (
+                                <option key={type} value={type}>
+                                  {type}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="font-mono text-[10px] text-[var(--dsa-text-muted)]">{param.value_type}</span>
+                          )}
+                        </td>
+                        <td className="max-w-[180px]">
+                          {isEditing ? (
+                            <input
+                              value={editDraft.label}
+                              onChange={(e) => setEditDraft((draft) => ({ ...draft, label: e.target.value }))}
+                              className="dsa-control h-7 min-h-0 w-full min-w-[6rem] px-2 text-[10px]"
+                            />
+                          ) : (
+                            <span className="block truncate text-[10px] text-[var(--dsa-text-secondary)]">{param.label ?? "—"}</span>
+                          )}
+                        </td>
+                        <td className="text-right">
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={editDraft.sort_order}
+                              onChange={(e) => setEditDraft((draft) => ({ ...draft, sort_order: e.target.value }))}
+                              className="dsa-control h-7 min-h-0 w-16 px-2 text-right font-mono text-[10px]"
+                            />
+                          ) : (
+                            <span className="font-mono text-[10px] text-[var(--dsa-text-secondary)]">{param.sort_order}</span>
+                          )}
+                        </td>
+                        <td className="text-center">
+                          {isEditing ? (
+                            <label className="inline-flex items-center gap-1 text-[10px] text-[var(--dsa-text-secondary)]">
+                              <input
+                                type="checkbox"
+                                checked={editDraft.is_active}
+                                onChange={(e) => setEditDraft((draft) => ({ ...draft, is_active: e.target.checked }))}
+                              />
+                              Active
+                            </label>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy || isEditing}
+                              onClick={() => void onToggleActive(param)}
+                              className={`rounded-[var(--dsa-radius-sm)] border px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                                param.is_active
+                                  ? "border-[rgba(44,182,125,0.28)] bg-[rgba(44,182,125,0.08)] text-[var(--dsa-positive)]"
+                                  : "border-[var(--dsa-border)] text-[var(--dsa-text-muted)]"
+                              }`}
+                            >
+                              {param.is_active ? "On" : "Off"}
+                            </button>
+                          )}
+                        </td>
+                        <td className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void onSaveEdit(param)}
+                                  className="inline-flex min-h-7 items-center gap-1 rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.28)] px-2 text-[9px] font-semibold text-[var(--dsa-positive)] hover:bg-[rgba(44,182,125,0.08)]"
+                                >
+                                  <Check className="h-3 w-3" />
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={cancelEdit}
+                                  className="dsa-button-secondary min-h-7 px-2 py-1 text-[9px]"
+                                >
+                                  <X className="h-3 w-3" />
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={busy || editingId != null}
+                                  onClick={() => startEdit(param)}
+                                  className="dsa-button-secondary min-h-7 px-2 py-1 text-[9px] disabled:opacity-40"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy || editingId != null}
+                                  onClick={() => void onDelete(param)}
+                                  className="inline-flex min-h-7 items-center gap-1 rounded-[var(--dsa-radius-sm)] border border-[rgba(231,91,100,0.28)] px-2 text-[9px] text-[var(--dsa-negative)] hover:bg-[rgba(231,91,100,0.08)] disabled:opacity-40"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          {isEditing ? (
+                            <textarea
+                              value={editDraft.description}
+                              onChange={(e) => setEditDraft((draft) => ({ ...draft, description: e.target.value }))}
+                              rows={2}
+                              placeholder="Description"
+                              className="dsa-control mt-1.5 min-h-[48px] w-full min-w-[12rem] px-2 py-1 text-[10px]"
+                            />
+                          ) : null}
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            {params.length === 0 ? <p className="mt-3 text-xs text-white/45">No parameters for this indicator yet.</p> : null}
+
+            {params.length === 0 ? (
+              <p className="border-t border-[var(--dsa-border)] px-3 py-6 text-center text-xs text-[var(--dsa-text-muted)]">
+                No parameters for this indicator.
+              </p>
+            ) : null}
           </section>
 
-          <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white/80">
-              <Plus className="h-4 w-4 text-emerald-400" />
-              Add parameter
-            </h2>
-            <form onSubmit={onCreate} className="grid gap-4 tablet:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs text-white/50">Key (letters, digits, . _ -)</label>
-                <input
-                  required
-                  value={form.param_key}
-                  onChange={(e) => setForm((f) => ({ ...f, param_key: e.target.value }))}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                  placeholder="e.g. rsi_period"
-                />
+          <section className="dsa-terminal-panel overflow-hidden">
+            <div className="dsa-terminal-panel-head">
+              <div className="flex items-center gap-2">
+                <Plus className="h-3.5 w-3.5 text-[var(--dsa-positive)]" />
+                <p className="text-xs font-semibold text-white">Add parameter</p>
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-white/50">Value type</label>
-                <select
-                  value={form.value_type}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, value_type: e.target.value as (typeof VALUE_TYPES)[number] }))
-                  }
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                >
-                  {VALUE_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="tablet:col-span-2">
-                <label className="mb-1 block text-xs text-white/50">Value</label>
-                <textarea
-                  value={form.param_value}
-                  onChange={(e) => setForm((f) => ({ ...f, param_value: e.target.value }))}
-                  rows={2}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                  placeholder='Plain text, number, "true"/"false", or JSON for type "json"'
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-white/50">Label (optional)</label>
-                <input
-                  value={form.label}
-                  onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-white/50">Sort order</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.sort_order}
-                  onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                />
-              </div>
-              <div className="tablet:col-span-2">
-                <label className="mb-1 block text-xs text-white/50">Description (optional)</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  rows={2}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                />
-              </div>
-              <div className="flex items-center gap-2 tablet:col-span-2">
-                <input
-                  id="ip-active"
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-                  className="rounded border-white/20"
-                />
-                <label htmlFor="ip-active" className="text-sm text-white/70">
+            </div>
+            <form onSubmit={onCreate} className="grid gap-2 p-3 tablet:grid-cols-2">
+              <input
+                required
+                value={form.param_key}
+                onChange={(e) => setForm((current) => ({ ...current, param_key: e.target.value }))}
+                className="dsa-control h-8 min-h-0 px-2.5 font-mono text-[11px]"
+                placeholder="Parameter key"
+              />
+              <select
+                value={form.value_type}
+                onChange={(e) =>
+                  setForm((current) => ({
+                    ...current,
+                    value_type: e.target.value as (typeof VALUE_TYPES)[number],
+                  }))
+                }
+                className="dsa-control h-8 min-h-0 px-2 text-[11px]"
+              >
+                {VALUE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <textarea
+                value={form.param_value}
+                onChange={(e) => setForm((current) => ({ ...current, param_value: e.target.value }))}
+                rows={2}
+                className="dsa-control min-h-[58px] px-2.5 py-2 font-mono text-[10px] tablet:col-span-2"
+                placeholder='Value: plain text, number, true/false, or JSON'
+              />
+              <input
+                value={form.label}
+                onChange={(e) => setForm((current) => ({ ...current, label: e.target.value }))}
+                className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
+                placeholder="Label (optional)"
+              />
+              <input
+                type="number"
+                min={0}
+                value={form.sort_order}
+                onChange={(e) => setForm((current) => ({ ...current, sort_order: e.target.value }))}
+                className="dsa-control h-8 min-h-0 px-2.5 font-mono text-[11px]"
+                placeholder="Sort order"
+              />
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+                rows={2}
+                className="dsa-control min-h-[58px] px-2.5 py-2 text-[10px] tablet:col-span-2"
+                placeholder="Description (optional)"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2 tablet:col-span-2">
+                <label className="inline-flex items-center gap-1.5 text-[10px] text-[var(--dsa-text-secondary)]">
+                  <input
+                    id="ip-active"
+                    type="checkbox"
+                    checked={form.is_active}
+                    onChange={(e) => setForm((current) => ({ ...current, is_active: e.target.checked }))}
+                  />
                   Active
                 </label>
-              </div>
-              <div className="tablet:col-span-2">
                 <button
                   type="submit"
                   disabled={busy || !selectedId}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                  className="dsa-button-primary min-h-0 px-3 py-1.5 text-[10px] disabled:opacity-50"
                 >
                   Create parameter
                 </button>

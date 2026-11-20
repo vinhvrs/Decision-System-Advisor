@@ -11,8 +11,6 @@ export type StrategyDef = {
   id: StrategyId;
   name: string;
   risk: 'Low' | 'Medium' | 'High';
-  winRate: string;
-  profit: string;
   tags: string[];
   description: string;
   /** Primary pane overlay / sub-pane in “indicator” explain mode */
@@ -31,15 +29,13 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'liq_break',
     name: 'Liquidity Breakout',
     risk: 'Medium',
-    winRate: '68%',
-    profit: '+12.5%',
     tags: ['Trend', 'Momentum'],
     description: 'Trades when Liquidity Score surges with price confirmation.',
     linkedIndicator: 'ls',
     explainIndicator:
       'Uses the same Liquidity Score (LS) lane as the indicator simulator: yellow score (0–100) and raw P×V on its own scale. A “breakout” read is when score pushes into the top quartile while candles print higher highs — here you only see the synthetic replay, not a live signal. The lower strip also shows hybrid MACD: SMA(fast) − EMA(slow), plus signal — so momentum agrees (or not) with liquidity.',
     explainAttributes:
-      'On the beginner board, Liquidity and Volume spikes lift liquidity and volume spokes; Fear & Greed tilts with the day’s close-to-close move (50 + 3.25×r, clamped). Reputation and People care reward green sessions and participation. This strategy conceptually wants high liquidity + volume with supportive F&G, not extreme fear spikes alone. In 6 + F&G view the six scores and F&G line sit on the main chart (0–100 overlay); hybrid MACD is hidden there but still drives the illustrative buy/sell arrows.',
+      'On the beginner board, Liquidity and Volume spikes lift liquidity and volume spokes; Fear & Greed tilts with the day’s close-to-close move (50 + 3.25×r, clamped). Reputation and People care reward green sessions and participation. This strategy conceptually wants high liquidity + volume with supportive F&G, not extreme fear spikes alone. In 6 + F&G view the six scores and F&G line sit on the main chart (0–100 overlay); hybrid MACD is hidden there but still drives the illustrative entry/exit arrows.',
     buyCases: [
       {
         label: 'Liquidity thrust + MACD firming',
@@ -69,8 +65,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'conservative',
     name: 'Conservative Growth',
     risk: 'Low',
-    winRate: '75%',
-    profit: '+4.2%',
     tags: ['Stable', 'Long-term'],
     description: 'Favors steady money flow without chasing extremes.',
     linkedIndicator: 'mfi',
@@ -107,8 +101,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'scalp',
     name: 'Aggressive Scalping',
     risk: 'High',
-    winRate: '54%',
-    profit: '+28.1%',
     tags: ['Fast', 'Scalp'],
     description: 'Short holding periods; reacts to fast oscillators and vol spikes.',
     linkedIndicator: 'stoch',
@@ -145,8 +137,6 @@ export const STRATEGY_DEFINITIONS: StrategyDef[] = [
     id: 'mean_rev',
     name: 'Mean Reversion',
     risk: 'Medium',
-    winRate: '62%',
-    profit: '+8.9%',
     tags: ['Oscillator', 'Reversion'],
     description: 'Looks for stretched price versus a middle band (RSI-style context in prose).',
     linkedIndicator: 'bb',
