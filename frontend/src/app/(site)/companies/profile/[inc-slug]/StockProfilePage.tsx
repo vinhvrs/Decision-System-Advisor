@@ -657,7 +657,9 @@ export function StockProfilePage({ slug }: { slug: string }) {
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-right">
               <p className="font-mono text-sm font-semibold tabular-nums text-white">
-                ${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {livePrice > 0
+                  ? `${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "—"}
               </p>
               <p className={`font-mono text-[10px] tabular-nums ${changePct == null ? CMC.muted : changePct >= 0 ? CMC.green : CMC.red}`}>
                 {changePct == null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`}
@@ -840,7 +842,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
                 />
               </div>
               <p className={`mt-2 text-[10px] leading-relaxed ${CMC.muted}`}>
-                How complete this company record is (name, sector, financials, description, etc.).
+                Completeness of available company-profile fields such as name, sector, industry, description, listing, website and company metadata.
               </p>
             </div>
 
