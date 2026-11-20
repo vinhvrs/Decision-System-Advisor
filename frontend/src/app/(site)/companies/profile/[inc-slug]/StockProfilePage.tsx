@@ -500,7 +500,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
 
   const livePriceLabel =
     livePrice > 0
-      ? `${livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ? "$" + livePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : "—";
 
   const toggleWatchlist = async () => {
