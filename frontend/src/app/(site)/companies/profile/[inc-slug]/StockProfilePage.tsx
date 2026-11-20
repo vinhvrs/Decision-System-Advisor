@@ -168,12 +168,22 @@ function StatTile({
 }
 
 const MAIN_TABS: Array<{ id: ProfileMainTab; label: string }> = [
-  { id: "chart", label: "Chart" },
-  { id: "markets", label: "Listing" },
+  { id: "chart", label: "Overview" },
+  { id: "markets", label: "Market data" },
+  { id: "fundamentals", label: "Financials & KPIs" },
   { id: "news", label: "News" },
-  { id: "fundamentals", label: "Fundamentals" },
-  { id: "about", label: "About" },
+  { id: "about", label: "Company" },
 ];
+
+const RESEARCH_COVERAGE = [
+  { label: "Financials", state: "available" },
+  { label: "KPIs", state: "available" },
+  { label: "Estimates", state: "awaiting" },
+  { label: "Valuation", state: "awaiting" },
+  { label: "Earnings", state: "awaiting" },
+  { label: "Ownership", state: "awaiting" },
+  { label: "Filings", state: "awaiting" },
+] as const;
 
 export function StockProfilePage({ slug }: { slug: string }) {
   const symbol = useMemo(() => normalizeSymbolFromSlug(slug), [slug]);
@@ -576,6 +586,32 @@ export function StockProfilePage({ slug }: { slug: string }) {
             <Link href="/investing" className="dsa-button-secondary min-h-0 shrink-0 px-2.5 py-1 text-[10px]">
               Research workspace
             </Link>
+          </div>
+        </section>
+
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <div>
+              <p className="text-xs font-semibold text-white">Research coverage</p>
+              <p className="text-[10px] text-[var(--dsa-text-muted)]">
+                Fiscal-style research hierarchy. Unavailable datasets remain explicitly unrated.
+              </p>
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+              Data coverage
+            </span>
+          </div>
+          <div className="grid gap-px bg-[var(--dsa-border)] phone:grid-cols-2 tablet:grid-cols-4 laptop:grid-cols-7">
+            {RESEARCH_COVERAGE.map((item) => (
+              <div key={item.label} className="bg-[var(--dsa-surface-1)] px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+                  {item.label}
+                </p>
+                <p className={item.state === "available" ? "mt-1 text-[11px] font-medium text-[var(--dsa-positive)]" : "mt-1 text-[11px] font-medium text-[var(--dsa-warning)]"}>
+                  {item.state === "available" ? "Available" : "Awaiting data"}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
