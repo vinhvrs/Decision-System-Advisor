@@ -52,12 +52,12 @@ export default function InvestingHomePage() {
           <p className="mt-1 text-xs font-medium text-[var(--dsa-text-secondary)]">Gainers / losers + heatmap</p>
         </div>
         <div className="dsa-terminal-kpi">
-          <p className="dsa-section-label">Language</p>
-          <p className="mt-1 text-xs font-medium text-[var(--dsa-text-secondary)]">Research bias, not trade advice</p>
+          <p className="dsa-section-label">Signal contract</p>
+          <p className="mt-1 text-xs font-medium text-[var(--dsa-text-secondary)]">Incomplete inputs → Not Rated</p>
         </div>
       </section>
 
-      <section id="dashboard" className="grid min-w-0 gap-3">
+      <section id="dashboard" className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.75fr)] xl:items-start">
         <div className="dsa-terminal-panel min-w-0 overflow-hidden">
           <div className="dsa-terminal-panel-head">
             <div>
@@ -75,7 +75,7 @@ export default function InvestingHomePage() {
           </div>
         </div>
 
-        <div className="dsa-terminal-panel min-w-0 overflow-hidden">
+        <div className="dsa-terminal-panel min-w-0 overflow-hidden xl:sticky xl:top-[calc(var(--dsa-header-height)+var(--dsa-terminal-modulebar-height)+12px)]">
           <div className="dsa-terminal-panel-head">
             <div>
               <p className="text-xs font-semibold text-white">Live market & watchlist</p>
