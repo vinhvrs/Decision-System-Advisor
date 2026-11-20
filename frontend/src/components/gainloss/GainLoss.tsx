@@ -35,11 +35,13 @@ export default function GainLoss() {
   const [losers, setLosers] = useState<any[]>([]);
   const [updatedNote, setUpdatedNote] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const fetchMarketMovers = async () => {
       try {
         setLoading(true);
+        setLoadError(false);
         const { gainers: g, losers: l, updated_note } = await CompanyService.topVolumeMovers(5);
         setGainers(g);
         setLosers(l);
@@ -48,6 +50,8 @@ export default function GainLoss() {
         console.error("Failed to fetch market movers:", error);
         setGainers([]);
         setLosers([]);
+        setUpdatedNote(undefined);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -85,7 +89,13 @@ export default function GainLoss() {
 
           <span
             className={`min-w-[4.75rem] text-right font-mono text-xs font-semibold tabular-nums ${
-              type === "gainer" ? "dsa-data-positive" : "dsa-data-negative"
+              Number.isFinite(ch)
+                ? ch > 0
+                  ? "dsa-data-positive"
+                  : ch < 0
+                    ? "dsa-data-negative"
+                    : "text-[var(--dsa-text-muted)]"
+                : "text-[var(--dsa-text-muted)]"
             }`}
           >
             {Number.isFinite(ch) ? `${ch > 0 ? "+" : ""}${ch.toFixed(2)}%` : "—"}
@@ -121,7 +131,9 @@ export default function GainLoss() {
             {gainers.length > 0 ? (
               gainers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="gainer" />)
             ) : (
-              <li className="px-3 py-5 text-center text-xs text-[var(--dsa-text-muted)]">No positive movers available.</li>
+              <li className="px-3 py-5 text-center text-xs text-[var(--dsa-text-muted)]">
+                {loadError ? "Mover feed unavailable. No positive ranking inferred." : "No positive movers available."}
+              </li>
             )}
           </ul>
         </section>
@@ -140,7 +152,9 @@ export default function GainLoss() {
             {losers.length > 0 ? (
               losers.map((stock) => <StockItem key={stock.symbol} stock={stock} type="loser" />)
             ) : (
-              <li className="px-3 py-5 text-center text-xs text-[var(--dsa-text-muted)]">No negative movers available.</li>
+              <li className="px-3 py-5 text-center text-xs text-[var(--dsa-text-muted)]">
+                {loadError ? "Mover feed unavailable. No negative ranking inferred." : "No negative movers available."}
+              </li>
             )}
           </ul>
         </section>
