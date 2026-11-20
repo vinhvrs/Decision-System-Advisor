@@ -16,6 +16,13 @@ import { FundamentalsService } from "@/src/services/Fundamentals.service";
 
 export type FundamentalChartKind = "line" | "bar";
 
+export type FundamentalCoverageState = "loading" | "available" | "partial" | "awaiting" | "error";
+
+export type FundamentalCoverage = {
+  financials: FundamentalCoverageState;
+  kpis: FundamentalCoverageState;
+};
+
 function toFiniteNumber(v: unknown): number | null {
   if (v == null || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
@@ -142,7 +149,13 @@ function MiniFundamentalChart({
   );
 }
 
-export function FundamentalSection({ symbol }: { symbol: string }) {
+export function FundamentalSection({
+  symbol,
+  onCoverageChange,
+}: {
+  symbol: string;
+  onCoverageChange?: (coverage: FundamentalCoverage) => void;
+}) {
   const [annual, setAnnual] = useState<AnnualRow[]>([]);
   const [score, setScore] = useState<ScoreRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,23 +165,30 @@ export function FundamentalSection({ symbol }: { symbol: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
-    try {
-      const [aRes, sRes] = await Promise.all([
-        FundamentalsService.annual(symbol, 20).catch(() => ({ data: [] as AnnualRow[] })),
-        FundamentalsService.score(symbol),
-      ]);
-      const raw = (aRes as { data?: unknown }).data;
-      const rows = Array.isArray(raw) ? (raw as AnnualRow[]) : [];
-      setAnnual(rows);
-      const sd = (sRes as { data?: ScoreRow | null })?.data ?? null;
-      setScore(sd);
-    } catch {
+
+    const [annualResult, scoreResult] = await Promise.allSettled([
+      FundamentalsService.annual(symbol, 20),
+      FundamentalsService.score(symbol),
+    ]);
+
+    const annualRaw =
+      annualResult.status === "fulfilled"
+        ? (annualResult.value as { data?: unknown })?.data
+        : [];
+    const rows = Array.isArray(annualRaw) ? (annualRaw as AnnualRow[]) : [];
+    const scoreData =
+      scoreResult.status === "fulfilled"
+        ? ((scoreResult.value as { data?: ScoreRow | null })?.data ?? null)
+        : null;
+
+    setAnnual(rows);
+    setScore(scoreData);
+
+    if (annualResult.status === "rejected" && scoreResult.status === "rejected") {
       setErr("Could not load fundamentals.");
-      setAnnual([]);
-      setScore(null);
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   }, [symbol]);
 
   useEffect(() => {
@@ -186,6 +206,42 @@ export function FundamentalSection({ symbol }: { symbol: string }) {
     ],
     [score],
   );
+
+  const hasKpiScore = useMemo(
+    () =>
+      [
+        score?.growth_score,
+        score?.profitability_score,
+        score?.balance_sheet_score,
+        score?.cash_flow_score,
+        score?.capital_efficiency_score,
+        score?.overall_score,
+      ].some((value) => value != null && Number.isFinite(Number(value))),
+    [score],
+  );
+
+  useEffect(() => {
+    if (!onCoverageChange) return;
+
+    if (loading) {
+      onCoverageChange({ financials: "loading", kpis: "loading" });
+      return;
+    }
+
+    if (err) {
+      onCoverageChange({ financials: "error", kpis: "error" });
+      return;
+    }
+
+    const financials: FundamentalCoverageState = annual.length > 0 ? "available" : "awaiting";
+    const kpis: FundamentalCoverageState = hasKpiScore
+      ? "available"
+      : annual.length > 0
+        ? "partial"
+        : "awaiting";
+
+    onCoverageChange({ financials, kpis });
+  }, [annual.length, err, hasKpiScore, loading, onCoverageChange]);
 
   if (loading) {
     return (
