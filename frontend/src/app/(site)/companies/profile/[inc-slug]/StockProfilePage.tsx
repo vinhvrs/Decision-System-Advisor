@@ -223,6 +223,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
   });
 
   const [loading, setLoading] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState(false);
   const [mainTab, setMainTab] = useState<ProfileMainTab>("chart");
   const [watchlistMutating, setWatchlistMutating] = useState(false);
   const [watchlistActionMessage, setWatchlistActionMessage] = useState<string | null>(null);
@@ -408,6 +409,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
     const initData = async () => {
       try {
         setLoading(true);
+        setProfileLoadError(false);
         setDetails(null);
         setNews([]);
         setSimilar([]);
@@ -432,6 +434,7 @@ export function StockProfilePage({ slug }: { slug: string }) {
         setSimilar(Array.isArray(bundle.similar) ? bundle.similar.slice(0, 6) : []);
       } catch (error) {
         console.error("Stock profile initialization failed:", error);
+        if (!cancelled) setProfileLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -673,6 +676,12 @@ export function StockProfilePage({ slug }: { slug: string }) {
             </Link>
           </div>
         </section>
+
+        {profileLoadError ? (
+          <div className="border border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-xs text-[#d9bb7a]">
+            Company profile metadata is currently unavailable for {symbol}. Price history and independently sourced research data may still load; missing profile fields are not inferred.
+          </div>
+        ) : null}
 
         <section className="dsa-terminal-panel overflow-hidden">
           <div className="dsa-terminal-panel-head">
