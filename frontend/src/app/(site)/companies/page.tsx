@@ -94,7 +94,6 @@ export default function StockRankingPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadError(null);
     CompanyService.topCompanies(20, "liquidity")
       .then((rows) => {
         if (cancelled) return;
