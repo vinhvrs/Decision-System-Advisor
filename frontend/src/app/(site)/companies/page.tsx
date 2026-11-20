@@ -170,7 +170,7 @@ export default function StockRankingPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
-          <span>{stocks.length || 20} liquid names</span>
+          <span>{loading ? "Loading universe" : `${stocks.length} names loaded`}</span>
           <span className="text-[var(--dsa-border-strong)]">|</span>
           <span>Rank: liquidity</span>
           <span className="text-[var(--dsa-border-strong)]">|</span>
