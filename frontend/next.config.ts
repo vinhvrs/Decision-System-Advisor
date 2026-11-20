@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   env: {
     // Mirrors .env.local `DEV_MODE` so client code can use demo / IndexedDB symbol subset.
     NEXT_PUBLIC_DEV_MODE:
