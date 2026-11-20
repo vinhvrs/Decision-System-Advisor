@@ -87,12 +87,14 @@ export default function StockRankingPage() {
   const [selectedStock, setSelectedStock] = useState<any | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState("");
   const detailsCacheRef = useRef<Record<string, any>>({});
   const hoverFetchIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
     CompanyService.topCompanies(20, "liquidity")
       .then((rows) => {
         if (cancelled) return;
@@ -101,7 +103,12 @@ export default function StockRankingPage() {
         setSelectedStock((current: any) => current ?? next[0] ?? null);
       })
       .catch(() => {
-        if (!cancelled) setStocks([]);
+        if (!cancelled) {
+          setStocks([]);
+          setSelectedStock(null);
+          setSelectedDetails(null);
+          setLoadError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -163,7 +170,7 @@ export default function StockRankingPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
-          <span>{stocks.length || 20} liquid names</span>
+          <span>{loading ? "Loading universe" : loadError ? "Universe unavailable" : `${stocks.length} liquid names`}</span>
           <span className="text-[var(--dsa-border-strong)]">|</span>
           <span>Rank: liquidity</span>
           <span className="text-[var(--dsa-border-strong)]">|</span>
@@ -242,7 +249,11 @@ export default function StockRankingPage() {
                 ) : (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-xs text-[var(--dsa-text-muted)]">
-                      No companies match this filter.
+                      {loadError
+                        ? "Company universe is currently unavailable. No ranking is inferred."
+                        : stocks.length === 0
+                          ? "No company rows are available from the ranking feed."
+                          : "No companies match this filter."}
                     </td>
                   </tr>
                 )}
