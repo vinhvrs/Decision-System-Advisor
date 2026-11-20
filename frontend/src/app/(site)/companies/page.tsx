@@ -258,7 +258,11 @@ export default function StockRankingPage() {
                 ) : (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-xs text-[var(--dsa-text-muted)]">
-                      No companies match this filter.
+                      {query.trim()
+                        ? "No companies match this filter."
+                        : loadError
+                          ? "Company ranking unavailable."
+                          : "No company rows returned."}
                     </td>
                   </tr>
                 )}
