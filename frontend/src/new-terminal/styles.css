@@ -2084,3 +2084,143 @@ body {
     position: static;
   }
 }
+
+
+/* Layout architecture: main content drives page flow; side rails never stretch the document */
+.nt-chart-main-grid,
+.nt-market-main-grid,
+.nt-screener-layout {
+  align-items: start !important;
+}
+
+.nt-chart-center,
+.nt-market-center {
+  min-width: 0;
+  align-self: start;
+}
+
+.nt-chart-center {
+  display: flex !important;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nt-chart-rail,
+.nt-market-rail,
+.nt-screener-inspector {
+  align-self: start;
+  position: sticky;
+  top: calc(var(--nt-top) + var(--nt-tape) + 6px);
+  max-height: calc(100dvh - var(--nt-top) - var(--nt-tape) - var(--nt-status) - 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.nt-chart-rail,
+.nt-market-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nt-chart-rail > .nt-panel,
+.nt-market-rail > .nt-panel,
+.nt-screener-inspector > * {
+  flex: 0 0 auto !important;
+}
+
+.nt-chart-coverage-panel {
+  margin-top: 0;
+}
+
+.nt-chart-coverage-panel .nt-microtable td:first-child {
+  width: 30%;
+  color: var(--nt-text-2);
+}
+
+.nt-chart-coverage-panel .nt-microtable td:last-child {
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.nt-chart-fill-grid {
+  align-items: start !important;
+}
+
+.nt-chart-fill-grid > .nt-panel {
+  align-self: start;
+}
+
+.nt-market-bottom-grid {
+  align-items: start !important;
+}
+
+.nt-market-bottom-grid > .nt-panel {
+  align-self: start;
+}
+
+/* Long side datasets scroll inside their rail instead of pushing the page down */
+.nt-chart-rail .nt-microtable,
+.nt-market-rail .nt-microtable,
+.nt-screener-inspector .nt-table,
+.nt-screener-inspector .nt-microtable {
+  width: 100%;
+}
+
+.nt-chart-rail::-webkit-scrollbar,
+.nt-market-rail::-webkit-scrollbar,
+.nt-screener-inspector::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nt-chart-rail::-webkit-scrollbar-track,
+.nt-market-rail::-webkit-scrollbar-track,
+.nt-screener-inspector::-webkit-scrollbar-track {
+  background: #080d13;
+}
+
+.nt-chart-rail::-webkit-scrollbar-thumb,
+.nt-market-rail::-webkit-scrollbar-thumb,
+.nt-screener-inspector::-webkit-scrollbar-thumb {
+  background: #2e3f52;
+  border: 1px solid #080d13;
+}
+
+/* Vertical workspaces use natural document flow; never create empty viewport fillers */
+.nt-company-workspace,
+.nt-indicators-workspace,
+.nt-documents-workspace,
+.nt-watchlists-workspace,
+.nt-news-workspace {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.nt-company-bottom-grid,
+.nt-indicator-bottom-grid,
+.nt-watchlist-bottom-grid {
+  margin-top: 4px !important;
+}
+
+/* Keep wide data sections attached to the content that precedes them */
+.nt-market-workspace > .nt-panel,
+.nt-market-workspace > .nt-table-wrap,
+.nt-chart-workspace > .nt-panel,
+.nt-news-workspace > .nt-panel,
+.nt-documents-workspace > .nt-panel {
+  align-self: stretch;
+}
+
+@media (max-width: 1180px) {
+  .nt-chart-rail,
+  .nt-market-rail,
+  .nt-screener-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
