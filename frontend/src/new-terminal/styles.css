@@ -2366,3 +2366,14 @@ body {
   background: transparent;
 }
 .nt-shell .nt-panel .nt-kpi:last-child { border-right: 0; }
+
+/* Chart axes are data, not UI prose: share the same loaded mono face. */
+.nt-shell .nt-chart-primary-panel .nt-panel-body > div[aria-label] {
+  font-family: var(--nt-font-data);
+}
+.nt-shell .nt-support-description {
+  color: var(--nt-text-2);
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-body);
+  line-height: 1.4;
+}
