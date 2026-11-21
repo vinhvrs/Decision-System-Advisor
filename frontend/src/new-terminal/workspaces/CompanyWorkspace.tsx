@@ -31,7 +31,17 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
   const quote = stored.data?.data.find(row => row.symbol === normalized);
   const profileUrl = sourceLink(profile?.website);
   const tabBase = `/companies/profile/${id}`;
-  return <div className="nt-workspace">
+  const coverageRows = [
+    ["Profile", overview.data ? "AVAILABLE" : overview.error ? "ERROR" : "AWAITING", profile?.exchange ?? "Company source"],
+    ["Stored quote", quote ? "AVAILABLE" : "AWAITING", quote?.as_of ?? "No timestamp"],
+    ["Fundamentals", fund.data ? fund.data.quality ?? "AVAILABLE" : fund.error ? "ERROR" : "AWAITING", fund.data?.as_of ?? "Source-backed metrics"],
+    ["SEC filings", activeTab === "Filings" || activeTab === "Overview" ? (filings.data?.data.length ? "AVAILABLE" : filings.error ? "ERROR" : "AWAITING") : "ON DEMAND", filings.data?.data[0]?.filing_date?.slice(0,10) ?? "SEC"],
+    ["Company news", activeTab === "News" ? (news.data?.length ? "AVAILABLE" : news.error ? "ERROR" : "AWAITING") : "ON DEMAND", news.data?.[0]?.published_at ?? "Timestamped feed"],
+    ["Ownership", activeTab === "Ownership" ? (position.data?.data?.length ? "AVAILABLE" : position.error ? "ERROR" : "AWAITING") : "ON DEMAND", position.data?.reason ?? "Positioning source"],
+    ["Macro events", activeTab === "Earnings" ? (calendar.data?.events?.length ? "AVAILABLE" : calendar.error ? "ERROR" : "AWAITING") : "ON DEMAND", calendar.data?.source ?? "Calendar"],
+  ] as const;
+
+  return <div className="nt-workspace nt-full-workspace nt-company-workspace">
     <section className="nt-toolbar">
       <h1>{profile?.company_name ?? normalized}</h1><SymbolContext symbol={normalized} /><span>{profile?.exchange ?? "Exchange unavailable"}</span>
       <form action="/companies" method="get"><label>Symbol <input name="symbol" value={search} required maxLength={20} onChange={event => setSearch(event.target.value.toUpperCase())} /></label> <button type="submit">Open</button></form>
@@ -60,7 +70,58 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
     {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={(news.data ?? []).map(item => ({ key: item.id, cells: [item.published_at, <SymbolContext key="context" symbol={item.symbol ?? normalized} />, <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>, <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>] }))} empty={news.error ?? "No timestamped articles for this symbol."} />}
     {activeTab === "Earnings" && <DataTable title="Macro calendar for the symbol's currency context" columns={["Time","Country / Currency","Event","Importance"]} rows={(calendar.data?.events ?? []).map(item => ({ key: item.id, cells: [item.scheduled_at, <CurrencyContext key="currency" currency={item.currency} />, item.title, <ImpactBadge key="impact" impact={item.impact} />] }))} empty={calendar.error ?? "No matching macro events."} note="This is a macro calendar. Importance is provider metadata, not a trading signal. Earnings dates, surprise and dividend schedules need a dedicated corporate-actions feed." />}
     {activeTab === "Ownership" && <DataTable title="Positioning coverage" columns={["Metric","Value","Source","Quality"]} rows={(position.data?.data ?? []).map((item, index) => ({ key: String(index), cells: [item.metric_code ?? item.series_code, valueText(item.value), item.source, item.quality] }))} empty={position.error ?? position.data?.reason ?? "No positioning observations."} note="Issuer ownership requires SEC 13F and Form 4 aggregation. CFTC positions describe mapped futures contracts." />}
-    {activeTab === "Estimates" && <DataTable title="Consensus estimates" columns={["Dataset","Status"]} rows={[{ key: "estimates", cells: ["EPS, revenue, revisions and analyst coverage", "Missing point-in-time estimates feed"] }]} />}
-    {activeTab === "Chart" && <div className="nt-toolbar"><Link href={`/investing?symbol=${id}`}>Open {normalized} in Chart Lab ↗</Link></div>}
+    {activeTab === "Estimates" && <DataTable title="Consensus estimates coverage" columns={["Dataset","Status","Required observation"]} rows={[
+      { key: "eps", cells: ["EPS consensus", "UNAVAILABLE", "Point-in-time analyst estimates by fiscal period"] },
+      { key: "revenue", cells: ["Revenue consensus", "UNAVAILABLE", "Point-in-time revenue estimates"] },
+      { key: "revisions", cells: ["30D / 90D revisions", "UNAVAILABLE", "Historical estimate snapshots"] },
+      { key: "dispersion", cells: ["Estimate dispersion", "UNAVAILABLE", "Analyst-level low / median / high"] },
+      { key: "coverage", cells: ["Analyst coverage", "UNAVAILABLE", "Contributor count and freshness"] },
+      { key: "earnings-date", cells: ["Issuer earnings date", "UNAVAILABLE", "Dedicated corporate-events source"] },
+      { key: "surprise", cells: ["Earnings surprise history", "UNAVAILABLE", "Actual vs point-in-time consensus"] },
+      { key: "guidance", cells: ["Issuer guidance", "UNAVAILABLE", "Guidance ranges and revision history"] },
+    ]} note="Unavailable estimate datasets remain explicit; they are not reconstructed from price action or stale snapshots." />}
+    {activeTab === "Chart" && <>
+      <DataTable title={`${normalized} · chart handoff`} columns={["Field","Value","State"]} rows={[
+        { key: "price", cells: ["Stored price", valueText(quote?.price), quote ? "AVAILABLE" : "AWAITING"] },
+        { key: "change", cells: ["Session change", quote?.change_pct == null ? "—" : `${valueText(quote.change_pct)}%`, quote ? "AVAILABLE" : "AWAITING"] },
+        { key: "asof", cells: ["Quote timestamp", quote?.as_of, quote?.as_of ? "TIMESTAMPED" : "AWAITING"] },
+        { key: "history", cells: ["Daily OHLCV", "Open in Chart Lab", "SOURCE-AWARE"] },
+        { key: "indicators", cells: ["Derived indicators", fund.data?.quality ?? "—", fund.data ? "COVERAGE KNOWN" : "AWAITING"] },
+      ]} note="The full time-series workspace is kept in Chart Lab so company research retains its current symbol context without duplicating chart state." />
+      <div className="nt-toolbar nt-company-chart-actions"><Link href={`/investing?symbol=${id}`}>Open {normalized} in full Chart Lab ↗</Link><Link href={`/screener?q=${id}`}>Compare in Screener ↗</Link></div>
+    </>}
+
+    <div className="nt-company-bottom-grid">
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Research coverage</strong><span className="nt-panel-meta">current symbol</span></div>
+        <table className="nt-microtable"><thead><tr><th>Dataset</th><th>State</th><th>Source / as of</th></tr></thead><tbody>
+          {coverageRows.map(([dataset,state,source]) => <tr key={dataset}><td>{dataset}</td><td className={state === "AVAILABLE" ? "nt-positive" : state === "ERROR" ? "nt-negative" : state === "AWAITING" ? "nt-warning" : "nt-muted"}>{state}</td><td>{source}</td></tr>)}
+        </tbody></table>
+      </section>
+
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Linked research</strong><span className="nt-panel-meta">same symbol context</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Company overview</td><td><Link href={tabBase}>Open ↗</Link></td></tr>
+          <tr><td>Financial statements</td><td><Link href={`${tabBase}?view=financials`}>Open ↗</Link></td></tr>
+          <tr><td>SEC filings</td><td><Link href={`${tabBase}?view=filings`}>Open ↗</Link></td></tr>
+          <tr><td>News / events</td><td><Link href={`${tabBase}?view=news`}>Open ↗</Link></td></tr>
+          <tr><td>Chart Lab</td><td><Link href={`/investing?symbol=${id}`}>Open ↗</Link></td></tr>
+          <tr><td>Screener context</td><td><Link href={`/search?q=${id}`}>Open ↗</Link></td></tr>
+        </tbody></table>
+      </section>
+
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Integrity rules</strong><span className="nt-panel-meta">research contract</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Missing values</td><td>Remain —</td></tr>
+          <tr><td>Unavailable feeds</td><td>Explicit state</td></tr>
+          <tr><td>Derived metrics</td><td>Source + as-of</td></tr>
+          <tr><td>Forward estimates</td><td>No synthetic fill</td></tr>
+          <tr><td>Directional labels</td><td>No inference from missing</td></tr>
+          <tr><td>Cross-workspace symbol</td><td>{normalized}</td></tr>
+        </tbody></table>
+      </section>
+    </div>
   </div>;
 }
