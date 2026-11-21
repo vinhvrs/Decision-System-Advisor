@@ -396,6 +396,18 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
               return <tr key={item}><td>{item}</td><td title={value?.reason ?? undefined}>{value?.value == null ? value?.quality ?? "—" : valueText(value.value)}</td></tr>;
             })}</tbody></table>
           </section>
+
+          <section className="nt-panel">
+            <div className="nt-panel-title"><strong>Active chart context</strong><span className="nt-panel-meta">current workspace</span></div>
+            <table className="nt-microtable"><tbody>
+              <tr><td>Symbol</td><td>{symbol}</td></tr>
+              <tr><td>Range</td><td>{range}</td></tr>
+              <tr><td>Bars loaded</td><td>{bars.length || "—"}</td></tr>
+              <tr><td>Active overlays</td><td>{activeIndicatorCount}</td></tr>
+              <tr><td>Armed alerts</td><td>{currentAlerts.filter(alert => alert.enabled).length}</td></tr>
+              <tr><td>Latest bar</td><td>{latest?.timestamps.slice(0,10) ?? "—"}</td></tr>
+            </tbody></table>
+          </section>
         </aside>
 
         <section className="nt-section-stack nt-chart-center">
@@ -468,6 +480,23 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
               </table>
             </section>
           </div>
+
+          <section className="nt-panel nt-chart-coverage-panel">
+            <div className="nt-panel-title"><strong>Chart data coverage</strong><span className="nt-panel-meta">source · capability · limits</span></div>
+            <table className="nt-microtable">
+              <thead><tr><th>Series / capability</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>OHLCV</td><td>{state}</td></tr>
+                <tr><td>Local overlays</td><td>SMA20 / SMA50 / EMA20 / Bollinger20 + RSI14 / ATR14</td></tr>
+                <tr><td>Price alerts</td><td>Browser-local with chart price lines</td></tr>
+                <tr><td>Source-backed metrics</td><td>{metrics.data?.quality === "LICENSE_RESTRICTED" ? "Historical fallback lacks public redistribution permission" : metrics.data?.quality ?? metrics.error ?? "Awaiting source"}</td></tr>
+                <tr><td>Correlation</td><td>{correlation.data?.reason ?? correlation.error ?? "Requires overlapping licensed histories"}</td></tr>
+                <tr><td>Issuer events</td><td>Dedicated earnings / corporate-actions feed required</td></tr>
+                <tr><td>VWAP / volume profile</td><td>Requires suitable intraday bars or trade prints</td></tr>
+                <tr><td>Implied volatility</td><td>Requires option chains with quotes, expirations and greeks</td></tr>
+              </tbody>
+            </table>
+          </section>
         </section>
 
         <aside className="nt-section-stack nt-chart-rail">
@@ -554,17 +583,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
         </aside>
       </div>
 
-      <DataTable title="Chart data coverage" columns={["Series", "Status"]}
-        rows={[
-          { key: "bars", cells: ["OHLCV", state] },
-          { key: "indicators", cells: ["Local overlays", "SMA20 / SMA50 / EMA20 / Bollinger20 + RSI14 / ATR14 derived from stored bars"] },
-          { key: "alerts", cells: ["Price alerts", "Browser-local persistence with chart price lines; server notification service not connected"] },
-          { key: "metrics", cells: ["Source-backed derived metrics", metrics.data?.quality === "LICENSE_RESTRICTED" ? "Historical fallback lacks public redistribution permission" : metrics.data?.quality ?? metrics.error ?? "Awaiting source"] },
-          { key: "correlation", cells: ["Correlation", correlation.data?.reason ?? correlation.error ?? "Requires overlapping licensed histories"] },
-          { key: "events", cells: ["Earnings and corporate actions", "Dedicated issuer events feed required; available macro records are shown separately"] },
-          { key: "intraday", cells: ["VWAP and volume profile", "Requires intraday bars or trade prints at a suitable resolution"] },
-          { key: "options", cells: ["Implied volatility", "Requires option chains with quotes, expirations and greeks"] },
-        ]} />
+ ]} />
     </div>
   );
 }
