@@ -35,20 +35,54 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
       <label>Sort <select value={sort} onChange={event => setSort(event.target.value)}><option value="symbol">Symbol</option><option value="change">Session change</option><option value="traded">Traded value</option></select></label>
       <span>{shown.length} / {all.length} instruments</span>
     </section>
-    <DataTable title="Instrument universe and stored session" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap", "As of"]}
-      empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading Pi instrument universe…")}
-      rows={shown.map(row => {
-        const stored = bySymbol.get(row.symbol);
-        return { key: row.symbol, cells: [<button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>, <SymbolContext key="context" symbol={row.symbol} />, row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct), valueText(stored?.traded_value), valueText(stored?.market_cap), stored?.as_of] };
-      })}
-      note={snapshot.error ?? "Traded value is reported separately from share volume. Missing price, market cap and timestamps remain blank."} />
-    <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "Source / missing data"]}
-      rows={[[fund.data, ["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"]], [tech.data, ["rsi14", "atr_pct", "average_volume20", "relative_volume"]]].flatMap(([feed, keys]) =>
-        (keys as string[]).map(key => {
-          const metric = (feed as Metrics | undefined)?.metrics[key];
-          return { key, cells: [key.replace(/_/g, " "), valueText(metric?.value), metric?.unit, metric?.quality, metric?.reason ?? metric?.metadata?.source ?? "No suitable observation"] };
-        }))}
-      note="Forward P/E requires point-in-time earnings consensus. Relative volume and technical measures require suitable price history and publication rights." />
-    {selected && <div className="nt-toolbar"><Link href={`/companies/profile/${encodeURIComponent(selected)}`}>Company research ↗</Link><Link href={`/investing?symbol=${encodeURIComponent(selected)}`}>Chart Lab ↗</Link></div>}
+    <div className="nt-screener-layout">
+      <section className="nt-screener-results">
+        <DataTable title="Instrument universe and stored session" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap", "As of"]}
+          empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading Pi instrument universe…")}
+          rows={shown.map(row => {
+            const stored = bySymbol.get(row.symbol);
+            return { key: row.symbol, cells: [
+              <button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>,
+              <SymbolContext key="context" symbol={row.symbol} />,
+              row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct),
+              valueText(stored?.traded_value), valueText(stored?.market_cap), stored?.as_of
+            ] };
+          })}
+          note={snapshot.error ?? "Traded value is reported separately from share volume. Missing price, market cap and timestamps remain blank."} />
+      </section>
+
+      <aside className="nt-screener-inspector">
+        <section className="nt-panel">
+          <div className="nt-panel-title">
+            <strong>{selected ? `${selected} · linked inspector` : "Linked inspector"}</strong>
+            <span className="nt-panel-meta">selection stays in screener</span>
+          </div>
+          <div className="nt-screener-selected">
+            <SymbolContext symbol={selected} />
+            <div>
+              <div className="nt-label">Last</div>
+              <strong className="nt-mono">{valueText(bySymbol.get(selected ?? "")?.price)}</strong>
+            </div>
+            <div>
+              <div className="nt-label">Change</div>
+              <strong className={(bySymbol.get(selected ?? "")?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{valueText(bySymbol.get(selected ?? "")?.change_pct)}%</strong>
+            </div>
+          </div>
+        </section>
+
+        <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "Source / missing data"]}
+          rows={[[fund.data, ["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"]], [tech.data, ["rsi14", "atr_pct", "average_volume20", "relative_volume"]]].flatMap(([feed, keys]) =>
+            (keys as string[]).map(key => {
+              const metric = (feed as Metrics | undefined)?.metrics[key];
+              return { key, cells: [key.replace(/_/g, " "), valueText(metric?.value), metric?.unit, metric?.quality, metric?.reason ?? metric?.metadata?.source ?? "No suitable observation"] };
+            }))}
+          note="Forward P/E requires point-in-time earnings consensus. Relative volume and technical measures require suitable price history and publication rights." />
+
+        {selected && <div className="nt-toolbar nt-screener-links">
+          <Link href={`/companies/profile/${encodeURIComponent(selected)}`}>Company research ↗</Link>
+          <Link href={`/investing?symbol=${encodeURIComponent(selected)}`}>Chart Lab ↗</Link>
+        </div>}
+      </aside>
+    </div>
   </div>;
 }
