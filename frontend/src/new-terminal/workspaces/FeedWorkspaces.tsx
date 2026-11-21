@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DataTable from "../DataTable";
 import { labelText, sourceLink, valueText, type Calendar, type Filing, type Health, type Metrics, type News, type Technical, type Universe } from "../feeds";
 import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import { useFeed } from "../useFeed";
+import type { MarketRow } from "../marketSnapshot";
 
 export function NewsWorkspace() {
   const [page, setPage] = useState(1);
@@ -17,7 +18,7 @@ export function NewsWorkspace() {
     return acc;
   }, {} as Record<string, number>);
 
-  return <div className="nt-workspace nt-news-workspace">
+  return <div className="nt-workspace nt-full-workspace nt-news-workspace">
     <section className="nt-context-strip">
       <div className="nt-context-title"><div className="nt-label nt-info">News / Events</div><h1>Market Information Feed</h1></div>
       <div className="nt-news-stat"><span>HEADLINES</span><b>{news.data?.data?.length ?? "—"}</b></div>
@@ -69,16 +70,55 @@ export function IndicatorsWorkspace() {
   const id = encodeURIComponent(symbol);
   const metrics = useFeed<Metrics>(`/api/v1/metrics/${id}?timeframe=${period}`);
   const technical = useFeed<Technical>(metrics.data && metrics.data.quality !== "LICENSE_RESTRICTED" ? `/api/v1/technical/${id}?period=${period}` : null);
-  return <div className="nt-workspace">
+  const metricEntries = Object.entries(metrics.data?.metrics ?? {});
+  const technicalEntries = Object.entries(technical.data?.indicators ?? {});
+  const availableMetricCount = metricEntries.filter(([, item]) => item.value != null).length;
+  const unavailableMetricCount = metricEntries.length - availableMetricCount;
+  return <div className="nt-workspace nt-full-workspace nt-indicators-workspace">
     <section className="nt-toolbar"><h1>Indicators</h1><label>Symbol <select value={symbol} onChange={event => setSymbol(event.target.value)}>{[...new Set(["AAPL", ...(universe.data?.data ?? []).map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}</select></label>
       <label>Period <select value={period} onChange={event => setPeriod(event.target.value)}><option value="daily">Daily</option><option value="30m">30 minutes</option></select></label></section>
     <DataTable title="Published metric snapshot" columns={["Indicator", "Value", "Unit", "Quality", "Reason"]}
-      rows={Object.entries(metrics.data?.metrics ?? {}).map(([key, item]) => ({ key, cells: [labelText(key), valueText(item.value), item.unit, item.quality, item.reason] }))}
+      rows={metricEntries.map(([key, item]) => ({ key, cells: [labelText(key), valueText(item.value), item.unit, item.quality, item.reason] }))}
       empty={metrics.error ?? "No metric snapshot for this symbol and period."}
       note={metrics.data?.as_of ? `Snapshot as of ${metrics.data.as_of}. Null values follow backend coverage and publication rights.` : undefined} />
     <DataTable title="Technical indicator registry" columns={["Indicator", "Value", "Status"]}
-      rows={Object.entries(technical.data?.indicators ?? {}).map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value), item.status] }))}
+      rows={technicalEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value), item.status] }))}
       empty={metrics.data?.quality === "LICENSE_RESTRICTED" ? "Historical fallback source does not permit public redistribution of these derived values." : technical.error ?? "No technical registry returned."} />
+
+    <div className="nt-indicator-bottom-grid">
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Coverage summary</strong><span className="nt-panel-meta">{symbol} · {period}</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Published metrics</td><td>{metricEntries.length || "—"}</td><td>{metrics.data?.as_of ?? "—"}</td></tr>
+          <tr><td>Available values</td><td className="nt-positive">{availableMetricCount || "—"}</td><td>Observed</td></tr>
+          <tr><td>Unavailable values</td><td className={unavailableMetricCount ? "nt-warning" : ""}>{unavailableMetricCount}</td><td>No synthetic fill</td></tr>
+          <tr><td>Technical registry</td><td>{technicalEntries.length || "—"}</td><td>{technical.error ?? "Source dependent"}</td></tr>
+          <tr><td>Metric quality</td><td>{metrics.data?.quality ?? "—"}</td><td>Backend state</td></tr>
+        </tbody></table>
+      </section>
+
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Indicator families</strong><span className="nt-panel-meta">coverage map</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Trend</td><td>SMA / EMA / position</td><td>History required</td></tr>
+          <tr><td>Momentum</td><td>RSI / MACD</td><td>History required</td></tr>
+          <tr><td>Volatility</td><td>ATR / ranges</td><td>OHLC required</td></tr>
+          <tr><td>Liquidity</td><td>Volume / relative volume</td><td>Volume required</td></tr>
+          <tr><td>Valuation</td><td>Fundamental-derived</td><td>Reported data</td></tr>
+        </tbody></table>
+      </section>
+
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Linked research</strong><span className="nt-panel-meta">same symbol</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Company</td><td><Link href={`/companies/profile/${encodeURIComponent(symbol)}`}>Open ↗</Link></td></tr>
+          <tr><td>Chart Lab</td><td><Link href={`/investing?symbol=${encodeURIComponent(symbol)}`}>Open ↗</Link></td></tr>
+          <tr><td>Screener</td><td><Link href={`/search?q=${encodeURIComponent(symbol)}`}>Open ↗</Link></td></tr>
+          <tr><td>Documents</td><td><Link href="/documents">Open ↗</Link></td></tr>
+          <tr><td>Data contract</td><td>Null ≠ zero</td></tr>
+        </tbody></table>
+      </section>
+    </div>
   </div>;
 }
 
@@ -87,7 +127,7 @@ export function DocumentsWorkspace() {
   const [query, setQuery] = useState("AAPL");
   const filings = useFeed<{ data: Filing[] }>(`/api/filings/${encodeURIComponent(symbol)}`);
   const health = useFeed<Health>("/api/v1/data-health", 60000);
-  return <div className="nt-workspace">
+  return <div className="nt-workspace nt-full-workspace nt-documents-workspace">
     <section className="nt-toolbar"><h1>Documents & Data Coverage</h1><form onSubmit={event => { event.preventDefault(); setSymbol(query.trim()); }}><label>SEC ticker <input value={query} required pattern="[A-Za-z]{1,12}" onChange={event => setQuery(event.target.value.toUpperCase())} /></label> <button type="submit">Find filings</button></form></section>
     <DataTable title={`${symbol} · SEC filings`} columns={["Form", "Filed", "Report period", "SEC document"]}
       rows={(filings.data?.data ?? []).map(item => ({ key: item.accession_number, cells: [item.form, item.filing_date?.slice(0,10), item.report_date?.slice(0,10), <a key="sec" href={sourceLink(item.filing_url)} rel="noreferrer">{item.accession_number}</a>] }))}
@@ -122,6 +162,10 @@ function WatchlistEditor({ token }: { token: string | null }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
+  const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
+  const bySymbol = useMemo(() => new Map(snapshot.data?.data.map(row => [row.symbol, row])), [snapshot.data]);
+
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
@@ -148,11 +192,69 @@ function WatchlistEditor({ token }: { token: string | null }) {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Watchlist update failed."); }
     finally { setBusy(false); }
   }
-  return <div className="nt-workspace"><h1>Watchlists</h1>
-    {!token ? <p>Sign in to load saved symbols from the Pi account database. <Link href="/auth/login">Sign in ↗</Link></p> : <form className="nt-toolbar" onSubmit={event => { event.preventDefault(); void update("POST", symbol.trim()); }}>
-      <label>Symbol <input required maxLength={20} value={symbol} onChange={event => setSymbol(event.target.value.toUpperCase())} /></label> <button type="submit" disabled={busy}>Save symbol</button>
-    </form>}
-    {error && <p role="status">{error} <Link href="/auth/login">Sign in ↗</Link></p>}
-    {token && <DataTable title="Saved symbols" columns={["Symbol", "Saved", "Action"]} rows={items.map(item => ({ key: item.symbol, cells: [<Link key="symbol" href={`/investing?symbol=${encodeURIComponent(item.symbol)}`}>{item.symbol}</Link>, item.created_at, <button key="remove" type="button" disabled={busy} onClick={() => void update("DELETE", item.symbol)}>Remove</button>] }))} />}
+
+  const quick = (universe.data?.data ?? []).slice(0, 20);
+  return <div className="nt-workspace nt-full-workspace nt-watchlists-workspace">
+    <section className="nt-context-strip">
+      <div className="nt-context-title"><div className="nt-label nt-info">Watchlists</div><h1>Symbol Monitor</h1></div>
+      <div className="nt-news-stat"><span>ACCOUNT</span><b>{token ? "SIGNED IN" : "GUEST"}</b></div>
+      <div className="nt-news-stat"><span>SAVED</span><b>{token ? items.length : "—"}</b></div>
+      <div className="nt-news-stat"><span>UNIVERSE</span><b>{universe.data?.data.length ?? "—"}</b></div>
+      <div className="nt-news-stat"><span>SNAPSHOT</span><b>{snapshot.data?.data.length ?? "—"}</b></div>
+    </section>
+
+    {token ? <form className="nt-toolbar" onSubmit={event => { event.preventDefault(); void update("POST", symbol.trim()); }}>
+      <label>Symbol <input required maxLength={20} value={symbol} onChange={event => setSymbol(event.target.value.toUpperCase())} /></label>
+      <button type="submit" disabled={busy}>Save symbol</button>
+      <span className="nt-muted">Saved symbols remain linked to Company and Chart Lab.</span>
+    </form> : <section className="nt-toolbar">
+      <span>Sign in to persist a personal watchlist.</span><Link href="/auth/login">Sign in ↗</Link>
+      <span className="nt-muted">Market quick access remains available below.</span>
+    </section>}
+
+    {error && <div className="nt-database-note" role="status">{error} <Link href="/auth/login">Sign in ↗</Link></div>}
+
+    {token && <DataTable title="Saved symbols" columns={["Symbol","Context","Last","Change %","As of","Saved","Action"]} rows={items.map(item => {
+      const row=bySymbol.get(item.symbol);
+      return { key:item.symbol, cells:[
+        <Link key="symbol" href={`/companies/profile/${encodeURIComponent(item.symbol)}`}>{item.symbol}</Link>,
+        <SymbolContext key="context" symbol={item.symbol} />,
+        valueText(row?.price), valueText(row?.change_pct), row?.as_of, item.created_at,
+        <button key="remove" type="button" disabled={busy} onClick={() => void update("DELETE", item.symbol)}>Remove</button>
+      ]};
+    })} empty="No saved symbols yet. Add one above." />}
+
+    <DataTable title={token ? "Universe quick access" : "Guest market quick access"} columns={["Symbol","Context","Instrument","Last","Change %","As of","Research"]}
+      rows={quick.map(row => {
+        const stored=bySymbol.get(row.symbol);
+        return { key:row.symbol, cells:[
+          row.symbol,<SymbolContext key="context" symbol={row.symbol} />,row.name,valueText(stored?.price),valueText(stored?.change_pct),stored?.as_of,
+          <span key="links"><Link href={`/companies/profile/${encodeURIComponent(row.symbol)}`}>Company</Link> · <Link href={`/investing?symbol=${encodeURIComponent(row.symbol)}`}>Chart</Link></span>
+        ]};
+      })}
+      empty={universe.error ?? "Loading instrument universe…"} />
+
+    <div className="nt-watchlist-bottom-grid">
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Workspace behavior</strong><span className="nt-panel-meta">persistent context</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Saved list</td><td>{token ? "Account database" : "Sign-in required"}</td></tr>
+          <tr><td>Market snapshot</td><td>{snapshot.data ? "AVAILABLE" : "AWAITING"}</td></tr>
+          <tr><td>Company link</td><td>Same symbol</td></tr>
+          <tr><td>Chart link</td><td>Same symbol</td></tr>
+          <tr><td>Missing values</td><td>Remain —</td></tr>
+        </tbody></table>
+      </section>
+      <section className="nt-panel">
+        <div className="nt-panel-title"><strong>Data integrity</strong><span className="nt-panel-meta">watchlist contract</span></div>
+        <table className="nt-microtable"><tbody>
+          <tr><td>Price</td><td>No synthetic fill</td></tr>
+          <tr><td>Change</td><td>Session source only</td></tr>
+          <tr><td>Timestamp</td><td>Displayed when present</td></tr>
+          <tr><td>Unavailable feed</td><td>Explicit state</td></tr>
+          <tr><td>Guest mode</td><td>Read-only universe</td></tr>
+        </tbody></table>
+      </section>
+    </div>
   </div>;
 }
