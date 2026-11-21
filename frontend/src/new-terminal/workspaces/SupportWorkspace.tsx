@@ -6,7 +6,7 @@ export default function SupportWorkspace({ title, description }: { title: string
           <div className="nt-label nt-info">Workspace</div>
           <h1>{title}</h1>
         </div>
-        <div className="nt-muted" style={{ fontSize: 11 }}>{description}</div>
+        <div className="nt-support-description">{description}</div>
       </section>
       <section className="nt-panel">
         <div className="nt-panel-title">
