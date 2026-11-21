@@ -1,3 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type MarketRow = { symbol: string; market: string; price: number | null; change_pct: number | null; traded_value: number | null; as_of: string | null };
+type Quote = { price: number; change: number | null; at: number };
+const priceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+const percent = (value: number | null | undefined) => value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+
 const heat = [
   ["NVDA","Technology"],["MSFT","Technology"],["AAPL","Technology"],["AVGO","Technology"],
   ["AMD","Technology"],["ORCL","Technology"],["CRM","Technology"],["MU","Technology"],
@@ -28,6 +37,65 @@ const events = ["Macro release","Fed speaker","Earnings event","Treasury auction
 const movers = ["Top gainers","Top losers","Rel volume","Gap up","Gap down","New highs"];
 
 export default function MarketsWorkspace() {
+  const [rows, setRows] = useState<MarketRow[]>([]);
+  const [quotes, setQuotes] = useState<Record<string, Quote>>({});
+  const [updated, setUpdated] = useState(0);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let socket: WebSocket;
+    let retry: ReturnType<typeof setTimeout>;
+    async function refresh() {
+      try {
+        const response = await fetch("/api/v1/market-heatmap", { cache: "no-store", signal: controller.signal });
+        if (response.ok) setRows((await response.json()).data ?? []);
+      } catch { /* Keep the last successful snapshot. */ }
+      setUpdated(Date.now());
+    }
+    function connect() {
+      if (controller.signal.aborted) return;
+      socket = new WebSocket("wss://data.aitemple.tech/ws/quotes");
+      socket.onopen = () => {
+        setConnected(true);
+        socket.send(JSON.stringify({ type: "subscribe", symbols: heat.map(([symbol]) => symbol) }));
+      };
+      socket.onmessage = ({ data }) => {
+        try {
+          const quote = JSON.parse(data);
+          if ((quote.type !== "quote" && quote.type !== "initial_quote") || typeof quote.symbol !== "string" || !Number.isFinite(quote.price) || quote.price <= 0) return;
+          const at = quote.type === "initial_quote" ? quote.quote_ts : quote.ts;
+          if (!Number.isFinite(at)) return;
+          setQuotes(previous => previous[quote.symbol]?.at > at ? previous : {
+            ...previous,
+            [quote.symbol]: { price: quote.price, change: Number.isFinite(quote.change) ? quote.change : null, at },
+          });
+          setUpdated(Date.now());
+        } catch { /* Ignore frames that are not quotes. */ }
+      };
+      socket.onclose = () => {
+        if (controller.signal.aborted) return;
+        setConnected(false);
+        retry = setTimeout(connect, 5000);
+      };
+    }
+    void refresh();
+    connect();
+    const timer = setInterval(refresh, 30000);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+      clearTimeout(retry);
+      socket?.close();
+    };
+  }, []);
+
+  const bySymbol = new Map(rows.map(row => [row.symbol, row]));
+  const equities = rows.filter(row => row.market === "stock" && row.change_pct != null);
+  const leaders = [...equities].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
+  const up = equities.filter(row => (row.change_pct ?? 0) > 0).length;
+  const down = equities.filter(row => (row.change_pct ?? 0) < 0).length;
+  const traded = equities.flatMap(row => row.traded_value == null ? [] : [row.traded_value]);
   return (
     <div className="nt-workspace">
       <section className="nt-context-strip">
@@ -47,8 +115,8 @@ export default function MarketsWorkspace() {
         {[
           ["Session","US Regular","Market clock"],
           ["Universe","US Equities","Coverage gated"],
-          ["Breadth","—","Awaiting feed"],
-          ["Volume","—","Awaiting feed"],
+          ["Breadth", equities.length ? `${up} ↑ / ${down} ↓` : "—", "Tracked equities · stored session"],
+          ["Volume", traded.length ? `$${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", "Tracked equity traded value"],
           ["Volatility","—","Awaiting feed"],
           ["Rates","—","Awaiting feed"],
           ["FX","—","Awaiting feed"],
@@ -86,11 +154,20 @@ export default function MarketsWorkspace() {
             <div className="nt-panel-title"><strong>Constituent heatmap / breadth surface</strong><span className="nt-panel-meta">price · sector · source</span></div>
             <div className="nt-panel-body">
               <div className="nt-heatmap">
-                {heat.map(([symbol,sector])=>(
-                  <div className="nt-heat-cell" key={symbol}>
-                    <b>{symbol}</b><span className="nt-muted nt-mono">—</span><small>{sector}</small>
-                  </div>
-                ))}
+                {heat.map(([symbol, sector]) => {
+                  const stored = bySymbol.get(symbol);
+                  const quote = quotes[symbol];
+                  const useQuote = quote && (!stored?.as_of || quote.at > Date.parse(stored.as_of));
+                  const price = useQuote ? quote.price : stored?.price;
+                  const change = useQuote ? quote.change : stored?.change_pct;
+                  const live = connected && useQuote && updated - quote.at < 90000;
+                  return <div className="nt-heat-cell" key={symbol}>
+                    <b>{symbol}</b>
+                    <span className="nt-mono">{price == null ? "—" : `$${priceFormat.format(price)}`} {percent(change)}</span>
+                    <small title={useQuote ? new Date(quote.at).toISOString() : stored?.as_of ?? undefined}>{sector} · {live ? "Live feed" : useQuote ? "Last quote" : stored ? "Stored" : "Awaiting"}</small>
+                  </div>;
+                })}
+
               </div>
             </div>
           </section>

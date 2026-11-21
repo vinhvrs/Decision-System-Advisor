@@ -28,6 +28,12 @@ const nextConfig: NextConfig = {
       { source: "/watchlists", headers: noStoreHeaders },
     ];
   },
+  async rewrites() {
+    return [
+      { source: "/api/v1/:path*", destination: "https://data.aitemple.tech/api/v1/:path*" },
+      { source: "/api/instruments/data-history/:symbol", destination: "https://data.aitemple.tech/api/instruments/data-history/:symbol" },
+    ];
+  },
   async redirects() {
     return [
       {
