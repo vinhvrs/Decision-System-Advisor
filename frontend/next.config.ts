@@ -33,7 +33,8 @@ const nextConfig: NextConfig = {
       ...[
         "realtime/status", "market-heatmap", "data-health", "economic-calendar", "universe",
         "metrics/:symbol", "sourced-fundamentals/:symbol", "macro/dashboard", "positioning/:symbol",
-        "crypto-context", "correlation", "technical/:symbol",
+        "crypto-context", "correlation", "technical/:symbol", "source-health", "estimates/:symbol",
+        "earnings/:symbol", "options/:symbol",
       ].map(path => ({ source: `/api/v1/${path}`, destination: `https://data.aitemple.tech/api/v1/${path}` })),
       ...[
         "companies/:symbol/overview", "news", "news/symbol/:symbol", "news/:slug", "filings/:symbol",
