@@ -1,10 +1,5 @@
-import SupportWorkspace from "@/src/new-terminal/workspaces/SupportWorkspace";
+import { WatchlistsWorkspace } from "@/src/new-terminal/workspaces/FeedWorkspaces";
 
 export default function WatchlistsPage() {
-  return (
-    <SupportWorkspace
-      title="Watchlists"
-      description="Persistent symbol collections linked to Markets, Screener, Company, and Chart Lab."
-    />
-  );
+  return <WatchlistsWorkspace />;
 }

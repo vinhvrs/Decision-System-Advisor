@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import type { Health, Universe } from "../feeds";
+import { useFeed } from "../useFeed";
 import {
   BarChart3,
   Building2,
@@ -33,6 +36,23 @@ function active(pathname: string, href: string) {
 
 export default function TerminalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const universe = useFeed<{ data: Universe[] }>(searchOpen ? "/api/v1/universe" : null);
+  const health = useFeed<Health>("/api/v1/data-health", 60000);
+  const matching = (universe.data?.data ?? []).filter(row =>
+    `${row.symbol} ${row.name}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 10);
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(value => !value);
+      }
+      if (event.key === "Escape") setSearchOpen(false);
+    }
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, []);
 
   return (
     <div className="nt-shell">
@@ -42,7 +62,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
           <span>DSA</span>
         </Link>
 
-        <button type="button" className="nt-command" aria-label="Open command search">
+        <button type="button" className="nt-command" aria-label="Open command search" aria-expanded={searchOpen} onClick={() => setSearchOpen(value => !value)}>
           <Search size={13} aria-hidden />
           <kbd>⌘K</kbd>
           <span>Search symbol, company, metric or command…</span>
@@ -57,16 +77,23 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         <span className="nt-label nt-status-warn">Data status varies</span>
       </header>
 
+      {searchOpen && <section className="nt-panel" aria-label="Search instruments">
+        <div className="nt-toolbar"><label>Symbol or company <input autoFocus value={query} onChange={event => setQuery(event.target.value)} /></label><button type="button" onClick={() => setSearchOpen(false)}>Close</button></div>
+        <div className="nt-toolbar">{matching.map(row => <Link key={row.symbol} href={`/companies/profile/${encodeURIComponent(row.symbol)}`} onClick={() => setSearchOpen(false)}>{row.symbol} · {row.name}</Link>)}
+          {!matching.length && <span>{universe.error ?? (universe.data ? "No matching instruments" : "Loading universe…")}</span>}
+        </div>
+      </section>}
+
       <div className="nt-tape" aria-label="Global data tape">
-        <span className="nt-tape-item"><b>SESSION</b> US REG</span>
+        <span className="nt-tape-item"><b>SESSION</b> Source timestamp</span>
         <span className="nt-tape-item"><b>MARKET</b> SOURCE DEPENDENT</span>
         <span className="nt-tape-item"><b>OHLC</b> HIST / LIVE MIX</span>
         <span className="nt-tape-item"><b>FUNDAMENTALS</b> PARTIAL</span>
         <span className="nt-tape-item"><b>ESTIMATES</b> COVERAGE GATED</span>
         <span className="nt-tape-item"><b>FILINGS</b> SEC</span>
         <span className="nt-tape-item"><b>NEWS</b> TIMESTAMP REQUIRED</span>
-        <span className="nt-tape-item"><b>LATENCY</b> —</span>
-        <span className="nt-tape-item"><b>UPDATED</b> —</span>
+        <span className="nt-tape-item"><b>PIPELINE</b> {health.data ? `${health.data.pipeline.covered}/${health.data.pipeline.total}` : "—"}</span>
+        <span className="nt-tape-item"><b>UPDATED</b> {health.data?.generated_at?.replace("T", " ").slice(0, 19) ?? "—"} {health.data && "UTC"}</span>
       </div>
 
       <div className="nt-layout">

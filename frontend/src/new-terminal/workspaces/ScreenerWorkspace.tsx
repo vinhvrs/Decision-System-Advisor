@@ -1,95 +1,53 @@
-const filters = [
-  ["Descriptive",["Exchange","Sector","Industry","Country","Index"]],
-  ["Fundamental",["Market Cap","P/E","Fwd P/E","ROE","Gross Margin","FCF Yield","Debt/Equity"]],
-  ["Technical",["Above 20D","Above 50D","Above 200D","RSI","ATR%","52W Range"]],
-  ["Liquidity",["Avg Volume","Rel Volume","Dollar Volume","Spread"]],
-] as const;
+"use client";
 
-const columns = ["Symbol","Company","Price","Chg%","Volume","RVol","Mkt Cap","P/E","Fwd P/E","ROE","GM","FCF Yld","D/E","RSI","ATR%","20D","50D","200D","52W","Source"];
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import DataTable from "../DataTable";
+import { type Universe, type Metrics, valueText } from "../feeds";
+import { type MarketRow } from "../marketSnapshot";
+import { useFeed } from "../useFeed";
 
 export default function ScreenerWorkspace() {
-  return (
-    <div className="nt-workspace">
-      <section className="nt-toolbar">
-        <strong style={{fontSize:12}}>SCREENER / EQUITY DATABASE</strong>
-        <span className="nt-chip"><b>Universe</b> US Equities</span>
-        <span className="nt-chip"><b>Cap</b> &gt;$10B</span>
-        <span className="nt-chip"><b>ROE</b> &gt;15%</span>
-        <span className="nt-chip"><b>Avg Vol</b> &gt;1M</span>
-        <span className="nt-chip"><b>Price</b> &gt;50D</span>
-        <span style={{marginLeft:"auto"}} className="nt-label">0 VALIDATED / — TOTAL</span>
-      </section>
-
-      <div className="nt-dense-grid">
-        {[
-          ["Preset","Quality / Liquid","Screen"],
-          ["Universe","US Equities","Primary"],
-          ["Filters","5 active","Local state"],
-          ["Sort","RVol desc","Pending"],
-          ["Columns","20","Dense"],
-          ["Selected","—","No row"],
-          ["Compare","0","Max 4"],
-          ["Export","Ready","CSV"],
-          ["Price feed","PARTIAL","Status"],
-          ["Fundamentals","PARTIAL","Status"],
-          ["History","PARTIAL","Status"],
-          ["Last refresh","—","Timestamp"],
-        ].map(([k,v,s])=><div className="nt-data-cell" key={k}><div className="k">{k}</div><div className="v">{v}</div><div className="s">{s}</div></div>)}
-      </div>
-
-      <div className="nt-grid nt-grid-screener">
-        <aside className="nt-filters">
-          <div className="nt-label" style={{marginBottom:7}}>Filter database</div>
-          {filters.map(([group,items])=>(
-            <div className="nt-filter-group" key={group}>
-              <div className="nt-label">{group}</div>
-              {items.map(item=><div className="nt-filter-item" key={item}><span>{item}</span><span className="nt-muted">+</span></div>)}
-            </div>
-          ))}
-        </aside>
-
-        <section className="nt-panel">
-          <div className="nt-panel-title"><strong>Result database</strong><span className="nt-panel-meta">sortable · keyboard · compare</span></div>
-          <div className="nt-table-wrap">
-            <table className="nt-table" style={{minWidth:1850}}>
-              <thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead>
-              <tbody>
-                {Array.from({length:22}).map((_,i)=>(
-                  <tr key={i}>
-                    <td className="nt-symbol">—</td><td>Awaiting validated universe</td>
-                    {columns.slice(2).map((c,j)=><td className="nt-mono" key={c+j}>—</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="nt-database-note">Missing fundamentals remain —. Missing price never becomes $0. No ranking is inferred from incomplete rows.</div>
-        </section>
-
-        <aside className="nt-section-stack">
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Linked symbol inspector</strong><span className="nt-panel-meta">same workspace</span></div>
-            <div className="nt-panel-body">
-              <div className="nt-split-3">
-                {["Price","Chg%","RVol","Mkt Cap","P/E","ROE"].map(k=><div className="nt-data-cell" key={k}><div className="k">{k}</div><div className="v">—</div></div>)}
-              </div>
-              <div className="nt-chart-canvas" style={{minHeight:180,marginTop:4}} />
-            </div>
-          </section>
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Fundamental quick scan</strong><span className="nt-panel-meta">selected row</span></div>
-            <table className="nt-microtable"><tbody>
-              {["Revenue growth","EPS growth","Gross margin","Operating margin","FCF margin","ROIC","Debt/EBITDA","Current ratio"].map(x=><tr key={x}><td>{x}</td><td>—</td><td>—</td></tr>)}
-            </tbody></table>
-          </section>
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Coverage / provenance</strong><span className="nt-panel-meta">selected row</span></div>
-            <table className="nt-microtable"><tbody>
-              {["Quote source","OHLC source","Fundamentals","Estimates","Filings","Last refresh"].map(x=><tr key={x}><td>{x}</td><td>—</td></tr>)}
-            </tbody></table>
-          </section>
-        </aside>
-      </div>
-    </div>
-  );
+  const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
+  const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
+  const [query, setQuery] = useState("");
+  const [asset, setAsset] = useState("");
+  const [sort, setSort] = useState("symbol");
+  const [selection, setSelection] = useState("");
+  const bySymbol = useMemo(() => new Map(snapshot.data?.data.map(row => [row.symbol, row])), [snapshot.data]);
+  const all = universe.data?.data ?? [];
+  const shown = all.filter(row => (!asset || row.asset_class === asset) &&
+    `${row.symbol} ${row.name}`.toLowerCase().includes(query.trim().toLowerCase()));
+  shown.sort((a, b) => {
+    if (sort === "symbol") return a.symbol.localeCompare(b.symbol);
+    const key = sort === "change" ? "change_pct" : "traded_value";
+    return (bySymbol.get(b.symbol)?.[key] ?? -Infinity) - (bySymbol.get(a.symbol)?.[key] ?? -Infinity);
+  });
+  const selected = shown.some(row => row.symbol === selection) ? selection : shown[0]?.symbol;
+  const fund = useFeed<Metrics>(selected ? `/api/v1/sourced-fundamentals/${encodeURIComponent(selected)}` : null);
+  const tech = useFeed<Metrics>(selected ? `/api/v1/metrics/${encodeURIComponent(selected)}` : null);
+  return <div className="nt-workspace">
+    <section className="nt-toolbar">
+      <strong>Screener Database</strong>
+      <label>Search <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Symbol or company" /></label>
+      <label>Asset <select value={asset} onChange={event => setAsset(event.target.value)}><option value="">All</option>{[...new Set(all.map(row => row.asset_class))].sort().map(item => <option key={item}>{item}</option>)}</select></label>
+      <label>Sort <select value={sort} onChange={event => setSort(event.target.value)}><option value="symbol">Symbol</option><option value="change">Session change</option><option value="traded">Traded value</option></select></label>
+      <span>{shown.length} / {all.length} instruments</span>
+    </section>
+    <DataTable title="Instrument universe and stored session" columns={["Symbol", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap", "As of"]}
+      empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading Pi instrument universe…")}
+      rows={shown.map(row => {
+        const stored = bySymbol.get(row.symbol);
+        return { key: row.symbol, cells: [<button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>, row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct), valueText(stored?.traded_value), valueText(stored?.market_cap), stored?.as_of] };
+      })}
+      note={snapshot.error ?? "Traded value is reported separately from share volume. Missing price, market cap and timestamps remain blank."} />
+    <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "Source / missing data"]}
+      rows={[[fund.data, ["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"]], [tech.data, ["rsi14", "atr_pct", "average_volume20", "relative_volume"]]].flatMap(([feed, keys]) =>
+        (keys as string[]).map(key => {
+          const metric = (feed as Metrics | undefined)?.metrics[key];
+          return { key, cells: [key.replace(/_/g, " "), valueText(metric?.value), metric?.unit, metric?.quality, metric?.reason ?? metric?.metadata?.source ?? "No suitable observation"] };
+        }))}
+      note="Forward P/E requires point-in-time earnings consensus. Relative volume and technical measures require suitable price history and publication rights." />
+    {selected && <div className="nt-toolbar"><Link href={`/companies/profile/${encodeURIComponent(selected)}`}>Company research ↗</Link><Link href={`/investing?symbol=${encodeURIComponent(selected)}`}>Chart Lab ↗</Link></div>}
+  </div>;
 }

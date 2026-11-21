@@ -4,6 +4,8 @@ export type MarketRow = {
   price: number | null;
   change_pct: number | null;
   traded_value: number | null;
+  market_cap?: number | null;
+  sector?: string | null;
   as_of: string | null;
 };
 

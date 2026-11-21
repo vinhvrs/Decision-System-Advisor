@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import Link from "next/link";
+import DataTable from "../DataTable";
+import { valueText, type Calendar, type Crypto, type Health, type Macro, type News } from "../feeds";
+import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
 type Quote = { price: number; change: number | null; at: number };
@@ -44,7 +48,10 @@ const sectors = [
 ];
 
 const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","COPPER","BTC","ETH","SPY","QQQ","RSP","HYG","TLT","VIX","MOVE"];
-const events = ["Macro release","Fed speaker","Earnings event","Treasury auction","Energy inventory","Options expiry"];
+const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100": "^NDX", DOW: "^DJI", "RUSSELL (IWM proxy)": "IWM", VIX: "^VIX" };
+const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
+const sectorNames: Record<string, string> = { "Consumer Cyclical": "Consumer Discr.", "Financial Services": "Financials", Healthcare: "Health Care" };
+const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 const internalFields = [
   ["> 20D MA","Trend"],["> 50D MA","Trend"],["> 200D MA","Trend"],["RSP / SPY","Equal wt"],
@@ -64,6 +71,12 @@ function ago(ts: number | null) {
 
 export default function MarketsWorkspace({ initialRows }: { initialRows: MarketRow[] }) {
   const [rows, setRows] = useState(initialRows);
+  const macro = useFeed<Macro>("/api/v1/macro/dashboard", 60000);
+  const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
+  const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=12", 60000);
+  const health = useFeed<Health>("/api/v1/data-health", 60000);
+  const news = useFeed<{ data: News[] }>("/api/news", 60000);
+  const realtime = useFeed<{ upstream: string; quality: string; source: string }>("/api/v1/realtime/status", 30000);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [updated, setUpdated] = useState(0);
   const [connected, setConnected] = useState(false);
@@ -139,6 +152,12 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const equities = rows.filter(row => row.market === "stock" && row.change_pct != null);
   const leaders = [...equities].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
   const laggards = [...leaders].reverse();
+  const macroByCode = new Map(macro.data?.data.map(row => [row.series_code, row]));
+  const freshQuotes = Object.values(quotes).filter(quote => updated - quote.at < 90000).length;
+  const socketStatus = connected ? freshQuotes ? "LIVE" : "CONNECTED" : "DISCONNECTED";
+  const upValue = equities.filter(row => (row.change_pct ?? 0) > 0 && row.traded_value != null);
+  const downValue = equities.filter(row => (row.change_pct ?? 0) < 0 && row.traded_value != null);
+  const valueTotal = (items: MarketRow[]) => items.length ? `$${(items.reduce((sum, row) => sum + (row.traded_value ?? 0), 0) / 1e9).toFixed(2)}B` : "—";
   const up = equities.filter(row => (row.change_pct ?? 0) > 0).length;
   const down = equities.filter(row => (row.change_pct ?? 0) < 0).length;
   const unchanged = Math.max(0, equities.length - up - down);
@@ -150,10 +169,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const breadthPct = equities.length ? (up / equities.length) * 100 : null;
 
   const sourceLedger = [
-    ["Quotes", connected ? "LIVE" : quoteTimes.length ? "DELAYED" : "AWAITING", latestQuote ? ago(latestQuote) : "—", `${Object.keys(quotes).length}/${heat.length}`],
+    ["Quotes", socketStatus, latestQuote ? ago(latestQuote) : "—", `${Object.keys(quotes).length}/${heat.length}`],
     ["Stored market", rows.length ? "AVAILABLE" : "AWAITING", latestStored ? ago(latestStored) : "—", rows.length ? String(rows.length) : "—"],
     ["Breadth", equities.length ? "PARTIAL" : "AWAITING", latestStored ? ago(latestStored) : "—", equities.length ? String(equities.length) : "—"],
-    ["OHLC", "PARTIAL", "—", "—"],
+    ["OHLC", health.data?.quality ?? "AWAITING", "—", health.data ? `${health.data.pipeline.covered}/${health.data.pipeline.total}` : "—"],
     ["Fundamentals", "PARTIAL", "—", "—"],
     ["Estimates", "PARTIAL", "—", "—"],
     ["Filings", "PARTIAL", "—", "—"],
@@ -167,28 +186,28 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           <div className="nt-label nt-info">Markets / US Equities</div>
           <h1>Market Database</h1>
         </div>
-        {["S&P 500","NASDAQ","DOW","RUSSELL","VIX","US10Y"].map(name => (
+        {[...Object.keys(indexSymbols), "US10Y"].map(name => (
           <div className="nt-index" key={name}>
             <div className="nt-index-name">{name}</div>
-            <div className="nt-index-values"><span>—</span><span className="nt-muted">awaiting</span></div>
+            <div className="nt-index-values"><span>{name === "US10Y" ? valueText(macroByCode.get("UST10Y")?.value) : valueText(bySymbol.get(indexSymbols[name])?.price)}</span><span className="nt-muted">{name === "US10Y" ? macroByCode.get("UST10Y")?.quality ?? "Awaiting Treasury" : percent(bySymbol.get(indexSymbols[name])?.change_pct)}</span></div>
           </div>
         ))}
       </section>
 
       <div className="nt-dense-grid">
         {[
-          ["Session","US Regular","Market clock"],
+          ["Session",latestStored ? new Date(latestStored).toISOString().slice(0,10) : "—","Latest stored observation"],
           ["Universe","US Equities","Coverage gated"],
           ["Breadth", equities.length ? `${up} ↑ / ${down} ↓ / ${unchanged} =` : "—", "Tracked equities"],
           ["Volume", traded.length ? `$${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", "Tracked traded value"],
           ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Observed universe"],
-          ["Quotes", connected ? "LIVE" : "PARTIAL", `${Object.keys(quotes).length}/${heat.length} symbols`],
+          ["Quotes", socketStatus, realtime.data ? `${realtime.data.source} · ${realtime.data.upstream}` : `${freshQuotes}/${heat.length} fresh`],
           ["Stored rows", rows.length ? String(rows.length) : "—", latestStored ? `age ${ago(latestStored)}` : "Awaiting"],
           ["Cross asset","—","Coverage gated"],
           ["Options","—","Coverage gated"],
-          ["News","—","Timestamp gated"],
-          ["Events","—","Calendar"],
-          ["Data quality","PARTIAL","No inference"],
+          ["News", news.data ? String(news.data.data.filter(item => item.published_at).length) : "—","Timestamped headlines"],
+          ["Events", calendar.data ? String(calendar.data.events.length) : "—", calendar.data?.source ?? "Calendar"],
+          ["Data quality",health.data?.quality ?? "AWAITING","Backend coverage"],
         ].map(([k,v,s]) => (
           <div className={`nt-data-cell ${k === "Data quality" ? "nt-data-warning" : k === "Quotes" && v === "LIVE" ? "nt-data-live" : k === "Advancing" ? "nt-data-accent" : ""}`} key={k}>
             <div className="k">{k}</div><div className="v">{v}</div><div className="s">{s}</div>
@@ -202,7 +221,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-panel-title"><strong>Sector breadth matrix</strong><span className="nt-panel-meta">chg · adv · MA · rvol</span></div>
             <table className="nt-microtable">
               <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
-              <tbody>{sectors.map(sector => <tr key={sector}><td>{sector}</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>)}</tbody>
+              <tbody>{sectors.map(sector => {
+                const sample = equities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
+                return <tr key={sector}><td>{sector} {sample.length ? `(${sample.length})` : ""}</td><td>{percent(sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null)}</td><td>{percent(sample.length ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null)?.replace("+", "")}</td><td title="Requires sector-wide MA data">—</td><td title="Requires historical volume baselines">—</td></tr>;
+              })}</tbody>
             </table>
           </section>
 
@@ -210,7 +232,11 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-panel-title"><strong>Cross-asset monitor</strong><span className="nt-panel-meta">macro context</span></div>
             <table className="nt-microtable">
               <thead><tr><th>Asset</th><th>Last</th><th>Chg</th><th>Z</th></tr></thead>
-              <tbody>{crossAsset.map(x => <tr key={x}><td>{x}</td><td>—</td><td>—</td><td>—</td></tr>)}</tbody>
+              <tbody>{crossAsset.map(x => {
+                const row = bySymbol.get(assetSymbols[x] ?? x);
+                const rate = x === "US02Y" ? macroByCode.get("UST2Y") : x === "US10Y" ? macroByCode.get("UST10Y") : undefined;
+                return <tr key={x}><td>{x}</td><td title={rate?.observed_at ?? row?.as_of ?? undefined}>{valueText(rate?.value ?? row?.price)}</td><td>{percent(row?.change_pct)}</td><td title="Requires standardized historical baseline">—</td></tr>;
+              })}</tbody>
             </table>
           </section>
         </aside>
@@ -251,7 +277,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           <div className="nt-kpi-row">
             {[
               ["ADV / DECL", equities.length ? `${up} / ${down}` : "—", "Breadth"],
-              ["UP / DOWN VOL","—","Volume"],
+              ["UP / DOWN VALUE",`${valueTotal(upValue)} / ${valueTotal(downValue)}`,"Traded value by session direction"],
               ["NEW HIGHS","—","52W"],
               ["NEW LOWS","—","52W"],
               ["> 20D MA","—","Trend"],
@@ -331,8 +357,8 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <table className="nt-microtable">
               <thead><tr><th>List</th><th>#</th><th>Lead</th></tr></thead>
               <tbody>
-                <tr><td>Top gainers</td><td>{leaders.length || "—"}</td><td>{leaders[0]?.symbol ?? "—"}</td></tr>
-                <tr><td>Top losers</td><td>{laggards.length || "—"}</td><td>{laggards[0]?.symbol ?? "—"}</td></tr>
+                <tr><td>Top gainers</td><td>{equities.length ? up : "—"}</td><td>{up ? leaders[0]?.symbol : "—"}</td></tr>
+                <tr><td>Top losers</td><td>{equities.length ? down : "—"}</td><td>{down ? laggards[0]?.symbol : "—"}</td></tr>
                 <tr><td>Rel volume</td><td>—</td><td>—</td></tr>
                 <tr><td>Gap up</td><td>—</td><td>—</td></tr>
                 <tr><td>Gap down</td><td>—</td><td>—</td></tr>
@@ -345,7 +371,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-panel-title"><strong>Events / calendar</strong><span className="nt-panel-meta">ET · impact</span></div>
             <table className="nt-microtable">
               <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-              <tbody>{events.map(e => <tr key={e}><td>{e}</td><td>—</td><td>—</td></tr>)}</tbody>
+              <tbody>{calendar.data?.events.length ? calendar.data.events.map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3}>{calendar.error ?? "No calendar observations"}</td></tr>}</tbody>
             </table>
           </section>
 
@@ -365,6 +391,13 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           </section>
         </aside>
       </div>
+      <DataTable title="Macro observations and spreads" columns={["Series","Value","Unit","Quality","Source","Observed"]}
+        rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.quality, row.source ?? (row.series_code.includes("-") ? "Calculated spread" : undefined), row.observed_at] }))}
+        empty={macro.error ?? "No macro series returned."} />
+      <DataTable title="Crypto derivatives context" columns={["Metric","Value","Unit","Venue","Quality","Observed"]}
+        rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.quality, row.observed_at] }))}
+        empty={crypto.error ?? "No crypto derivatives observations."} />
+      <div className="nt-database-note">Sector changes are equal-weight observations from the tracked sample. Options, full-market breadth, bid/ask depth, historical z-scores and missing cross-asset benchmarks require additional sources. <Link href="/documents">See source coverage and missing datasets ↗</Link></div>
     </div>
   );
 }

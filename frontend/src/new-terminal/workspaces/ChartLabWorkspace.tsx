@@ -8,15 +8,24 @@ const chartRanges: Record<string, number> = { "1M": 31, "3M": 93, "6M": 186, "1Y
 const format = (value: number | null | undefined) => value == null ? "—" : value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 const series=["AAPL","MSFT","SPY","QQQ","DXY","US10Y"];
-const indicators=["SMA 20","SMA 50","SMA 200","VWAP","RSI 14","MACD","Volume","ATR 14","Bollinger","Relative Strength"];
+import DataTable from "../DataTable";
+import { labelText, valueText, type Calendar, type Correlation, type Metrics, type Universe } from "../feeds";
+import type { MarketRow } from "../marketSnapshot";
+import { useFeed } from "../useFeed";
 const ohlcFields=["Open","High","Low","Close","Volume","VWAP","ATR","Gap","52W Pos","Beta","IV / Vol","Rel Vol"];
 
-export default function ChartLabWorkspace(){
-  const [symbol, setSymbol] = useState("AAPL");
+export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialSymbol?: string }){
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [range, setRange] = useState("6M");
   const [bars, setBars] = useState<Bar[]>([]);
   const [state, setState] = useState("Loading stored bars");
   const canvas = useRef<HTMLDivElement>(null);
+  const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
+  const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
+  const metrics = useFeed<Metrics>(`/api/v1/metrics/${encodeURIComponent(symbol)}?timeframe=daily`);
+  const calendar = useFeed<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=8`);
+  const compared = [...new Set([symbol, "SPY", "QQQ", "BTC-USD"])];
+  const correlation = useFeed<Correlation>(`/api/v1/correlation?symbols=${encodeURIComponent(compared.join(","))}&window=60`);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,7 +68,7 @@ export default function ChartLabWorkspace(){
       <section className="nt-toolbar">
         <strong style={{fontSize:12}}>CHART LAB / TIME-SERIES DATABASE</strong>
         <label className="nt-chip"><b>Symbol</b> <select value={symbol} onChange={event => { setBars([]); setState("Loading stored bars"); setSymbol(event.target.value); }}>
-          {["AAPL","MSFT","NVDA","AMZN","SPY","QQQ","AMD","ADBE","CRM","SNOW"].map(item => <option key={item}>{item}</option>)}
+          {[...new Set([symbol, ...(universe.data?.data ?? []).map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}
         </select></label>
         {Object.keys(chartRanges).map(item => <button type="button" className="nt-tab" data-active={item===range} key={item} onClick={() => { if (item !== range) { setBars([]); setState("Loading stored bars"); setRange(item); } }}>{item}</button>)}
         <span className="nt-chip"><b>Bars</b>1D</span><span className="nt-chip"><b>Mode</b>Absolute</span>
@@ -75,7 +84,10 @@ export default function ChartLabWorkspace(){
           <section className="nt-panel">
             <div className="nt-panel-title"><strong>Series matrix</strong><span className="nt-panel-meta">linked context</span></div>
             <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg</th></tr></thead><tbody>
-              {series.map(s=><tr key={s}><td>{s}</td><td>—</td><td>—</td></tr>)}
+              {series.map(s => {
+                const row = stored.data?.data.find(item => item.symbol === s);
+                return <tr key={s}><td>{s}</td><td>{format(row?.price)}</td><td>{format(row?.change_pct)}</td></tr>;
+              })}
             </tbody></table>
           </section>
           <section className="nt-panel">
@@ -86,7 +98,10 @@ export default function ChartLabWorkspace(){
           </section>
           <section className="nt-panel">
             <div className="nt-panel-title"><strong>Correlation</strong><span className="nt-panel-meta">selected series</span></div>
-            <table className="nt-microtable"><tbody>{series.slice(1).map(s=><tr key={s}><td>{s}</td><td>—</td></tr>)}</tbody></table>
+            <table className="nt-microtable"><tbody>{(correlation.data?.symbols ?? compared).map((item,index) => {
+                const value = correlation.data?.data[0]?.[index];
+                return <tr key={item}><td>{item}</td><td title={value?.reason ?? undefined}>{value?.value == null ? value?.quality ?? "—" : valueText(value.value)}</td></tr>;
+              })}</tbody></table>
           </section>
         </aside>
 
@@ -112,7 +127,8 @@ export default function ChartLabWorkspace(){
           <section className="nt-panel">
             <div className="nt-panel-title"><strong>Indicator registry</strong><span className="nt-panel-meta">active / source</span></div>
             <table className="nt-microtable"><thead><tr><th>Indicator</th><th>State</th><th>Value</th></tr></thead><tbody>
-              {indicators.map(x=><tr key={x}><td>{x}</td><td>OFF</td><td>—</td></tr>)}
+              {Object.entries(metrics.data?.metrics ?? {}).slice(0, 14).map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={result.reason ?? undefined}>{result.quality}</td><td>{valueText(result.value)}</td></tr>)}
+              {!metrics.data && <tr><td colSpan={3}>{metrics.error ?? "Awaiting metric snapshot"}</td></tr>}
             </tbody></table>
           </section>
           <section className="nt-panel">
@@ -122,13 +138,23 @@ export default function ChartLabWorkspace(){
             </tbody></table>
           </section>
           <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Events overlay</strong><span className="nt-panel-meta">chart range</span></div>
+            <div className="nt-panel-title"><strong>Macro event records</strong><span className="nt-panel-meta">chart range</span></div>
             <table className="nt-microtable"><tbody>
-              {["Earnings","Dividend","Filing","Macro","Fed","Corporate event"].map(x=><tr key={x}><td>{x}</td><td>—</td></tr>)}
+              {(calendar.data?.events ?? []).map(event => <tr key={event.id}><td>{event.title}</td><td>{event.scheduled_at ?? "—"}</td></tr>)}
+              {!calendar.data?.events.length && <tr><td colSpan={2}>{calendar.error ?? "No macro calendar observations"}</td></tr>}
             </tbody></table>
           </section>
         </aside>
       </div>
+      <DataTable title="Chart data coverage" columns={["Series", "Status"]}
+        rows={[
+          { key: "bars", cells: ["OHLCV", state] },
+          { key: "metrics", cells: ["Derived indicators", metrics.data?.quality === "LICENSE_RESTRICTED" ? "Historical fallback lacks public redistribution permission" : metrics.data?.quality ?? metrics.error ?? "Awaiting source"] },
+          { key: "correlation", cells: ["Correlation", correlation.data?.reason ?? correlation.error ?? "Requires overlapping licensed histories"] },
+          { key: "events", cells: ["Earnings and corporate actions", "Dedicated issuer events feed required; available macro records are shown separately"] },
+          { key: "intraday", cells: ["VWAP and volume profile", "Requires intraday bars or trade prints at a suitable resolution"] },
+          { key: "options", cells: ["Implied volatility", "Requires option chains with quotes, expirations and greeks"] },
+        ]} />
     </div>
   );
 }

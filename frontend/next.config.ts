@@ -30,7 +30,16 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: "/api/v1/:path*", destination: "https://data.aitemple.tech/api/v1/:path*" },
+      ...[
+        "realtime/status", "market-heatmap", "data-health", "economic-calendar", "universe",
+        "metrics/:symbol", "sourced-fundamentals/:symbol", "macro/dashboard", "positioning/:symbol",
+        "crypto-context", "correlation", "technical/:symbol",
+      ].map(path => ({ source: `/api/v1/${path}`, destination: `https://data.aitemple.tech/api/v1/${path}` })),
+      ...[
+        "companies/:symbol/overview", "news", "news/symbol/:symbol", "news/:slug", "filings/:symbol",
+        "fundamentals/:symbol/annual", "fundamentals/:symbol/quarterly", "rankings/beginner-board",
+        "rankings/dashboard-daily", "watchlist", "watchlist/:symbol", "auth/login", "auth/logout",
+      ].map(path => ({ source: `/api/${path}`, destination: `https://data.aitemple.tech/api/${path}` })),
       { source: "/api/instruments/data-history/:symbol", destination: "https://data.aitemple.tech/api/instruments/data-history/:symbol" },
     ];
   },
