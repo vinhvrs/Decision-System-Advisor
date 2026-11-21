@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import DataTable from "../DataTable";
 import { labelText, sourceLink, valueText, type Calendar, type Filing, type Metrics, type News, type Positioning } from "../feeds";
+import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
@@ -32,7 +33,7 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
   const tabBase = `/companies/profile/${id}`;
   return <div className="nt-workspace">
     <section className="nt-toolbar">
-      <h1>{profile?.company_name ?? normalized}</h1><span>{normalized} · {profile?.exchange ?? "Exchange unavailable"}</span>
+      <h1>{profile?.company_name ?? normalized}</h1><SymbolContext symbol={normalized} /><span>{profile?.exchange ?? "Exchange unavailable"}</span>
       <form action="/companies" method="get"><label>Symbol <input name="symbol" value={search} required maxLength={20} onChange={event => setSearch(event.target.value.toUpperCase())} /></label> <button type="submit">Open</button></form>
       <strong>{valueText(quote?.price)} · {valueText(quote?.change_pct)}%</strong><span>{quote?.as_of ?? "Stored quote unavailable"}</span>
     </section>
@@ -56,8 +57,8 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
         rows={(financials.data?.data ?? []).map(row => ({ key: String(row.id), cells: [`FY${row.fiscal_year}${row.fiscal_quarter ? ` Q${row.fiscal_quarter}` : ""}`, row.period_end?.slice(0,10), row.filing_date?.slice(0,10), ...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value => valueText(value == null ? null : Number(value))), row.source] }))} empty={financials.error ?? "No statements for this reporting period."} />
     </>}
     {activeTab === "Filings" && <DataTable title="SEC filings" columns={["Form","Filed","Reporting period","Document"]} rows={(filings.data?.data ?? []).map(filing => ({ key: filing.accession_number, cells: [filing.form, filing.filing_date?.slice(0,10), filing.report_date?.slice(0,10), <a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>] }))} empty={filings.error ?? "No SEC filings for this symbol."} />}
-    {activeTab === "News" && <DataTable title="Company news" columns={["Published","Headline","Publisher"]} rows={(news.data ?? []).map(item => ({ key: item.id, cells: [item.published_at, <a key="article" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>, item.author] }))} empty={news.error ?? "No timestamped articles for this symbol."} />}
-    {activeTab === "Earnings" && <DataTable title="Macro calendar for the symbol's currency context" columns={["Time","Event","Currency","Impact"]} rows={(calendar.data?.events ?? []).map(item => ({ key: item.id, cells: [item.scheduled_at, item.title, item.currency, item.impact] }))} empty={calendar.error ?? "No matching macro events."} note="This is a macro calendar. Earnings dates, surprise and dividend schedules need a dedicated corporate actions and earnings feed." />}
+    {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={(news.data ?? []).map(item => ({ key: item.id, cells: [item.published_at, <SymbolContext key="context" symbol={item.symbol ?? normalized} />, <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>, <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>] }))} empty={news.error ?? "No timestamped articles for this symbol."} />}
+    {activeTab === "Earnings" && <DataTable title="Macro calendar for the symbol's currency context" columns={["Time","Country / Currency","Event","Importance"]} rows={(calendar.data?.events ?? []).map(item => ({ key: item.id, cells: [item.scheduled_at, <CurrencyContext key="currency" currency={item.currency} />, item.title, <ImpactBadge key="impact" impact={item.impact} />] }))} empty={calendar.error ?? "No matching macro events."} note="This is a macro calendar. Importance is provider metadata, not a trading signal. Earnings dates, surprise and dividend schedules need a dedicated corporate-actions feed." />}
     {activeTab === "Ownership" && <DataTable title="Positioning coverage" columns={["Metric","Value","Source","Quality"]} rows={(position.data?.data ?? []).map((item, index) => ({ key: String(index), cells: [item.metric_code ?? item.series_code, valueText(item.value), item.source, item.quality] }))} empty={position.error ?? position.data?.reason ?? "No positioning observations."} note="Issuer ownership requires SEC 13F and Form 4 aggregation. CFTC positions describe mapped futures contracts." />}
     {activeTab === "Estimates" && <DataTable title="Consensus estimates" columns={["Dataset","Status"]} rows={[{ key: "estimates", cells: ["EPS, revenue, revisions and analyst coverage", "Missing point-in-time estimates feed"] }]} />}
     {activeTab === "Chart" && <div className="nt-toolbar"><Link href={`/investing?symbol=${id}`}>Open {normalized} in Chart Lab ↗</Link></div>}
