@@ -582,8 +582,6 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
           </section>
         </aside>
       </div>
-
- ]} />
     </div>
   );
 }
