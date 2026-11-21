@@ -520,11 +520,7 @@ body {
 
 .nt-chart-canvas {
   min-height: 420px;
-  background:
-    linear-gradient(var(--nt-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--nt-border) 1px, transparent 1px),
-    var(--nt-s0);
-  background-size: 64px 48px;
+  background: var(--nt-s0);
   border: 1px solid var(--nt-border);
   position: relative;
   overflow: hidden;
