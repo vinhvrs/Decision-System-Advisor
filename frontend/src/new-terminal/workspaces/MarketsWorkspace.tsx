@@ -10,12 +10,32 @@ const priceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 })
 const percent = (value: number | null | undefined) =>
   value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 
+const directionClass = (value: number | null | undefined) =>
+  value == null ? "nt-heat-awaiting" : value > 0 ? "nt-heat-up" : value < 0 ? "nt-heat-down" : "nt-heat-flat";
+
+const sectorClass = (sector: string) => {
+  if (sector === "Technology") return "nt-sector-tech";
+  if (sector === "Consumer") return "nt-sector-consumer";
+  if (sector === "Communication") return "nt-sector-communication";
+  if (sector === "Financials") return "nt-sector-financials";
+  if (sector === "Energy") return "nt-sector-energy";
+  if (sector === "Health Care") return "nt-sector-health";
+  if (sector === "Industrials") return "nt-sector-industrials";
+  if (sector === "Utilities") return "nt-sector-utilities";
+  return "nt-sector-neutral";
+};
+
 const heat = [
   ["NVDA","Technology"],["MSFT","Technology"],["AAPL","Technology"],["AVGO","Technology"],
   ["AMD","Technology"],["ORCL","Technology"],["CRM","Technology"],["MU","Technology"],
-  ["AMZN","Consumer"],["TSLA","Consumer"],["COST","Consumer"],["WMT","Consumer"],
-  ["GOOGL","Communication"],["META","Communication"],["NFLX","Communication"],["JPM","Financials"],
-  ["BAC","Financials"],["XOM","Energy"],["LLY","Health Care"],["CAT","Industrials"],
+  ["ADBE","Technology"],["QCOM","Technology"],["AMAT","Technology"],["PANW","Technology"],
+  ["PLTR","Technology"],["AMZN","Consumer"],["TSLA","Consumer"],["COST","Consumer"],
+  ["WMT","Consumer"],["HD","Consumer"],["MCD","Consumer"],["NKE","Consumer"],
+  ["SBUX","Consumer"],["GOOGL","Communication"],["META","Communication"],["NFLX","Communication"],
+  ["DIS","Communication"],["JPM","Financials"],["BAC","Financials"],["V","Financials"],
+  ["MA","Financials"],["GS","Financials"],["XOM","Energy"],["CVX","Energy"],
+  ["LLY","Health Care"],["UNH","Health Care"],["JNJ","Health Care"],["ABBV","Health Care"],
+  ["CAT","Industrials"],["GE","Industrials"],["HON","Industrials"],["NEE","Utilities"],
 ];
 
 const sectors = [
@@ -170,7 +190,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           ["Events","—","Calendar"],
           ["Data quality","PARTIAL","No inference"],
         ].map(([k,v,s]) => (
-          <div className="nt-data-cell" key={k}>
+          <div className={`nt-data-cell ${k === "Data quality" ? "nt-data-warning" : k === "Quotes" && v === "LIVE" ? "nt-data-live" : k === "Advancing" ? "nt-data-accent" : ""}`} key={k}>
             <div className="k">{k}</div><div className="v">{v}</div><div className="s">{s}</div>
           </div>
         ))}
@@ -209,11 +229,17 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                   const live = Boolean(connected && useQuote && updated - quote.at < 90000);
 
                   return (
-                    <div className="nt-heat-cell" key={symbol}>
-                      <b>{symbol}</b>
-                      <span className="nt-mono">{price == null ? "—" : `$${priceFormat.format(price)}`} {percent(change)}</span>
+                    <div className={`nt-heat-cell ${directionClass(change)}`} key={symbol}>
+                      <div className="nt-heat-symbol-row">
+                        <b>{symbol}</b>
+                        <span className={`nt-sector-dot ${sectorClass(sector)}`} aria-label={sector} />
+                      </div>
+                      <span className="nt-heat-price nt-mono">{price == null ? "—" : `${priceFormat.format(price)}`}</span>
+                      <span className={`nt-heat-change nt-mono ${change == null ? "nt-muted" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : ""}`}>
+                        {percent(change)}
+                      </span>
                       <small title={useQuote ? new Date(quote.at).toISOString() : stored?.as_of ?? undefined}>
-                        {sector} · {live ? "Live" : useQuote ? "Last quote" : stored ? "Stored" : "Awaiting"}
+                        <span className={`nt-sector-name ${sectorClass(sector)}`}>{sector}</span> · {live ? "Live" : useQuote ? "Last quote" : stored ? "Stored" : "Awaiting"}
                       </small>
                     </div>
                   );
