@@ -34,7 +34,7 @@ body {
   min-height: 100vh;
   background: var(--nt-bg);
   color: var(--nt-text);
-  font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--nt-font-ui);
 }
 
 .nt-topbar {
@@ -85,7 +85,7 @@ body {
 
 .nt-command kbd,
 .nt-mono {
-  font-family: "Geist Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--nt-font-data);
   font-variant-numeric: tabular-nums;
 }
 
@@ -228,7 +228,7 @@ body {
   display: flex;
   gap: 8px;
   margin-top: 2px;
-  font: 600 11px/1.2 "Geist Mono", ui-monospace, monospace;
+  font: 600 11px/1.2 var(--nt-font-data);
 }
 
 .nt-positive { color: var(--nt-positive); }
@@ -294,7 +294,7 @@ body {
 
 .nt-heat-cell b {
   display: block;
-  font: 650 11px/1.2 "Geist Mono", ui-monospace, monospace;
+  font: 650 11px/1.2 var(--nt-font-data);
 }
 
 .nt-heat-cell small {
@@ -319,7 +319,7 @@ body {
 
 .nt-kpi-value {
   margin-top: 6px;
-  font: 650 18px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 18px/1 var(--nt-font-data);
 }
 
 .nt-kpi-note {
@@ -363,7 +363,7 @@ body {
 .nt-table tbody tr:hover td { background: var(--nt-s2); }
 .nt-table td.nt-symbol {
   color: var(--nt-text);
-  font-family: "Geist Mono", ui-monospace, monospace;
+  font-family: var(--nt-font-data);
   font-weight: 650;
 }
 
@@ -482,7 +482,7 @@ body {
 
 .nt-company-name h1 {
   margin: 0;
-  font: 650 17px/1.1 "Geist Mono", ui-monospace, monospace;
+  font: 650 17px/1.1 var(--nt-font-data);
 }
 
 .nt-company-name p {
@@ -492,7 +492,7 @@ body {
 }
 
 .nt-price {
-  font: 650 18px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 18px/1 var(--nt-font-data);
 }
 
 .nt-section-stack {
@@ -515,7 +515,7 @@ body {
 
 .nt-metric-row b {
   color: var(--nt-text);
-  font: 650 11px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 11px/1 var(--nt-font-data);
 }
 
 .nt-chart-canvas {
@@ -629,7 +629,7 @@ body {
   padding: 0 10px;
   border-right: 1px solid var(--nt-border);
   color: var(--nt-muted);
-  font: 650 9px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 9px/1 var(--nt-font-data);
   letter-spacing: .045em;
   text-transform: uppercase;
 }
@@ -791,7 +791,7 @@ body {
 .nt-data-cell .v {
   margin-top: 3px;
   color: var(--nt-text);
-  font: 650 10px/1.15 "Geist Mono", ui-monospace, monospace;
+  font: 650 10px/1.15 var(--nt-font-data);
 }
 .nt-data-cell .s {
   margin-top: 2px;
@@ -823,7 +823,7 @@ body {
   border-bottom: 1px solid var(--nt-border);
   color: var(--nt-text-2);
   text-align: right;
-  font-family: "Geist Mono", ui-monospace, monospace;
+  font-family: var(--nt-font-data);
 }
 
 .nt-split-2 {
@@ -842,7 +842,7 @@ body {
   padding: 5px 7px;
   border-top: 1px solid var(--nt-border);
   color: var(--nt-muted);
-  font: 600 8px/1.35 "Geist Mono", ui-monospace, monospace;
+  font: 600 8px/1.35 var(--nt-font-data);
   letter-spacing: .03em;
   text-transform: uppercase;
 }
@@ -1253,7 +1253,7 @@ body {
   border: 1px solid var(--nt-border);
   background: #101a25;
   color: var(--nt-text-2);
-  font: 650 9px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 9px/1 var(--nt-font-data);
   letter-spacing: .025em;
   white-space: nowrap;
 }
@@ -1335,7 +1335,7 @@ body {
 .nt-news-workspace .nt-table td:nth-child(1) {
   width: 160px;
   color: var(--nt-muted);
-  font-family: "Geist Mono", ui-monospace, monospace;
+  font-family: var(--nt-font-data);
 }
 
 .nt-news-workspace .nt-table td:nth-child(2) {
@@ -1359,7 +1359,7 @@ body {
 .nt-news-stat span {
   display: block;
   color: var(--nt-muted);
-  font: 650 8px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 8px/1 var(--nt-font-data);
   letter-spacing: .06em;
 }
 
@@ -1367,7 +1367,7 @@ body {
   display: block;
   margin-top: 5px;
   color: var(--nt-text);
-  font: 700 11px/1 "Geist Mono", ui-monospace, monospace;
+  font: 700 11px/1 var(--nt-font-data);
 }
 
 .nt-news-pager {
@@ -1695,7 +1695,7 @@ body {
   outline: none;
   background-color: #0d1721;
   color: var(--nt-text);
-  font: 600 10px/1 "Geist Mono", ui-monospace, monospace;
+  font: 600 10px/1 var(--nt-font-data);
   box-shadow: none;
 }
 
@@ -1742,7 +1742,7 @@ body {
 
 .nt-control-caption {
   color: var(--nt-muted);
-  font: 650 8px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 8px/1 var(--nt-font-data);
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -1760,13 +1760,13 @@ body {
 
 .nt-control-summary b {
   color: var(--nt-text);
-  font: 700 10px/1 "Geist Mono", ui-monospace, monospace;
+  font: 700 10px/1 var(--nt-font-data);
 }
 
 .nt-control-summary small {
   margin-top: 3px;
   color: var(--nt-muted);
-  font: 650 7px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 7px/1 var(--nt-font-data);
   letter-spacing: .05em;
 }
 
@@ -1963,7 +1963,7 @@ body {
 }
 
 .nt-utility-button span {
-  font: 650 7px/1 "Geist Mono", ui-monospace, monospace;
+  font: 650 7px/1 var(--nt-font-data);
   letter-spacing: .04em;
   text-transform: uppercase;
 }
@@ -2014,7 +2014,7 @@ body {
 
 .nt-utility-news-item span {
   color: #76aef0;
-  font: 700 8px/1 "Geist Mono", ui-monospace, monospace;
+  font: 700 8px/1 var(--nt-font-data);
 }
 
 .nt-utility-news-item strong {
@@ -2025,7 +2025,7 @@ body {
 
 .nt-utility-news-item small {
   color: var(--nt-muted);
-  font: 600 8px/1.2 "Geist Mono", ui-monospace, monospace;
+  font: 600 8px/1.2 var(--nt-font-data);
 }
 
 /* Finviz-style linked inspection: result set remains dominant */
@@ -2224,3 +2224,145 @@ body {
     overflow: visible;
   }
 }
+
+/* Semantic type scale + flat surface contract.
+   The loaded Geist font variables live on <body> (next/font), so font aliases
+   are defined on .nt-shell rather than :root to resolve in the correct scope. */
+.nt-shell {
+  --nt-font-ui: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --nt-font-data: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --nt-type-workspace: 13px;
+  --nt-type-section: 11px;
+  --nt-type-body: 10px;
+  --nt-type-label: 9px;
+  --nt-type-meta: 9px;
+  --nt-type-value: 11px;
+  --nt-type-control: 10px;
+  font-family: var(--nt-font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Same semantic level = same typography across workspaces. */
+.nt-shell .nt-context-title h1 {
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-workspace);
+  font-weight: 650;
+  color: var(--nt-text);
+}
+.nt-shell .nt-panel-title strong,
+.nt-shell .nt-toolbar > strong {
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-section);
+  font-weight: 650;
+  color: var(--nt-text);
+}
+.nt-shell .nt-panel-meta,
+.nt-shell .nt-data-cell .s,
+.nt-shell .nt-kpi-note,
+.nt-shell .nt-database-note,
+.nt-shell .nt-control-summary small {
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-meta);
+  font-weight: 500;
+  color: var(--nt-muted);
+}
+.nt-shell .nt-label,
+.nt-shell .nt-nav-label,
+.nt-shell .nt-index-name,
+.nt-shell .nt-data-cell .k,
+.nt-shell .nt-control-caption,
+.nt-shell .nt-table th,
+.nt-shell .nt-microtable th {
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-label);
+  font-weight: 650;
+  letter-spacing: .055em;
+  color: var(--nt-muted);
+}
+.nt-shell .nt-table td,
+.nt-shell .nt-microtable td,
+.nt-shell .nt-indicator-row,
+.nt-shell .nt-filter-item {
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-body);
+  font-weight: 450;
+}
+.nt-shell .nt-data-cell .v {
+  font: 650 var(--nt-type-value)/1.2 var(--nt-font-data);
+  color: var(--nt-text);
+}
+.nt-shell .nt-index-values,
+.nt-shell .nt-kpi-value,
+.nt-shell .nt-price,
+.nt-shell .nt-mono,
+.nt-shell .nt-table td.nt-symbol {
+  font-family: var(--nt-font-data);
+  font-variant-numeric: tabular-nums;
+}
+.nt-shell .nt-chip,
+.nt-shell .nt-tab,
+.nt-shell .nt-action,
+.nt-shell .nt-control,
+.nt-shell input[type="text"],
+.nt-shell input[type="search"],
+.nt-shell input[type="number"],
+.nt-shell input[type="email"],
+.nt-shell input[type="password"],
+.nt-shell select {
+  font-size: var(--nt-type-control);
+}
+.nt-shell .nt-control,
+.nt-shell input[type="text"],
+.nt-shell input[type="search"],
+.nt-shell input[type="number"],
+.nt-shell input[type="email"],
+.nt-shell input[type="password"],
+.nt-shell select {
+  font-family: var(--nt-font-data);
+  font-weight: 600;
+}
+.nt-shell .nt-nav-link { font-size: var(--nt-type-section); }
+.nt-shell .nt-heat-cell small,
+.nt-shell .nt-tape-item,
+.nt-shell .nt-chart-state { font-size: var(--nt-type-meta); }
+
+/* Preserve meaning-driven state colors even inside table cells. */
+.nt-shell .nt-table td.nt-positive,
+.nt-shell .nt-microtable td.nt-positive { color: var(--nt-positive); }
+.nt-shell .nt-table td.nt-negative,
+.nt-shell .nt-microtable td.nt-negative { color: var(--nt-negative); }
+.nt-shell .nt-table td.nt-warning,
+.nt-shell .nt-microtable td.nt-warning { color: var(--nt-warning); }
+.nt-shell .nt-table td.nt-muted,
+.nt-shell .nt-microtable td.nt-muted { color: var(--nt-muted); }
+
+/* A toolbar is already a surface: do not frame groups or counters inside it. */
+.nt-shell .nt-control-group {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.nt-shell .nt-control-summary {
+  min-width: 48px;
+  padding: 2px 8px;
+  border: 0;
+  border-left: 1px solid var(--nt-border);
+  background: transparent;
+}
+.nt-shell .nt-filter-item {
+  margin-top: 0;
+  border: 0;
+  border-bottom: 1px solid var(--nt-border);
+  background: transparent;
+}
+.nt-shell .nt-panel .nt-kpi-row {
+  gap: 0;
+  border-top: 1px solid var(--nt-border);
+}
+.nt-shell .nt-panel .nt-kpi {
+  border: 0;
+  border-right: 1px solid var(--nt-border);
+  background: transparent;
+}
+.nt-shell .nt-panel .nt-kpi:last-child { border-right: 0; }
