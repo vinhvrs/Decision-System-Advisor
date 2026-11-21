@@ -1386,3 +1386,86 @@ body {
   color: var(--nt-muted);
   opacity: .55;
 }
+
+
+/* Full-viewport Chart Lab composition */
+.nt-chart-workspace {
+  min-height: calc(100vh - var(--nt-top) - var(--nt-tape) - var(--nt-status) - 12px);
+}
+
+.nt-chart-main-grid {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.nt-chart-center,
+.nt-chart-rail {
+  min-height: 100%;
+}
+
+.nt-chart-center {
+  display: grid;
+  grid-template-rows: minmax(420px, 1.25fr) auto minmax(190px, .75fr);
+  align-content: stretch;
+}
+
+.nt-chart-primary-panel {
+  min-height: 0;
+}
+
+.nt-chart-primary-panel .nt-panel-body {
+  height: calc(100% - 29px);
+}
+
+.nt-chart-primary-panel .nt-panel-body > div[aria-label] {
+  height: 100% !important;
+  min-height: 390px;
+}
+
+.nt-chart-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-chart-rail > .nt-panel:last-child {
+  flex: 1;
+}
+
+.nt-chart-fill-grid {
+  display: grid;
+  grid-template-columns: .9fr .9fr 1.2fr;
+  gap: 4px;
+  min-height: 190px;
+}
+
+.nt-chart-fill-grid > .nt-panel {
+  min-height: 100%;
+}
+
+.nt-chart-recent-panel .nt-microtable td,
+.nt-chart-recent-panel .nt-microtable th {
+  height: 20px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+@media (min-height: 900px) {
+  .nt-chart-center {
+    grid-template-rows: minmax(470px, 1.35fr) auto minmax(220px, .8fr);
+  }
+
+  .nt-chart-fill-grid {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .nt-chart-center {
+    grid-template-rows: auto auto auto;
+  }
+
+  .nt-chart-fill-grid {
+    grid-template-columns: 1fr;
+  }
+}
