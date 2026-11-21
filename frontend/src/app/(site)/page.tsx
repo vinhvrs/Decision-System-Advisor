@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import HomeMarketView from "./HomeMarketView";
+import MarketsWorkspace from "@/src/new-terminal/workspaces/MarketsWorkspace";
 
 export const metadata: Metadata = {
-  title: "Market overview",
-  description:
-    "Market research workspace with ranked symbols, multi-factor signals, price action, liquidity, and explicit data eligibility.",
+  title: "Markets | DSA",
+  description: "Source-aware market research workspace.",
 };
 
 export default function HomePage() {
-  return <HomeMarketView variant="dashboard-daily" />;
+  return <MarketsWorkspace />;
 }
