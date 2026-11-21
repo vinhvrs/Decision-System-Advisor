@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.api.internal_trigger import verify_internal_trigger
 from app.api.routes.data_backfill import router as data_backfill_router
 from app.api.routes.embed import router as embed_router
+from app.api.routes.external_data import router as external_data_router
 from app.bootstrap.scheduler_runtime import build_scheduler_health_payload, lifespan
 from app.services.chatbot import chatbot_service
 from app.socket.chatbot_options import router as chatbot_ws_router
@@ -42,6 +43,7 @@ app.include_router(websocket_router)
 app.include_router(chatbot_ws_router)
 app.include_router(embed_router)
 app.include_router(data_backfill_router)
+app.include_router(external_data_router)
 
 
 class ChatRequest(BaseModel):
