@@ -852,3 +852,71 @@ body {
   .nt-heatmap { grid-template-columns: repeat(5, minmax(70px, 1fr)); }
   .nt-kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+
+/* Full-viewport Markets composition */
+.nt-market-workspace {
+  min-height: calc(100vh - var(--nt-top) - var(--nt-tape) - var(--nt-status) - 12px);
+}
+
+.nt-market-main-grid {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.nt-market-center,
+.nt-market-rail {
+  min-height: 100%;
+}
+
+.nt-market-center {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(190px, 1fr);
+  align-content: stretch;
+}
+
+.nt-market-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-market-grow-panel {
+  flex: 1;
+}
+
+.nt-market-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 4px;
+  min-height: 190px;
+}
+
+.nt-market-bottom-grid > .nt-panel {
+  min-height: 100%;
+}
+
+.nt-market-main-grid .nt-panel {
+  overflow: hidden;
+}
+
+.nt-market-main-grid .nt-microtable td,
+.nt-market-main-grid .nt-microtable th {
+  vertical-align: middle;
+}
+
+@media (min-height: 900px) {
+  .nt-market-bottom-grid {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .nt-market-center {
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .nt-market-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
