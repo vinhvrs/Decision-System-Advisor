@@ -1,5 +1,5 @@
-import { InstrumentScreenerDashboard } from "@/src/components/instrument/InstrumentScreenerDashboard";
+import ScreenerWorkspace from "@/src/new-terminal/workspaces/ScreenerWorkspace";
 
 export default function ScreenerPage() {
-  return <InstrumentScreenerDashboard />;
+  return <ScreenerWorkspace />;
 }
