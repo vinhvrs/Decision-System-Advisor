@@ -920,3 +920,124 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Semantic color layer for dense market terminal */
+.nt-data-live {
+  border-top: 2px solid var(--nt-positive);
+  background: #0b1714;
+}
+
+.nt-data-warning {
+  border-top: 2px solid var(--nt-warning);
+  background: #17130a;
+}
+
+.nt-data-accent {
+  border-top: 2px solid var(--nt-accent);
+  background: #0a1320;
+}
+
+.nt-heat-cell {
+  position: relative;
+  min-height: 58px;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+
+.nt-heat-cell:hover {
+  border-color: var(--nt-border-strong);
+}
+
+.nt-heat-up {
+  background: #0b1714;
+  border-color: #1d5843;
+}
+
+.nt-heat-down {
+  background: #1b0f12;
+  border-color: #5f2a33;
+}
+
+.nt-heat-flat {
+  background: #111820;
+  border-color: #2d3947;
+}
+
+.nt-heat-awaiting {
+  background: var(--nt-s2);
+  border-color: var(--nt-border);
+}
+
+.nt-heat-symbol-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.nt-sector-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+}
+
+.nt-heat-price {
+  display: inline-block;
+  margin-top: 5px;
+  color: var(--nt-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.nt-heat-change {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nt-sector-name {
+  font-weight: 650;
+}
+
+.nt-sector-tech { color: #67a7ff; background-color: #67a7ff; }
+.nt-sector-consumer { color: #d9a657; background-color: #d9a657; }
+.nt-sector-communication { color: #b287e6; background-color: #b287e6; }
+.nt-sector-financials { color: #58c5b8; background-color: #58c5b8; }
+.nt-sector-energy { color: #d8865d; background-color: #d8865d; }
+.nt-sector-health { color: #d8769f; background-color: #d8769f; }
+.nt-sector-industrials { color: #a9b45d; background-color: #a9b45d; }
+.nt-sector-utilities { color: #63b9d8; background-color: #63b9d8; }
+.nt-sector-neutral { color: var(--nt-muted); background-color: var(--nt-muted); }
+
+.nt-heat-cell small .nt-sector-name {
+  background: transparent;
+}
+
+.nt-market-main-grid .nt-positive {
+  color: #49d79a;
+}
+
+.nt-market-main-grid .nt-negative {
+  color: #ff7373;
+}
+
+.nt-market-main-grid .nt-warning {
+  color: #f4bd6a;
+}
+
+.nt-market-main-grid .nt-info {
+  color: #78b7ff;
+}
+
+@media (min-width: 1500px) {
+  .nt-heatmap {
+    grid-template-columns: repeat(10, minmax(68px, 1fr));
+  }
+}
+
+@media (min-width: 1900px) {
+  .nt-heatmap {
+    grid-template-columns: repeat(10, minmax(76px, 1fr));
+  }
+}
