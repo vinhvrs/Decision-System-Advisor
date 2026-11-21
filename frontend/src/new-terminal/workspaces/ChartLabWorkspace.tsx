@@ -10,6 +10,7 @@ const format = (value: number | null | undefined) => value == null ? "—" : val
 const series=["AAPL","MSFT","SPY","QQQ","DXY","US10Y"];
 import DataTable from "../DataTable";
 import { labelText, valueText, type Calendar, type Correlation, type Metrics, type Universe } from "../feeds";
+import { CurrencyContext, ImpactBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 const ohlcFields=["Open","High","Low","Close","Volume","VWAP","ATR","Gap","52W Pos","Beta","IV / Vol","Rel Vol"];
@@ -66,7 +67,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
   return (
     <div className="nt-workspace">
       <section className="nt-toolbar">
-        <strong style={{fontSize:12}}>CHART LAB / TIME-SERIES DATABASE</strong>
+        <strong style={{fontSize:12}}>CHART LAB / TIME-SERIES DATABASE</strong><SymbolContext symbol={symbol} />
         <label className="nt-chip"><b>Symbol</b> <select value={symbol} onChange={event => { setBars([]); setState("Loading stored bars"); setSymbol(event.target.value); }}>
           {[...new Set([symbol, ...(universe.data?.data ?? []).map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}
         </select></label>
@@ -138,10 +139,10 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             </tbody></table>
           </section>
           <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Macro event records</strong><span className="nt-panel-meta">chart range</span></div>
-            <table className="nt-microtable"><tbody>
-              {(calendar.data?.events ?? []).map(event => <tr key={event.id}><td>{event.title}</td><td>{event.scheduled_at ?? "—"}</td></tr>)}
-              {!calendar.data?.events.length && <tr><td colSpan={2}>{calendar.error ?? "No macro calendar observations"}</td></tr>}
+            <div className="nt-panel-title"><strong>Macro event records</strong><span className="nt-panel-meta">country · importance · chart range</span></div>
+            <table className="nt-microtable"><thead><tr><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
+              {(calendar.data?.events ?? []).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
+              {!calendar.data?.events.length && <tr><td colSpan={3}>{calendar.error ?? "No macro calendar observations"}</td></tr>}
             </tbody></table>
           </section>
         </aside>
