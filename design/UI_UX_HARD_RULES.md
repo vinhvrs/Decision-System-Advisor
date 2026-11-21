@@ -30,6 +30,19 @@ These rules are mandatory for the true-redesign frontend and override legacy vis
 - Missing, partial, delayed, historical, and unavailable states must be explicit and neutral.
 - Source and as-of time remain visible for important derived data.
 
+## Surface and semantic typography contract (mandatory)
+
+- Never place a decorative card/panel inside another card/panel. A workspace may contain adjacent flat sections; inside a section, use rows, columns, tables, tabs and 1px separators, not more framed surfaces.
+- Dense grids and market heatmaps are data visualizations, not excuses for card mosaics. Colored heatmap cells must represent valid observed market states; no ornamental color.
+- Toolbars, filter groups, indicator lists, alert editors and KPI strips inside panels must be visually flat: no stacked background fills, floating shadows, or duplicate nested borders.
+- One loaded UI typeface across all new-terminal workspaces: **Geist**. One loaded data typeface for numerals, tickers, time series, codes and compact control values: **Geist Mono**. Never rely on a font-family name without loading the font; fallback stacks must be shared.
+- Typography is assigned by **semantic role**, not by the page/component that happens to render it. Equal-level headings use the same size, weight and base color across Markets, Screener, Company, Chart Lab and support workspaces.
+- Shared roles: workspace title; section heading; field/column label; metadata/source/as-of; body/table cell; data value; control label/value; missing/partial state. Each role has one shared CSS token/class contract.
+- Size may change across roles or intentional emphasis levels, and color may change for a verified positive/negative state, warning, selected item or interactive focus. Identical meaning and hierarchy must remain typographically identical.
+- Market-data values must use tabular figures; status colors must never be inferred from null or missing data. Missing/partial/unavailable values remain neutral.
+- Avoid per-component inline font sizes, ad-hoc color literals and local font-family overrides. Extend the semantic tokens when a genuinely new role is required.
+- Review new screens at 1280, 1440 and 1920 for accidental nested boxes, inconsistent label/metadata scales, text clipping and readability.
+
 ## Interaction rules
 
 - Persistent workspace navigation.
