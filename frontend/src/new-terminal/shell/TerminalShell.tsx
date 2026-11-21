@@ -57,6 +57,18 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         <span className="nt-label nt-status-warn">Data status varies</span>
       </header>
 
+      <div className="nt-tape" aria-label="Global data tape">
+        <span className="nt-tape-item"><b>SESSION</b> US REG</span>
+        <span className="nt-tape-item"><b>MARKET</b> SOURCE DEPENDENT</span>
+        <span className="nt-tape-item"><b>OHLC</b> HIST / LIVE MIX</span>
+        <span className="nt-tape-item"><b>FUNDAMENTALS</b> PARTIAL</span>
+        <span className="nt-tape-item"><b>ESTIMATES</b> COVERAGE GATED</span>
+        <span className="nt-tape-item"><b>FILINGS</b> SEC</span>
+        <span className="nt-tape-item"><b>NEWS</b> TIMESTAMP REQUIRED</span>
+        <span className="nt-tape-item"><b>LATENCY</b> —</span>
+        <span className="nt-tape-item"><b>UPDATED</b> —</span>
+      </div>
+
       <div className="nt-layout">
         <nav className="nt-nav" aria-label="Primary workspaces">
           <div className="nt-nav-label">Workspaces</div>
@@ -74,7 +86,9 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
       <footer className="nt-statusbar">
         <span className="nt-status-warn">DATA · SOURCE DEPENDENT</span>
         <span>Missing values remain neutral</span>
-        <span>Timestamp and source required for derived metrics</span>
+        <span>Timestamp + source required</span>
+        <span>Coverage: Markets / Screener / Company / Chart / Filings</span>
+        <span>Errors: 0 UI-inferred values</span>
       </footer>
     </div>
   );
