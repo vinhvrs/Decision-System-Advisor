@@ -586,3 +586,269 @@ body {
   .nt-company-summary { grid-template-columns: 1fr auto; }
   .nt-company-summary > :last-child { display: none; }
 }
+
+
+/* Information-wall density layer */
+:root {
+  --nt-nav: 160px;
+  --nt-top: 40px;
+  --nt-tape: 24px;
+  --nt-status: 22px;
+}
+
+.nt-topbar {
+  height: var(--nt-top);
+  grid-template-columns: var(--nt-nav) minmax(360px, 560px) minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.nt-brand-mark { width: 26px; height: 26px; }
+.nt-command { height: 30px; padding: 0 8px; font-size: 11px; }
+
+.nt-tape {
+  position: sticky;
+  top: var(--nt-top);
+  z-index: 49;
+  height: var(--nt-tape);
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  background: #090d12;
+  border-bottom: 1px solid var(--nt-border);
+  scrollbar-width: none;
+}
+.nt-tape::-webkit-scrollbar { display: none; }
+
+.nt-tape-item {
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-right: 1px solid var(--nt-border);
+  color: var(--nt-muted);
+  font: 650 9px/1 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+.nt-tape-item b { color: var(--nt-text-2); font-weight: 650; }
+
+.nt-layout {
+  min-height: calc(100vh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
+}
+
+.nt-nav {
+  top: calc(var(--nt-top) + var(--nt-tape));
+  height: calc(100vh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
+  padding: 5px 3px;
+}
+
+.nt-nav-link { height: 28px; gap: 7px; padding: 0 7px; font-size: 11px; }
+.nt-nav-label { padding: 4px 7px; }
+
+.nt-main { padding: 6px; }
+
+.nt-statusbar {
+  height: var(--nt-status);
+  gap: 12px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+
+.nt-workspace { gap: 4px; }
+
+.nt-context-strip {
+  min-height: 44px;
+  gap: 14px;
+  padding: 5px 8px;
+}
+
+.nt-context-title { min-width: 170px; }
+.nt-context-title h1 { font-size: 13px; }
+
+.nt-index { min-width: 112px; }
+.nt-index-name { font-size: 9px; }
+.nt-index-values { font-size: 10px; }
+
+.nt-grid { gap: 4px; }
+.nt-grid-markets { grid-template-columns: 220px minmax(0, 1fr) 270px; }
+.nt-grid-screener { grid-template-columns: 190px minmax(0, 1fr) 280px; }
+.nt-grid-company { grid-template-columns: minmax(0, 1.35fr) 310px 260px; }
+.nt-grid-chart { grid-template-columns: 190px minmax(0, 1fr) 230px; }
+
+.nt-section-stack { gap: 4px; }
+
+.nt-panel-title {
+  min-height: 28px;
+  gap: 8px;
+  padding: 5px 7px;
+}
+.nt-panel-title strong { font-size: 11px; }
+.nt-panel-meta { font-size: 8px; }
+
+.nt-panel-body { padding: 6px; }
+
+.nt-heatmap {
+  grid-template-columns: repeat(8, minmax(72px, 1fr));
+  gap: 3px;
+}
+.nt-heat-cell {
+  min-height: 48px;
+  padding: 5px 6px;
+}
+.nt-heat-cell b { font-size: 10px; }
+.nt-heat-cell small { margin-top: 2px; font-size: 8px; }
+
+.nt-kpi-row {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+.nt-kpi {
+  min-height: 66px;
+  padding: 7px;
+}
+.nt-kpi-value { margin-top: 4px; font-size: 14px; }
+.nt-kpi-note { margin-top: 4px; font-size: 9px; }
+
+.nt-table { font-size: 10px; }
+.nt-table th {
+  padding: 5px 7px;
+  font-size: 8px;
+}
+.nt-table td {
+  height: 25px;
+  padding: 4px 7px;
+}
+
+.nt-filters { padding: 7px; }
+.nt-filter-group { margin-bottom: 9px; }
+.nt-filter-item {
+  padding: 4px 6px;
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.nt-toolbar {
+  min-height: 36px;
+  gap: 4px;
+  padding: 4px 6px;
+}
+.nt-chip, .nt-tab, .nt-action {
+  min-height: 22px;
+  padding: 3px 6px;
+  font-size: 9px;
+}
+
+.nt-tabs {
+  gap: 1px;
+  min-height: 29px;
+  padding: 1px 7px;
+}
+
+.nt-company-summary {
+  min-height: 50px;
+  grid-template-columns: 270px 180px minmax(0, 1fr);
+  gap: 10px;
+  padding: 5px 9px;
+}
+.nt-company-mark { width: 34px; height: 34px; font-size: 14px; }
+.nt-company-name h1 { font-size: 15px; }
+.nt-company-name p { margin-top: 2px; font-size: 9px; }
+.nt-price { font-size: 15px; }
+
+.nt-metric-row {
+  grid-template-columns: minmax(105px, 1fr) 78px 68px;
+  gap: 5px;
+  min-height: 27px;
+  padding: 4px 7px;
+  font-size: 10px;
+}
+.nt-metric-row b { font-size: 10px; }
+
+.nt-chart-canvas { min-height: 360px; }
+
+.nt-dense-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--nt-border);
+  border: 1px solid var(--nt-border);
+}
+.nt-data-cell {
+  min-height: 42px;
+  padding: 5px 6px;
+  background: var(--nt-s1);
+}
+.nt-data-cell .k {
+  color: var(--nt-muted);
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.nt-data-cell .v {
+  margin-top: 3px;
+  color: var(--nt-text);
+  font: 650 10px/1.15 "Geist Mono", ui-monospace, monospace;
+}
+.nt-data-cell .s {
+  margin-top: 2px;
+  color: var(--nt-muted);
+  font-size: 8px;
+}
+
+.nt-microtable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 9px;
+}
+.nt-microtable th {
+  padding: 4px 5px;
+  background: var(--nt-s2);
+  border-bottom: 1px solid var(--nt-border);
+  color: var(--nt-muted);
+  font-size: 8px;
+  letter-spacing: .045em;
+  text-align: right;
+  text-transform: uppercase;
+}
+.nt-microtable th:first-child,
+.nt-microtable td:first-child { text-align: left; }
+.nt-microtable td {
+  height: 22px;
+  padding: 3px 5px;
+  border-bottom: 1px solid var(--nt-border);
+  color: var(--nt-text-2);
+  text-align: right;
+  font-family: "Geist Mono", ui-monospace, monospace;
+}
+
+.nt-split-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px;
+}
+
+.nt-split-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.nt-database-note {
+  padding: 5px 7px;
+  border-top: 1px solid var(--nt-border);
+  color: var(--nt-muted);
+  font: 600 8px/1.35 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1279px) {
+  :root { --nt-nav: 48px; }
+  .nt-heatmap { grid-template-columns: repeat(5, minmax(70px, 1fr)); }
+  .nt-kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
