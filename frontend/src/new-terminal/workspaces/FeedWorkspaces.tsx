@@ -4,22 +4,61 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import DataTable from "../DataTable";
 import { labelText, sourceLink, valueText, type Calendar, type Filing, type Health, type Metrics, type News, type Technical, type Universe } from "../feeds";
+import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import { useFeed } from "../useFeed";
 
 export function NewsWorkspace() {
   const [page, setPage] = useState(1);
   const news = useFeed<{ data: News[]; last_page: number }>(`/api/news?page=${page}`);
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=30");
-  return <div className="nt-workspace">
-    <h1>News / Events</h1>
-    <DataTable title="Market headlines" columns={["Published", "Symbol", "Headline", "Publisher"]}
-      rows={(news.data?.data ?? []).filter(item => item.published_at).map(item => ({ key: item.id, cells: [item.published_at, item.symbol, <a key="article" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>, item.author] }))}
-      empty={news.error ?? "No timestamped headlines returned."} />
-    <div className="nt-toolbar"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={!news.data || page >= news.data.last_page} onClick={() => setPage(page + 1)}>Next</button></div>
-    <DataTable title="Economic calendar" columns={["Scheduled", "Event", "Currency", "Impact", "Actual", "Forecast", "Previous"]}
-      rows={(calendar.data?.events ?? []).map(item => ({ key: item.id, cells: [item.scheduled_at, item.title, item.currency, item.impact, item.actual, item.forecast, item.previous] }))}
+  const eventCounts = (calendar.data?.events ?? []).reduce((acc, item) => {
+    const key = item.impact?.toLowerCase().includes("high") ? "high" : item.impact?.toLowerCase().includes("med") ? "medium" : "low";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return <div className="nt-workspace nt-news-workspace">
+    <section className="nt-context-strip">
+      <div className="nt-context-title"><div className="nt-label nt-info">News / Events</div><h1>Market Information Feed</h1></div>
+      <div className="nt-news-stat"><span>HEADLINES</span><b>{news.data?.data?.length ?? "—"}</b></div>
+      <div className="nt-news-stat"><span>EVENTS</span><b>{calendar.data?.events?.length ?? "—"}</b></div>
+      <div className="nt-news-stat"><span>HIGH</span><b className="nt-negative">{eventCounts.high ?? 0}</b></div>
+      <div className="nt-news-stat"><span>MED</span><b className="nt-warning">{eventCounts.medium ?? 0}</b></div>
+      <div className="nt-news-stat"><span>LOW</span><b className="nt-info">{eventCounts.low ?? 0}</b></div>
+      <div className="nt-news-stat"><span>SOURCE</span><b>{calendar.data?.source ?? "—"}</b></div>
+    </section>
+
+    <DataTable title="Market headlines" columns={["Published", "Context", "Symbol", "Headline", "Publisher"]}
+      rows={(news.data?.data ?? []).filter(item => item.published_at).map(item => ({
+        key: item.id,
+        cells: [
+          item.published_at,
+          <SymbolContext key="context" symbol={item.symbol} />,
+          item.symbol || "—",
+          <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,
+          <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>,
+        ],
+      }))}
+      empty={news.error ?? "No timestamped headlines returned."}
+      note="Context badges are derived only from explicit symbol format or the tracked US-equity universe; unclassified stories remain global." />
+
+    <div className="nt-toolbar nt-news-pager"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={!news.data || page >= news.data.last_page} onClick={() => setPage(page + 1)}>Next</button></div>
+
+    <DataTable title="Economic calendar" columns={["Scheduled", "Country / Currency", "Event", "Importance", "Actual", "Forecast", "Previous"]}
+      rows={(calendar.data?.events ?? []).map(item => ({
+        key: item.id,
+        cells: [
+          item.scheduled_at,
+          <CurrencyContext key="currency" currency={item.currency} />,
+          item.title,
+          <ImpactBadge key="impact" impact={item.impact} />,
+          item.actual,
+          item.forecast,
+          item.previous,
+        ],
+      }))}
       empty={calendar.error ?? "No event records returned."}
-      note={calendar.data ? `Source: ${calendar.data.source}. ${calendar.data.stale ? "Calendar snapshot is stale. " : ""}Blank results mean the source did not provide an actual, forecast or previous value.` : undefined} />
+      note={calendar.data ? `Source: ${calendar.data.source}. ${calendar.data.stale ? "Calendar snapshot is stale. " : ""}HIGH/MED/LOW colors represent provider importance only; they are not a trading signal.` : undefined} />
   </div>;
 }
 
