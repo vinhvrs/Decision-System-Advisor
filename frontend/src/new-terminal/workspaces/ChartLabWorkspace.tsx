@@ -198,7 +198,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
 
     const chart = createChart(canvas.current, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: "#0b1016" }, textColor: "#aab8c8" },
+      layout: { background: { type: ColorType.Solid, color: "#0b1016" }, textColor: "#aab8c8", fontFamily: window.getComputedStyle(canvas.current).fontFamily, fontSize: 10 },
       grid: { vertLines: { color: "#1d2937" }, horzLines: { color: "#1d2937" } },
       rightPriceScale: { borderColor: "#2a394b" },
       timeScale: { borderColor: "#2a394b" },
