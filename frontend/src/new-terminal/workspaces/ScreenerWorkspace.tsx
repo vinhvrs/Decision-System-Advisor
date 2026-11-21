@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import DataTable from "../DataTable";
 import { type Universe, type Metrics, valueText } from "../feeds";
+import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
@@ -34,11 +35,11 @@ export default function ScreenerWorkspace() {
       <label>Sort <select value={sort} onChange={event => setSort(event.target.value)}><option value="symbol">Symbol</option><option value="change">Session change</option><option value="traded">Traded value</option></select></label>
       <span>{shown.length} / {all.length} instruments</span>
     </section>
-    <DataTable title="Instrument universe and stored session" columns={["Symbol", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap", "As of"]}
+    <DataTable title="Instrument universe and stored session" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap", "As of"]}
       empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading Pi instrument universe…")}
       rows={shown.map(row => {
         const stored = bySymbol.get(row.symbol);
-        return { key: row.symbol, cells: [<button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>, row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct), valueText(stored?.traded_value), valueText(stored?.market_cap), stored?.as_of] };
+        return { key: row.symbol, cells: [<button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>, <SymbolContext key="context" symbol={row.symbol} />, row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct), valueText(stored?.traded_value), valueText(stored?.market_cap), stored?.as_of] };
       })}
       note={snapshot.error ?? "Traded value is reported separately from share volume. Missing price, market cap and timestamps remain blank."} />
     <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "Source / missing data"]}
