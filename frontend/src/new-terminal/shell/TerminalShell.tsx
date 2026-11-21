@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import type { Health, News, Universe } from "../feeds";
+import { sourceLink, type Health, type News, type Universe } from "../feeds";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 import {
@@ -178,7 +178,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         </table>}
 
         {utilityView === "news" && <div className="nt-utility-news">
-          {(news.data?.data ?? []).slice(0, 10).map(item => <a key={item.id} href={item.source ?? "#"} rel="noreferrer" className="nt-utility-news-item">
+          {(news.data?.data ?? []).slice(0, 10).map(item => <a key={item.id} href={sourceLink(item.source)} rel="noreferrer" className="nt-utility-news-item">
             <span>{item.symbol || "GLOBAL"}</span>
             <strong>{item.title}</strong>
             <small>{item.published_at ?? "Timestamp unavailable"}</small>
