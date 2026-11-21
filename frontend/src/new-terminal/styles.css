@@ -1539,3 +1539,134 @@ body {
     min-height: 0;
   }
 }
+
+
+/* FIX: prevent recursive/infinite vertical expansion.
+   Only shell/main may be viewport-aware. Descendant workspaces must size from content. */
+.nt-layout {
+  min-height: calc(100dvh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
+  align-items: start;
+}
+
+.nt-main {
+  min-height: calc(100dvh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
+  overflow: visible;
+}
+
+.nt-workspace,
+.nt-full-workspace,
+.nt-market-workspace,
+.nt-chart-workspace {
+  height: auto !important;
+  min-height: 0 !important;
+  flex: none !important;
+}
+
+.nt-market-main-grid,
+.nt-chart-main-grid {
+  flex: none !important;
+  min-height: 0 !important;
+  align-items: start;
+}
+
+.nt-market-center,
+.nt-market-rail,
+.nt-chart-center,
+.nt-chart-rail {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.nt-market-center {
+  display: grid;
+  grid-template-rows: auto auto auto auto !important;
+  align-content: start !important;
+}
+
+.nt-market-rail,
+.nt-chart-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-market-grow-panel,
+.nt-chart-rail > .nt-panel:last-child,
+.nt-documents-workspace > .nt-panel:last-child,
+.nt-news-workspace > .nt-panel:last-child,
+.nt-screener-workspace > .nt-panel:nth-last-child(2),
+.nt-indicators-workspace > .nt-panel:nth-of-type(2) {
+  flex: none !important;
+}
+
+.nt-market-bottom-grid,
+.nt-chart-fill-grid,
+.nt-company-bottom-grid,
+.nt-indicator-bottom-grid,
+.nt-watchlist-bottom-grid {
+  height: auto !important;
+  min-height: 0 !important;
+  margin-top: 0 !important;
+  align-items: start;
+}
+
+.nt-market-bottom-grid > .nt-panel,
+.nt-chart-fill-grid > .nt-panel,
+.nt-company-bottom-grid > .nt-panel,
+.nt-indicator-bottom-grid > .nt-panel,
+.nt-watchlist-bottom-grid > .nt-panel {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.nt-chart-center {
+  display: grid;
+  grid-template-rows: auto auto auto !important;
+  align-content: start !important;
+}
+
+.nt-chart-primary-panel {
+  min-height: 0 !important;
+}
+
+.nt-chart-primary-panel .nt-panel-body {
+  height: auto !important;
+}
+
+.nt-chart-primary-panel .nt-panel-body > div[aria-label] {
+  height: clamp(360px, 52dvh, 620px) !important;
+  min-height: 360px !important;
+  max-height: 620px !important;
+}
+
+.nt-chart-canvas {
+  height: clamp(320px, 46dvh, 560px);
+  min-height: 320px;
+  max-height: 560px;
+}
+
+@media (min-height: 900px) {
+  .nt-market-bottom-grid,
+  .nt-chart-fill-grid,
+  .nt-company-bottom-grid,
+  .nt-indicator-bottom-grid,
+  .nt-watchlist-bottom-grid {
+    min-height: 0 !important;
+  }
+
+  .nt-chart-center {
+    grid-template-rows: auto auto auto !important;
+  }
+}
+
+@media (max-width: 1279px) {
+  .nt-main {
+    min-height: calc(100dvh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
+  }
+
+  .nt-chart-primary-panel .nt-panel-body > div[aria-label],
+  .nt-chart-canvas {
+    height: clamp(300px, 48dvh, 500px) !important;
+    min-height: 300px !important;
+    max-height: 500px !important;
+  }
+}
