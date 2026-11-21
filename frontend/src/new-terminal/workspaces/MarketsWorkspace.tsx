@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type MarketRow = {
-  symbol: string;
-  market: string;
-  price: number | null;
-  change_pct: number | null;
-  traded_value: number | null;
-  as_of: string | null;
-};
+import type { MarketRow } from "../marketSnapshot";
 
 type Quote = { price: number; change: number | null; at: number };
 
@@ -49,8 +42,8 @@ function ago(ts: number | null) {
   return `${Math.floor(seconds / 3600)}h`;
 }
 
-export default function MarketsWorkspace() {
-  const [rows, setRows] = useState<MarketRow[]>([]);
+export default function MarketsWorkspace({ initialRows }: { initialRows: MarketRow[] }) {
+  const [rows, setRows] = useState(initialRows);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [updated, setUpdated] = useState(0);
   const [connected, setConnected] = useState(false);
