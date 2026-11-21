@@ -1933,3 +1933,154 @@ body {
     grid-template-columns: 1fr 1fr auto;
   }
 }
+
+
+/* Persistent utility rail — compact contextual tools without leaving the workspace */
+.nt-utility-dock {
+  position: fixed;
+  top: calc(var(--nt-top) + var(--nt-tape) + 6px);
+  right: 4px;
+  z-index: 80;
+  width: 42px;
+  display: grid;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--nt-border);
+  background: #091018;
+}
+
+.nt-utility-button {
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--nt-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nt-utility-button span {
+  font: 650 7px/1 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.nt-utility-button:hover,
+.nt-utility-button[data-active="true"] {
+  background: #14202c;
+  border-color: #34495f;
+  color: var(--nt-text);
+}
+
+.nt-utility-drawer {
+  position: fixed;
+  top: calc(var(--nt-top) + var(--nt-tape) + 6px);
+  right: 50px;
+  bottom: calc(var(--nt-status) + 6px);
+  z-index: 79;
+  width: min(320px, calc(100vw - 120px));
+  overflow: auto;
+  border: 1px solid var(--nt-border-strong);
+  background: #0a1119;
+  box-shadow: -8px 0 18px rgba(0,0,0,.24);
+}
+
+.nt-utility-drawer .nt-panel-title {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  justify-content: space-between;
+}
+
+.nt-utility-news {
+  display: grid;
+}
+
+.nt-utility-news-item {
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  border-bottom: 1px solid #263547;
+  color: var(--nt-text-2);
+  text-decoration: none;
+}
+
+.nt-utility-news-item:hover {
+  background: #111d29;
+}
+
+.nt-utility-news-item span {
+  color: #76aef0;
+  font: 700 8px/1 "Geist Mono", ui-monospace, monospace;
+}
+
+.nt-utility-news-item strong {
+  color: #dce4ed;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.nt-utility-news-item small {
+  color: var(--nt-muted);
+  font: 600 8px/1.2 "Geist Mono", ui-monospace, monospace;
+}
+
+/* Finviz-style linked inspection: result set remains dominant */
+.nt-screener-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 4px;
+  align-items: start;
+}
+
+.nt-screener-results {
+  min-width: 0;
+}
+
+.nt-screener-inspector {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  position: sticky;
+  top: calc(var(--nt-top) + var(--nt-tape) + 6px);
+}
+
+.nt-screener-selected {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 80px 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px;
+  border-top: 1px solid var(--nt-border);
+}
+
+.nt-screener-links {
+  justify-content: flex-start;
+}
+
+@media (max-width: 1450px) {
+  .nt-screener-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .nt-utility-dock {
+    display: none;
+  }
+
+  .nt-utility-drawer {
+    display: none;
+  }
+
+  .nt-screener-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .nt-screener-inspector {
+    position: static;
+  }
+}
