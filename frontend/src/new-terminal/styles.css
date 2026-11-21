@@ -1670,3 +1670,266 @@ body {
     max-height: 500px !important;
   }
 }
+
+
+/* Unified terminal controls — Koyfin/Finviz/Fiscal-inspired density, DSA visual language */
+.nt-shell input,
+.nt-shell select,
+.nt-shell textarea,
+.nt-shell button {
+  font: inherit;
+}
+
+.nt-control,
+.nt-shell input[type="text"],
+.nt-shell input[type="search"],
+.nt-shell input[type="number"],
+.nt-shell input[type="email"],
+.nt-shell input[type="password"],
+.nt-shell select {
+  height: 28px;
+  min-width: 0;
+  padding: 0 28px 0 8px;
+  border: 1px solid var(--nt-border-strong);
+  border-radius: 0;
+  outline: none;
+  background-color: #0d1721;
+  color: var(--nt-text);
+  font: 600 10px/1 "Geist Mono", ui-monospace, monospace;
+  box-shadow: none;
+}
+
+.nt-shell input::placeholder {
+  color: #6f7f91;
+}
+
+.nt-shell select,
+.nt-control-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238fa0b3' stroke-width='1.25'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px 6px;
+}
+
+.nt-shell input:focus,
+.nt-shell select:focus,
+.nt-shell textarea:focus {
+  border-color: #5e7ea3;
+  background-color: #101c28;
+}
+
+.nt-shell input[type="number"]::-webkit-inner-spin-button,
+.nt-shell input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  opacity: .35;
+}
+
+.nt-shell button {
+  border-radius: 0;
+}
+
+.nt-control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 2px 5px;
+  border: 1px solid var(--nt-border);
+  background: #0b141d;
+}
+
+.nt-control-caption {
+  color: var(--nt-muted);
+  font: 650 8px/1 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.nt-control-summary {
+  min-width: 54px;
+  height: 30px;
+  display: inline-grid;
+  align-content: center;
+  justify-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--nt-border);
+  background: #0b141d;
+}
+
+.nt-control-summary b {
+  color: var(--nt-text);
+  font: 700 10px/1 "Geist Mono", ui-monospace, monospace;
+}
+
+.nt-control-summary small {
+  margin-top: 3px;
+  color: var(--nt-muted);
+  font: 650 7px/1 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: .05em;
+}
+
+.nt-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.nt-segmented .nt-tab {
+  min-width: 34px;
+  justify-content: center;
+  background: #101924;
+  border-color: #263649;
+}
+
+.nt-segmented .nt-tab[data-active="true"] {
+  background: #172638;
+  border-color: #496684;
+}
+
+.nt-segmented .nt-tab[data-active="true"]::before {
+  display: none;
+}
+
+.nt-toolbar-action {
+  min-height: 28px;
+  padding-inline: 9px;
+  background: #111d29;
+  border-color: #34495f;
+  color: #c1ccd8;
+}
+
+.nt-toolbar-action:hover {
+  background: #162433;
+  border-color: #4b647e;
+  color: var(--nt-text);
+}
+
+.nt-chart-toolbar {
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nt-chart-title {
+  margin-right: 2px;
+}
+
+.nt-chart-state {
+  margin-left: auto;
+  color: var(--nt-warning);
+  font-size: 9px;
+}
+
+.nt-indicator-list {
+  display: grid;
+}
+
+.nt-indicator-row {
+  min-height: 28px;
+  display: grid;
+  grid-template-columns: 16px 8px minmax(0, 1fr) 70px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid #263547;
+  color: var(--nt-text-2);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.nt-indicator-row:hover {
+  background: #121e2a;
+}
+
+.nt-indicator-row input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  padding: 0;
+  accent-color: #5a9ff0;
+}
+
+.nt-indicator-swatch {
+  width: 7px;
+  height: 7px;
+}
+
+.nt-indicator-name {
+  color: #c3ceda;
+}
+
+.nt-indicator-readonly {
+  grid-template-columns: 16px 8px minmax(0, 1fr) 70px;
+  cursor: default;
+}
+
+.nt-indicator-readonly::before {
+  content: "•";
+  color: var(--nt-muted);
+  text-align: center;
+}
+
+.nt-alert-form {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.25fr) minmax(78px, .9fr) 48px;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--nt-border);
+}
+
+.nt-alert-form .nt-control {
+  width: 100%;
+}
+
+.nt-table-action {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--nt-border);
+  background: #101923;
+  color: var(--nt-muted);
+  cursor: pointer;
+}
+
+.nt-table-action:hover {
+  border-color: #6a3942;
+  background: #1a1114;
+  color: #ef7c84;
+}
+
+.nt-chart-rail .nt-panel {
+  overflow: hidden;
+}
+
+/* Apply the same control language site-wide */
+.nt-toolbar label {
+  color: var(--nt-muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.nt-toolbar input,
+.nt-toolbar select {
+  margin-left: 4px;
+}
+
+.nt-filter-item select,
+.nt-filter-item input {
+  width: 100%;
+}
+
+@media (max-width: 1279px) {
+  .nt-chart-toolbar {
+    align-items: stretch;
+  }
+
+  .nt-chart-state {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .nt-alert-form {
+    grid-template-columns: 1fr 1fr auto;
+  }
+}
