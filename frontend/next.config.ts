@@ -1,15 +1,32 @@
 import type { NextConfig } from "next";
 
+const noStoreHeaders = [
+  {
+    key: "Cache-Control",
+    value: "no-store, max-age=0, must-revalidate",
+  },
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   env: {
-    // Mirrors .env.local `DEV_MODE` so client code can use demo / IndexedDB symbol subset.
     NEXT_PUBLIC_DEV_MODE:
       process.env.NEXT_PUBLIC_DEV_MODE ?? process.env.DEV_MODE ?? "",
   },
-  // Smaller client bundles: tree-shake icon/chart packages
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
+  },
+  async headers() {
+    return [
+      { source: "/", headers: noStoreHeaders },
+      { source: "/screener", headers: noStoreHeaders },
+      { source: "/companies/:path*", headers: noStoreHeaders },
+      { source: "/investing/:path*", headers: noStoreHeaders },
+      { source: "/indicators", headers: noStoreHeaders },
+      { source: "/news/:path*", headers: noStoreHeaders },
+      { source: "/documents/:path*", headers: noStoreHeaders },
+      { source: "/watchlists", headers: noStoreHeaders },
+    ];
   },
   async redirects() {
     return [
