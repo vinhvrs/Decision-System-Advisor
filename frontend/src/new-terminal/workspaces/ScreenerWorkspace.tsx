@@ -8,10 +8,10 @@ import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
-export default function ScreenerWorkspace() {
+export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?: string }) {
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [asset, setAsset] = useState("");
   const [sort, setSort] = useState("symbol");
   const [selection, setSelection] = useState("");
@@ -27,7 +27,7 @@ export default function ScreenerWorkspace() {
   const selected = shown.some(row => row.symbol === selection) ? selection : shown[0]?.symbol;
   const fund = useFeed<Metrics>(selected ? `/api/v1/sourced-fundamentals/${encodeURIComponent(selected)}` : null);
   const tech = useFeed<Metrics>(selected ? `/api/v1/metrics/${encodeURIComponent(selected)}` : null);
-  return <div className="nt-workspace">
+  return <div className="nt-workspace nt-full-workspace nt-screener-workspace">
     <section className="nt-toolbar">
       <strong>Screener Database</strong>
       <label>Search <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Symbol or company" /></label>
