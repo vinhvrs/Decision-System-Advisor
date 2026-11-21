@@ -190,7 +190,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
   const atr14Values = useMemo(() => atr(bars, 14), [bars]);
   const rsi14Values = useMemo(() => rsi(closeValues, 14), [closeValues]);
 
-  const currentAlerts = alerts.filter(alert => alert.symbol === symbol);
+  const currentAlerts = useMemo(() => alerts.filter(alert => alert.symbol === symbol), [alerts, symbol]);
   const activeIndicatorCount = Object.values(activeIndicators).filter(Boolean).length;
 
   useEffect(() => {
