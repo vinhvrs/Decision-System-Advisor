@@ -201,13 +201,25 @@ class Settings:
 
         self.EMBEDDING_URL = _e("EMBEDDING_URL", "http://127.0.0.1:8000")
 
+        # Official/public macro sources
+        self.BLS_API_KEY = _e("BLS_API_KEY")
+        self.BEA_API_KEY = _e("BEA_API_KEY") or _e("BEA_USER_ID")
+        self.EIA_API_KEY = _e("EIA_API_KEY")
+        self.FRED_API_KEY = _e("FRED_API_KEY")
+        self.CFTC_APP_TOKEN = _e("CFTC_APP_TOKEN")
+        self.SEC_USER_AGENT = _e("SEC_USER_AGENT", "Decision-System-Advisor/1.0 contact@example.com")
+
+        # Commercial / supplemental market sources
         self.ALPHA_VANTAGE_API_KEY = _e("ALPHA_VANTAGE_API_KEY")
         self.TWELVE_DATA_API_KEY = _e("TWELVE_DATA_API_KEY")
         self.FMP_API_KEY = _e("FMP_API_KEY")
         self.FINNHUB_API_KEY = _e("FINNHUB_API_KEY")
+        self.FINNHUB_WEBHOOK_SECRET = _e("FINNHUB_WEBHOOK_SECRET")
         self.GNEWS_API_KEY = _e("GNEWS_API_KEY")
         self.NEWSAPI_KEY = _e("NEWSAPI_KEY")
-        self.MASSIVE_API_KEY = _e("MASSIVE_API_KEY")
+        self.MASSIVE_API_KEY = _e("MASSIVE_API_KEY") or _e("POLYGON_API_KEY")
+        self.MARKET_DATA_COMMERCIAL_LICENSE_CONFIRMED = _e("MARKET_DATA_COMMERCIAL_LICENSE_CONFIRMED", "false").lower() in ("1","true","yes","on")
+        self.OPTIONS_OPRA_ENTITLED = _e("OPTIONS_OPRA_ENTITLED", "false").lower() in ("1","true","yes","on")
         self.NEWSAPIORG_KEY = _e("NEWSAPIORG_KEY")
         self.NEWSDATA_KEY = _e("NEWSDATA_API_KEY")
 
