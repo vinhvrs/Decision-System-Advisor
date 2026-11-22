@@ -11,7 +11,8 @@ import {
   type Time,
 } from "lightweight-charts";
 
-export type ChartBar = { timestamps: string; open: number; high: number; low: number; close: number; volume: number | null };\ntype Bar = ChartBar;
+export type ChartBar = { timestamps: string; open: number; high: number; low: number; close: number; volume: number | null };
+type Bar = ChartBar;
 type IndicatorKey = "sma20" | "sma50" | "ema20" | "bb20";
 type AlertCondition = "above" | "below";
 type PriceAlert = {
