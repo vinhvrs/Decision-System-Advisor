@@ -3948,3 +3948,42 @@ body,
   font-family: var(--nt-font-data);
   font-variant-numeric: tabular-nums;
 }
+
+
+.nt-correlation-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--nt-border);
+  background: var(--nt-s1);
+}
+
+.nt-correlation-summary > div {
+  min-width: 0;
+  padding: 7px 9px;
+  border-right: 1px solid var(--nt-border);
+}
+
+.nt-correlation-summary > div:last-child {
+  border-right: 0;
+}
+
+.nt-correlation-summary span {
+  display: block;
+  color: var(--nt-muted);
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-label);
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.nt-correlation-summary b {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--nt-text);
+  font-family: var(--nt-font-data);
+  font-size: var(--nt-type-body);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
