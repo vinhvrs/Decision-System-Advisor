@@ -198,84 +198,6 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
       <section className="nt-context-strip">
         <div className="nt-context-title">
           <div className="nt-label nt-info">Markets / US Equities</div>
-          <h1>Market Database</h1>
-        </div>
-        {[...Object.keys(indexSymbols), "US10Y"].map(name => (
-          <div className="nt-index" key={name}>
-            <div className="nt-index-name">{name}</div>
-            <div className="nt-index-values"><span>{name === "US10Y" ? valueText(macroByCode.get("UST10Y")?.value) : valueText(bySymbol.get(indexSymbols[name])?.price)}</span><span className="nt-muted">{name === "US10Y" ? macroByCode.get("UST10Y")?.quality ?? "Awaiting Treasury" : percent(bySymbol.get(indexSymbols[name])?.change_pct)}</span></div>
-          </div>
-        ))}
-      </section>
-
-      <div className="nt-dense-grid">
-        {[
-          ["Session",latestStored ? new Date(latestStored).toISOString().slice(0,10) : "—","Latest stored observation"],
-          ["Universe","US Equities","Coverage gated"],
-          ["Breadth", equities.length ? `${up} ↑ / ${down} ↓ / ${unchanged} =` : "—", "Tracked equities"],
-          ["Volume", traded.length ? `$${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", "Tracked traded value"],
-          ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Observed universe"],
-          ["Quotes", socketStatus, realtime.data ? `${realtime.data.source} · ${realtime.data.upstream}` : `${freshQuotes}/${heat.length} fresh`],
-          ["Stored rows", rows.length ? String(rows.length) : "—", latestStored ? `age ${ago(latestStored)}` : "Awaiting"],
-          ["Cross asset","—","Coverage gated"],
-          ["Options","—","Coverage gated"],
-          ["News", news.data ? String(news.data.data.filter(item => item.published_at).length) : "—","Timestamped headlines"],
-          ["Events", calendar.data ? String(calendar.data.events.length) : "—", calendar.data?.source ?? "Calendar"],
-          ["Data quality",health.data?.quality ?? "AWAITING","Backend coverage"],
-        ].map(([k,v,s]) => (
-          <div className={`nt-data-cell ${k === "Data quality" ? "nt-data-warning" : k === "Quotes" && v === "LIVE" ? "nt-data-live" : k === "Advancing" ? "nt-data-accent" : ""}`} key={k}>
-            <div className="k">{k}</div><div className="v">{v}</div><div className="s">{s}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="nt-grid nt-grid-markets nt-market-main-grid">
-        <aside className="nt-section-stack nt-market-rail">
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Sector breadth matrix</strong><span className="nt-panel-meta">chg · adv · MA · rvol</span></div>
-            <table className="nt-microtable">
-              <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
-              <tbody>{sectors.map(sector => {
-                const sample = equities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
-                const sectorEquities = breadthEquities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
-                const ma = dailyGroup(sectorEquities, "above_sma50");
-                const rvol = dailyGroup(sectorEquities, "rvol20");
-                return <tr key={sector}><td>{sector} {sample.length ? `(${sample.length})` : ""}</td><td>{percent(sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null)}</td><td>{percent(sample.length ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null)?.replace("+", "")}</td><td title={[ma.sources, ma.asOf].filter(Boolean).join(" · ")}>{breadthValue(ma)}</td><td title={[rvol.sources, rvol.asOf].filter(Boolean).join(" · ")}>{rvol.value === null ? rvol.state : `${rvol.value.toFixed(2)}× (${rvol.count}/${rvol.total})`}</td></tr>;
-              })}</tbody>
-            </table>
-          </section>
-
-          <section className="nt-panel nt-market-grow-panel">
-            <div className="nt-panel-title"><strong>Cross-asset monitor</strong><span className="nt-panel-meta">macro context</span></div>
-            <table className="nt-microtable">
-              <thead><tr><th>Asset</th><th>Last</th><th>Chg</th><th>Z</th></tr></thead>
-              <tbody>{crossAsset.map(x => {
-                const row = bySymbol.get(assetSymbols[x] ?? x);
-                const rate = x === "US02Y" ? macroByCode.get("UST2Y") : x === "US10Y" ? macroByCode.get("UST10Y") : undefined;
-                return <tr key={x}><td>{x}</td><td title={rate?.observed_at ?? row?.as_of ?? undefined}>{valueText(rate?.value ?? row?.price)}</td><td>{percent(row?.change_pct)}</td><td title="Requires standardized historical baseline">—</td></tr>;
-              })}</tbody>
-            </table>
-          </section>
-        </aside>
-
-        <section className="nt-section-stack nt-market-center">
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Constituent heatmap / breadth surface</strong><span className="nt-panel-meta">price · sector · source</span></div>
-            <div className="nt-panel-body">
-              <div className="nt-heatmap">
-                {heat.map(([symbol, sector]) => {
-                  const stored = bySymbol.get(symbol);
-                  const quote = quotes[symbol];
-                  const useQuote = quote && (!stored?.as_of || quote.at > Date.parse(stored.as_of));
-                  const price = useQuote ? quote.price : stored?.price;
-                  const change = useQuote ? quote.change : stored?.change_pct;
-                  const live = Boolean(connected && useQuote && updated - quote.at < 90000);
-
-                  return (
-    <div className="nt-workspace nt-market-workspace">
-      <section className="nt-context-strip">
-        <div className="nt-context-title">
-          <div className="nt-label nt-info">Markets / US Equities</div>
           <h1>Market Overview</h1>
         </div>
         {[...Object.keys(indexSymbols), "US10Y"].map(name => (
@@ -326,7 +248,6 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                 })}</tbody>
               </table>
             </div>
-
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Cross asset</strong><span>macro context</span></div>
               <table className="nt-microtable">
@@ -397,7 +318,6 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                 <tr><td>Adv / Decl</td><td>{up}</td><td>{down}</td></tr>
               </tbody></table>
             </div>
-
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Upcoming events</strong><span>ET</span></div>
               <table className="nt-microtable">
@@ -412,10 +332,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
       <div className="nt-market-research-grid">
         <DataTable title="Macro observations & spreads" columns={["Series","Value","Unit","Observed"]}
           rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
-          empty={macro.error ?? "No macro observations."} />
+          empty="No macro observations." />
         <DataTable title="Crypto derivatives" columns={["Metric","Value","Unit","Venue","Observed"]}
           rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
-          empty={crypto.error ?? "No crypto derivatives observations."} />
+          empty="No crypto derivatives observations." />
       </div>
     </div>
   );
