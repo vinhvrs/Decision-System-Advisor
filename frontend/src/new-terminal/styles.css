@@ -2990,3 +2990,9 @@ body {
 .nt-market-workspace {
   min-height: calc(100dvh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
 }
+
+
+/* Paint the Markets grid as a terminal surface so row/column remainder is never exposed page background. */
+.nt-market-main-grid {
+  background: var(--nt-s1);
+}
