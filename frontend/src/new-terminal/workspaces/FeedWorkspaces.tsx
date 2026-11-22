@@ -86,9 +86,14 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
   const [period, setPeriod] = useState("daily");
   const id = encodeURIComponent(symbol);
   const metrics = useFeed<Metrics>(`/api/v1/metrics/${id}?timeframe=${period}`);
-  const technical = useFeed<Technical>(metrics.data && metrics.data.quality !== "LICENSE_RESTRICTED" ? `/api/v1/technical/${id}?period=${period}` : null);
-  const metricEntries = Object.entries(metrics.data?.metrics ?? {});
-  const technicalEntries = Object.entries(technical.data?.indicators ?? {});
+  const technical = useFeed<Technical>((metrics.data ?? initialMetrics)?.quality !== "LICENSE_RESTRICTED" ? `/api/v1/technical/${id}?period=${period}` : null);
+  const universeRows = universe.data?.data ?? initialUniverse;
+  const snapshotRows = snapshot.data?.data ?? initialRows;
+  const dailyData = daily.data ?? initialDaily;
+  const metricData = metrics.data ?? initialMetrics;
+  const technicalData = technical.data ?? initialTechnical;
+  const metricEntries = Object.entries(metricData?.metrics ?? {});
+  const technicalEntries = Object.entries(technicalData?.indicators ?? {});
   const availableMetricCount = metricEntries.filter(([, item]) => item.value != null).length;
   const unavailableMetricCount = metricEntries.length - availableMetricCount;
   const marketContext = [...snapshotRows]
