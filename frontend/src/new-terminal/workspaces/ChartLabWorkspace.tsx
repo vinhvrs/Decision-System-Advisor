@@ -454,6 +454,41 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
                 return <tr key={item}><td>{item}</td><td>{value?.value == null ? "—" : valueText(value.value)}</td></tr>;
               })}</tbody></table>
             </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Range statistics</strong><span>{range}</span></div>
+              <table className="nt-microtable"><tbody>
+                <tr><td>Range return</td><td className={rangeReturn != null && rangeReturn >= 0 ? "nt-positive" : "nt-negative"}>{pct(rangeReturn)}</td></tr>
+                <tr><td>Range high</td><td>{format(rangeHigh)}</td></tr>
+                <tr><td>Range low</td><td>{format(rangeLow)}</td></tr>
+                <tr><td>Avg daily H-L</td><td>{pct(avgDailyRange)}</td></tr>
+                <tr><td>Latest session</td><td className={latestChange != null && latestChange >= 0 ? "nt-positive" : "nt-negative"}>{pct(latestChange)}</td></tr>
+              </tbody></table>
+            </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Session distribution</strong><span>{bars.length} bars</span></div>
+              <table className="nt-microtable"><tbody>
+                <tr><td>Up sessions</td><td className="nt-positive">{upSessions || "—"}</td><td>{bars.length ? pct((upSessions / bars.length) * 100) : "—"}</td></tr>
+                <tr><td>Down sessions</td><td className="nt-negative">{downSessions || "—"}</td><td>{bars.length ? pct((downSessions / bars.length) * 100) : "—"}</td></tr>
+                <tr><td>Flat sessions</td><td>{flatSessions || "—"}</td><td>{bars.length ? pct((flatSessions / bars.length) * 100) : "—"}</td></tr>
+                <tr><td>Avg volume</td><td>{format(avgVolume)}</td><td></td></tr>
+                <tr><td>Total volume</td><td>{format(totalVolume || null)}</td><td></td></tr>
+              </tbody></table>
+            </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Recent sessions</strong><span>last 12</span></div>
+              <table className="nt-microtable">
+                <thead><tr><th>Date</th><th>Close</th><th>Δ%</th></tr></thead>
+                <tbody>{recentBars.slice(0,12).map((bar,index) => {
+                  const originalIndex = bars.length - 1 - index;
+                  const previous = fullBars[firstVisible + originalIndex - 1];
+                  const change = previous?.close ? ((bar.close / previous.close) - 1) * 100 : null;
+                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td></tr>;
+                })}</tbody>
+              </table>
+            </div>
           </section>
         </aside>
 
@@ -477,10 +512,10 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
           </section>
 
           <section className="nt-panel">
-            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">recent sessions</span></div>
+            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">last 16 sessions</span></div>
             <div className="nt-table-wrap"><table className="nt-table">
               <thead><tr>{["Time","Open","High","Low","Close","Volume","SMA20","SMA50","RSI14","ATR14"].map(item => <th key={item}>{item}</th>)}</tr></thead>
-              <tbody>{bars.slice(-8).reverse().map(bar => {
+              <tbody>{bars.slice(-16).reverse().map(bar => {
                 const index = bars.indexOf(bar);
                 return <tr key={bar.timestamps}>
                   <td>{bar.timestamps.slice(0,10)}</td>
@@ -494,42 +529,6 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             </table></div>
           </section>
 
-          <section className="nt-flat-surface nt-chart-summary-surface">
-            <div className="nt-summary-column">
-              <div className="nt-subsection-title"><strong>Range statistics</strong><span>{range}</span></div>
-              <table className="nt-microtable"><tbody>
-                <tr><td>Range return</td><td className={rangeReturn != null && rangeReturn >= 0 ? "nt-positive" : "nt-negative"}>{pct(rangeReturn)}</td></tr>
-                <tr><td>Range high</td><td>{format(rangeHigh)}</td></tr>
-                <tr><td>Range low</td><td>{format(rangeLow)}</td></tr>
-                <tr><td>Avg daily H-L</td><td>{pct(avgDailyRange)}</td></tr>
-                <tr><td>Latest session</td><td className={latestChange != null && latestChange >= 0 ? "nt-positive" : "nt-negative"}>{pct(latestChange)}</td></tr>
-              </tbody></table>
-            </div>
-
-            <div className="nt-summary-column">
-              <div className="nt-subsection-title"><strong>Session distribution</strong><span>{bars.length} bars</span></div>
-              <table className="nt-microtable"><tbody>
-                <tr><td>Up sessions</td><td className="nt-positive">{upSessions || "—"}</td><td>{bars.length ? pct((upSessions / bars.length) * 100) : "—"}</td></tr>
-                <tr><td>Down sessions</td><td className="nt-negative">{downSessions || "—"}</td><td>{bars.length ? pct((downSessions / bars.length) * 100) : "—"}</td></tr>
-                <tr><td>Flat sessions</td><td>{flatSessions || "—"}</td><td>{bars.length ? pct((flatSessions / bars.length) * 100) : "—"}</td></tr>
-                <tr><td>Avg volume</td><td>{format(avgVolume)}</td><td>{volumeBars.length} bars</td></tr>
-                <tr><td>Total volume</td><td>{format(totalVolume || null)}</td><td>{range}</td></tr>
-              </tbody></table>
-            </div>
-
-            <div className="nt-summary-column nt-chart-recent-panel">
-              <div className="nt-subsection-title"><strong>Recent sessions</strong><span>last 8</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Date</th><th>Close</th><th>Δ%</th><th>Volume</th></tr></thead>
-                <tbody>{recentBars.slice(0,8).map((bar,index) => {
-                  const originalIndex = bars.length - 1 - index;
-                  const previous = fullBars[firstVisible + originalIndex - 1];
-                  const change = previous?.close ? ((bar.close / previous.close) - 1) * 100 : null;
-                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td><td>{format(bar.volume)}</td></tr>;
-                })}</tbody>
-              </table>
-            </div>
-          </section>
         </section>
 
         <aside className="nt-chart-rail nt-flat-rail">
@@ -580,7 +579,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Technical snapshot</strong><span>{symbol}</span></div>
               <table className="nt-microtable"><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>
-                {registry.slice(0,10).map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={[result.metadata?.source, result.as_of].filter(Boolean).join(" · ")}>{valueText(result.value)}</td></tr>)}
+                {registry.slice(0,18).map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={[result.metadata?.source, result.as_of].filter(Boolean).join(" · ")}>{valueText(result.value)}</td></tr>)}
                 {!registry.length && <tr><td colSpan={2}>—</td></tr>}
               </tbody></table>
             </div>
@@ -588,7 +587,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Macro events</strong><span>next</span></div>
               <table className="nt-microtable"><thead><tr><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
-                {(calendar.data?.events ?? []).slice(0,8).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
+                {(calendar.data?.events ?? []).slice(0,12).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
                 {!calendar.data?.events.length && <tr><td colSpan={3}>No scheduled macro events</td></tr>}
               </tbody></table>
             </div>
