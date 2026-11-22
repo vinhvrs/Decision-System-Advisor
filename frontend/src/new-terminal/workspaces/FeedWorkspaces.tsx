@@ -39,7 +39,7 @@ export function NewsWorkspace() {
           <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>,
         ],
       }))}
-      empty={news.error ?? "No timestamped headlines returned."}
+      empty="No recent headlines."
       note="Context badges are derived only from explicit symbol format or the tracked US-equity universe; unclassified stories remain global." />
 
     <div className="nt-toolbar nt-news-pager"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={!news.data || page >= news.data.last_page} onClick={() => setPage(page + 1)}>Next</button></div>
@@ -57,7 +57,7 @@ export function NewsWorkspace() {
           item.previous,
         ],
       }))}
-      empty={calendar.error ?? "No event records returned."} />
+      empty="No scheduled economic events." />
   </div>;
 }
 
@@ -77,7 +77,7 @@ export function IndicatorsWorkspace() {
       <label>Period <select value={period} onChange={event => setPeriod(event.target.value)}><option value="daily">Daily</option><option value="30m">30 minutes</option></select></label></section>
     <DataTable title="Published metric snapshot" columns={["Indicator", "Value", "Unit"]}
       rows={metricEntries.map(([key, item]) => ({ key, cells: [labelText(key), valueText(item.value), item.unit] }))}
-      empty={metrics.error ?? "No metric snapshot for this symbol and period."} />
+      empty="No indicator values for this symbol and period." />
     <DataTable title="Technical indicator registry" columns={["Indicator", "Value"]}
       rows={technicalEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value)] }))}
       empty="No technical indicator values for this symbol and period." />
@@ -93,7 +93,7 @@ export function DocumentsWorkspace() {
     <section className="nt-toolbar"><h1>Documents & Filings</h1><form onSubmit={event => { event.preventDefault(); setSymbol(query.trim()); }}><label>SEC ticker <input value={query} required pattern="[A-Za-z]{1,12}" onChange={event => setQuery(event.target.value.toUpperCase())} /></label> <button type="submit">Find filings</button></form></section>
     <DataTable title={`${symbol} · SEC filings`} columns={["Form", "Filed", "Report period", "SEC document"]}
       rows={(filings.data?.data ?? []).map(item => ({ key: item.accession_number, cells: [item.form, item.filing_date?.slice(0,10), item.report_date?.slice(0,10), <a key="sec" href={sourceLink(item.filing_url)} rel="noreferrer">{item.accession_number}</a>] }))}
-      empty={filings.error ?? "No SEC filing records returned."} />
+      empty="No SEC filings for this symbol." />
   </div>;
 }
 
@@ -174,7 +174,7 @@ function WatchlistEditor({ token }: { token: string | null }) {
           <span key="links"><Link href={`/companies/profile/${encodeURIComponent(row.symbol)}`}>Company</Link> · <Link href={`/investing?symbol=${encodeURIComponent(row.symbol)}`}>Chart</Link></span>
         ]};
       })}
-      empty={universe.error ?? "Loading instrument universe…"} />
+      empty="Loading instrument universe…" />
 
   </div>;
 }
