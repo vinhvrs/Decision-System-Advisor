@@ -8,7 +8,7 @@ import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
-export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?: string }) {
+export default function ScreenerWorkspace({ initialQuery = "", initialRows = [], initialUniverse = [] }: { initialQuery?: string; initialRows?: MarketRow[]; initialUniverse?: Universe[] }) {
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
