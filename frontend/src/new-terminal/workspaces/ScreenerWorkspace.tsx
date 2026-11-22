@@ -16,8 +16,10 @@ export default function ScreenerWorkspace({ initialQuery = "", initialRows = [],
   const [asset, setAsset] = useState("");
   const [sort, setSort] = useState("symbol");
   const [selection, setSelection] = useState("");
-  const bySymbol = useMemo(() => new Map(snapshot.data?.data.map(row => [row.symbol, row])), [snapshot.data]);
-  const all = universe.data?.data ?? [];
+  const snapshotRows = snapshot.data?.data ?? initialRows;
+  const universeRows = universe.data?.data ?? initialUniverse;
+  const bySymbol = useMemo(() => new Map(snapshotRows.map(row => [row.symbol, row])), [snapshotRows]);
+  const all = universeRows;
   const shown = all.filter(row => (!asset || row.asset_class === asset) &&
     `${row.symbol} ${row.name}`.toLowerCase().includes(query.trim().toLowerCase()));
   shown.sort((a, b) => {
@@ -52,7 +54,7 @@ export default function ScreenerWorkspace({ initialQuery = "", initialRows = [],
     <div className="nt-screener-layout">
       <section className="nt-screener-results">
         <DataTable title="Instrument universe" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap"]}
-          empty={universe.data ? "No instruments match the current filters." : "Loading instrument universe…"}
+          empty={all.length ? "No instruments match the current filters." : "Loading instrument universe…"}
           rows={shown.map(row => {
             const stored = bySymbol.get(row.symbol);
             return { key: row.symbol, cells: [
