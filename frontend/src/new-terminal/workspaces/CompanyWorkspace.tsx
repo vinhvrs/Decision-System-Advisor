@@ -72,7 +72,7 @@ function PriceMonitor({ bars, symbol }: { bars: CompanyPriceBar[]; symbol: strin
   }).join(" ");
   const maxVol = Math.max(...rows.map(row=>row.volume ?? 0),1);
   const first = rows[0]?.close, last = rows.at(-1)?.close;
-  const change = first ? ((last/first)-1)*100 : null;
+  const change = first && last != null ? ((last/first)-1)*100 : null;
   return <div className="nt-price-monitor">
     <div className="nt-monitor-meta"><span>{symbol} · 3M</span><b className={(change ?? 0)>=0?"nt-positive":"nt-negative"}>{pct(change)}</b></div>
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${symbol} recent price and volume`}>
