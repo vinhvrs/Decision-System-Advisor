@@ -8,7 +8,7 @@ import {
   LineSeries,
   LineStyle,
   createChart,
-  type BusinessDay,
+  type Time,
 } from "lightweight-charts";
 
 type Bar = { timestamps: string; open: number; high: number; low: number; close: number; volume: number | null };
@@ -24,6 +24,7 @@ type PriceAlert = {
 };
 
 const chartRanges: Record<string, number> = { "1M": 31, "3M": 93, "6M": 186, "1Y": 366, "5Y": 1830 };
+const INDICATOR_LOOKBACK_DAYS = 120;
 const ALERT_STORAGE = "dsa.chart.price-alerts.v1";
 
 const format = (value: number | null | undefined) =>
@@ -120,14 +121,14 @@ function rsi(values: number[], period = 14) {
 
 function lineData(bars: Bar[], values: Array<number | null>) {
   return bars.flatMap((bar, index) =>
-    values[index] == null ? [] : [{ time: bar.timestamps.slice(0, 10) as unknown as BusinessDay, value: values[index] as number }]
+    values[index] == null ? [] : [{ time: bar.timestamps.slice(0, 10) as Time, value: values[index] as number }]
   );
 }
 
 export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialSymbol?: string }) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [range, setRange] = useState("6M");
-  const [bars, setBars] = useState<Bar[]>([]);
+  const [history, setHistory] = useState<{ bars: Bar[]; visibleStart: string }>({ bars: [], visibleStart: "" });
   const [state, setState] = useState("Loading stored bars");
   const [activeIndicators, setActiveIndicators] = useState<Record<IndicatorKey, boolean>>({
     sma20: true,
@@ -175,27 +176,50 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
   useEffect(() => {
     const controller = new AbortController();
     const to = new Date();
-    const from = new Date(to.getTime() - chartRanges[range] * 86400000);
-    const dates = new URLSearchParams({ from: from.toISOString().slice(0,10), to: to.toISOString().slice(0,10) });
+    const rangeStart = new Date(to.getTime() - chartRanges[range] * 86400000);
+    const warmupStart = new Date(rangeStart.getTime() - INDICATOR_LOOKBACK_DAYS * 86400000);
+    const visibleStart = rangeStart.toISOString().slice(0, 10);
+    const dates = new URLSearchParams({ from: warmupStart.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
     fetch(`/api/instruments/data-history/${encodeURIComponent(symbol)}?${dates}`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error("History unavailable");
         const data: Bar[] = (await response.json()).data ?? [];
         if (controller.signal.aborted) return;
-        setBars(data);
-        setState(data.length ? "Stored daily bars" : "No bars in this range");
+        const dated = new Map<string, Bar>();
+        for (const bar of data) {
+          const day = bar.timestamps.slice(0, 10);
+          const { open, high, low, close } = bar;
+          if (![open, high, low, close].every(Number.isFinite) ||
+              low > Math.min(open, close) || high < Math.max(open, close)) continue;
+          dated.set(day, bar);
+        }
+        const clean = [...dated.values()].sort((a, b) => a.timestamps.localeCompare(b.timestamps));
+        setHistory({ bars: clean, visibleStart });
+        setState(clean.some(bar => bar.timestamps.slice(0, 10) >= visibleStart)
+          ? "Stored daily bars" : "No bars in this range");
       })
       .catch(() => { if (!controller.signal.aborted) setState("History unavailable"); });
     return () => controller.abort();
   }, [symbol, range]);
 
-  const closeValues = useMemo(() => bars.map(bar => bar.close), [bars]);
-  const sma20Values = useMemo(() => sma(closeValues, 20), [closeValues]);
-  const sma50Values = useMemo(() => sma(closeValues, 50), [closeValues]);
-  const ema20Values = useMemo(() => ema(closeValues, 20), [closeValues]);
-  const bb20Values = useMemo(() => bollinger(closeValues, 20, 2), [closeValues]);
-  const atr14Values = useMemo(() => atr(bars, 14), [bars]);
-  const rsi14Values = useMemo(() => rsi(closeValues, 14), [closeValues]);
+  const fullBars = history.bars;
+  const firstVisible = fullBars.findIndex(bar => bar.timestamps.slice(0, 10) >= history.visibleStart);
+  const bars = useMemo(() => firstVisible < 0 ? [] : fullBars.slice(firstVisible), [firstVisible, fullBars]);
+  const indicators = useMemo(() => {
+    const closes = fullBars.map(bar => bar.close);
+    const visible = (values: Array<number | null>) => firstVisible < 0 ? [] : values.slice(firstVisible);
+    const bb = bollinger(closes, 20, 2);
+    return {
+      sma20: visible(sma(closes, 20)),
+      sma50: visible(sma(closes, 50)),
+      ema20: visible(ema(closes, 20)),
+      bb: { mid: visible(bb.mid), upper: visible(bb.upper), lower: visible(bb.lower) },
+      atr14: visible(atr(fullBars, 14)),
+      rsi14: visible(rsi(closes, 14)),
+    };
+  }, [firstVisible, fullBars]);
+  const { sma20: sma20Values, sma50: sma50Values, ema20: ema20Values, bb: bb20Values,
+    atr14: atr14Values, rsi14: rsi14Values } = indicators;
 
   const currentAlerts = useMemo(() => alerts.filter(alert => alert.symbol === symbol), [alerts, symbol]);
   const activeIndicatorCount = Object.values(activeIndicators).filter(Boolean).length;
@@ -205,10 +229,16 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
 
     const chart = createChart(canvas.current, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: "#0b1016" }, textColor: "#aab8c8", fontFamily: window.getComputedStyle(canvas.current).fontFamily, fontSize: 10 },
-      grid: { vertLines: { color: "#1d2937" }, horzLines: { color: "#1d2937" } },
-      rightPriceScale: { borderColor: "#2a394b" },
-      timeScale: { borderColor: "#2a394b" },
+      layout: {
+        background: { type: ColorType.Solid, color: "#0b1016" },
+        textColor: "#aab8c8",
+        fontFamily: window.getComputedStyle(canvas.current).fontFamily,
+        fontSize: 11,
+        panes: { separatorColor: "#2a394b", separatorHoverColor: "#46627f" },
+      },
+      grid: { vertLines: { color: "#172330" }, horzLines: { color: "#172330" } },
+      rightPriceScale: { borderColor: "#2a394b", scaleMargins: { top: 0.08, bottom: 0.08 } },
+      timeScale: { borderColor: "#2a394b", rightOffset: 2 },
       crosshair: { vertLine: { color: "#536a83" }, horzLine: { color: "#536a83" } },
     });
 
@@ -221,32 +251,39 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
       wickDownColor: "#de626d",
     });
 
-    const volume = chart.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" } });
-    volume.priceScale().applyOptions({ scaleMargins: { top: 0.80, bottom: 0 } });
-
-    const daily = bars.map(bar => ({ ...bar, time: bar.timestamps.slice(0, 10) as unknown as BusinessDay }));
+    const daily = bars.map(bar => ({ ...bar, time: bar.timestamps.slice(0, 10) as Time }));
     candle.setData(daily);
-    volume.setData(daily.flatMap(bar => bar.volume == null ? [] : [{
+    const volumeData = daily.flatMap(bar => bar.volume == null ? [] : [{
       time: bar.time,
       value: bar.volume,
       color: bar.close >= bar.open ? "#159b82" : "#c74e5b",
-    }]));
+    }]);
+    if (volumeData.length) {
+      const volume = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        lastValueVisible: false,
+        priceLineVisible: false,
+      }, 1);
+      volume.setData(volumeData);
+      volume.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.02 } });
+      chart.panes()[1]?.setHeight(92);
+    }
 
     if (activeIndicators.sma20) {
-      const line = chart.addSeries(LineSeries, { color: "#6ea7e8", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "SMA20" });
+      const line = chart.addSeries(LineSeries, { color: "#6ea7e8", lineWidth: 1, crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false });
       line.setData(lineData(bars, sma20Values));
     }
     if (activeIndicators.sma50) {
-      const line = chart.addSeries(LineSeries, { color: "#d5a65d", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "SMA50" });
+      const line = chart.addSeries(LineSeries, { color: "#d5a65d", lineWidth: 1, crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false });
       line.setData(lineData(bars, sma50Values));
     }
     if (activeIndicators.ema20) {
-      const line = chart.addSeries(LineSeries, { color: "#b58bdc", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "EMA20" });
+      const line = chart.addSeries(LineSeries, { color: "#b58bdc", lineWidth: 1, crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false });
       line.setData(lineData(bars, ema20Values));
     }
     if (activeIndicators.bb20) {
-      const upper = chart.addSeries(LineSeries, { color: "#6f849c", lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, title: "BB20 +" });
-      const lower = chart.addSeries(LineSeries, { color: "#6f849c", lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, title: "BB20 -" });
+      const upper = chart.addSeries(LineSeries, { color: "#6f849c", lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
+      const lower = chart.addSeries(LineSeries, { color: "#6f849c", lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
       upper.setData(lineData(bars, bb20Values.upper));
       lower.setData(lineData(bars, bb20Values.lower));
     }
@@ -269,6 +306,11 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
   const latest = bars.at(-1);
   const first = bars[0];
   const latestIndex = bars.length - 1;
+  const prior = fullBars.at(-2);
+  const latestDay = latest?.timestamps.slice(0, 10);
+  const relativeVolume = dailyMetrics?.rvol20;
+  const currency = universe.data?.data.find(row => row.symbol === symbol)?.quote_currency;
+  const hasVolume = bars.some(bar => bar.volume != null && bar.volume > 0);
   const values = [
     latest?.open,
     latest?.high,
@@ -277,6 +319,9 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
     latest?.volume,
     null,
     latestIndex >= 0 ? atr14Values[latestIndex] : null,
+    latest && prior?.close ? (latest.open / prior.close - 1) * 100 : null,
+    null, null, null,
+    relativeVolume?.as_of === latestDay ? relativeVolume?.value : null,
   ];
 
   useEffect(() => {
@@ -330,7 +375,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
         <label className="nt-control-group">
           <span className="nt-control-caption">Symbol</span>
           <select className="nt-control nt-control-select" value={symbol} onChange={event => {
-            setBars([]);
+            setHistory({ bars: [], visibleStart: "" });
             setState("Loading stored bars");
             setSymbol(event.target.value);
             setAlertTarget("");
@@ -344,7 +389,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
           <div className="nt-segmented">
             {Object.keys(chartRanges).map(item => <button type="button" className="nt-tab" data-active={item === range} key={item} onClick={() => {
               if (item !== range) {
-                setBars([]);
+                setHistory({ bars: [], visibleStart: "" });
                 setState("Loading stored bars");
                 setRange(item);
               }
@@ -369,8 +414,8 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
       <div className="nt-dense-grid">
         {ohlcFields.map((key, index) => <div className="nt-data-cell" key={key}>
           <div className="k">{key}</div>
-          <div className="v">{format(values[index])}</div>
-          <div className="s">{index < 5 && latest ? latest.timestamps.slice(0,10) : index === 6 ? "ATR14 · Wilder" : "Awaiting source"}</div>
+          <div className="v">{index === 7 ? pct(values[index]) : index === 11 && values[index] != null ? `${format(values[index])}×` : format(values[index])}</div>
+          <div className="s">{index < 5 && latest ? latestDay : index === 6 ? "ATR14 · Wilder" : index === 7 && values[index] != null ? "Open vs previous close" : index === 11 && values[index] != null ? "20 prior sessions" : "Awaiting source"}</div>
         </div>)}
       </div>
 
@@ -422,9 +467,17 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             <div className="nt-panel-title">
               <div>
                 <strong>{symbol} · Price / Volume</strong>
-                <div className="nt-panel-meta">{range} · 1D · USD · Pi market history · {activeIndicatorCount} overlays · {currentAlerts.filter(alert => alert.enabled).length} alerts</div>
+                <div className="nt-panel-meta">{range} · 1D{currency ? ` · ${currency}` : ""} · Pi market history · {activeIndicatorCount} overlays · {currentAlerts.filter(alert => alert.enabled).length} alerts</div>
               </div>
-              <span className="nt-warning nt-mono">{state}</span>
+              <span className="nt-panel-meta">{bars.length ? `${bars.length} sessions · ${latestDay}` : state}</span>
+            </div>
+            <div className="nt-chart-legend" aria-label="Chart series">
+              <span>OHLC</span>
+              {activeIndicators.sma20 && <span style={{ color: "#6ea7e8" }}>SMA 20 <b>{format(sma20Values.at(-1))}</b></span>}
+              {activeIndicators.sma50 && <span style={{ color: "#d5a65d" }}>SMA 50 <b>{format(sma50Values.at(-1))}</b></span>}
+              {activeIndicators.ema20 && <span style={{ color: "#b58bdc" }}>EMA 20 <b>{format(ema20Values.at(-1))}</b></span>}
+              {activeIndicators.bb20 && <span style={{ color: "#a0b1c4" }}>BB 20,2 <b>{format(bb20Values.mid.at(-1))}</b></span>}
+              {hasVolume && <span>Volume <b>{format(latest?.volume)}</b></span>}
             </div>
             <div className="nt-panel-body"><div ref={canvas} aria-label={`${symbol} daily price and volume chart`} /></div>
           </section>
