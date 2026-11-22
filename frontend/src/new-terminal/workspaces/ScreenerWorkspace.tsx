@@ -8,7 +8,21 @@ import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
-export default function ScreenerWorkspace({ initialQuery = "", initialRows = [], initialUniverse = [] }: { initialQuery?: string; initialRows?: MarketRow[]; initialUniverse?: Universe[] }) {
+export default function ScreenerWorkspace({
+  initialQuery = "",
+  initialRows = [],
+  initialUniverse = [],
+  initialFund,
+  initialTech,
+  initialDaily,
+}: {
+  initialQuery?: string;
+  initialRows?: MarketRow[];
+  initialUniverse?: Universe[];
+  initialFund?: Metrics;
+  initialTech?: Metrics;
+  initialDaily?: DailyAnalytics;
+}) {
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
@@ -30,11 +44,15 @@ export default function ScreenerWorkspace({ initialQuery = "", initialRows = [],
   const selected = shown.some(row => row.symbol === selection) ? selection : shown[0]?.symbol;
   const fund = useFeed<Metrics>(selected ? `/api/v1/sourced-fundamentals/${encodeURIComponent(selected)}` : null);
   const tech = useFeed<Metrics>(selected ? `/api/v1/metrics/${encodeURIComponent(selected)}` : null);
-  const dailyMetrics = selected ? daily.data?.data[selected]?.metrics : undefined;
-  const technicalMetrics = { ...tech.data?.metrics, ...dailyMetrics };
+  const seededSymbol = initialUniverse.map(row => row.symbol).sort()[0];
+  const fundData = fund.data ?? (selected === seededSymbol ? initialFund : undefined);
+  const techData = tech.data ?? (selected === seededSymbol ? initialTech : undefined);
+  const dailyData = daily.data ?? initialDaily;
+  const dailyMetrics = selected ? dailyData?.data[selected]?.metrics : undefined;
+  const technicalMetrics = { ...techData?.metrics, ...dailyMetrics };
   const selectedRow = bySymbol.get(selected ?? "");
-  const fundRows = Object.entries(fund.data?.metrics ?? {});
-  const technicalRows = Object.entries(technicalMetrics).filter(([key]) => !(key in (fund.data?.metrics ?? {})));
+  const fundRows = Object.entries(fundData?.metrics ?? {});
+  const technicalRows = Object.entries(technicalMetrics).filter(([key]) => !(key in (fundData?.metrics ?? {})));
   const changeRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.change_pct ?? -Infinity) - (bySymbol.get(a.symbol)?.change_pct ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
   const tradedRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.traded_value ?? -Infinity) - (bySymbol.get(a.symbol)?.traded_value ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
   const sessionMovers = [...shown]
