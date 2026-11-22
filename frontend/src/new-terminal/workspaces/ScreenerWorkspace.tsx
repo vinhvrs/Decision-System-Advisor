@@ -47,7 +47,7 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
     <div className="nt-screener-layout">
       <section className="nt-screener-results">
         <DataTable title="Instrument universe" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap"]}
-          empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading instrument universe…")}
+          empty={universe.data ? "No instruments match the current filters." : "Loading instrument universe…"}
           rows={shown.map(row => {
             const stored = bySymbol.get(row.symbol);
             return { key: row.symbol, cells: [
@@ -57,7 +57,7 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
               valueText(stored?.traded_value), valueText(stored?.market_cap)
             ] };
           })}
-          note={snapshot.error ?? "Traded value is shown separately from share volume."} />
+          note="Traded value is shown separately from share volume." />
       </section>
 
       <aside className="nt-screener-inspector">
