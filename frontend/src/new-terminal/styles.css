@@ -4198,3 +4198,51 @@ body,
   }
 }
 
+/* 2026-11-22 route-level hierarchy + whitespace audit */
+.nt-news-workspace,
+.nt-indicators-workspace,
+.nt-documents-workspace,
+.nt-watchlists-workspace {
+  align-content: start !important;
+}
+
+.nt-news-supporting-grid {
+  grid-template-columns: minmax(250px, .68fr) minmax(0, 1.32fr);
+}
+
+.nt-indicators-supporting-grid {
+  grid-template-columns: minmax(280px, .78fr) minmax(0, 1.22fr);
+}
+
+.nt-news-supporting-grid > .nt-panel,
+.nt-indicators-supporting-grid > .nt-panel,
+.nt-market-supporting-grid > .nt-panel {
+  align-self: start;
+  min-height: 0 !important;
+}
+
+.nt-news-workspace > *,
+.nt-indicators-workspace > *,
+.nt-documents-workspace > *,
+.nt-watchlists-workspace > * {
+  margin-block: 0;
+}
+
+/* Keep route content in natural page flow: shell can fill the viewport, content must not. */
+.nt-news-workspace,
+.nt-indicators-workspace,
+.nt-documents-workspace,
+.nt-watchlists-workspace,
+.nt-company-workspace,
+.nt-screener-workspace {
+  height: auto !important;
+  min-height: 0 !important;
+  flex: none !important;
+}
+
+@media (max-width: 1180px) {
+  .nt-news-supporting-grid,
+  .nt-indicators-supporting-grid {
+    grid-template-columns: 1fr;
+  }
+}
