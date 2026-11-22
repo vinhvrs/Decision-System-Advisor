@@ -305,6 +305,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               </tbody></table>
             </div>
           </section>
+
+          <DataTable title="Macro observations & spreads" columns={["Series","Value","Unit","Observed"]}
+            rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
+            empty="No macro observations." />
         </section>
 
         <aside className="nt-market-rail nt-flat-rail">
@@ -325,17 +329,18 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                 <tbody>{calendar.data?.events.length ? calendar.data.events.slice(0,10).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3}>No scheduled events</td></tr>}</tbody>
               </table>
             </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Crypto derivatives</strong><span>live context</span></div>
+              <table className="nt-microtable">
+                <thead><tr><th>Metric</th><th>Value</th><th>Venue</th></tr></thead>
+                <tbody>{(crypto.data?.data ?? []).slice(0,8).map(row => <tr key={row.metric_code}><td>{row.metric_code.replace(/_/g," ")}</td><td>{valueText(row.value)}</td><td>{row.source ?? "—"}</td></tr>)}
+                  {!crypto.data?.data?.length && <tr><td colSpan={3}>No crypto derivatives observations</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </section>
         </aside>
-      </div>
-
-      <div className="nt-market-research-grid">
-        <DataTable title="Macro observations & spreads" columns={["Series","Value","Unit","Observed"]}
-          rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
-          empty="No macro observations." />
-        <DataTable title="Crypto derivatives" columns={["Metric","Value","Unit","Venue","Observed"]}
-          rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
-          empty="No crypto derivatives observations." />
       </div>
     </div>
   );
