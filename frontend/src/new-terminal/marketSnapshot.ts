@@ -12,7 +12,7 @@ export type MarketRow = {
 export async function readMarketSnapshot(): Promise<MarketRow[]> {
   const result = await fetch("https://data.aitemple.tech/api/v1/market-heatmap", {
     next: { revalidate: 20 },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(10000),\n      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 DSA-Server/1.0" },
   });
   if (!result.ok) throw new Error(`Market snapshot returned ${result.status}`);
   const { data } = await result.json();
