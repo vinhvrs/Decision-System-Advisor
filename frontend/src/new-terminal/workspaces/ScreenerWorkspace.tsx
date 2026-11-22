@@ -30,69 +30,62 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
   const tech = useFeed<Metrics>(selected ? `/api/v1/metrics/${encodeURIComponent(selected)}` : null);
   const dailyMetrics = selected ? daily.data?.data[selected]?.metrics : undefined;
   const technicalMetrics = { ...tech.data?.metrics, ...dailyMetrics };
-  const technicalFields = ["rsi14", "atr_pct", "sma20", "sma50", "sma200", "average_volume20",
-    "rvol20", "trading_52w_high", "trading_52w_low"];
+  const metricRows = [
+    ...["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"].map(key => [key, fund.data?.metrics[key]] as const),
+    ...["rsi14", "atr_pct", "sma20", "sma50", "sma200", "rvol20", "trading_52w_high", "trading_52w_low"].map(key => [key, technicalMetrics[key]] as const),
+  ];
+
   return <div className="nt-workspace nt-full-workspace nt-screener-workspace">
     <section className="nt-toolbar">
-      <strong>Screener Database</strong>
+      <strong>Screener</strong>
       <label>Search <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Symbol or company" /></label>
       <label>Asset <select value={asset} onChange={event => setAsset(event.target.value)}><option value="">All</option>{[...new Set(all.map(row => row.asset_class))].sort().map(item => <option key={item}>{item}</option>)}</select></label>
       <label>Sort <select value={sort} onChange={event => setSort(event.target.value)}><option value="symbol">Symbol</option><option value="change">Session change</option><option value="traded">Traded value</option></select></label>
-      <span>{shown.length} / {all.length} instruments</span>
+      <span className="nt-toolbar-count">{shown.length} / {all.length}</span>
     </section>
+
     <div className="nt-screener-layout">
       <section className="nt-screener-results">
-        <DataTable title="Instrument universe and stored session" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap", "As of"]}
-          empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading Pi instrument universe…")}
+        <DataTable title="Instrument universe" columns={["Symbol", "Context", "Instrument", "Asset", "Currency", "Last", "Change %", "Traded value", "Market cap"]}
+          empty={universe.error ?? (universe.data ? "No instruments match the current filters." : "Loading instrument universe…")}
           rows={shown.map(row => {
             const stored = bySymbol.get(row.symbol);
             return { key: row.symbol, cells: [
               <button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>,
               <SymbolContext key="context" symbol={row.symbol} />,
               row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct),
-              valueText(stored?.traded_value), valueText(stored?.market_cap), stored?.as_of
+              valueText(stored?.traded_value), valueText(stored?.market_cap)
             ] };
           })}
-          note={snapshot.error ?? "Traded value is reported separately from share volume. Missing price, market cap and timestamps remain blank."} />
+          note={snapshot.error ?? "Traded value is shown separately from share volume."} />
       </section>
 
       <aside className="nt-screener-inspector">
-        <section className="nt-panel">
-          <div className="nt-panel-title">
-            <strong>{selected ? `${selected} · linked inspector` : "Linked inspector"}</strong>
-            <span className="nt-panel-meta">selection stays in screener</span>
-          </div>
-          <div className="nt-screener-selected">
-            <SymbolContext symbol={selected} />
-            <div>
-              <div className="nt-label">Last</div>
-              <strong className="nt-mono">{valueText(bySymbol.get(selected ?? "")?.price)}</strong>
+        <section className="nt-flat-surface">
+          <div className="nt-subsection">
+            <div className="nt-subsection-title">
+              <strong>{selected ? `${selected} · snapshot` : "Snapshot"}</strong>
+              <span>{bySymbol.get(selected ?? "")?.as_of?.slice(0,10) ?? ""}</span>
             </div>
-            <div>
-              <div className="nt-label">Change</div>
-              <strong className={(bySymbol.get(selected ?? "")?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{valueText(bySymbol.get(selected ?? "")?.change_pct)}%</strong>
+            <div className="nt-screener-selected">
+              <SymbolContext symbol={selected} />
+              <div><div className="nt-label">Last</div><strong className="nt-mono">{valueText(bySymbol.get(selected ?? "")?.price)}</strong></div>
+              <div><div className="nt-label">Change</div><strong className={(bySymbol.get(selected ?? "")?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{valueText(bySymbol.get(selected ?? "")?.change_pct)}%</strong></div>
             </div>
           </div>
+
+          <div className="nt-subsection">
+            <div className="nt-subsection-title"><strong>Valuation & technicals</strong><span>{selected ?? ""}</span></div>
+            <table className="nt-microtable"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th></tr></thead><tbody>
+              {metricRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
+            </tbody></table>
+          </div>
+
+          {selected && <div className="nt-inline-links nt-screener-links">
+            <Link href={`/companies/profile/${encodeURIComponent(selected)}`}>Company research ↗</Link>
+            <Link href={`/investing?symbol=${encodeURIComponent(selected)}`}>Chart Lab ↗</Link>
+          </div>}
         </section>
-
-        <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "As of", "Source / reason"]}
-          rows={[
-            ...["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"].map(key =>
-              [key, fund.data?.metrics[key], fund.data?.as_of, fund.error] as const),
-            ...technicalFields.map(key =>
-              [key, technicalMetrics[key], dailyMetrics?.[key] ? undefined : tech.data?.as_of, daily.error ?? tech.error] as const),
-          ].map(([key, metric, asOf, error]) => ({
-            key,
-            cells: [key.replace(/_/g, " "), valueText(metric?.value), metric?.unit,
-              metric?.quality ?? (error ? "UNAVAILABLE" : "NOT_INGESTED"), metric?.as_of ?? asOf,
-              metric?.reason ?? metric?.metadata?.source ?? error ?? "No suitable observation"],
-          }))}
-          note="Daily technical metrics use stored sessions. Forward P/E requires earnings consensus." />
-
-        {selected && <div className="nt-toolbar nt-screener-links">
-          <Link href={`/companies/profile/${encodeURIComponent(selected)}`}>Company research ↗</Link>
-          <Link href={`/investing?symbol=${encodeURIComponent(selected)}`}>Chart Lab ↗</Link>
-        </div>}
       </aside>
     </div>
   </div>;
