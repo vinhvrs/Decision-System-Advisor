@@ -12,6 +12,11 @@ export function NewsWorkspace() {
   const [page, setPage] = useState(1);
   const news = useFeed<{ data: News[]; last_page: number }>(`/api/news?page=${page}`);
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=30");
+  const market = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
+  const marketMovers = [...(market.data?.data ?? [])]
+    .filter(row => row.market === "stock" && row.change_pct != null)
+    .sort((a,b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
+    .slice(0,8);
   const eventCounts = (calendar.data?.events ?? []).reduce((acc, item) => {
     const key = item.impact?.toLowerCase().includes("high") ? "high" : item.impact?.toLowerCase().includes("med") ? "medium" : "low";
     acc[key] = (acc[key] ?? 0) + 1;
@@ -43,6 +48,15 @@ export function NewsWorkspace() {
       note="Context badges are derived only from explicit symbol format or the tracked US-equity universe; unclassified stories remain global." />
 
     <div className="nt-toolbar nt-news-pager"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={!news.data || page >= news.data.last_page} onClick={() => setPage(page + 1)}>Next</button></div>
+
+    <DataTable title="Market movers" columns={["Symbol","Last","Change %","Traded value"]}
+      rows={marketMovers.map(row => ({ key: row.symbol, cells: [
+        <SymbolContext key="symbol" symbol={row.symbol} />,
+        valueText(row.price),
+        row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
+        valueText(row.traded_value),
+      ] }))}
+      empty="No session movers." />
 
     <DataTable title="Economic calendar" columns={["Scheduled", "Country / Currency", "Event", "Importance", "Actual", "Forecast", "Previous"]}
       rows={(calendar.data?.events ?? []).map(item => ({
