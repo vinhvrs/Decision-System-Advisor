@@ -180,10 +180,15 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
     const warmupStart = new Date(rangeStart.getTime() - INDICATOR_LOOKBACK_DAYS * 86400000);
     const visibleStart = rangeStart.toISOString().slice(0, 10);
     const dates = new URLSearchParams({ from: warmupStart.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
-    fetch(`/api/instruments/data-history/${encodeURIComponent(symbol)}?${dates}`, { signal: controller.signal })
+    fetch(`/api/market/daily-history/${encodeURIComponent(symbol)}?${dates}`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error("History unavailable");
-        const data: Bar[] = (await response.json()).data ?? [];
+        const payload: { data?: Bar[]; quality?: string } = await response.json();
+        if (payload.quality === "LICENSE_RESTRICTED") {
+          if (!controller.signal.aborted) setState("History source is restricted");
+          return;
+        }
+        const data = payload.data ?? [];
         if (controller.signal.aborted) return;
         const dated = new Map<string, Bar>();
         for (const bar of data) {
@@ -466,7 +471,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             <div className="nt-panel-title">
               <div>
                 <strong>{symbol} · Price / Volume</strong>
-                <div className="nt-panel-meta">{range} · 1D{currency ? ` · ${currency}` : ""} · Pi market history · {activeIndicatorCount} overlays · {currentAlerts.filter(alert => alert.enabled).length} alerts</div>
+                <div className="nt-panel-meta">{range} · 1D{currency ? ` · ${currency}` : ""} · Yahoo Finance adjusted · {activeIndicatorCount} overlays · {currentAlerts.filter(alert => alert.enabled).length} alerts</div>
               </div>
               <span className="nt-panel-meta">{bars.length ? `${bars.length} sessions · ${latestDay}` : state}</span>
             </div>
@@ -495,7 +500,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
                   <td>{format(sma50Values[index])}</td>
                   <td>{format(rsi14Values[index])}</td>
                   <td>{format(atr14Values[index])}</td>
-                  <td>Stored OHLCV</td>
+                  <td>Yahoo Finance</td>
                 </tr>;
               })}</tbody>
             </table></div>
@@ -529,12 +534,13 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
             <section className="nt-panel nt-chart-recent-panel">
               <div className="nt-panel-title"><strong>Recent sessions</strong><span className="nt-panel-meta">last 12 bars</span></div>
               <table className="nt-microtable">
-                <thead><tr><th>Date</th><th>Close</th><th>Δ%</th><th>Volume</th></tr></thead>
+                <thead><tr><th>Date</th><th>Close</th><th>Close Δ%</th><th>Open gap</th><th>Volume</th></tr></thead>
                 <tbody>{recentBars.map((bar,index) => {
                   const originalIndex = bars.length - 1 - index;
-                  const previous = originalIndex > 0 ? bars[originalIndex - 1] : undefined;
+                  const previous = fullBars[firstVisible + originalIndex - 1];
                   const change = previous?.close ? ((bar.close / previous.close) - 1) * 100 : null;
-                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td><td>{format(bar.volume)}</td></tr>;
+                  const gap = previous?.close ? ((bar.open / previous.close) - 1) * 100 : null;
+                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td><td title="Open vs previous session close">{pct(gap)}</td><td>{format(bar.volume)}</td></tr>;
                 })}</tbody>
               </table>
             </section>
