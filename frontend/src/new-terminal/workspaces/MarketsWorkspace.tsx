@@ -194,7 +194,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const mostActive = [...equities]
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
-    .slice(0, 16);
+    .slice(0, 18);
   const recentHeadlines = (news.data?.data ?? []).filter(item => item.published_at).slice(0, 18);
   const marketTape = [...rows]
     .filter(row => row.market === "stock")
@@ -359,7 +359,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
               <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-                {Array.from({ length: Math.min(20, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+                {Array.from({ length: Math.min(22, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
               </tbody></table>
             </div>
 
