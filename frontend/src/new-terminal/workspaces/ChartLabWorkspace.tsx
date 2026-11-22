@@ -129,9 +129,21 @@ function lineData(bars: Bar[], values: Array<number | null>) {
 export default function ChartLabWorkspace({
   initialSymbol = "AAPL",
   initialHistory,
+  initialUniverse = [],
+  initialRows = [],
+  initialMetrics,
+  initialDaily,
+  initialCalendar,
+  initialCorrelation,
 }: {
   initialSymbol?: string;
   initialHistory?: { bars: ChartBar[]; visibleStart: string };
+  initialUniverse?: Universe[];
+  initialRows?: MarketRow[];
+  initialMetrics?: Metrics;
+  initialDaily?: DailyAnalytics;
+  initialCalendar?: Calendar;
+  initialCorrelation?: Correlation;
 }) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [range, setRange] = useState("6M");
@@ -155,15 +167,22 @@ export default function ChartLabWorkspace({
   const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const metrics = useFeed<Metrics>(`/api/v1/metrics/${encodeURIComponent(symbol)}?timeframe=daily`);
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
-  const dailyMetrics = daily.data?.data[symbol]?.metrics;
-  const registry = [
-    ...["sma20", "sma50", "sma200", "rvol20", "trading_52w_high", "trading_52w_low"]
-      .flatMap(key => dailyMetrics?.[key] ? [[key, dailyMetrics[key]] as const] : []),
-    ...Object.entries(metrics.data?.metrics ?? {}).filter(([key]) => !dailyMetrics?.[key]),
-  ].slice(0, 14);
   const calendar = useFeed<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=8`);
   const compared = [...new Set([symbol, "SPY", "QQQ", "BTC-USD"])];
   const correlation = useFeed<Correlation>(`/api/v1/correlation?symbols=${encodeURIComponent(compared.join(","))}&window=60`);
+
+  const universeRows = universe.data?.data ?? initialUniverse;
+  const storedRows = stored.data?.data ?? initialRows;
+  const metricData = metrics.data ?? (symbol === initialSymbol ? initialMetrics : undefined);
+  const dailyData = daily.data ?? initialDaily;
+  const calendarData = calendar.data ?? (symbol === initialSymbol ? initialCalendar : undefined);
+  const correlationData = correlation.data ?? (symbol === initialSymbol ? initialCorrelation : undefined);
+  const dailyMetrics = dailyData?.data[symbol]?.metrics;
+  const registry = [
+    ...["sma20", "sma50", "sma200", "rvol20", "trading_52w_high", "trading_52w_low"]
+      .flatMap(key => dailyMetrics?.[key] ? [[key, dailyMetrics[key]] as const] : []),
+    ...Object.entries(metricData?.metrics ?? {}).filter(([key]) => !dailyMetrics?.[key]),
+  ].slice(0, 14);
 
   useEffect(() => {
     try {
@@ -323,7 +342,7 @@ export default function ChartLabWorkspace({
   const prior = fullBars.at(-2);
   const latestDay = latest?.timestamps.slice(0, 10);
   const relativeVolume = dailyMetrics?.rvol20;
-  const currency = universe.data?.data.find(row => row.symbol === symbol)?.quote_currency;
+  const currency = universeRows.find(row => row.symbol === symbol)?.quote_currency;
   const hasVolume = bars.some(bar => bar.volume != null && bar.volume > 0);
   const values = [
     latest?.open,
@@ -394,7 +413,7 @@ export default function ChartLabWorkspace({
             setSymbol(event.target.value);
             setAlertTarget("");
           }}>
-            {[...new Set([symbol, ...(universe.data?.data ?? []).map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}
+            {[...new Set([symbol, ...universeRows.map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}
           </select>
         </label>
 
@@ -438,7 +457,7 @@ export default function ChartLabWorkspace({
               <div className="nt-subsection-title"><strong>Linked series</strong><span>{latestDay || range}</span></div>
               <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg%</th></tr></thead><tbody>
                 {series.map(item => {
-                  const row = stored.data?.data.find(entry => entry.symbol === item);
+                  const row = storedRows.find(entry => entry.symbol === item);
                   return <tr key={item}><td>{item}</td><td>{format(row?.price)}</td><td className={(row?.change_pct ?? 0) > 0 ? "nt-positive" : (row?.change_pct ?? 0) < 0 ? "nt-negative" : ""}>{pct(row?.change_pct)}</td></tr>;
                 })}
               </tbody></table>
@@ -458,8 +477,8 @@ export default function ChartLabWorkspace({
 
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Correlation · 60D</strong><span>vs {symbol}</span></div>
-              <table className="nt-microtable"><tbody>{(correlation.data?.symbols ?? compared).map((item,index) => {
-                const value = correlation.data?.data[0]?.[index];
+              <table className="nt-microtable"><tbody>{(correlationData?.symbols ?? compared).map((item,index) => {
+                const value = correlationData?.data[0]?.[index];
                 return <tr key={item}><td>{item}</td><td>{value?.value == null ? "—" : valueText(value.value)}</td></tr>;
               })}</tbody></table>
             </div>
@@ -596,8 +615,8 @@ export default function ChartLabWorkspace({
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Macro events</strong><span>next</span></div>
               <table className="nt-microtable"><thead><tr><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
-                {(calendar.data?.events ?? []).slice(0,12).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
-                {!calendar.data?.events.length && <tr><td colSpan={3}>No scheduled macro events</td></tr>}
+                {(calendarData?.events ?? []).slice(0,12).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
+                {!calendarData?.events.length && <tr><td colSpan={3}>No scheduled macro events</td></tr>}
               </tbody></table>
             </div>
           </section>
