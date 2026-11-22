@@ -15,6 +15,13 @@ return [
         true
     ),
 
+    'market_sources' => [
+        'public_demo' => env('PUBLIC_DEMO', false),
+        'yahoo_enabled' => env('ALLOW_YFINANCE_DEV_FALLBACK', true),
+        'yahoo_public_demo' => env('ALLOW_YFINANCE_PUBLIC_DEMO', false),
+        'public_redistribution' => env('MARKET_PUBLIC_REDISTRIBUTION_ALLOWED', false),
+    ],
+
     'tables' => [
         'company_profile' => [
             'production' => 'company_profile',

@@ -35,7 +35,7 @@ const pct = (value: number | null | undefined) =>
 const series = ["AAPL", "MSFT", "SPY", "QQQ", "DXY", "US10Y"];
 
 import DataTable from "../DataTable";
-import { labelText, valueText, type Calendar, type Correlation, type Metrics, type Universe } from "../feeds";
+import { labelText, valueText, type Calendar, type Correlation, type Metrics, type DailyAnalytics, type Universe } from "../feeds";
 import { CurrencyContext, ImpactBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -144,6 +144,13 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const metrics = useFeed<Metrics>(`/api/v1/metrics/${encodeURIComponent(symbol)}?timeframe=daily`);
+  const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
+  const dailyMetrics = daily.data?.data[symbol]?.metrics;
+  const registry = [
+    ...["sma20", "sma50", "sma200", "rvol20", "trading_52w_high", "trading_52w_low"]
+      .flatMap(key => dailyMetrics?.[key] ? [[key, dailyMetrics[key]] as const] : []),
+    ...Object.entries(metrics.data?.metrics ?? {}).filter(([key]) => !dailyMetrics?.[key]),
+  ].slice(0, 14);
   const calendar = useFeed<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=8`);
   const compared = [...new Set([symbol, "SPY", "QQQ", "BTC-USD"])];
   const correlation = useFeed<Correlation>(`/api/v1/correlation?symbols=${encodeURIComponent(compared.join(","))}&window=60`);
@@ -560,9 +567,9 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
 
           <section className="nt-panel">
             <div className="nt-panel-title"><strong>Metric registry</strong><span className="nt-panel-meta">source-backed</span></div>
-            <table className="nt-microtable"><thead><tr><th>Metric</th><th>State</th><th>Value</th></tr></thead><tbody>
-              {Object.entries(metrics.data?.metrics ?? {}).slice(0, 10).map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={result.reason ?? undefined}>{result.quality}</td><td>{valueText(result.value)}</td></tr>)}
-              {!metrics.data && <tr><td colSpan={3}>{metrics.error ?? "Awaiting metric snapshot"}</td></tr>}
+            <table className="nt-microtable"><thead><tr><th>Indicator</th><th>State</th><th>Value</th></tr></thead><tbody>
+              {registry.map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={result.reason ?? [result.metadata?.source, result.as_of].filter(Boolean).join(" · ")}>{result.quality}</td><td>{valueText(result.value)}</td></tr>)}
+              {!registry.length && <tr><td colSpan={3}>{daily.error ?? metrics.error ?? "Awaiting metric snapshot"}</td></tr>}
             </tbody></table>
           </section>
 

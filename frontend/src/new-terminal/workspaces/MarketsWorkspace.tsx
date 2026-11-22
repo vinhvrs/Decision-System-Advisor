@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 import DataTable from "../DataTable";
-import { valueText, type Calendar, type Crypto, type Health, type Macro, type News } from "../feeds";
+import { valueText, type Calendar, type DailyAnalytics, type Universe, type Crypto, type Health, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
@@ -71,6 +71,8 @@ function ago(ts: number | null) {
 
 export default function MarketsWorkspace({ initialRows }: { initialRows: MarketRow[] }) {
   const [rows, setRows] = useState(initialRows);
+  const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
+  const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const macro = useFeed<Macro>("/api/v1/macro/dashboard", 60000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=12", 60000);
@@ -168,10 +170,41 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const latestQuote = quoteTimes.length ? Math.max(...quoteTimes) : null;
   const breadthPct = equities.length ? (up / equities.length) * 100 : null;
 
+  const dailyRows = daily.data?.data;
+  const equitySymbols = new Set(universe.data?.data.filter(item => item.asset_class === "EQUITY").map(item => item.symbol));
+  const breadthEquities = rows.filter(row => equitySymbols.has(row.symbol));
+  const breadthSession = breadthEquities.map(row => dailyRows?.[row.symbol]?.as_of)
+    .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
+  const dailyGroup = (sample: MarketRow[], code: string) => {
+    const current = sample.flatMap(row => {
+      const metric = dailyRows?.[row.symbol]?.metrics[code];
+      return metric && metric.as_of === breadthSession ? [metric] : [];
+    });
+    const observed = current.filter(metric =>
+      metric.quality === "OK" && metric.value != null && Number.isFinite(metric.value));
+    const emptyState = daily.error || universe.error ? "UNAVAILABLE"
+      : current.some(metric => metric.quality === "LICENSE_RESTRICTED") ? "LICENSE_RESTRICTED"
+      : current.some(metric => metric.quality === "PARTIAL") ? "PARTIAL" : "NOT_INGESTED";
+    const sources = [...new Set(observed.flatMap(metric =>
+      metric.metadata?.source?.split(", ") ?? []))].sort().join(", ");
+    return {
+      value: observed.length ? observed.reduce((sum, metric) => sum + (metric.value ?? 0), 0) / observed.length : null,
+      count: observed.length,
+      total: sample.length,
+      sources,
+      asOf: breadthSession,
+      state: !observed.length ? emptyState :
+        observed.length < sample.length ? "PARTIAL" : "OK",
+    };
+  };
+  const trend = [20, 50, 200].map(window => dailyGroup(breadthEquities, `above_sma${window}`));
+  const breadthValue = (group: typeof trend[number]) =>
+    group.value === null ? group.state : `${(group.value * 100).toFixed(1)}% (${group.count}/${group.total})`;
+
   const sourceLedger = [
     ["Quotes", socketStatus, latestQuote ? ago(latestQuote) : "—", `${Object.keys(quotes).length}/${heat.length}`],
     ["Stored market", rows.length ? "AVAILABLE" : "AWAITING", latestStored ? ago(latestStored) : "—", rows.length ? String(rows.length) : "—"],
-    ["Breadth", equities.length ? "PARTIAL" : "AWAITING", latestStored ? ago(latestStored) : "—", equities.length ? String(equities.length) : "—"],
+    ["MA50 breadth", trend[1].state, breadthSession ?? "—", `${trend[1].count}/${trend[1].total}`],
     ["OHLC", health.data?.quality ?? "AWAITING", "—", health.data ? `${health.data.pipeline.covered}/${health.data.pipeline.total}` : "—"],
     ["Fundamentals", "PARTIAL", "—", "—"],
     ["Estimates", "PARTIAL", "—", "—"],
@@ -223,7 +256,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
               <tbody>{sectors.map(sector => {
                 const sample = equities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
-                return <tr key={sector}><td>{sector} {sample.length ? `(${sample.length})` : ""}</td><td>{percent(sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null)}</td><td>{percent(sample.length ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null)?.replace("+", "")}</td><td title="Requires sector-wide MA data">—</td><td title="Requires historical volume baselines">—</td></tr>;
+                const sectorEquities = breadthEquities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
+                const ma = dailyGroup(sectorEquities, "above_sma50");
+                const rvol = dailyGroup(sectorEquities, "rvol20");
+                return <tr key={sector}><td>{sector} {sample.length ? `(${sample.length})` : ""}</td><td>{percent(sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null)}</td><td>{percent(sample.length ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null)?.replace("+", "")}</td><td title={[ma.sources, ma.asOf].filter(Boolean).join(" · ")}>{breadthValue(ma)}</td><td title={[rvol.sources, rvol.asOf].filter(Boolean).join(" · ")}>{rvol.value === null ? rvol.state : `${rvol.value.toFixed(2)}× (${rvol.count}/${rvol.total})`}</td></tr>;
               })}</tbody>
             </table>
           </section>
@@ -294,9 +330,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <table className="nt-microtable">
               <thead><tr><th>Field</th><th>Value</th><th>Prev</th><th>Δ</th><th>State</th><th>Source</th><th>As of</th></tr></thead>
               <tbody>
-                {internalFields.map(([field, category]) => (
-                  <tr key={field}><td>{field}</td><td>—</td><td>—</td><td>—</td><td>Awaiting</td><td>{category}</td><td>—</td></tr>
-                ))}
+                {internalFields.map(([field, category], index) => {
+                  const group = trend[index];
+                  return <tr key={field}><td>{field}</td><td>{group ? breadthValue(group) : "—"}</td><td>—</td><td>—</td><td>{group?.state ?? "Awaiting"}</td><td>{group?.sources || category}</td><td>{group?.asOf ?? "—"}</td></tr>;
+                })}
               </tbody>
             </table>
           </section>
@@ -341,7 +378,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                   <tr><td>Advancing</td><td>{up || "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
                   <tr><td>Declining</td><td>{down || "—"}</td><td>{equities.length ? `${((down/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
                   <tr><td>Unchanged</td><td>{unchanged || "—"}</td><td>Observed</td></tr>
-                  <tr><td>Trend regime</td><td>—</td><td>Awaiting MA breadth</td></tr>
+                  <tr><td>Above 200D MA</td><td>{breadthValue(trend[2])}</td><td>{breadthSession ?? "Stored daily sessions"}</td></tr>
                   <tr><td>Vol regime</td><td>—</td><td>Awaiting VIX term</td></tr>
                   <tr><td>Credit regime</td><td>—</td><td>Awaiting spread feed</td></tr>
                   <tr><td>Signal state</td><td>NEUTRAL</td><td>No inference</td></tr>

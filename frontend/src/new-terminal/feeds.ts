@@ -2,10 +2,12 @@ export type Datum = {
   value: number | null;
   quality: string;
   unit?: string;
+  as_of?: string | null;
   reason?: string | null;
   metadata?: { source?: string; basis?: string; lineage?: { filed_at?: string; period_end?: string }[] };
 };
 export type Metrics = { quality: string; as_of?: string; metrics: Record<string, Datum> };
+export type DailyAnalytics = { data: Record<string, { as_of: string | null; metrics: Record<string, Datum> }> };
 export type Universe = { symbol: string; name: string; asset_class: string; volume_type: string; quote_currency: string };
 export type MacroRow = { series_code: string; value: number | null; quality: string; unit: string; source?: string; observed_at?: string; reason?: string };
 export type Macro = { data: MacroRow[]; spreads: MacroRow[]; generated_at: string; quality: string };
