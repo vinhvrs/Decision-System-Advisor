@@ -3926,3 +3926,25 @@ body,
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* 2026-11-22 full-width correlation research block */
+.nt-chart-correlation-matrix {
+  min-width: 0;
+}
+
+.nt-correlation-matrix-table th,
+.nt-correlation-matrix-table td {
+  height: 25px;
+  text-align: center;
+}
+
+.nt-correlation-matrix-table th:first-child,
+.nt-correlation-matrix-table td:first-child {
+  text-align: left;
+}
+
+.nt-correlation-matrix-table td {
+  font-family: var(--nt-font-data);
+  font-variant-numeric: tabular-nums;
+}
