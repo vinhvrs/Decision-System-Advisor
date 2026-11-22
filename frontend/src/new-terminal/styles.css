@@ -2984,3 +2984,9 @@ body {
 .nt-watchlists-workspace > .nt-panel {
   margin: 0;
 }
+
+
+/* Markets uses the full available main viewport; remove the legacy 12px dead band. */
+.nt-market-workspace {
+  min-height: calc(100dvh - var(--nt-top) - var(--nt-tape) - var(--nt-status));
+}
