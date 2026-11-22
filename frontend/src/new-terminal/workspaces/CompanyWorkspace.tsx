@@ -240,50 +240,71 @@ export default function CompanyWorkspace({
     </nav>
 
     {activeTab === "Overview" && <>
-      <section className="nt-company-visual-grid">
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Company snapshot</strong><span>actuals · axis scaled</span></div>
-          <RadarSnapshot rows={quarterly} metrics={fundData} history={historyRows}/>
-        </div>
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Financial trend</strong><span>quarterly</span></div>
-          <div className="nt-company-chart-legend"><span>Revenue</span><span>Operating income</span><span>FCF</span><span>EPS</span></div>
-          <FinancialTrend rows={quarterly}/>
-        </div>
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Peer comparison</strong><span>{peerRows.length} companies</span></div>
-          <table className="nt-microtable nt-peer-table"><thead><tr><th>Ticker</th><th>P/E</th><th>Gross</th><th>ROE</th><th>Chg%</th></tr></thead><tbody>
-            {peerRows.map(peer=><tr key={peer.symbol} data-current={peer.symbol===normalized}>
-              <td><Link href={`/companies/profile/${encodeURIComponent(peer.symbol)}`}>{peer.symbol}</Link></td>
-              <td>{valueText(peer.metrics?.metrics.pe_ttm?.value)}</td>
-              <td>{peer.metrics?(()=>{const v=metricPercent(peer.metrics,"gross_margin");return v==null?"—":`${v.toFixed(1)}%`})():"—"}</td>
-              <td>{peer.metrics?(()=>{const v=metricPercent(peer.metrics,"roe");return v==null?"—":`${v.toFixed(1)}%`})():"—"}</td>
-              <td className={(peer.quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{peer.quote?.change_pct==null?"—":`${peer.quote.change_pct>0?"+":""}${peer.quote.change_pct.toFixed(2)}%`}</td>
-            </tr>)}
-          </tbody></table>
-        </div>
-      </section>
+      <section className="nt-company-dashboard-columns">
+        <div className="nt-company-dashboard-column">
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Company snapshot</strong><span>actuals · axis scaled</span></div>
+            <RadarSnapshot rows={quarterly} metrics={fundData} history={historyRows}/>
+          </div>
 
-      <section className="nt-company-monitor-grid">
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Company signals & event reaction</strong><span>filings + news</span></div>
-          <div className="nt-company-event-body">
-            <div className="nt-event-timeline">{events.map((item,index)=><div className="nt-event-row" key={`${item.date}-${index}`}><span className="nt-event-dot"/><time>{item.date.slice(0,10)}</time><b>{item.type}</b><span>{item.title}</span></div>)}</div>
-            <div className="nt-event-price"><span>Price reaction · 3M</span><Sparkline values={historyRows.slice(-64).map(row=>row.close)} width={260} height={74}/></div>
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Latest news</strong><span>{newsRows[0]?.published_at?.slice(11,16) ?? ""}</span></div>
+            <table className="nt-microtable nt-company-news-table"><thead><tr><th>Time</th><th>Headline</th><th>Publisher</th></tr></thead><tbody>
+              {newsRows.slice(0,7).map(item=><tr key={item.id}><td>{item.published_at?.slice(5,16).replace("T"," ") ?? "—"}</td><td><a href={sourceLink(item.source)} rel="noreferrer">{item.title}</a></td><td>{item.author ?? "—"}</td></tr>)}
+              {!newsRows.length && <tr><td colSpan={3}>No recent company headlines</td></tr>}
+            </tbody></table>
           </div>
         </div>
 
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Latest news</strong><span>{newsRows[0]?.published_at?.slice(11,16) ?? ""}</span></div>
-          <table className="nt-microtable nt-company-news-table"><thead><tr><th>Time</th><th>Headline</th><th>Publisher</th></tr></thead><tbody>
-            {newsRows.slice(0,7).map(item=><tr key={item.id}><td>{item.published_at?.slice(5,16).replace("T"," ") ?? "—"}</td><td><a href={sourceLink(item.source)} rel="noreferrer">{item.title}</a></td><td>{item.author ?? "—"}</td></tr>)}
-            {!newsRows.length && <tr><td colSpan={3}>No recent company headlines</td></tr>}
-          </tbody></table>
+        <div className="nt-company-dashboard-column">
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Financial trend</strong><span>quarterly</span></div>
+            <div className="nt-company-chart-legend"><span>Revenue</span><span>Operating income</span><span>FCF</span><span>EPS</span></div>
+            <FinancialTrend rows={quarterly}/>
+          </div>
+
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Price monitor</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div>
+            <PriceMonitor bars={historyRows} symbol={normalized}/>
+          </div>
+
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Research links</strong><span>{normalized}</span></div>
+            <div className="nt-company-research-links">
+              {profileUrl && <a href={profileUrl} rel="noreferrer">Company website ↗</a>}
+              <Link href={`${tabBase}?view=filings`}>SEC filings ↗</Link>
+              <Link href={`${tabBase}?view=news`}>Company news ↗</Link>
+              <Link href={`/investing?symbol=${id}`}>Chart Lab ↗</Link>
+            </div>
+          </div>
         </div>
 
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Price monitor</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div>
-          <PriceMonitor bars={historyRows} symbol={normalized}/>
+        <div className="nt-company-dashboard-column">
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Peer comparison</strong><span>{peerRows.length} companies</span></div>
+            <table className="nt-microtable nt-peer-table"><thead><tr><th>Ticker</th><th>P/E</th><th>Gross</th><th>ROE</th><th>Chg%</th></tr></thead><tbody>
+              {peerRows.map(peer=><tr key={peer.symbol} data-current={peer.symbol===normalized}>
+                <td><Link href={`/companies/profile/${encodeURIComponent(peer.symbol)}`}>{peer.symbol}</Link></td>
+                <td>{valueText(peer.metrics?.metrics.pe_ttm?.value)}</td>
+                <td>{peer.metrics?(()=>{const v=metricPercent(peer.metrics,"gross_margin");return v==null?"—":`${v.toFixed(1)}%`})():"—"}</td>
+                <td>{peer.metrics?(()=>{const v=metricPercent(peer.metrics,"roe");return v==null?"—":`${v.toFixed(1)}%`})():"—"}</td>
+                <td className={(peer.quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{peer.quote?.change_pct==null?"—":`${peer.quote.change_pct>0?"+":""}${peer.quote.change_pct.toFixed(2)}%`}</td>
+              </tr>)}
+            </tbody></table>
+          </div>
+
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Company signals & event reaction</strong><span>filings + news</span></div>
+            <div className="nt-company-event-body">
+              <div className="nt-event-timeline">{events.map((item,index)=><div className="nt-event-row" key={`${item.date}-${index}`}><span className="nt-event-dot"/><time>{item.date.slice(0,10)}</time><b>{item.type}</b><span>{item.title}</span></div>)}</div>
+              <div className="nt-event-price"><span>Price reaction · 3M</span><Sparkline values={historyRows.slice(-64).map(row=>row.close)} width={260} height={74}/></div>
+            </div>
+          </div>
+
+          <div className="nt-flat-surface">
+            <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
+            <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
+          </div>
         </div>
       </section>
 
@@ -295,22 +316,6 @@ export default function CompanyWorkspace({
             return <tr key={row.id}><td>{`FY${row.fiscal_year} Q${row.fiscal_quarter ?? 4}`}</td><td>{compact(rev)}</td><td>{compact(gross)}</td><td>{rev&&gross?`${(gross/rev*100).toFixed(1)}%`:"—"}</td><td>{compact(op)}</td><td>{rev&&op?`${(op/rev*100).toFixed(1)}%`:"—"}</td><td>{compact(n(row.net_income))}</td><td>{valueText(n(row.eps_diluted))}</td><td>{compact(n(row.fcf))}</td><td><Sparkline values={quarterlyAsc.map(item=>n(item.revenue))}/></td></tr>;
           })}
         </tbody></table></div>
-      </section>
-
-      <section className="nt-company-bottom-research-grid">
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
-          <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
-        </div>
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Research links</strong><span>{normalized}</span></div>
-          <div className="nt-company-research-links">
-            {profileUrl && <a href={profileUrl} rel="noreferrer">Company website ↗</a>}
-            <Link href={`${tabBase}?view=filings`}>SEC filings ↗</Link>
-            <Link href={`${tabBase}?view=news`}>Company news ↗</Link>
-            <Link href={`/investing?symbol=${id}`}>Chart Lab ↗</Link>
-          </div>
-        </div>
       </section>
 
       {profile?.description && <section className="nt-flat-surface nt-company-description-panel">
