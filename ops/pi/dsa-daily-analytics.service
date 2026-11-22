@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh DSA source-labelled daily analytics
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=trivi
+WorkingDirectory=/home/trivi/Decision-System-Advisor
+ExecStart=/bin/sh -c 'exec /usr/bin/docker exec -i -e PYTHONWARNINGS=ignore dsa-pi-data-engine-1 python - < ops/pi/refresh_daily_analytics.py'
+TimeoutStartSec=15min
