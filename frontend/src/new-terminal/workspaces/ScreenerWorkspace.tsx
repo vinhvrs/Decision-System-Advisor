@@ -30,10 +30,11 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
   const tech = useFeed<Metrics>(selected ? `/api/v1/metrics/${encodeURIComponent(selected)}` : null);
   const dailyMetrics = selected ? daily.data?.data[selected]?.metrics : undefined;
   const technicalMetrics = { ...tech.data?.metrics, ...dailyMetrics };
-  const metricRows = [
-    ...["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"].map(key => [key, fund.data?.metrics[key]] as const),
-    ...["rsi14", "atr_pct", "sma20", "sma50", "sma200", "rvol20", "trading_52w_high", "trading_52w_low"].map(key => [key, technicalMetrics[key]] as const),
-  ];
+  const selectedRow = bySymbol.get(selected ?? "");
+  const fundRows = Object.entries(fund.data?.metrics ?? {});
+  const technicalRows = Object.entries(technicalMetrics).filter(([key]) => !(key in (fund.data?.metrics ?? {})));
+  const changeRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.change_pct ?? -Infinity) - (bySymbol.get(a.symbol)?.change_pct ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
+  const tradedRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.traded_value ?? -Infinity) - (bySymbol.get(a.symbol)?.traded_value ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
 
   return <div className="nt-workspace nt-full-workspace nt-screener-workspace">
     <section className="nt-toolbar">
@@ -69,15 +70,30 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
             </div>
             <div className="nt-screener-selected">
               <SymbolContext symbol={selected} />
-              <div><div className="nt-label">Last</div><strong className="nt-mono">{valueText(bySymbol.get(selected ?? "")?.price)}</strong></div>
-              <div><div className="nt-label">Change</div><strong className={(bySymbol.get(selected ?? "")?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{valueText(bySymbol.get(selected ?? "")?.change_pct)}%</strong></div>
+              <div><div className="nt-label">Last</div><strong className="nt-mono">{valueText(selectedRow?.price)}</strong></div>
+              <div><div className="nt-label">Change</div><strong className={(selectedRow?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{valueText(selectedRow?.change_pct)}%</strong></div>
             </div>
+            <table className="nt-microtable"><tbody>
+              <tr><td>Market cap</td><td>{valueText(selectedRow?.market_cap)}</td></tr>
+              <tr><td>Traded value</td><td>{valueText(selectedRow?.traded_value)}</td></tr>
+              <tr><td>Change rank</td><td>{changeRank > 0 ? `#${changeRank} / ${shown.length}` : "—"}</td></tr>
+              <tr><td>Traded-value rank</td><td>{tradedRank > 0 ? `#${tradedRank} / ${shown.length}` : "—"}</td></tr>
+            </tbody></table>
           </div>
 
           <div className="nt-subsection">
-            <div className="nt-subsection-title"><strong>Valuation & technicals</strong><span>{selected ?? ""}</span></div>
+            <div className="nt-subsection-title"><strong>Fundamentals & valuation</strong><span>{selected ?? ""}</span></div>
             <table className="nt-microtable"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th></tr></thead><tbody>
-              {metricRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
+              {fundRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
+              {!fundRows.length && <tr><td colSpan={3}>No fundamental values</td></tr>}
+            </tbody></table>
+          </div>
+
+          <div className="nt-subsection">
+            <div className="nt-subsection-title"><strong>Technicals</strong><span>daily</span></div>
+            <table className="nt-microtable"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th></tr></thead><tbody>
+              {technicalRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
+              {!technicalRows.length && <tr><td colSpan={3}>No technical values</td></tr>}
             </tbody></table>
           </div>
 
