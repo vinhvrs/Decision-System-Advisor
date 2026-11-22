@@ -28,3 +28,5 @@ export default async function InvestingPage({ searchParams }: { searchParams: Pr
     initialHistory={{ bars, visibleStart }}
   />;
 }
+
+export const dynamic = "force-dynamic";
