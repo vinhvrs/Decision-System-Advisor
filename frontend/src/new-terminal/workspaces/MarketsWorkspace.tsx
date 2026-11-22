@@ -342,7 +342,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
               <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-                {[0,1,2,3,4,5].map(i => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+                {Array.from({ length: Math.min(12, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
               </tbody></table>
             </div>
 
