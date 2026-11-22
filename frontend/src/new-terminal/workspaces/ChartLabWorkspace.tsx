@@ -508,19 +508,6 @@ export default function ChartLabWorkspace({
                 <tr><td>Total volume</td><td>{format(totalVolume || null)}</td><td></td></tr>
               </tbody></table>
             </div>
-
-            <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Recent sessions</strong><span>last 12</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Date</th><th>Close</th><th>Δ%</th></tr></thead>
-                <tbody>{recentBars.slice(0,12).map((bar,index) => {
-                  const originalIndex = bars.length - 1 - index;
-                  const previous = fullBars[firstVisible + originalIndex - 1];
-                  const change = previous?.close ? ((bar.close / previous.close) - 1) * 100 : null;
-                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td></tr>;
-                })}</tbody>
-              </table>
-            </div>
           </section>
         </aside>
 
@@ -544,10 +531,10 @@ export default function ChartLabWorkspace({
           </section>
 
           <section className="nt-panel">
-            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">last 28 sessions</span></div>
+            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">last 10 sessions</span></div>
             <div className="nt-table-wrap"><table className="nt-table">
               <thead><tr>{["Time","Open","High","Low","Close","Volume","SMA20","SMA50","RSI14","ATR14"].map(item => <th key={item}>{item}</th>)}</tr></thead>
-              <tbody>{bars.slice(-28).reverse().map(bar => {
+              <tbody>{bars.slice(-10).reverse().map(bar => {
                 const index = bars.indexOf(bar);
                 return <tr key={bar.timestamps}>
                   <td>{bar.timestamps.slice(0,10)}</td>
