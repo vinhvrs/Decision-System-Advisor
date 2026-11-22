@@ -177,6 +177,20 @@ export default function ChartLabWorkspace({
   const dailyData = daily.data ?? initialDaily;
   const calendarData = calendar.data ?? (symbol === initialSymbol ? initialCalendar : undefined);
   const correlationData = correlation.data ?? (symbol === initialSymbol ? initialCorrelation : undefined);
+  const correlationSummary = useMemo(() => {
+    const symbols = correlationData?.symbols ?? [...new Set([symbol, "SPY", "QQQ", "BTC-USD"])];
+    const pairs: Array<{ left: string; right: string; value: number }> = [];
+    for (let row = 0; row < symbols.length; row += 1) {
+      for (let column = row + 1; column < symbols.length; column += 1) {
+        const value = correlationData?.data[row]?.[column]?.value;
+        if (value != null && Number.isFinite(value)) pairs.push({ left: symbols[row], right: symbols[column], value });
+      }
+    }
+    const strongestPositive = [...pairs].sort((a,b) => b.value - a.value)[0];
+    const strongestInverse = [...pairs].sort((a,b) => a.value - b.value)[0];
+    const averageAbsolute = pairs.length ? pairs.reduce((sum,pair) => sum + Math.abs(pair.value), 0) / pairs.length : null;
+    return { strongestPositive, strongestInverse, averageAbsolute };
+  }, [correlationData, symbol]);
   const dailyMetrics = dailyData?.data[symbol]?.metrics;
   const registry = [
     ...["sma20", "sma50", "sma200", "rvol20", "trading_52w_high", "trading_52w_low"]
@@ -610,6 +624,11 @@ export default function ChartLabWorkspace({
             })}
           </tr>)}</tbody>
         </table></div>
+        <div className="nt-correlation-summary">
+          <div><span>Strongest positive</span><b>{correlationSummary.strongestPositive ? `${correlationSummary.strongestPositive.left} / ${correlationSummary.strongestPositive.right} · ${valueText(correlationSummary.strongestPositive.value)}` : "—"}</b></div>
+          <div><span>Strongest inverse</span><b>{correlationSummary.strongestInverse ? `${correlationSummary.strongestInverse.left} / ${correlationSummary.strongestInverse.right} · ${valueText(correlationSummary.strongestInverse.value)}` : "—"}</b></div>
+          <div><span>Average |corr|</span><b>{correlationSummary.averageAbsolute == null ? "—" : valueText(correlationSummary.averageAbsolute)}</b></div>
+        </div>
       </section>
     </div>
   );
