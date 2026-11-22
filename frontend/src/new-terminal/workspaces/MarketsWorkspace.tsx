@@ -371,6 +371,14 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             </div>
 
             <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Macro pulse</strong><span>latest observations</span></div>
+              <table className="nt-microtable"><thead><tr><th>Series</th><th>Value</th><th>Unit</th></tr></thead><tbody>
+                {(macro.data?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{row.series_code}</td><td>{valueText(row.value)}</td><td>{row.unit ?? ""}</td></tr>)}
+                {!macro.data?.data?.length && <tr><td colSpan={3}>No macro observations</td></tr>}
+              </tbody></table>
+            </div>
+
+            <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Latest headlines</strong><span>{recentHeadlines.length}</span></div>
               <table className="nt-microtable"><thead><tr><th>Time</th><th>Symbol</th><th>Headline</th></tr></thead><tbody>
                 {recentHeadlines.map(item => <tr key={item.id}><td>{item.published_at?.slice(11,16) ?? "—"}</td><td>{item.symbol ?? "—"}</td><td className="nt-cell-wrap">{item.title}</td></tr>)}
