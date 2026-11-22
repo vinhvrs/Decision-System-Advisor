@@ -110,17 +110,16 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         </div>
       </section>}
 
-      <div className="nt-layout">
-        <nav className="nt-nav" aria-label="Primary workspaces">
-          <div className="nt-nav-label">Workspaces</div>
-          {items.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className="nt-nav-link" data-active={active(pathname, href)}>
-              <Icon size={14} strokeWidth={1.6} aria-hidden />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
+      <nav className="nt-primary-nav" aria-label="Primary workspaces">
+        {items.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className="nt-nav-link" data-active={active(pathname, href)}>
+            <Icon size={14} strokeWidth={1.6} aria-hidden />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
 
+      <div className="nt-layout">
         <main className="nt-main">{children}</main>
       </div>
 
