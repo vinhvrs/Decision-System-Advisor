@@ -303,15 +303,20 @@ export default function CompanyWorkspace({
           <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
         </div>
         <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Company profile</strong><span>{profile?.sector ?? ""}</span></div>
-          <table className="nt-microtable"><tbody><tr><td>Industry</td><td>{profile?.industry ?? "—"}</td></tr><tr><td>Website</td><td>{profileUrl?<a href={profileUrl} rel="noreferrer">{profileUrl}</a>:"—"}</td></tr><tr><td>Peers</td><td>{(overviewData?.similar ?? []).slice(0,5).map(peer=>peer.symbol).join(" · ") || "—"}</td></tr></tbody></table>
-          <div className="nt-company-description">{profile?.description ?? ""}</div>
-        </div>
-        <div className="nt-flat-surface">
-          <div className="nt-subsection-title"><strong>Financial pulse</strong><span>{fundData?.as_of?.slice(0,10) ?? ""}</span></div>
-          <table className="nt-microtable"><tbody>{overviewMetrics.map(key=>{const metric=fundData?.metrics[key];return <tr key={key}><td>{labelText(key)}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>})}</tbody></table>
+          <div className="nt-subsection-title"><strong>Research links</strong><span>{normalized}</span></div>
+          <div className="nt-company-research-links">
+            {profileUrl && <a href={profileUrl} rel="noreferrer">Company website ↗</a>}
+            <Link href={`${tabBase}?view=filings`}>SEC filings ↗</Link>
+            <Link href={`${tabBase}?view=news`}>Company news ↗</Link>
+            <Link href={`/investing?symbol=${id}`}>Chart Lab ↗</Link>
+          </div>
         </div>
       </section>
+
+      {profile?.description && <section className="nt-flat-surface nt-company-description-panel">
+        <div className="nt-subsection-title"><strong>Business description</strong><span>company profile</span></div>
+        <div className="nt-company-description">{profile.description}</div>
+      </section>}
     </>}
 
     {activeTab === "KPIs" && <DataTable title="Key performance indicators" columns={["Metric","Value","Unit","Basis"]} rows={Object.entries(fundData?.metrics ?? {}).filter(([key])=>!valuation.has(key)).map(([key,metric])=>({key,cells:[labelText(key),valueText(metric.value),metric.unit,metric.metadata?.basis]}))} empty="No KPI observations for this company." />}
