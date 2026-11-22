@@ -196,6 +196,19 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 12);
   const recentHeadlines = (news.data?.data ?? []).filter(item => item.published_at).slice(0, 18);
+  const marketTape = [...rows]
+    .filter(row => row.market === "stock")
+    .sort((a, b) => ((b.traded_value ?? 0) - (a.traded_value ?? 0)))
+    .slice(0, 30);
+  const sectorPerformance = sectors.map(sector => {
+    const sample = equities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
+    return {
+      sector,
+      count: sample.length,
+      change: sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null,
+      advance: sample.length ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null,
+    };
+  }).sort((a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity));
 
   return (
     <div className="nt-workspace nt-market-workspace">
@@ -312,6 +325,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             </div>
           </section>
 
+          <DataTable title="Market tape" columns={["Symbol","Last","Change %","Traded value","Market cap","As of"]}
+            rows={marketTape.map(row => ({ key: row.symbol, cells: [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), valueText(row.market_cap), row.as_of?.slice(0,10)] }))}
+            empty="No market observations." />
+
           <DataTable title="Macro observations & spreads" columns={["Series","Value","Unit","Observed"]}
             rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
             empty="No macro observations." />
@@ -343,6 +360,13 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
               <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
                 {Array.from({ length: Math.min(16, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+              </tbody></table>
+            </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
+              <table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
+                {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
               </tbody></table>
             </div>
 
