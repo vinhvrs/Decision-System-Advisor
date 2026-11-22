@@ -24,9 +24,9 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
   const overview = useFeed<Overview>(`/api/companies/${id}/overview`);
   const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const fund = useFeed<Metrics>(`/api/v1/sourced-fundamentals/${id}`);
-  const financials = useFeed<{ data: Statement[] }>(activeTab === "Financials" ? `/api/fundamentals/${id}/${period}` : null);
+  const financials = useFeed<{ data: Statement[] }>(activeTab === "Financials" ? `/api/fundamentals/${id}/${period}` : null);\n  const overviewFinancials = useFeed<{ data: Statement[] }>(activeTab === "Overview" ? `/api/fundamentals/${id}/quarterly` : null);
   const filings = useFeed<{ data: Filing[] }>(activeTab === "Filings" || activeTab === "Overview" ? `/api/filings/${id}` : null);
-  const news = useFeed<News[]>(activeTab === "News" ? `/api/news/symbol/${id}` : null);
+  const news = useFeed<News[]>(activeTab === "News" || activeTab === "Overview" ? `/api/news/symbol/${id}` : null);
   const position = useFeed<Positioning>(activeTab === "Ownership" ? `/api/v1/positioning/${id}` : null);
   const calendar = useFeed<Calendar>(activeTab === "Earnings" ? `/api/v1/economic-calendar?symbol=${id}&limit=15` : null);
   const profile = overview.data?.profile;
@@ -86,6 +86,28 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
         </div>
       </div>
     </section>}
+
+    {activeTab === "Overview" && <>
+      <DataTable title="Recent quarterly financials" columns={["Fiscal period","Period end","Revenue","Gross profit","Operating income","Net income","Diluted EPS","FCF"]}
+        rows={(overviewFinancials.data?.data ?? []).slice(0,10).map(row => ({ key: String(row.id), cells: [
+          `FY${row.fiscal_year}${row.fiscal_quarter ? ` Q${row.fiscal_quarter}` : ""}`,
+          row.period_end?.slice(0,10),
+          ...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value => valueText(value == null ? null : Number(value)))
+        ] }))} empty="No recent quarterly financials." />
+      <DataTable title="Recent SEC filings" columns={["Form","Filed","Reporting period","Document"]}
+        rows={(filings.data?.data ?? []).slice(0,7).map(filing => ({ key: filing.accession_number, cells: [
+          filing.form,
+          filing.filing_date?.slice(0,10),
+          filing.report_date?.slice(0,10),
+          <a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>
+        ] }))} empty="No recent SEC filings." />
+      <DataTable title="Recent company headlines" columns={["Published","Headline","Publisher"]}
+        rows={(news.data ?? []).slice(0,7).map(item => ({ key: item.id, cells: [
+          item.published_at,
+          <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,
+          <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>
+        ] }))} empty="No recent company headlines." />
+    </>}
 
     {activeTab === "KPIs" && <DataTable title="Key performance indicators" columns={["Metric", "Value", "Unit", "Basis"]}
       rows={Object.entries(fund.data?.metrics ?? {}).filter(([key]) => !valuation.has(key)).map(([key, metric]) => ({
