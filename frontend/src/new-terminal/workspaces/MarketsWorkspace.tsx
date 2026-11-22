@@ -322,16 +322,33 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             </div>
           </section>
 
-          <DataTable title="Market tape" columns={["Symbol","Last","Change %","Traded value","Market cap","As of"]}
+          <DataTable
+            title="Market tape"
+            meta="tracked universe · session"
+            className="nt-primary-table nt-market-tape-table"
+            columns={["Symbol","Last","Change %","Traded value","Market cap","As of"]}
             rows={marketTape.map(row => ({ key: row.symbol, cells: [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), valueText(row.market_cap), row.as_of?.slice(0,10)] }))}
-            empty="No market observations." />
+            empty="No market observations."
+          />
 
-          <DataTable title="Macro observations & spreads" columns={["Series","Value","Unit","Observed"]}
-            rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
-            empty="No macro observations." />
-          <DataTable title="Crypto derivatives" columns={["Metric","Value","Unit","Venue","Observed"]}
-            rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
-            empty="No crypto derivatives observations." />
+          <div className="nt-supporting-grid nt-market-supporting-grid">
+            <DataTable
+              title="Macro observations & spreads"
+              meta="supporting context"
+              className="nt-secondary-table"
+              columns={["Series","Value","Unit","Observed"]}
+              rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
+              empty="No macro observations."
+            />
+            <DataTable
+              title="Crypto derivatives"
+              meta="supporting context"
+              className="nt-secondary-table"
+              columns={["Metric","Value","Unit","Venue","Observed"]}
+              rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
+              empty="No crypto derivatives observations."
+            />
+          </div>
         </section>
 
         <aside className="nt-market-rail nt-flat-rail">
