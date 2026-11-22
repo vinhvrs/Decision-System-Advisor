@@ -60,6 +60,9 @@ These rules are mandatory for the true-redesign frontend and override legacy vis
 ## Interaction rules
 
 - Persistent workspace navigation.
+- Primary workspace navigation is a sticky horizontal bar below the global header on desktop. Do not reserve a permanent left sidebar for primary navigation.
+- Removing the sidebar must expand the research canvas to the freed width; do not leave a dead gutter where the sidebar used to be.
+- Primary navigation items share one height, one semantic typography level, and a single active-state treatment. At narrow widths the bar may horizontally scroll rather than collapsing into empty side space.
 - Persistent symbol/universe context.
 - Scan -> select -> inspect -> compare without unnecessary route changes.
 - Screener keeps filters/results context when opening linked chart or company research.
