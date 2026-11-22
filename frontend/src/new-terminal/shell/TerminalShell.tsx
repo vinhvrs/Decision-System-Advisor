@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { sourceLink, type Health, type News, type Universe } from "../feeds";
+import { sourceLink, type News, type Universe } from "../feeds";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 import {
@@ -48,7 +48,6 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [localAlerts, setLocalAlerts] = useState<LocalAlert[]>([]);
   const universe = useFeed<{ data: Universe[] }>(searchOpen ? "/api/v1/universe" : null);
-  const health = useFeed<Health>("/api/v1/data-health", 60000);
   const market = useFeed<{ data: MarketRow[] }>(utilityView === "movers" ? "/api/v1/market-heatmap" : null, 30000);
   const news = useFeed<{ data: News[]; last_page: number }>(utilityView === "news" ? "/api/news?page=1" : null);
   const movers = useMemo(() => [...(market.data?.data ?? [])]
@@ -101,10 +100,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         <div className="nt-top-context">
           <span>US Equities</span>
           <span>Research Workspace</span>
-          <span>Source-aware</span>
         </div>
-
-        <span className="nt-label nt-status-warn">Data status varies</span>
       </header>
 
       {searchOpen && <section className="nt-panel" aria-label="Search instruments">
@@ -113,18 +109,6 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
           {!matching.length && <span>{universe.error ?? (universe.data ? "No matching instruments" : "Loading universe…")}</span>}
         </div>
       </section>}
-
-      <div className="nt-tape" aria-label="Global data tape">
-        <span className="nt-tape-item"><b>SESSION</b> Source timestamp</span>
-        <span className="nt-tape-item"><b>MARKET</b> SOURCE DEPENDENT</span>
-        <span className="nt-tape-item"><b>OHLC</b> HIST / LIVE MIX</span>
-        <span className="nt-tape-item"><b>FUNDAMENTALS</b> PARTIAL</span>
-        <span className="nt-tape-item"><b>ESTIMATES</b> COVERAGE GATED</span>
-        <span className="nt-tape-item"><b>FILINGS</b> SEC</span>
-        <span className="nt-tape-item"><b>NEWS</b> TIMESTAMP REQUIRED</span>
-        <span className="nt-tape-item"><b>PIPELINE</b> {health.data ? `${health.data.pipeline.covered}/${health.data.pipeline.total}` : "—"}</span>
-        <span className="nt-tape-item"><b>UPDATED</b> {health.data?.generated_at?.replace("T", " ").slice(0, 19) ?? "—"} {health.data && "UTC"}</span>
-      </div>
 
       <div className="nt-layout">
         <nav className="nt-nav" aria-label="Primary workspaces">
@@ -198,16 +182,9 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
           </tbody>
         </table>}
 
-        <div className="nt-database-note">Utility rail keeps research context in-place. Alerts shown here are browser-local until a server alert service is connected.</div>
+        <div className="nt-database-note">Movers, headlines and saved price levels stay linked to the current research workflow.</div>
       </section>}
 
-      <footer className="nt-statusbar">
-        <span className="nt-status-warn">DATA · SOURCE DEPENDENT</span>
-        <span>Missing values remain neutral</span>
-        <span>Timestamp + source required</span>
-        <span>Coverage: Markets / Screener / Company / Chart / Filings</span>
-        <span>Errors: 0 UI-inferred values</span>
-      </footer>
     </div>
   );
 }
