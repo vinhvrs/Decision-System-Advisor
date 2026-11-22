@@ -201,6 +201,12 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const breadthValue = (group: typeof trend[number]) =>
     group.value === null ? group.state : `${(group.value * 100).toFixed(1)}% (${group.count}/${group.total})`;
 
+  const relativeVolumeLeaders = breadthEquities.flatMap(row => {
+    const metric = dailyRows?.[row.symbol]?.metrics.rvol20;
+    return metric?.quality === "OK" && metric.as_of === breadthSession && metric.value != null && Number.isFinite(metric.value)
+      ? [{ symbol: row.symbol, value: metric.value }] : [];
+  }).sort((a, b) => b.value - a.value);
+
   const sourceLedger = [
     ["Quotes", socketStatus, latestQuote ? ago(latestQuote) : "—", `${Object.keys(quotes).length}/${heat.length}`],
     ["Stored market", rows.length ? "AVAILABLE" : "AWAITING", latestStored ? ago(latestStored) : "—", rows.length ? String(rows.length) : "—"],
@@ -316,8 +322,8 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               ["UP / DOWN VALUE",`${valueTotal(upValue)} / ${valueTotal(downValue)}`,"Traded value by session direction"],
               ["NEW HIGHS","—","52W"],
               ["NEW LOWS","—","52W"],
-              ["> 20D MA","—","Trend"],
-              ["> 50D MA","—","Trend"],
+              ["> 20D MA", breadthValue(trend[0]), breadthSession ?? "Stored daily sessions"],
+              ["> 50D MA", breadthValue(trend[1]), breadthSession ?? "Stored daily sessions"],
             ].map(([label,value,note]) => (
               <div className="nt-kpi" key={label}>
                 <div className="nt-label">{label}</div><div className="nt-kpi-value">{value}</div><div className="nt-kpi-note">{note}</div>
@@ -396,7 +402,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               <tbody>
                 <tr><td>Top gainers</td><td>{equities.length ? up : "—"}</td><td>{up ? leaders[0]?.symbol : "—"}</td></tr>
                 <tr><td>Top losers</td><td>{equities.length ? down : "—"}</td><td>{down ? laggards[0]?.symbol : "—"}</td></tr>
-                <tr><td>Rel volume</td><td>—</td><td>—</td></tr>
+                <tr><td>Rel volume</td><td>{relativeVolumeLeaders.length || "—"}</td><td>{relativeVolumeLeaders[0] ? `${relativeVolumeLeaders[0].symbol} · ${relativeVolumeLeaders[0].value.toFixed(2)}×` : "—"}</td></tr>
                 <tr><td>Gap up</td><td>—</td><td>—</td></tr>
                 <tr><td>Gap down</td><td>—</td><td>—</td></tr>
                 <tr><td>New highs</td><td>—</td><td>—</td></tr>
