@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import DataTable from "../DataTable";
-import { labelText, sourceLink, valueText, type Calendar, type Filing, type Metrics, type News, type Technical, type Universe } from "../feeds";
+import { labelText, sourceLink, valueText, type Calendar, type DailyAnalytics, type Filing, type Metrics, type News, type Technical, type Universe } from "../feeds";
 import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
@@ -63,6 +63,8 @@ export function NewsWorkspace() {
 
 export function IndicatorsWorkspace() {
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
+  const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
+  const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
   const [symbol, setSymbol] = useState("AAPL");
   const [period, setPeriod] = useState("daily");
   const id = encodeURIComponent(symbol);
@@ -72,6 +74,10 @@ export function IndicatorsWorkspace() {
   const technicalEntries = Object.entries(technical.data?.indicators ?? {});
   const availableMetricCount = metricEntries.filter(([, item]) => item.value != null).length;
   const unavailableMetricCount = metricEntries.length - availableMetricCount;
+  const marketContext = [...(snapshot.data?.data ?? [])]
+    .filter(row => row.market === "stock" && row.change_pct != null)
+    .sort((a, b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
+    .slice(0, 14);
   return <div className="nt-workspace nt-full-workspace nt-indicators-workspace">
     <section className="nt-toolbar"><h1>Indicators</h1><label>Symbol <select value={symbol} onChange={event => setSymbol(event.target.value)}>{[...new Set(["AAPL", ...(universe.data?.data ?? []).map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}</select></label>
       <label>Period <select value={period} onChange={event => setPeriod(event.target.value)}><option value="daily">Daily</option><option value="30m">30 minutes</option></select></label></section>
@@ -81,6 +87,19 @@ export function IndicatorsWorkspace() {
     <DataTable title="Technical indicator registry" columns={["Indicator", "Value"]}
       rows={technicalEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value)] }))}
       empty="No technical indicator values for this symbol and period." />
+    <DataTable title="Market technical context" columns={["Symbol","Last","Change %","SMA50","RVol 20D","52W high"]}
+      rows={marketContext.map(row => {
+        const m = daily.data?.data[row.symbol]?.metrics;
+        return { key: row.symbol, cells: [
+          <SymbolContext key="symbol" symbol={row.symbol} />,
+          valueText(row.price),
+          row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
+          valueText(m?.sma50?.value),
+          m?.rvol20?.value == null ? "—" : `${valueText(m.rvol20.value)}×`,
+          valueText(m?.trading_52w_high?.value),
+        ]};
+      })}
+      empty="No market technical context." />
 
   </div>;
 }
@@ -140,7 +159,7 @@ function WatchlistEditor({ token }: { token: string | null }) {
     finally { setBusy(false); }
   }
 
-  const quick = (universe.data?.data ?? []).slice(0, 20);
+  const quick = (universe.data?.data ?? []).slice(0, 40);
   return <div className="nt-workspace nt-full-workspace nt-watchlists-workspace">
     <section className="nt-context-strip">
       <div className="nt-context-title"><div className="nt-label nt-info">Watchlists</div><h1>Symbol Monitor</h1></div>
