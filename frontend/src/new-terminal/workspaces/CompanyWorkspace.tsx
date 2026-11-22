@@ -24,7 +24,8 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
   const overview = useFeed<Overview>(`/api/companies/${id}/overview`);
   const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const fund = useFeed<Metrics>(`/api/v1/sourced-fundamentals/${id}`);
-  const financials = useFeed<{ data: Statement[] }>(activeTab === "Financials" ? `/api/fundamentals/${id}/${period}` : null);\n  const overviewFinancials = useFeed<{ data: Statement[] }>(activeTab === "Overview" ? `/api/fundamentals/${id}/quarterly` : null);
+  const financials = useFeed<{ data: Statement[] }>(activeTab === "Financials" ? `/api/fundamentals/${id}/${period}` : null);
+  const overviewFinancials = useFeed<{ data: Statement[] }>(activeTab === "Overview" ? `/api/fundamentals/${id}/quarterly` : null);
   const filings = useFeed<{ data: Filing[] }>(activeTab === "Filings" || activeTab === "Overview" ? `/api/filings/${id}` : null);
   const news = useFeed<News[]>(activeTab === "News" || activeTab === "Overview" ? `/api/news/symbol/${id}` : null);
   const position = useFeed<Positioning>(activeTab === "Ownership" ? `/api/v1/positioning/${id}` : null);
