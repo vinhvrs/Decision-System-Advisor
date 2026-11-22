@@ -2956,3 +2956,28 @@ body {
     border-bottom: 0;
   }
 }
+
+
+/* Measured blank-area pass: layouts below are content-driven, never stretched. */
+.nt-market-breadth-only {
+  grid-template-columns: 1fr !important;
+}
+
+.nt-market-breadth-only .nt-summary-column {
+  border-right: 0;
+}
+
+.nt-market-rail .nt-cell-wrap {
+  max-width: 180px;
+  line-height: 1.25;
+}
+
+.nt-screener-inspector .nt-subsection {
+  flex: 0 0 auto;
+}
+
+.nt-company-workspace > .nt-panel,
+.nt-indicators-workspace > .nt-panel,
+.nt-watchlists-workspace > .nt-panel {
+  margin: 0;
+}
