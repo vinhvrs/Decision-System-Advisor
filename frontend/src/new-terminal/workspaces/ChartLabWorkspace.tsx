@@ -480,14 +480,6 @@ export default function ChartLabWorkspace({
             </div>
 
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Correlation · 60D</strong><span>vs {symbol}</span></div>
-              <table className="nt-microtable"><tbody>{(correlationData?.symbols ?? compared).map((item,index) => {
-                const value = correlationData?.data[0]?.[index];
-                return <tr key={item}><td>{item}</td><td>{value?.value == null ? "—" : valueText(value.value)}</td></tr>;
-              })}</tbody></table>
-            </div>
-
-            <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Range statistics</strong><span>{range}</span></div>
               <table className="nt-microtable"><tbody>
                 <tr><td>Range return</td><td className={rangeReturn != null && rangeReturn >= 0 ? "nt-positive" : "nt-negative"}>{pct(rangeReturn)}</td></tr>
@@ -605,6 +597,20 @@ export default function ChartLabWorkspace({
           </section>
         </aside>
       </div>
+
+      <section className="nt-flat-surface nt-chart-correlation-matrix">
+        <div className="nt-subsection-title"><strong>Cross-asset correlation · 60D</strong><span>{correlationData?.symbols?.length ?? compared.length} series</span></div>
+        <div className="nt-table-wrap"><table className="nt-table nt-correlation-matrix-table">
+          <thead><tr><th>Series</th>{(correlationData?.symbols ?? compared).map(item => <th key={item}>{item}</th>)}</tr></thead>
+          <tbody>{(correlationData?.symbols ?? compared).map((rowSymbol,rowIndex) => <tr key={rowSymbol}>
+            <td>{rowSymbol}</td>
+            {(correlationData?.symbols ?? compared).map((columnSymbol,columnIndex) => {
+              const value = correlationData?.data[rowIndex]?.[columnIndex]?.value;
+              return <td key={columnSymbol} className={value != null && value >= .5 ? "nt-positive" : value != null && value <= -.5 ? "nt-negative" : ""}>{value == null ? "—" : valueText(value)}</td>;
+            })}
+          </tr>)}</tbody>
+        </table></div>
+      </section>
     </div>
   );
 }
