@@ -43,6 +43,17 @@ These rules are mandatory for the true-redesign frontend and override legacy vis
 - Avoid per-component inline font sizes, ad-hoc color literals and local font-family overrides. Extend the semantic tokens when a genuinely new role is required.
 - Review new screens at 1280, 1440 and 1920 for accidental nested boxes, inconsistent label/metadata scales, text clipping and readability.
 
+## User-facing information relevance (mandatory)
+
+- The terminal UI is for financial research, not backend operations. Primary surfaces must show market, company, macro, portfolio, screening, charting, events, news, filings, indicators and other investment-relevant information.
+- Do not expose operational plumbing such as server status, backend health, pipeline coverage, provider health, ingestion diagnostics, retry/error counters, cache state, entitlement diagnostics, internal data-quality labels or implementation notes as normal user-facing panels.
+- Source and as-of metadata may appear only when they materially help interpret a financial observation; keep them compact in table metadata, tooltips, or row details rather than dedicating standalone cards or dashboards to them.
+- Missing data should degrade quietly to a neutral dash or concise financial-domain message. Do not fill valuable screen area with "AWAITING", "PARTIAL", "NOT_INGESTED", "LICENSE_RESTRICTED", or similar backend states unless the state itself changes the user's financial interpretation.
+- Never add filler cards to occupy space. If an area is sparse, rebalance columns, merge adjacent sections, promote useful financial summaries, or remove the empty region.
+- Side rails should be a single flat surface with subsections separated by 1px dividers, not stacks of independent cards.
+- Dense summary strips should be one shared surface with equal-height cells and internal dividers; individual metrics must not look like nested cards.
+- Page layout should be compact and visually contiguous: align section edges, equalize sibling heights where semantically appropriate, avoid orphan panels, and remove meaningless blank gaps.
+
 ## Interaction rules
 
 - Persistent workspace navigation.
