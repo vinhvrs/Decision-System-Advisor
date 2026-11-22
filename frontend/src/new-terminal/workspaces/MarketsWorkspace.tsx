@@ -191,7 +191,11 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
     return metric?.quality === "OK" && metric.as_of === breadthSession && metric.value != null && Number.isFinite(metric.value)
       ? [{ symbol: row.symbol, value: metric.value }] : [];
   }).sort((a, b) => b.value - a.value);
-
+  const mostActive = [...equities]
+    .filter(row => row.traded_value != null)
+    .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
+    .slice(0, 12);
+  const recentHeadlines = (news.data?.data ?? []).filter(item => item.published_at).slice(0, 18);
 
   return (
     <div className="nt-workspace nt-market-workspace">
@@ -259,6 +263,14 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                 })}</tbody>
               </table>
             </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Most active</strong><span>traded value</span></div>
+              <table className="nt-microtable">
+                <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
+                <tbody>{mostActive.map(row => <tr key={row.symbol}><td>{row.symbol}</td><td>{valueText(row.traded_value)}</td><td className={(row.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(row.change_pct)}</td></tr>)}</tbody>
+              </table>
+            </div>
           </section>
         </aside>
 
@@ -286,7 +298,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             </div>
           </section>
 
-          <section className="nt-flat-surface nt-market-summary-surface">
+          <section className="nt-flat-surface nt-market-summary-surface nt-market-breadth-only">
             <div className="nt-summary-column">
               <div className="nt-subsection-title"><strong>Breadth & trend</strong><span>{breadthSession ?? "latest"}</span></div>
               <table className="nt-microtable"><tbody>
@@ -298,17 +310,14 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                 <tr><td>Up / down value</td><td colSpan={2}>{valueTotal(upValue)} / {valueTotal(downValue)}</td></tr>
               </tbody></table>
             </div>
-            <div className="nt-summary-column">
-              <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
-              <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Chg</th><th>Laggard</th><th>Chg</th></tr></thead><tbody>
-                {[0,1,2,3,4,5].map(i => <tr key={i}><td>{i+1}</td><td>{leaders[i]?.symbol ?? "—"}</td><td className="nt-positive">{percent(leaders[i]?.change_pct)}</td><td>{laggards[i]?.symbol ?? "—"}</td><td className="nt-negative">{percent(laggards[i]?.change_pct)}</td></tr>)}
-              </tbody></table>
-            </div>
           </section>
 
           <DataTable title="Macro observations & spreads" columns={["Series","Value","Unit","Observed"]}
             rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
             empty="No macro observations." />
+          <DataTable title="Crypto derivatives" columns={["Metric","Value","Unit","Venue","Observed"]}
+            rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
+            empty="No crypto derivatives observations." />
         </section>
 
         <aside className="nt-market-rail nt-flat-rail">
@@ -331,13 +340,18 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             </div>
 
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Crypto derivatives</strong><span>live context</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Metric</th><th>Value</th><th>Venue</th></tr></thead>
-                <tbody>{(crypto.data?.data ?? []).slice(0,8).map(row => <tr key={row.metric_code}><td>{row.metric_code.replace(/_/g," ")}</td><td>{valueText(row.value)}</td><td>{row.source ?? "—"}</td></tr>)}
-                  {!crypto.data?.data?.length && <tr><td colSpan={3}>No crypto derivatives observations</td></tr>}
-                </tbody>
-              </table>
+              <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
+              <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
+                {[0,1,2,3,4,5].map(i => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+              </tbody></table>
+            </div>
+
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Latest headlines</strong><span>{recentHeadlines.length}</span></div>
+              <table className="nt-microtable"><thead><tr><th>Time</th><th>Symbol</th><th>Headline</th></tr></thead><tbody>
+                {recentHeadlines.map(item => <tr key={item.id}><td>{item.published_at?.slice(11,16) ?? "—"}</td><td>{item.symbol ?? "—"}</td><td className="nt-cell-wrap">{item.title}</td></tr>)}
+                {!recentHeadlines.length && <tr><td colSpan={3}>No recent headlines</td></tr>}
+              </tbody></table>
             </div>
           </section>
         </aside>
