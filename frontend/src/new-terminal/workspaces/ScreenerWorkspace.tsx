@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import DataTable from "../DataTable";
-import { type Universe, type Metrics, valueText } from "../feeds";
+import { type Universe, type Metrics, type DailyAnalytics, valueText } from "../feeds";
 import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -11,6 +11,7 @@ import { useFeed } from "../useFeed";
 export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?: string }) {
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
+  const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
   const [query, setQuery] = useState(initialQuery);
   const [asset, setAsset] = useState("");
   const [sort, setSort] = useState("symbol");
@@ -27,6 +28,10 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
   const selected = shown.some(row => row.symbol === selection) ? selection : shown[0]?.symbol;
   const fund = useFeed<Metrics>(selected ? `/api/v1/sourced-fundamentals/${encodeURIComponent(selected)}` : null);
   const tech = useFeed<Metrics>(selected ? `/api/v1/metrics/${encodeURIComponent(selected)}` : null);
+  const dailyMetrics = selected ? daily.data?.data[selected]?.metrics : undefined;
+  const technicalMetrics = { ...tech.data?.metrics, ...dailyMetrics };
+  const technicalFields = ["rsi14", "atr_pct", "sma20", "sma50", "sma200", "average_volume20",
+    "rvol20", "trading_52w_high", "trading_52w_low"];
   return <div className="nt-workspace nt-full-workspace nt-screener-workspace">
     <section className="nt-toolbar">
       <strong>Screener Database</strong>
@@ -70,13 +75,19 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
           </div>
         </section>
 
-        <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "Source / missing data"]}
-          rows={[[fund.data, ["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"]], [tech.data, ["rsi14", "atr_pct", "average_volume20", "relative_volume"]]].flatMap(([feed, keys]) =>
-            (keys as string[]).map(key => {
-              const metric = (feed as Metrics | undefined)?.metrics[key];
-              return { key, cells: [key.replace(/_/g, " "), valueText(metric?.value), metric?.unit, metric?.quality, metric?.reason ?? metric?.metadata?.source ?? "No suitable observation"] };
-            }))}
-          note="Forward P/E requires point-in-time earnings consensus. Relative volume and technical measures require suitable price history and publication rights." />
+        <DataTable title={selected ? `${selected} · valuation and technical coverage` : "Symbol inspector"} columns={["Metric", "Value", "Unit", "Quality", "As of", "Source / reason"]}
+          rows={[
+            ...["pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"].map(key =>
+              [key, fund.data?.metrics[key], fund.data?.as_of, fund.error] as const),
+            ...technicalFields.map(key =>
+              [key, technicalMetrics[key], dailyMetrics?.[key] ? undefined : tech.data?.as_of, daily.error ?? tech.error] as const),
+          ].map(([key, metric, asOf, error]) => ({
+            key,
+            cells: [key.replace(/_/g, " "), valueText(metric?.value), metric?.unit,
+              metric?.quality ?? (error ? "UNAVAILABLE" : "NOT_INGESTED"), metric?.as_of ?? asOf,
+              metric?.reason ?? metric?.metadata?.source ?? error ?? "No suitable observation"],
+          }))}
+          note="Daily technical metrics use stored sessions. Forward P/E requires earnings consensus." />
 
         {selected && <div className="nt-toolbar nt-screener-links">
           <Link href={`/companies/profile/${encodeURIComponent(selected)}`}>Company research ↗</Link>
