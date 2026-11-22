@@ -464,10 +464,8 @@ export default function ChartLabWorkspace({
             </div>
 
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Market context</strong><span>{symbol}</span></div>
+              <div className="nt-subsection-title"><strong>Structural context</strong><span>{symbol}</span></div>
               <table className="nt-microtable"><tbody>
-                <tr><td>SMA 20</td><td>{valueText(dailyMetrics?.sma20?.value ?? sma20Values.at(-1))}</td></tr>
-                <tr><td>SMA 50</td><td>{valueText(dailyMetrics?.sma50?.value ?? sma50Values.at(-1))}</td></tr>
                 <tr><td>SMA 200</td><td>{valueText(dailyMetrics?.sma200?.value)}</td></tr>
                 <tr><td>52W high</td><td>{valueText(dailyMetrics?.trading_52w_high?.value)}</td></tr>
                 <tr><td>52W low</td><td>{valueText(dailyMetrics?.trading_52w_low?.value)}</td></tr>
@@ -602,14 +600,6 @@ export default function ChartLabWorkspace({
                   {!currentAlerts.length && <tr><td colSpan={4}>No price alerts</td></tr>}
                 </tbody>
               </table>
-            </div>
-
-            <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Technical snapshot</strong><span>{symbol}</span></div>
-              <table className="nt-microtable"><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>
-                {registry.slice(0,18).map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={[result.metadata?.source, result.as_of].filter(Boolean).join(" · ")}>{valueText(result.value)}</td></tr>)}
-                {!registry.length && <tr><td colSpan={2}>—</td></tr>}
-              </tbody></table>
             </div>
 
             <div className="nt-subsection">
