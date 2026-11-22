@@ -374,7 +374,7 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
   return (
     <div className="nt-workspace nt-chart-workspace">
       <section className="nt-toolbar nt-chart-toolbar">
-        <strong className="nt-chart-title">CHART LAB / TIME-SERIES DATABASE</strong>
+        <strong className="nt-chart-title">Chart Lab</strong>
         <SymbolContext symbol={symbol} />
 
         <label className="nt-control-group">
@@ -402,8 +402,8 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
           </div>
         </div>
 
-        <span className="nt-control-summary"><b>1D</b><small>BARS</small></span>
-        <span className="nt-control-summary"><b>{activeIndicatorCount}</b><small>INDICATORS</small></span>
+        <span className="nt-control-summary"><b>{bars.length || "—"}</b><small>SESSIONS</small></span>
+        <span className="nt-control-summary"><b>{activeIndicatorCount}</b><small>OVERLAYS</small></span>
         <span className="nt-control-summary"><b>{currentAlerts.filter(alert => alert.enabled).length}</b><small>ALERTS</small></span>
 
         <button type="button" className="nt-action nt-toolbar-action" onClick={() => {
@@ -412,69 +412,58 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
         <button type="button" className="nt-action nt-toolbar-action" onClick={() => {
           document.getElementById("nt-alert-panel")?.scrollIntoView({ block: "nearest" });
         }}>Alerts</button>
-
-        <span className="nt-chart-state nt-mono">{state}</span>
       </section>
 
-      <div className="nt-dense-grid">
+      <div className="nt-dense-grid nt-financial-strip">
         {ohlcFields.map((key, index) => <div className="nt-data-cell" key={key}>
           <div className="k">{key}</div>
           <div className="v">{index === 7 ? pct(values[index]) : index === 11 && values[index] != null ? `${format(values[index])}×` : format(values[index])}</div>
-          <div className="s">{index < 5 && latest ? latestDay : index === 6 ? "ATR14 · Wilder" : index === 7 && values[index] != null ? "Open vs previous close" : index === 11 && values[index] != null ? "20 prior sessions" : "Awaiting source"}</div>
+          <div className="s">{index < 5 && latest ? latestDay : index === 6 && values[index] != null ? "ATR14" : index === 7 && values[index] != null ? "Open gap" : index === 11 && values[index] != null ? "20D" : ""}</div>
         </div>)}
       </div>
 
       <div className="nt-grid nt-grid-chart nt-chart-main-grid">
-        <aside className="nt-section-stack nt-chart-rail">
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Series matrix</strong><span className="nt-panel-meta">linked context</span></div>
-            <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg</th></tr></thead><tbody>
-              {series.map(item => {
-                const row = stored.data?.data.find(entry => entry.symbol === item);
-                return <tr key={item}><td>{item}</td><td>{format(row?.price)}</td><td>{format(row?.change_pct)}</td></tr>;
-              })}
-            </tbody></table>
-          </section>
+        <aside className="nt-chart-rail nt-flat-rail">
+          <section className="nt-flat-surface">
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Linked series</strong><span>{latestDay || range}</span></div>
+              <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg%</th></tr></thead><tbody>
+                {series.map(item => {
+                  const row = stored.data?.data.find(entry => entry.symbol === item);
+                  return <tr key={item}><td>{item}</td><td>{format(row?.price)}</td><td className={(row?.change_pct ?? 0) > 0 ? "nt-positive" : (row?.change_pct ?? 0) < 0 ? "nt-negative" : ""}>{pct(row?.change_pct)}</td></tr>;
+                })}
+              </tbody></table>
+            </div>
 
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Saved context</strong><span className="nt-panel-meta">workspace</span></div>
-            <table className="nt-microtable"><tbody>
-              <tr><td>Watchlist</td><td>Mega Cap</td></tr>
-              <tr><td>Screener</td><td>Current filter</td></tr>
-              <tr><td>Template</td><td>Price + Vol</td></tr>
-              <tr><td>Normalize</td><td>Absolute</td></tr>
-            </tbody></table>
-          </section>
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Market context</strong><span>{symbol}</span></div>
+              <table className="nt-microtable"><tbody>
+                <tr><td>SMA 20</td><td>{valueText(dailyMetrics?.sma20?.value ?? sma20Values.at(-1))}</td></tr>
+                <tr><td>SMA 50</td><td>{valueText(dailyMetrics?.sma50?.value ?? sma50Values.at(-1))}</td></tr>
+                <tr><td>SMA 200</td><td>{valueText(dailyMetrics?.sma200?.value)}</td></tr>
+                <tr><td>52W high</td><td>{valueText(dailyMetrics?.trading_52w_high?.value)}</td></tr>
+                <tr><td>52W low</td><td>{valueText(dailyMetrics?.trading_52w_low?.value)}</td></tr>
+                <tr><td>Rel volume</td><td>{dailyMetrics?.rvol20?.value == null ? "—" : `${valueText(dailyMetrics.rvol20.value)}×`}</td></tr>
+              </tbody></table>
+            </div>
 
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Correlation</strong><span className="nt-panel-meta">selected series</span></div>
-            <table className="nt-microtable"><tbody>{(correlation.data?.symbols ?? compared).map((item,index) => {
-              const value = correlation.data?.data[0]?.[index];
-              return <tr key={item}><td>{item}</td><td title={value?.reason ?? undefined}>{value?.value == null ? value?.quality ?? "—" : valueText(value.value)}</td></tr>;
-            })}</tbody></table>
-          </section>
-
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Active chart context</strong><span className="nt-panel-meta">current workspace</span></div>
-            <table className="nt-microtable"><tbody>
-              <tr><td>Symbol</td><td>{symbol}</td></tr>
-              <tr><td>Range</td><td>{range}</td></tr>
-              <tr><td>Bars loaded</td><td>{bars.length || "—"}</td></tr>
-              <tr><td>Active overlays</td><td>{activeIndicatorCount}</td></tr>
-              <tr><td>Armed alerts</td><td>{currentAlerts.filter(alert => alert.enabled).length}</td></tr>
-              <tr><td>Latest bar</td><td>{latest?.timestamps.slice(0,10) ?? "—"}</td></tr>
-            </tbody></table>
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Correlation · 60D</strong><span>vs {symbol}</span></div>
+              <table className="nt-microtable"><tbody>{(correlation.data?.symbols ?? compared).map((item,index) => {
+                const value = correlation.data?.data[0]?.[index];
+                return <tr key={item}><td>{item}</td><td>{value?.value == null ? "—" : valueText(value.value)}</td></tr>;
+              })}</tbody></table>
+            </div>
           </section>
         </aside>
 
-        <section className="nt-section-stack nt-chart-center">
+        <section className="nt-chart-center">
           <section className="nt-panel nt-chart-primary-panel">
             <div className="nt-panel-title">
               <div>
                 <strong>{symbol} · Price / Volume</strong>
-                <div className="nt-panel-meta">{range} · 1D{currency ? ` · ${currency}` : ""} · Yahoo Finance adjusted · {activeIndicatorCount} overlays · {currentAlerts.filter(alert => alert.enabled).length} alerts</div>
+                <div className="nt-panel-meta">{range} · 1D{currency ? ` · ${currency}` : ""} · {bars.length ? `${bars.length} sessions · ${latestDay}` : state}</div>
               </div>
-              <span className="nt-panel-meta">{bars.length ? `${bars.length} sessions · ${latestDay}` : state}</span>
             </div>
             <div className="nt-chart-legend" aria-label="Chart series">
               <span>OHLC</span>
@@ -488,163 +477,121 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
           </section>
 
           <section className="nt-panel">
-            <div className="nt-panel-title"><strong>OHLC / indicator records</strong><span className="nt-panel-meta">selected visible range</span></div>
+            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">recent sessions</span></div>
             <div className="nt-table-wrap"><table className="nt-table">
-              <thead><tr>{["Time","Open","High","Low","Close","Volume","VWAP","SMA20","SMA50","RSI14","ATR14","Source"].map(item => <th key={item}>{item}</th>)}</tr></thead>
+              <thead><tr>{["Time","Open","High","Low","Close","Volume","SMA20","SMA50","RSI14","ATR14"].map(item => <th key={item}>{item}</th>)}</tr></thead>
               <tbody>{bars.slice(-8).reverse().map(bar => {
                 const index = bars.indexOf(bar);
                 return <tr key={bar.timestamps}>
                   <td>{bar.timestamps.slice(0,10)}</td>
                   {[bar.open,bar.high,bar.low,bar.close,bar.volume].map((value,itemIndex) => <td className="nt-mono" key={itemIndex}>{format(value)}</td>)}
-                  <td>—</td>
                   <td>{format(sma20Values[index])}</td>
                   <td>{format(sma50Values[index])}</td>
                   <td>{format(rsi14Values[index])}</td>
                   <td>{format(atr14Values[index])}</td>
-                  <td>Yahoo Finance</td>
                 </tr>;
               })}</tbody>
             </table></div>
           </section>
 
-          <div className="nt-chart-fill-grid">
-            <section className="nt-panel">
-              <div className="nt-panel-title"><strong>Range statistics</strong><span className="nt-panel-meta">{range} observed bars</span></div>
+          <section className="nt-flat-surface nt-chart-summary-surface">
+            <div className="nt-summary-column">
+              <div className="nt-subsection-title"><strong>Range statistics</strong><span>{range}</span></div>
               <table className="nt-microtable"><tbody>
-                <tr><td>Bars</td><td>{bars.length || "—"}</td><td>Daily</td></tr>
-                <tr><td>Range return</td><td className={rangeReturn != null && rangeReturn >= 0 ? "nt-positive" : "nt-negative"}>{pct(rangeReturn)}</td><td>{first?.timestamps.slice(0,10) ?? "—"} → {latest?.timestamps.slice(0,10) ?? "—"}</td></tr>
-                <tr><td>Range high</td><td>{format(rangeHigh)}</td><td>Observed</td></tr>
-                <tr><td>Range low</td><td>{format(rangeLow)}</td><td>Observed</td></tr>
-                <tr><td>Avg daily H-L</td><td>{pct(avgDailyRange)}</td><td>Price range</td></tr>
-                <tr><td>Latest session</td><td className={latestChange != null && latestChange >= 0 ? "nt-positive" : "nt-negative"}>{pct(latestChange)}</td><td>{latest?.timestamps.slice(0,10) ?? "—"}</td></tr>
+                <tr><td>Range return</td><td className={rangeReturn != null && rangeReturn >= 0 ? "nt-positive" : "nt-negative"}>{pct(rangeReturn)}</td></tr>
+                <tr><td>Range high</td><td>{format(rangeHigh)}</td></tr>
+                <tr><td>Range low</td><td>{format(rangeLow)}</td></tr>
+                <tr><td>Avg daily H-L</td><td>{pct(avgDailyRange)}</td></tr>
+                <tr><td>Latest session</td><td className={latestChange != null && latestChange >= 0 ? "nt-positive" : "nt-negative"}>{pct(latestChange)}</td></tr>
               </tbody></table>
-            </section>
+            </div>
 
-            <section className="nt-panel">
-              <div className="nt-panel-title"><strong>Session distribution</strong><span className="nt-panel-meta">direction · volume</span></div>
+            <div className="nt-summary-column">
+              <div className="nt-subsection-title"><strong>Session distribution</strong><span>{bars.length} bars</span></div>
               <table className="nt-microtable"><tbody>
                 <tr><td>Up sessions</td><td className="nt-positive">{upSessions || "—"}</td><td>{bars.length ? pct((upSessions / bars.length) * 100) : "—"}</td></tr>
                 <tr><td>Down sessions</td><td className="nt-negative">{downSessions || "—"}</td><td>{bars.length ? pct((downSessions / bars.length) * 100) : "—"}</td></tr>
                 <tr><td>Flat sessions</td><td>{flatSessions || "—"}</td><td>{bars.length ? pct((flatSessions / bars.length) * 100) : "—"}</td></tr>
                 <tr><td>Avg volume</td><td>{format(avgVolume)}</td><td>{volumeBars.length} bars</td></tr>
                 <tr><td>Total volume</td><td>{format(totalVolume || null)}</td><td>{range}</td></tr>
-                <tr><td>Latest volume</td><td>{format(latest?.volume)}</td><td>{latest?.timestamps.slice(0,10) ?? "—"}</td></tr>
               </tbody></table>
-            </section>
+            </div>
 
-            <section className="nt-panel nt-chart-recent-panel">
-              <div className="nt-panel-title"><strong>Recent sessions</strong><span className="nt-panel-meta">last 12 bars</span></div>
+            <div className="nt-summary-column nt-chart-recent-panel">
+              <div className="nt-subsection-title"><strong>Recent sessions</strong><span>last 8</span></div>
               <table className="nt-microtable">
-                <thead><tr><th>Date</th><th>Close</th><th>Close Δ%</th><th>Open gap</th><th>Volume</th></tr></thead>
-                <tbody>{recentBars.map((bar,index) => {
+                <thead><tr><th>Date</th><th>Close</th><th>Δ%</th><th>Volume</th></tr></thead>
+                <tbody>{recentBars.slice(0,8).map((bar,index) => {
                   const originalIndex = bars.length - 1 - index;
                   const previous = fullBars[firstVisible + originalIndex - 1];
                   const change = previous?.close ? ((bar.close / previous.close) - 1) * 100 : null;
-                  const gap = previous?.close ? ((bar.open / previous.close) - 1) * 100 : null;
-                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td><td title="Open vs previous session close">{pct(gap)}</td><td>{format(bar.volume)}</td></tr>;
+                  return <tr key={bar.timestamps}><td>{bar.timestamps.slice(5,10)}</td><td>{format(bar.close)}</td><td className={change != null && change >= 0 ? "nt-positive" : "nt-negative"}>{pct(change)}</td><td>{format(bar.volume)}</td></tr>;
                 })}</tbody>
               </table>
-            </section>
-          </div>
-
-          <section className="nt-panel nt-chart-coverage-panel">
-            <div className="nt-panel-title"><strong>Chart data coverage</strong><span className="nt-panel-meta">source · capability · limits</span></div>
-            <table className="nt-microtable">
-              <thead><tr><th>Series / capability</th><th>Status</th></tr></thead>
-              <tbody>
-                <tr><td>OHLCV</td><td>{state}</td></tr>
-                <tr><td>Local overlays</td><td>SMA20 / SMA50 / EMA20 / Bollinger20 + RSI14 / ATR14</td></tr>
-                <tr><td>Price alerts</td><td>Browser-local with chart price lines</td></tr>
-                <tr><td>Source-backed metrics</td><td>{metrics.data?.quality === "LICENSE_RESTRICTED" ? "Historical fallback lacks public redistribution permission" : metrics.data?.quality ?? metrics.error ?? "Awaiting source"}</td></tr>
-                <tr><td>Correlation</td><td>{correlation.data?.reason ?? correlation.error ?? "Requires overlapping licensed histories"}</td></tr>
-                <tr><td>Issuer events</td><td>Dedicated earnings / corporate-actions feed required</td></tr>
-                <tr><td>VWAP / volume profile</td><td>Requires suitable intraday bars or trade prints</td></tr>
-                <tr><td>Implied volatility</td><td>Requires option chains with quotes, expirations and greeks</td></tr>
-              </tbody>
-            </table>
+            </div>
           </section>
         </section>
 
-        <aside className="nt-section-stack nt-chart-rail">
-          <section className="nt-panel" id="nt-indicator-panel">
-            <div className="nt-panel-title"><strong>Indicators</strong><span className="nt-panel-meta">overlay · derived locally</span></div>
-            <div className="nt-indicator-list">
-              {([
-                ["sma20","SMA 20","#6ea7e8",sma20Values.at(-1)],
-                ["sma50","SMA 50","#d5a65d",sma50Values.at(-1)],
-                ["ema20","EMA 20","#b58bdc",ema20Values.at(-1)],
-                ["bb20","Bollinger 20,2","#6f849c",bb20Values.mid.at(-1)],
-              ] as Array<[IndicatorKey,string,string,number | null | undefined]>).map(([key,label,color,value]) => (
-                <label className="nt-indicator-row" key={key}>
-                  <input type="checkbox" checked={activeIndicators[key]} onChange={() => toggleIndicator(key)} />
-                  <span className="nt-indicator-swatch" style={{ backgroundColor: color }} />
-                  <span className="nt-indicator-name">{label}</span>
-                  <span className="nt-mono">{format(value)}</span>
-                </label>
-              ))}
-              <div className="nt-indicator-row nt-indicator-readonly">
-                <span className="nt-indicator-swatch" style={{ backgroundColor: "#5fc3b4" }} />
-                <span className="nt-indicator-name">RSI 14</span>
-                <span className="nt-mono">{format(rsi14Values.at(-1))}</span>
-              </div>
-              <div className="nt-indicator-row nt-indicator-readonly">
-                <span className="nt-indicator-swatch" style={{ backgroundColor: "#d68762" }} />
-                <span className="nt-indicator-name">ATR 14</span>
-                <span className="nt-mono">{format(atr14Values.at(-1))}</span>
+        <aside className="nt-chart-rail nt-flat-rail">
+          <section className="nt-flat-surface">
+            <div className="nt-subsection" id="nt-indicator-panel">
+              <div className="nt-subsection-title"><strong>Indicators</strong><span>overlay</span></div>
+              <div className="nt-indicator-list">
+                {([
+                  ["sma20","SMA 20","#6ea7e8",sma20Values.at(-1)],
+                  ["sma50","SMA 50","#d5a65d",sma50Values.at(-1)],
+                  ["ema20","EMA 20","#b58bdc",ema20Values.at(-1)],
+                  ["bb20","Bollinger 20,2","#6f849c",bb20Values.mid.at(-1)],
+                ] as Array<[IndicatorKey,string,string,number | null | undefined]>).map(([key,label,color,value]) => (
+                  <label className="nt-indicator-row" key={key}>
+                    <input type="checkbox" checked={activeIndicators[key]} onChange={() => toggleIndicator(key)} />
+                    <span className="nt-indicator-swatch" style={{ backgroundColor: color }} />
+                    <span className="nt-indicator-name">{label}</span>
+                    <span className="nt-mono">{format(value)}</span>
+                  </label>
+                ))}
+                <div className="nt-indicator-row nt-indicator-readonly"><span className="nt-indicator-swatch" style={{ backgroundColor: "#5fc3b4" }} /><span className="nt-indicator-name">RSI 14</span><span className="nt-mono">{format(rsi14Values.at(-1))}</span></div>
+                <div className="nt-indicator-row nt-indicator-readonly"><span className="nt-indicator-swatch" style={{ backgroundColor: "#d68762" }} /><span className="nt-indicator-name">ATR 14</span><span className="nt-mono">{format(atr14Values.at(-1))}</span></div>
               </div>
             </div>
-            <div className="nt-database-note">SMA/EMA/Bollinger are calculated from stored close bars. RSI14 and ATR14 use Wilder-style smoothing. VWAP remains unavailable without intraday data.</div>
-          </section>
 
-          <section className="nt-panel" id="nt-alert-panel">
-            <div className="nt-panel-title"><strong>Price alerts</strong><span className="nt-panel-meta">browser local · chart lines</span></div>
-            <div className="nt-alert-form">
-              <select className="nt-control nt-control-select" aria-label="Alert condition" value={alertCondition} onChange={event => setAlertCondition(event.target.value as AlertCondition)}>
-                <option value="above">Crosses above</option>
-                <option value="below">Crosses below</option>
-              </select>
-              <input className="nt-control nt-control-input" type="number" min="0" step="0.01" aria-label="Alert price" value={alertTarget} onChange={event => setAlertTarget(event.target.value)} />
-              <button type="button" className="nt-action" onClick={addAlert}>Add</button>
+            <div className="nt-subsection" id="nt-alert-panel">
+              <div className="nt-subsection-title"><strong>Price alerts</strong><span>{currentAlerts.length}</span></div>
+              <div className="nt-alert-form">
+                <select className="nt-control nt-control-select" aria-label="Alert condition" value={alertCondition} onChange={event => setAlertCondition(event.target.value as AlertCondition)}>
+                  <option value="above">Crosses above</option>
+                  <option value="below">Crosses below</option>
+                </select>
+                <input className="nt-control nt-control-input" type="number" min="0" step="0.01" aria-label="Alert price" value={alertTarget} onChange={event => setAlertTarget(event.target.value)} />
+                <button type="button" className="nt-action" onClick={addAlert}>Add</button>
+              </div>
+              <table className="nt-microtable">
+                <thead><tr><th>Condition</th><th>Price</th><th>State</th><th /></tr></thead>
+                <tbody>
+                  {currentAlerts.map(alert => {
+                    const status = alertState(alert);
+                    return <tr key={alert.id}><td>{alert.condition === "above" ? "Above" : "Below"}</td><td>{format(alert.target)}</td><td className={status === "TRIGGERED" ? "nt-warning" : alert.enabled ? "nt-positive" : "nt-muted"}>{status}</td><td><button type="button" className="nt-table-action" onClick={() => setAlerts(current => current.filter(item => item.id !== alert.id))}>×</button></td></tr>;
+                  })}
+                  {!currentAlerts.length && <tr><td colSpan={4}>No price alerts</td></tr>}
+                </tbody>
+              </table>
             </div>
-            <table className="nt-microtable">
-              <thead><tr><th>Condition</th><th>Price</th><th>State</th><th /></tr></thead>
-              <tbody>
-                {currentAlerts.map(alert => {
-                  const status = alertState(alert);
-                  return <tr key={alert.id}>
-                    <td>{alert.condition === "above" ? "Above" : "Below"}</td>
-                    <td>{format(alert.target)}</td>
-                    <td className={status === "TRIGGERED" ? "nt-warning" : alert.enabled ? "nt-positive" : "nt-muted"}>{status}</td>
-                    <td><button type="button" className="nt-table-action" onClick={() => setAlerts(current => current.filter(item => item.id !== alert.id))}>×</button></td>
-                  </tr>;
-                })}
-                {!currentAlerts.length && <tr><td colSpan={4}>No local alerts for {symbol}</td></tr>}
-              </tbody>
-            </table>
-            <div className="nt-database-note">These alerts persist in this browser only. No server push/email/SMS is implied until a backend alerts service is connected.</div>
-          </section>
 
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Metric registry</strong><span className="nt-panel-meta">source-backed</span></div>
-            <table className="nt-microtable"><thead><tr><th>Indicator</th><th>State</th><th>Value</th></tr></thead><tbody>
-              {registry.map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={result.reason ?? [result.metadata?.source, result.as_of].filter(Boolean).join(" · ")}>{result.quality}</td><td>{valueText(result.value)}</td></tr>)}
-              {!registry.length && <tr><td colSpan={3}>{daily.error ?? metrics.error ?? "Awaiting metric snapshot"}</td></tr>}
-            </tbody></table>
-          </section>
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Technical snapshot</strong><span>{symbol}</span></div>
+              <table className="nt-microtable"><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>
+                {registry.slice(0,10).map(([key, result]) => <tr key={key}><td>{labelText(key)}</td><td title={[result.metadata?.source, result.as_of].filter(Boolean).join(" · ")}>{valueText(result.value)}</td></tr>)}
+                {!registry.length && <tr><td colSpan={2}>—</td></tr>}
+              </tbody></table>
+            </div>
 
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Data health</strong><span className="nt-panel-meta">per series</span></div>
-            <table className="nt-microtable"><tbody>
-              {series.map(item => <tr key={item}><td>{item}</td><td className="nt-warning">PARTIAL</td><td>—</td></tr>)}
-            </tbody></table>
-          </section>
-
-          <section className="nt-panel">
-            <div className="nt-panel-title"><strong>Macro event records</strong><span className="nt-panel-meta">country · importance</span></div>
-            <table className="nt-microtable"><thead><tr><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
-              {(calendar.data?.events ?? []).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
-              {!calendar.data?.events.length && <tr><td colSpan={3}>{calendar.error ?? "No macro calendar observations"}</td></tr>}
-            </tbody></table>
+            <div className="nt-subsection">
+              <div className="nt-subsection-title"><strong>Macro events</strong><span>next</span></div>
+              <table className="nt-microtable"><thead><tr><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
+                {(calendar.data?.events ?? []).slice(0,8).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
+                {!calendar.data?.events.length && <tr><td colSpan={3}>No scheduled macro events</td></tr>}
+              </tbody></table>
+            </div>
           </section>
         </aside>
       </div>
