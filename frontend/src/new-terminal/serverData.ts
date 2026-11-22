@@ -1,4 +1,4 @@
-const DATA_BASE = "https://data.aitemple.tech";
+const DATA_BASE = "https://aitemple.tech";
 
 export async function readData<T>(path: string, revalidate = 60): Promise<T | undefined> {
   try {
