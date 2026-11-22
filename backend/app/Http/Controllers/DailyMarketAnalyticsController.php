@@ -7,6 +7,7 @@ use App\Support\DsaTables;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 final class DailyMarketAnalyticsController extends Controller
 {
@@ -29,7 +30,7 @@ final class DailyMarketAnalyticsController extends Controller
 
             return !$public || ($allowRedistribution && !in_array($source, ['', 'unknown', 'legacy_unverified', 'unconfigured'], true));
         };
-        $key = 'daily-market-analytics:v2:'.DsaTables::name('instrument_data').":$public:$allowYahoo:$allowRedistribution";
+        $key = 'daily-market-analytics:v3:'.DsaTables::name('instrument_data').":$public:$allowYahoo:$allowRedistribution";
         $data = Cache::remember($key, now()->addMinutes(5), function () use ($policy) {
             $target = DsaTables::name('instrument_data');
             $assets = DB::table('market_assets')->where('enabled', 1)->orderBy('symbol')->get(['id', 'symbol', 'market'])->keyBy('symbol');
@@ -37,10 +38,18 @@ final class DailyMarketAnalyticsController extends Controller
             $periods = DB::table(DsaTables::name('instrument_periods'))
                 ->whereIn('slug', $slugs->keys())->pluck('id', 'slug');
             $today = now('America/New_York')->toDateString();
+            $hasVerifiedBars = Schema::hasTable('market_analytics_daily_bars');
             $oldest = now('America/New_York')->subYears(2)->toDateString();
 
-            return $slugs->mapWithKeys(function ($symbol, $slug) use ($assets, $periods, $target, $today, $oldest, $policy) {
+            return $slugs->mapWithKeys(function ($symbol, $slug) use ($assets, $periods, $target, $today, $oldest, $policy, $hasVerifiedBars) {
                 $asset = $assets->get($symbol);
+                $verified = $hasVerifiedBars ? DB::table('market_analytics_daily_bars')
+                    ->where('symbol', $symbol)->where('timestamps', '>=', $oldest)
+                    ->orderByDesc('timestamps')->limit(400)->get(['timestamps', 'close', 'high', 'low', 'volume', 'source'])
+                    ->reverse()->values()->all() : [];
+                if ($verified) {
+                    return [$symbol => DailyMarketAnalytics::summarize($verified, $policy)];
+                }
                 $period = $periods->get($slug);
                 $observations = $period ? DB::table($target.' as bar')
                     ->leftJoin('market_rollup_state as state', function ($join) use ($asset, $target) {
