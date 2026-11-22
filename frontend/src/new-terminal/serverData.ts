@@ -5,7 +5,7 @@ export async function readData<T>(path: string, revalidate = 60): Promise<T | un
     const response = await fetch(`${DATA_BASE}${path}`, {
       next: { revalidate },
       signal: AbortSignal.timeout(10000),
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 DSA-Server/1.0" },
     });
     if (!response.ok) return undefined;
     return await response.json() as T;
