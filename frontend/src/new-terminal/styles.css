@@ -3987,3 +3987,214 @@ body,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 2026-11-22 deep-research information hierarchy + near-black surface pass */
+:root {
+  /* Preserve the current DSA theme and semantic palette; only lower surface luminance. */
+  --nt-bg: #0a0e13;
+  --nt-s0: #05080b;
+  --nt-s1: #070b0f;
+  --nt-s2: #0b1117;
+  --nt-s3: #101821;
+  --nt-border: #1c2935;
+  --nt-border-strong: #304355;
+  --nt-chart-bg: #04070a;
+  --nt-chart-grid: #17232e;
+  --nt-chart-border: #2c4052;
+}
+
+.nt-shell,
+.nt-main {
+  background: var(--nt-bg) !important;
+}
+
+.nt-topbar,
+.nt-primary-nav,
+.nt-nav,
+.nt-statusbar,
+.nt-tape,
+.nt-utility-dock {
+  background: var(--nt-s0) !important;
+}
+
+/* Cards become near-black content surfaces; header lift stays subtle, not a new theme. */
+.nt-panel,
+.nt-flat-surface,
+.nt-context-strip,
+.nt-toolbar,
+.nt-tabs,
+.nt-financial-strip,
+.nt-company-head,
+.nt-company-research-head,
+.nt-inline-controls,
+.nt-filter-item,
+.nt-filters,
+.nt-utility-drawer {
+  background: var(--nt-s1) !important;
+  border-color: var(--nt-border) !important;
+}
+
+.nt-panel-title,
+.nt-subsection-title,
+.nt-table thead th,
+.nt-microtable thead th,
+.nt-command,
+.nt-chip,
+.nt-action,
+.nt-control,
+.nt-control-select {
+  background: var(--nt-s2) !important;
+  border-color: var(--nt-border) !important;
+}
+
+.nt-table tbody td,
+.nt-microtable tbody td,
+.nt-data-cell,
+.nt-company-head-metrics > div,
+.nt-correlation-summary {
+  background: var(--nt-s1) !important;
+  border-color: var(--nt-border) !important;
+}
+
+.nt-table tbody tr:hover td,
+.nt-microtable tbody tr:hover td,
+.nt-filter-item:hover,
+.nt-company-research-links a:hover,
+.nt-nav-link:hover,
+.nt-action:hover,
+.nt-chip:hover {
+  background: var(--nt-s3) !important;
+}
+
+/* Nested content is separated by rules, not another visible card shell. */
+.nt-flat-surface > .nt-subsection {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--nt-border) !important;
+}
+
+.nt-flat-surface > .nt-subsection:first-child {
+  border-top: 0 !important;
+}
+
+.nt-subsection-title {
+  border-bottom: 1px solid var(--nt-border);
+}
+
+.nt-panel .nt-flat-surface,
+.nt-flat-surface .nt-panel {
+  box-shadow: none !important;
+}
+
+/* Primary analysis gets a slightly stronger edge; supporting data stays quieter. */
+.nt-market-heatmap-panel,
+.nt-chart-primary-panel,
+.nt-screener-results > .nt-panel,
+.nt-primary-table {
+  border-color: var(--nt-border-strong) !important;
+  box-shadow: inset 0 1px 0 rgba(91, 188, 255, .055);
+}
+
+.nt-secondary-table {
+  border-color: var(--nt-border) !important;
+}
+
+.nt-supporting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* Financial content types: readable tables, sticky headers, wrapped narrative cells. */
+.nt-table-wrap {
+  min-width: 0;
+}
+
+.nt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.nt-table td,
+.nt-microtable td {
+  background-clip: padding-box;
+}
+
+.nt-cell-wrap {
+  white-space: normal !important;
+  line-height: 1.35;
+}
+
+.nt-panel-meta {
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Charts should read as the darkest analytical canvas. */
+.nt-chart-primary-panel .nt-panel-body,
+.nt-financial-trend-chart,
+.nt-price-monitor svg,
+.nt-radar,
+.nt-chart-canvas {
+  background: var(--nt-chart-bg) !important;
+}
+
+/* Heatmap keeps semantic green/red, but no longer glows like standalone cards. */
+.nt-heat-up {
+  background: #07130f !important;
+  border-color: #1c4d3b !important;
+}
+
+.nt-heat-down {
+  background: #160b0e !important;
+  border-color: #552831 !important;
+}
+
+.nt-heat-flat {
+  background: #0a1118 !important;
+  border-color: #283847 !important;
+}
+
+.nt-heat-awaiting {
+  background: #090e14 !important;
+  border-color: var(--nt-border) !important;
+}
+
+.nt-heat-cell:hover {
+  background-color: #0d1720 !important;
+  border-color: var(--nt-border-strong) !important;
+}
+
+/* Keep summary -> primary analysis -> supporting context visually obvious. */
+.nt-context-strip {
+  border-color: var(--nt-border-strong) !important;
+}
+
+.nt-financial-strip {
+  border-color: var(--nt-border) !important;
+}
+
+.nt-financial-strip .nt-data-cell {
+  min-height: 40px;
+}
+
+.nt-market-supporting-grid {
+  margin-top: 0;
+}
+
+@media (max-width: 1180px) {
+  .nt-supporting-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .nt-panel-meta {
+    display: none;
+  }
+}
+
