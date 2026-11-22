@@ -36,7 +36,11 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
       <div className="nt-news-stat"><span>LOW</span><b className="nt-info">{eventCounts.low ?? 0}</b></div>
     </section>
 
-    <DataTable title="Market headlines" columns={["Published", "Context", "Symbol", "Headline", "Publisher"]}
+    <DataTable
+      title="Market headlines"
+      meta="primary information feed"
+      className="nt-primary-table"
+      columns={["Published", "Context", "Symbol", "Headline", "Publisher"]}
       rows={newsRows.filter(item => item.published_at).map(item => ({
         key: item.id,
         cells: [
@@ -48,33 +52,46 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
         ],
       }))}
       empty="No recent headlines."
-      note="Context badges are derived only from explicit symbol format or the tracked US-equity universe; unclassified stories remain global." />
+      note="Context badges are derived only from explicit symbol format or the tracked US-equity universe; unclassified stories remain global."
+    />
 
     <div className="nt-toolbar nt-news-pager"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={!news.data || page >= news.data.last_page} onClick={() => setPage(page + 1)}>Next</button></div>
 
-    <DataTable title="Market movers" columns={["Symbol","Last","Change %","Traded value"]}
-      rows={marketMovers.map(row => ({ key: row.symbol, cells: [
-        <SymbolContext key="symbol" symbol={row.symbol} />,
-        valueText(row.price),
-        row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
-        valueText(row.traded_value),
-      ] }))}
-      empty="No session movers." />
+    <div className="nt-supporting-grid nt-news-supporting-grid">
+      <DataTable
+        title="Market movers"
+        meta="session context"
+        className="nt-secondary-table"
+        columns={["Symbol","Last","Change %","Traded value"]}
+        rows={marketMovers.map(row => ({ key: row.symbol, cells: [
+          <SymbolContext key="symbol" symbol={row.symbol} />,
+          valueText(row.price),
+          row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
+          valueText(row.traded_value),
+        ] }))}
+        empty="No session movers."
+      />
 
-    <DataTable title="Economic calendar" columns={["Scheduled", "Country / Currency", "Event", "Importance", "Actual", "Forecast", "Previous"]}
-      rows={(calendarData?.events ?? []).map(item => ({
-        key: item.id,
-        cells: [
-          item.scheduled_at,
-          <CurrencyContext key="currency" currency={item.currency} />,
-          item.title,
-          <ImpactBadge key="impact" impact={item.impact} />,
-          item.actual,
-          item.forecast,
-          item.previous,
-        ],
-      }))}
-      empty="No scheduled economic events." />
+      <DataTable
+        title="Economic calendar"
+        meta="scheduled macro context"
+        className="nt-secondary-table"
+        columns={["Scheduled", "Country / Currency", "Event", "Importance", "Actual", "Forecast", "Previous"]}
+        rows={(calendarData?.events ?? []).map(item => ({
+          key: item.id,
+          cells: [
+            item.scheduled_at,
+            <CurrencyContext key="currency" currency={item.currency} />,
+            item.title,
+            <ImpactBadge key="impact" impact={item.impact} />,
+            item.actual,
+            item.forecast,
+            item.previous,
+          ],
+        }))}
+        empty="No scheduled economic events."
+      />
+    </div>
   </div>;
 }
 
@@ -103,25 +120,43 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
   return <div className="nt-workspace nt-full-workspace nt-indicators-workspace">
     <section className="nt-toolbar"><h1>Indicators</h1><label>Symbol <select value={symbol} onChange={event => setSymbol(event.target.value)}>{[...new Set(["AAPL", ...universeRows.map(row => row.symbol)])].map(item => <option key={item}>{item}</option>)}</select></label>
       <label>Period <select value={period} onChange={event => setPeriod(event.target.value)}><option value="daily">Daily</option><option value="30m">30 minutes</option></select></label></section>
-    <DataTable title="Published metric snapshot" columns={["Indicator", "Value", "Unit"]}
+    <DataTable
+      title="Published metric snapshot"
+      meta={`${symbol} · ${period}`}
+      className="nt-primary-table"
+      columns={["Indicator", "Value", "Unit"]}
       rows={metricEntries.map(([key, item]) => ({ key, cells: [labelText(key), valueText(item.value), item.unit] }))}
-      empty="No indicator values for this symbol and period." />
-    <DataTable title="Additional technical calculations" columns={["Indicator", "Value"]}
-      rows={technicalOnlyEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value)] }))}
-      empty="No additional technical calculations for this symbol and period." />
-    <DataTable title="Market technical context" columns={["Symbol","Last","Change %","SMA50","RVol 20D","52W high"]}
-      rows={marketContext.map(row => {
-        const m = dailyData?.data[row.symbol]?.metrics;
-        return { key: row.symbol, cells: [
-          <SymbolContext key="symbol" symbol={row.symbol} />,
-          valueText(row.price),
-          row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
-          valueText(m?.sma50?.value),
-          m?.rvol20?.value == null ? "—" : `${valueText(m.rvol20.value)}×`,
-          valueText(m?.trading_52w_high?.value),
-        ]};
-      })}
-      empty="No market technical context." />
+      empty="No indicator values for this symbol and period."
+    />
+
+    <div className="nt-supporting-grid nt-indicators-supporting-grid">
+      <DataTable
+        title="Additional technical calculations"
+        meta="derived context"
+        className="nt-secondary-table"
+        columns={["Indicator", "Value"]}
+        rows={technicalOnlyEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value)] }))}
+        empty="No additional technical calculations for this symbol and period."
+      />
+      <DataTable
+        title="Market technical context"
+        meta="cross-sectional context"
+        className="nt-secondary-table"
+        columns={["Symbol","Last","Change %","SMA50","RVol 20D","52W high"]}
+        rows={marketContext.map(row => {
+          const m = dailyData?.data[row.symbol]?.metrics;
+          return { key: row.symbol, cells: [
+            <SymbolContext key="symbol" symbol={row.symbol} />,
+            valueText(row.price),
+            row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
+            valueText(m?.sma50?.value),
+            m?.rvol20?.value == null ? "—" : `${valueText(m.rvol20.value)}×`,
+            valueText(m?.trading_52w_high?.value),
+          ]};
+        })}
+        empty="No market technical context."
+      />
+    </div>
 
   </div>;
 }
@@ -133,9 +168,14 @@ export function DocumentsWorkspace({ initialFilings = [] }: { initialFilings?: F
   const filingRows = filings.data?.data ?? initialFilings;
   return <div className="nt-workspace nt-full-workspace nt-documents-workspace">
     <section className="nt-toolbar"><h1>Documents & Filings</h1><form onSubmit={event => { event.preventDefault(); setSymbol(query.trim()); }}><label>SEC ticker <input value={query} required pattern="[A-Za-z]{1,12}" onChange={event => setQuery(event.target.value.toUpperCase())} /></label> <button type="submit">Find filings</button></form></section>
-    <DataTable title={`${symbol} · SEC filings`} columns={["Form", "Filed", "Report period", "SEC document"]}
+    <DataTable
+      title={`${symbol} · SEC filings`}
+      meta="primary-source documents"
+      className="nt-primary-table"
+      columns={["Form", "Filed", "Report period", "SEC document"]}
       rows={filingRows.map(item => ({ key: item.accession_number, cells: [item.form, item.filing_date?.slice(0,10), item.report_date?.slice(0,10), <a key="sec" href={sourceLink(item.filing_url)} rel="noreferrer">{item.accession_number}</a>] }))}
-      empty="No SEC filings for this symbol." />
+      empty="No SEC filings for this symbol."
+    />
   </div>;
 }
 
