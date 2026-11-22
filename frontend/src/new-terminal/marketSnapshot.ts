@@ -15,7 +15,6 @@ export async function readMarketSnapshot(): Promise<MarketRow[]> {
     signal: AbortSignal.timeout(10000),
     headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
   });
-  console.info("[SSR_MARKET]", result.status, result.headers.get("content-type") ?? "");
   if (!result.ok) throw new Error(`Market snapshot returned ${result.status}`);
   const { data } = await result.json();
   if (!Array.isArray(data)) throw new Error("Market snapshot is missing rows");
