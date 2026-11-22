@@ -106,7 +106,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
       {searchOpen && <section className="nt-panel" aria-label="Search instruments">
         <div className="nt-toolbar"><label>Symbol or company <input autoFocus value={query} onChange={event => setQuery(event.target.value)} /></label><button type="button" onClick={() => setSearchOpen(false)}>Close</button></div>
         <div className="nt-toolbar">{matching.map(row => <Link key={row.symbol} href={`/companies/profile/${encodeURIComponent(row.symbol)}`} onClick={() => setSearchOpen(false)}>{row.symbol} · {row.name}</Link>)}
-          {!matching.length && <span>{universe.error ?? (universe.data ? "No matching instruments" : "Loading universe…")}</span>}
+          {!matching.length && <span>{universe.data ? "No matching instruments" : "Loading instruments…"}</span>}
         </div>
       </section>}
 
@@ -157,7 +157,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
               <td>{row.price == null ? "—" : row.price.toLocaleString("en-US",{maximumFractionDigits:2})}</td>
               <td className={(row.change_pct ?? 0) > 0 ? "nt-positive" : (row.change_pct ?? 0) < 0 ? "nt-negative" : ""}>{row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${row.change_pct.toFixed(2)}%`}</td>
             </tr>)}
-            {!movers.length && <tr><td colSpan={3}>{market.error ?? "Awaiting market snapshot"}</td></tr>}
+            {!movers.length && <tr><td colSpan={3}>No movers available</td></tr>}
           </tbody>
         </table>}
 
@@ -167,7 +167,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
             <strong>{item.title}</strong>
             <small>{item.published_at ?? "Timestamp unavailable"}</small>
           </a>)}
-          {!news.data?.data?.length && <div className="nt-database-note">{news.error ?? "Awaiting timestamped headlines"}</div>}
+          {!news.data?.data?.length && <div className="nt-database-note">No recent headlines</div>}
         </div>}
 
         {utilityView === "alerts" && <table className="nt-microtable">
