@@ -238,8 +238,6 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           ["> 50D MA", breadthValue(trend[1]), breadthSession ?? ""],
           ["> 200D MA", breadthValue(trend[2]), breadthSession ?? ""],
           ["Rel volume", relativeVolumeLeaders[0] ? `${relativeVolumeLeaders[0].symbol} ${relativeVolumeLeaders[0].value.toFixed(2)}×` : "—", "20D"],
-          ["Top gainer", leaders[0] ? `${leaders[0].symbol} ${percent(leaders[0].change_pct)}` : "—", "Session"],
-          ["Top loser", laggards[0] ? `${laggards[0].symbol} ${percent(laggards[0].change_pct)}` : "—", "Session"],
           ["Headlines", news.data ? String(news.data.data.filter(item => item.published_at).length) : "—", "Latest"],
           ["Events", calendar.data ? String(calendar.data.events.length) : "—", "Calendar"],
         ].map(([k,v,s]) => (
@@ -313,14 +311,13 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
 
           <section className="nt-flat-surface nt-market-summary-surface nt-market-breadth-only">
             <div className="nt-summary-column">
-              <div className="nt-subsection-title"><strong>Breadth & trend</strong><span>{breadthSession ?? "latest"}</span></div>
+              <div className="nt-subsection-title"><strong>Participation detail</strong><span>{breadthSession ?? "latest"}</span></div>
               <table className="nt-microtable"><tbody>
-                <tr><td>Advancing</td><td>{up || "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
                 <tr><td>Declining</td><td>{down || "—"}</td><td>{equities.length ? `${((down/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
-                <tr><td>Above 20D MA</td><td>{breadthValue(trend[0])}</td><td></td></tr>
-                <tr><td>Above 50D MA</td><td>{breadthValue(trend[1])}</td><td></td></tr>
-                <tr><td>Above 200D MA</td><td>{breadthValue(trend[2])}</td><td></td></tr>
-                <tr><td>Up / down value</td><td colSpan={2}>{valueTotal(upValue)} / {valueTotal(downValue)}</td></tr>
+                <tr><td>Unchanged</td><td>{unchanged || "—"}</td><td>{equities.length ? `${((unchanged/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
+                <tr><td>Adv / Decl ratio</td><td>{down ? (up/down).toFixed(2) : "—"}</td><td></td></tr>
+                <tr><td>Up value</td><td>{valueTotal(upValue)}</td><td></td></tr>
+                <tr><td>Down value</td><td>{valueTotal(downValue)}</td><td></td></tr>
               </tbody></table>
             </div>
           </section>
@@ -339,15 +336,6 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
 
         <aside className="nt-market-rail nt-flat-rail">
           <section className="nt-flat-surface">
-            <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Session scans</strong><span>leaders</span></div>
-              <table className="nt-microtable"><tbody>
-                <tr><td>Top gainer</td><td>{leaders[0]?.symbol ?? "—"}</td><td className="nt-positive">{percent(leaders[0]?.change_pct)}</td></tr>
-                <tr><td>Top loser</td><td>{laggards[0]?.symbol ?? "—"}</td><td className="nt-negative">{percent(laggards[0]?.change_pct)}</td></tr>
-                <tr><td>Rel volume</td><td>{relativeVolumeLeaders[0]?.symbol ?? "—"}</td><td>{relativeVolumeLeaders[0] ? `${relativeVolumeLeaders[0].value.toFixed(2)}×` : "—"}</td></tr>
-                <tr><td>Adv / Decl</td><td>{up}</td><td>{down}</td></tr>
-              </tbody></table>
-            </div>
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Upcoming events</strong><span>ET</span></div>
               <table className="nt-microtable">
