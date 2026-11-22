@@ -135,8 +135,10 @@ export default function ChartLabWorkspace({
 }) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [range, setRange] = useState("6M");
-  const [history, setHistory] = useState<{ bars: Bar[]; visibleStart: string }>({ bars: [], visibleStart: "" });
-  const [state, setState] = useState("Loading stored bars");
+  const [history, setHistory] = useState<{ bars: Bar[]; visibleStart: string }>(
+    initialHistory ?? { bars: [], visibleStart: "" }
+  );
+  const [state, setState] = useState(initialHistory?.bars.length ? "Stored daily bars" : "Loading stored bars");
   const [activeIndicators, setActiveIndicators] = useState<Record<IndicatorKey, boolean>>({
     sma20: true,
     sma50: true,
