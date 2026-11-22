@@ -11,7 +11,7 @@ import {
   type Time,
 } from "lightweight-charts";
 
-type Bar = { timestamps: string; open: number; high: number; low: number; close: number; volume: number | null };
+export type ChartBar = { timestamps: string; open: number; high: number; low: number; close: number; volume: number | null };\ntype Bar = ChartBar;
 type IndicatorKey = "sma20" | "sma50" | "ema20" | "bb20";
 type AlertCondition = "above" | "below";
 type PriceAlert = {
@@ -125,7 +125,13 @@ function lineData(bars: Bar[], values: Array<number | null>) {
   );
 }
 
-export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialSymbol?: string }) {
+export default function ChartLabWorkspace({
+  initialSymbol = "AAPL",
+  initialHistory,
+}: {
+  initialSymbol?: string;
+  initialHistory?: { bars: ChartBar[]; visibleStart: string };
+}) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [range, setRange] = useState("6M");
   const [history, setHistory] = useState<{ bars: Bar[]; visibleStart: string }>({ bars: [], visibleStart: "" });
@@ -512,10 +518,10 @@ export default function ChartLabWorkspace({ initialSymbol = "AAPL" }: { initialS
           </section>
 
           <section className="nt-panel">
-            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">last 16 sessions</span></div>
+            <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">last 28 sessions</span></div>
             <div className="nt-table-wrap"><table className="nt-table">
               <thead><tr>{["Time","Open","High","Low","Close","Volume","SMA20","SMA50","RSI14","ATR14"].map(item => <th key={item}>{item}</th>)}</tr></thead>
-              <tbody>{bars.slice(-16).reverse().map(bar => {
+              <tbody>{bars.slice(-28).reverse().map(bar => {
                 const index = bars.indexOf(bar);
                 return <tr key={bar.timestamps}>
                   <td>{bar.timestamps.slice(0,10)}</td>
