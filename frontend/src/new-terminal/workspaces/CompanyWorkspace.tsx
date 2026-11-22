@@ -8,30 +8,57 @@ import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../Con
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
-type Props = { symbol?: string; activeTab?: string };
-type Overview = { profile?: { company_name?: string; industry?: string; exchange?: string; sector?: string; description?: string; website?: string }; similar?: { symbol: string; company_name: string }[] };
-type Statement = { id: number; fiscal_year: number; fiscal_quarter?: number; period_end: string; filing_date: string | null; source: string; revenue: string | null; gross_profit: string | null; operating_income: string | null; net_income: string | null; eps_diluted: string | null; fcf: string | null };
+export type CompanyOverview = { profile?: { company_name?: string; industry?: string; exchange?: string; sector?: string; description?: string; website?: string }; similar?: { symbol: string; company_name: string }[] };
+export type CompanyStatement = { id: number; fiscal_year: number; fiscal_quarter?: number; period_end: string; filing_date: string | null; source: string; revenue: string | null; gross_profit: string | null; operating_income: string | null; net_income: string | null; eps_diluted: string | null; fcf: string | null };
+type Props = {
+  symbol?: string;
+  activeTab?: string;
+  initialOverview?: CompanyOverview;
+  initialRows?: MarketRow[];
+  initialFund?: Metrics;
+  initialFinancials?: CompanyStatement[];
+  initialOverviewFinancials?: CompanyStatement[];
+  initialFilings?: Filing[];
+  initialNews?: News[];
+};
 
 const tabs = ["Overview","Financials","KPIs","Estimates","Valuation","Earnings","Ownership","Filings","News","Chart"];
 const valuation = new Set(["pe_ttm", "ev_ebitda", "ps_ratio", "pb_ratio", "fcf_yield", "market_cap"]);
 const overviewMetrics = ["market_cap", "pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"];
 
-export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overview" }: Props) {
+export default function CompanyWorkspace({
+  symbol = "AAPL",
+  activeTab = "Overview",
+  initialOverview,
+  initialRows = [],
+  initialFund,
+  initialFinancials = [],
+  initialOverviewFinancials = [],
+  initialFilings = [],
+  initialNews = [],
+}: Props) {
   const normalized = symbol.trim().toUpperCase();
   const id = encodeURIComponent(normalized);
   const [search, setSearch] = useState(normalized);
   const [period, setPeriod] = useState("annual");
-  const overview = useFeed<Overview>(`/api/companies/${id}/overview`);
+  const overview = useFeed<CompanyOverview>(`/api/companies/${id}/overview`);
   const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const fund = useFeed<Metrics>(`/api/v1/sourced-fundamentals/${id}`);
-  const financials = useFeed<{ data: Statement[] }>(activeTab === "Financials" ? `/api/fundamentals/${id}/${period}` : null);
-  const overviewFinancials = useFeed<{ data: Statement[] }>(activeTab === "Overview" ? `/api/fundamentals/${id}/quarterly` : null);
+  const financials = useFeed<{ data: CompanyStatement[] }>(activeTab === "Financials" ? `/api/fundamentals/${id}/${period}` : null);
+  const overviewFinancials = useFeed<{ data: CompanyStatement[] }>(activeTab === "Overview" ? `/api/fundamentals/${id}/quarterly` : null);
   const filings = useFeed<{ data: Filing[] }>(activeTab === "Filings" || activeTab === "Overview" ? `/api/filings/${id}` : null);
   const news = useFeed<News[]>(activeTab === "News" || activeTab === "Overview" ? `/api/news/symbol/${id}` : null);
   const position = useFeed<Positioning>(activeTab === "Ownership" ? `/api/v1/positioning/${id}` : null);
   const calendar = useFeed<Calendar>(activeTab === "Earnings" ? `/api/v1/economic-calendar?symbol=${id}&limit=15` : null);
-  const profile = overview.data?.profile;
-  const quote = stored.data?.data.find(row => row.symbol === normalized);
+  const overviewData = overview.data ?? initialOverview;
+  const storedRows = stored.data?.data ?? initialRows;
+  const fundData = fund.data ?? initialFund;
+  const financialRows = financials.data?.data ?? initialFinancials;
+  const overviewFinancialRows = overviewFinancials.data?.data ?? initialOverviewFinancials;
+  const filingRows = filings.data?.data ?? initialFilings;
+  const newsRows = news.data ?? initialNews;
+  const profile = overviewData?.profile;
+  const quote = storedRows.find(row => row.symbol === normalized);
   const profileUrl = sourceLink(profile?.website);
   const tabBase = `/companies/profile/${id}`;
 
@@ -58,7 +85,7 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
       <div className="nt-company-metric"><span>Last</span><b>{valueText(quote?.price)}</b></div>
       <div className="nt-company-metric"><span>Change</span><b className={(quote?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{quote?.change_pct == null ? "—" : `${quote.change_pct > 0 ? "+" : ""}${valueText(quote.change_pct)}%`}</b></div>
       {["market_cap","pe_ttm","roe","gross_margin","fcf_yield","debt_to_equity"].map(key => {
-        const metric = fund.data?.metrics[key];
+        const metric = fundData?.metrics[key];
         return <div className="nt-company-metric" key={key}><span>{labelText(key)}</span><b>{valueText(metric?.value)}{metric?.unit ? ` ${metric.unit}` : ""}</b></div>;
       })}
     </section>
@@ -71,39 +98,39 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
           <tr><td>Industry</td><td>{profile?.industry ?? "—"}</td></tr>
           <tr><td>Description</td><td className="nt-cell-wrap">{profile?.description ?? "—"}</td></tr>
           <tr><td>Website</td><td>{profileUrl ? <a href={profileUrl} rel="noreferrer">{profileUrl}</a> : "—"}</td></tr>
-          <tr><td>Latest filing</td><td>{filings.data?.data[0] ? <Link href={`${tabBase}?view=filings`}>{filings.data.data[0].form} · {filings.data.data[0].filing_date?.slice(0,10)}</Link> : "—"}</td></tr>
+          <tr><td>Latest filing</td><td>{filingRows[0] ? <Link href={`${tabBase}?view=filings`}>{filingRows[0].form} · {filingRows[0].filing_date?.slice(0,10)}</Link> : "—"}</td></tr>
         </tbody></table>
       </div>
       <div className="nt-subsection">
-        <div className="nt-subsection-title"><strong>Key fundamentals</strong><span>{fund.data?.as_of?.slice(0,10) ?? ""}</span></div>
+        <div className="nt-subsection-title"><strong>Key fundamentals</strong><span>{fundData?.as_of?.slice(0,10) ?? ""}</span></div>
         <table className="nt-microtable"><tbody>
           {overviewMetrics.map(key => {
-            const metric = fund.data?.metrics[key];
+            const metric = fundData?.metrics[key];
             return <tr key={key}><td>{labelText(key)}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>;
           })}
         </tbody></table>
         <div className="nt-inline-links">
-          {(overview.data?.similar ?? []).slice(0,8).map(peer => <Link key={peer.symbol} href={`/companies/profile/${encodeURIComponent(peer.symbol)}`}>{peer.symbol}</Link>)}
+          {(overviewData?.similar ?? []).slice(0,8).map(peer => <Link key={peer.symbol} href={`/companies/profile/${encodeURIComponent(peer.symbol)}`}>{peer.symbol}</Link>)}
         </div>
       </div>
     </section>}
 
     {activeTab === "Overview" && <>
       <DataTable title="Recent quarterly financials" columns={["Fiscal period","Period end","Revenue","Gross profit","Operating income","Net income","Diluted EPS","FCF"]}
-        rows={(overviewFinancials.data?.data ?? []).slice(0,10).map(row => ({ key: String(row.id), cells: [
+        rows={overviewFinancialRows.slice(0,10).map(row => ({ key: String(row.id), cells: [
           `FY${row.fiscal_year}${row.fiscal_quarter ? ` Q${row.fiscal_quarter}` : ""}`,
           row.period_end?.slice(0,10),
           ...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value => valueText(value == null ? null : Number(value)))
         ] }))} empty="No recent quarterly financials." />
       <DataTable title="Recent SEC filings" columns={["Form","Filed","Reporting period","Document"]}
-        rows={(filings.data?.data ?? []).slice(0,7).map(filing => ({ key: filing.accession_number, cells: [
+        rows={filingRows.slice(0,7).map(filing => ({ key: filing.accession_number, cells: [
           filing.form,
           filing.filing_date?.slice(0,10),
           filing.report_date?.slice(0,10),
           <a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>
         ] }))} empty="No recent SEC filings." />
       <DataTable title="Recent company headlines" columns={["Published","Headline","Publisher"]}
-        rows={(news.data ?? []).slice(0,7).map(item => ({ key: item.id, cells: [
+        rows={newsRows.slice(0,7).map(item => ({ key: item.id, cells: [
           item.published_at,
           <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,
           <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>
@@ -111,24 +138,24 @@ export default function CompanyWorkspace({ symbol = "AAPL", activeTab = "Overvie
     </>}
 
     {activeTab === "KPIs" && <DataTable title="Key performance indicators" columns={["Metric", "Value", "Unit", "Basis"]}
-      rows={Object.entries(fund.data?.metrics ?? {}).filter(([key]) => !valuation.has(key)).map(([key, metric]) => ({
+      rows={Object.entries(fundData?.metrics ?? {}).filter(([key]) => !valuation.has(key)).map(([key, metric]) => ({
         key, cells: [labelText(key), valueText(metric.value), metric.unit, metric.metadata?.basis],
       }))} empty="No KPI observations for this company." />}
 
     {activeTab === "Valuation" && <DataTable title="Valuation" columns={["Metric", "Value", "Unit", "Basis"]}
-      rows={Object.entries(fund.data?.metrics ?? {}).filter(([key]) => valuation.has(key)).map(([key, metric]) => ({
+      rows={Object.entries(fundData?.metrics ?? {}).filter(([key]) => valuation.has(key)).map(([key, metric]) => ({
         key, cells: [labelText(key), valueText(metric.value), metric.unit, metric.metadata?.basis],
       }))} empty="No valuation observations for this company." />}
 
     {activeTab === "Financials" && <>
       <div className="nt-inline-controls"><label>Reporting period <select value={period} onChange={event => setPeriod(event.target.value)}><option value="annual">Annual</option><option value="quarterly">Quarterly</option></select></label></div>
       <DataTable title="Financial statements" columns={["Fiscal period","Period end","Revenue","Gross profit","Operating income","Net income","Diluted EPS","FCF"]}
-        rows={(financials.data?.data ?? []).map(row => ({ key: String(row.id), cells: [`FY${row.fiscal_year}${row.fiscal_quarter ? ` Q${row.fiscal_quarter}` : ""}`, row.period_end?.slice(0,10), ...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value => valueText(value == null ? null : Number(value)))] }))} empty="No statements for this reporting period." />
+        rows={financialRows.map(row => ({ key: String(row.id), cells: [`FY${row.fiscal_year}${row.fiscal_quarter ? ` Q${row.fiscal_quarter}` : ""}`, row.period_end?.slice(0,10), ...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value => valueText(value == null ? null : Number(value)))] }))} empty="No statements for this reporting period." />
     </>}
 
-    {activeTab === "Filings" && <DataTable title="SEC filings" columns={["Form","Filed","Reporting period","Document"]} rows={(filings.data?.data ?? []).map(filing => ({ key: filing.accession_number, cells: [filing.form, filing.filing_date?.slice(0,10), filing.report_date?.slice(0,10), <a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>] }))} empty="No SEC filings for this symbol." />}
+    {activeTab === "Filings" && <DataTable title="SEC filings" columns={["Form","Filed","Reporting period","Document"]} rows={filingRows.map(filing => ({ key: filing.accession_number, cells: [filing.form, filing.filing_date?.slice(0,10), filing.report_date?.slice(0,10), <a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>] }))} empty="No SEC filings for this symbol." />}
 
-    {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={(news.data ?? []).map(item => ({ key: item.id, cells: [item.published_at, <SymbolContext key="context" symbol={item.symbol ?? normalized} />, <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>, <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>] }))} empty="No recent company news." />}
+    {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={newsRows.map(item => ({ key: item.id, cells: [item.published_at, <SymbolContext key="context" symbol={item.symbol ?? normalized} />, <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>, <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>] }))} empty="No recent company news." />}
 
     {activeTab === "Earnings" && <DataTable title="Macro events around the company context" columns={["Time","Country / Currency","Event","Importance","Actual","Forecast","Previous"]} rows={(calendar.data?.events ?? []).map(item => ({ key: item.id, cells: [item.scheduled_at, <CurrencyContext key="currency" currency={item.currency} />, item.title, <ImpactBadge key="impact" impact={item.impact} />, item.actual, item.forecast, item.previous] }))} empty="No scheduled macro events for this context." />}
 
