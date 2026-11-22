@@ -13,7 +13,10 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
   const news = useFeed<{ data: News[]; last_page: number }>(`/api/news?page=${page}`);
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=30");
   const market = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
-  const newsRows = news.data?.data ?? initialNews;\n  const calendarData = calendar.data ?? initialCalendar;\n  const marketRows = market.data?.data ?? initialRows;\n  const marketMovers = [...marketRows]
+  const newsRows = news.data?.data ?? initialNews;
+  const calendarData = calendar.data ?? initialCalendar;
+  const marketRows = market.data?.data ?? initialRows;
+  const marketMovers = [...marketRows]
     .filter(row => row.market === "stock" && row.change_pct != null)
     .sort((a,b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
     .slice(0,8);
@@ -122,7 +125,8 @@ export function DocumentsWorkspace({ initialFilings = [] }: { initialFilings?: F
   const [symbol, setSymbol] = useState("AAPL");
   const [query, setQuery] = useState("AAPL");
   const filings = useFeed<{ data: Filing[] }>(`/api/filings/${encodeURIComponent(symbol)}`);
-  const filingRows = filings.data?.data ?? initialFilings;\n  return <div className="nt-workspace nt-full-workspace nt-documents-workspace">
+  const filingRows = filings.data?.data ?? initialFilings;
+  return <div className="nt-workspace nt-full-workspace nt-documents-workspace">
     <section className="nt-toolbar"><h1>Documents & Filings</h1><form onSubmit={event => { event.preventDefault(); setSymbol(query.trim()); }}><label>SEC ticker <input value={query} required pattern="[A-Za-z]{1,12}" onChange={event => setQuery(event.target.value.toUpperCase())} /></label> <button type="submit">Find filings</button></form></section>
     <DataTable title={`${symbol} · SEC filings`} columns={["Form", "Filed", "Report period", "SEC document"]}
       rows={filingRows.map(item => ({ key: item.accession_number, cells: [item.form, item.filing_date?.slice(0,10), item.report_date?.slice(0,10), <a key="sec" href={sourceLink(item.filing_url)} rel="noreferrer">{item.accession_number}</a>] }))}
@@ -144,7 +148,9 @@ function WatchlistEditor({ token, initialUniverse, initialRows }: { token: strin
   const [revision, setRevision] = useState(0);
   const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const snapshot = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
-  const universeRows = universe.data?.data ?? initialUniverse;\n  const snapshotRows = snapshot.data?.data ?? initialRows;\n  const bySymbol = useMemo(() => new Map(snapshotRows.map(row => [row.symbol, row])), [snapshotRows]);
+  const universeRows = universe.data?.data ?? initialUniverse;
+  const snapshotRows = snapshot.data?.data ?? initialRows;
+  const bySymbol = useMemo(() => new Map(snapshotRows.map(row => [row.symbol, row])), [snapshotRows]);
 
   useEffect(() => {
     if (!token) return;
