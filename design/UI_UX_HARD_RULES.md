@@ -53,6 +53,9 @@ These rules are mandatory for the true-redesign frontend and override legacy vis
 - Side rails should be a single flat surface with subsections separated by 1px dividers, not stacks of independent cards.
 - Dense summary strips should be one shared surface with equal-height cells and internal dividers; individual metrics must not look like nested cards.
 - Page layout should be compact and visually contiguous: align section edges, equalize sibling heights where semantically appropriate, avoid orphan panels, and remove meaningless blank gaps.
+- For desktop validation, meaningless blank area must remain below **5% of the visible research workspace**. This is a measurable release gate, not a visual preference.
+- Validate each primary route by saving the rendered production HTML, reopening that saved HTML in a headless browser, capturing a screenshot at the target viewport, and measuring low-information blank regions. Repeat layout changes until the route passes the <5% gate.
+- Do not satisfy the 5% gate by stretching charts/tables, adding filler cards, duplicating content, or inventing financial data. Reflow real financial content, move long/short sections between columns, merge surfaces, or remove empty regions instead.
 
 ## Interaction rules
 
