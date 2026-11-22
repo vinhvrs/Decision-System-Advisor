@@ -260,19 +260,25 @@ export default function ChartLabWorkspace({
   useEffect(() => {
     if (!canvas.current || !bars.length) return;
 
+    const chartStyle = window.getComputedStyle(canvas.current);
+    const chartBackground = chartStyle.getPropertyValue("--nt-chart-bg").trim() || "#101923";
+    const chartGrid = chartStyle.getPropertyValue("--nt-chart-grid").trim() || "#263543";
+    const chartBorder = chartStyle.getPropertyValue("--nt-chart-border").trim() || "#3a4c5e";
+    const chartText = chartStyle.getPropertyValue("--nt-chart-text").trim() || "#b8c5d2";
+
     const chart = createChart(canvas.current, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#0b1016" },
-        textColor: "#aab8c8",
-        fontFamily: window.getComputedStyle(canvas.current).fontFamily,
+        background: { type: ColorType.Solid, color: chartBackground },
+        textColor: chartText,
+        fontFamily: chartStyle.fontFamily,
         fontSize: 11,
-        panes: { separatorColor: "#2a394b", separatorHoverColor: "#46627f" },
+        panes: { separatorColor: chartBorder, separatorHoverColor: "#5b7b98" },
       },
-      grid: { vertLines: { color: "#172330" }, horzLines: { color: "#172330" } },
-      rightPriceScale: { borderColor: "#2a394b", scaleMargins: { top: 0.08, bottom: 0.08 } },
-      timeScale: { borderColor: "#2a394b", rightOffset: 2 },
-      crosshair: { vertLine: { color: "#536a83" }, horzLine: { color: "#536a83" } },
+      grid: { vertLines: { color: chartGrid }, horzLines: { color: chartGrid } },
+      rightPriceScale: { borderColor: chartBorder, scaleMargins: { top: 0.08, bottom: 0.08 } },
+      timeScale: { borderColor: chartBorder, rightOffset: 2 },
+      crosshair: { vertLine: { color: "#6486a5" }, horzLine: { color: "#6486a5" } },
     });
 
     const candle = chart.addSeries(CandlestickSeries, {
