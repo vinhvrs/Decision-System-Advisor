@@ -2539,6 +2539,9 @@ body {
   height: clamp(350px, 48dvh, 560px) !important;
   min-height: 350px !important;
   max-height: 560px !important;
+  background: var(--nt-s0);
+  border-top: 1px solid var(--nt-border);
+  border-bottom: 1px solid var(--nt-border);
 }
 
 .nt-chart-legend {
