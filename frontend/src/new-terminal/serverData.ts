@@ -1,15 +1,17 @@
-const DATA_BASE = "https://aitemple.tech";
+const DATA_BASE = "https://data.aitemple.tech";
 
 export async function readData<T>(path: string, revalidate = 60): Promise<T | undefined> {
   try {
     const response = await fetch(`${DATA_BASE}${path}`, {
       next: { revalidate },
       signal: AbortSignal.timeout(10000),
-      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 DSA-Server/1.0" },
+      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
     });
+    console.info("[SSR_DATA]", path, response.status, response.headers.get("content-type") ?? "");
     if (!response.ok) return undefined;
     return await response.json() as T;
-  } catch {
+  } catch (error) {
+    console.error("[SSR_DATA_ERROR]", path, error instanceof Error ? error.message : String(error));
     return undefined;
   }
 }
