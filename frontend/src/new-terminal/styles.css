@@ -3868,3 +3868,61 @@ body,
 .nt-brand-mark {
   color: var(--nt-accent);
 }
+
+
+/* 2026-11-22 balanced natural-flow columns after rendered-gap audit */
+.nt-company-dashboard-columns {
+  display: grid;
+  grid-template-columns: minmax(0, .98fr) minmax(0, 1.12fr) minmax(0, 1fr);
+  gap: 3px;
+  align-items: start;
+}
+
+.nt-company-dashboard-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nt-company-workspace {
+  gap: 2px;
+}
+
+.nt-chart-workspace {
+  gap: 2px;
+}
+
+.nt-chart-main-grid,
+.nt-grid-chart {
+  grid-template-columns: 190px minmax(0, 1fr) 230px !important;
+  gap: 2px !important;
+}
+
+.nt-chart-center {
+  gap: 2px !important;
+}
+
+.nt-chart-primary-panel .nt-panel-body > div[aria-label] {
+  height: clamp(340px, 40dvh, 480px) !important;
+  min-height: 340px !important;
+  max-height: 480px !important;
+}
+
+@media (max-width: 1450px) {
+  .nt-chart-main-grid,
+  .nt-grid-chart {
+    grid-template-columns: 180px minmax(0, 1fr) 220px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .nt-company-dashboard-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .nt-chart-main-grid,
+  .nt-grid-chart {
+    grid-template-columns: 1fr !important;
+  }
+}
