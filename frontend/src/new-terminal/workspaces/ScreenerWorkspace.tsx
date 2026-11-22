@@ -35,6 +35,10 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
   const technicalRows = Object.entries(technicalMetrics).filter(([key]) => !(key in (fund.data?.metrics ?? {})));
   const changeRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.change_pct ?? -Infinity) - (bySymbol.get(a.symbol)?.change_pct ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
   const tradedRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.traded_value ?? -Infinity) - (bySymbol.get(a.symbol)?.traded_value ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
+  const sessionMovers = [...shown]
+    .filter(row => bySymbol.get(row.symbol)?.change_pct != null)
+    .sort((a,b) => Math.abs(bySymbol.get(b.symbol)?.change_pct ?? 0) - Math.abs(bySymbol.get(a.symbol)?.change_pct ?? 0))
+    .slice(0,20);
 
   return <div className="nt-workspace nt-full-workspace nt-screener-workspace">
     <section className="nt-toolbar">
@@ -95,6 +99,21 @@ export default function ScreenerWorkspace({ initialQuery = "" }: { initialQuery?
               {technicalRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
               {!technicalRows.length && <tr><td colSpan={3}>No technical values</td></tr>}
             </tbody></table>
+          </div>
+
+          <div className="nt-subsection">
+            <div className="nt-subsection-title"><strong>Session movers</strong><span>current screen</span></div>
+            <table className="nt-microtable">
+              <thead><tr><th>Symbol</th><th>Chg</th><th>Last</th></tr></thead>
+              <tbody>{sessionMovers.map(row => {
+                const market = bySymbol.get(row.symbol);
+                return <tr key={row.symbol}>
+                  <td>{row.symbol}</td>
+                  <td className={(market?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{market?.change_pct == null ? "—" : `${market.change_pct > 0 ? "+" : ""}${valueText(market.change_pct)}%`}</td>
+                  <td>{valueText(market?.price)}</td>
+                </tr>;
+              })}</tbody>
+            </table>
           </div>
 
           {selected && <div className="nt-inline-links nt-screener-links">
