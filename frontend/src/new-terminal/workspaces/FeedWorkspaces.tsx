@@ -94,8 +94,8 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
   const technicalData = technical.data ?? initialTechnical;
   const metricEntries = Object.entries(metricData?.metrics ?? {});
   const technicalEntries = Object.entries(technicalData?.indicators ?? {});
-  const availableMetricCount = metricEntries.filter(([, item]) => item.value != null).length;
-  const unavailableMetricCount = metricEntries.length - availableMetricCount;
+  const metricKeys = new Set(metricEntries.map(([key]) => key));
+  const technicalOnlyEntries = technicalEntries.filter(([key]) => !metricKeys.has(key));
   const marketContext = [...snapshotRows]
     .filter(row => row.market === "stock" && row.change_pct != null)
     .sort((a, b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
@@ -106,9 +106,9 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
     <DataTable title="Published metric snapshot" columns={["Indicator", "Value", "Unit"]}
       rows={metricEntries.map(([key, item]) => ({ key, cells: [labelText(key), valueText(item.value), item.unit] }))}
       empty="No indicator values for this symbol and period." />
-    <DataTable title="Technical indicator registry" columns={["Indicator", "Value"]}
-      rows={technicalEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value)] }))}
-      empty="No technical indicator values for this symbol and period." />
+    <DataTable title="Additional technical calculations" columns={["Indicator", "Value"]}
+      rows={technicalOnlyEntries.map(([key, item]) => ({ key, cells: [labelText(key), typeof item.value === "object" && item.value ? Object.entries(item.value).map(([name, value]) => `${name}: ${valueText(value)}`).join(" · ") : valueText(item.value)] }))}
+      empty="No additional technical calculations for this symbol and period." />
     <DataTable title="Market technical context" columns={["Symbol","Last","Change %","SMA50","RVol 20D","52W high"]}
       rows={marketContext.map(row => {
         const m = dailyData?.data[row.symbol]?.metrics;
