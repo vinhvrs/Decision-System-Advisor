@@ -89,17 +89,11 @@ export default function ScreenerWorkspace({
         <section className="nt-flat-surface">
           <div className="nt-subsection">
             <div className="nt-subsection-title">
-              <strong>{selected ? `${selected} · snapshot` : "Snapshot"}</strong>
+              <strong>{selected ? `${selected} · screen position` : "Screen position"}</strong>
               <span>{bySymbol.get(selected ?? "")?.as_of?.slice(0,10) ?? ""}</span>
             </div>
-            <div className="nt-screener-selected">
-              <SymbolContext symbol={selected} />
-              <div><div className="nt-label">Last</div><strong className="nt-mono">{valueText(selectedRow?.price)}</strong></div>
-              <div><div className="nt-label">Change</div><strong className={(selectedRow?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{valueText(selectedRow?.change_pct)}%</strong></div>
-            </div>
+            <div className="nt-screener-selected"><SymbolContext symbol={selected} /></div>
             <table className="nt-microtable"><tbody>
-              <tr><td>Market cap</td><td>{valueText(selectedRow?.market_cap)}</td></tr>
-              <tr><td>Traded value</td><td>{valueText(selectedRow?.traded_value)}</td></tr>
               <tr><td>Change rank</td><td>{changeRank > 0 ? `#${changeRank} / ${shown.length}` : "—"}</td></tr>
               <tr><td>Traded-value rank</td><td>{tradedRank > 0 ? `#${tradedRank} / ${shown.length}` : "—"}</td></tr>
             </tbody></table>
