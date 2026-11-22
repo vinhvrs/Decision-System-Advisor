@@ -3516,3 +3516,271 @@ body {
     border-bottom: 1px solid var(--nt-border);
   }
 }
+
+
+/* 2026-11-22 post-rule visual hierarchy, fit and long-content contract */
+:root {
+  --nt-bg: #10151c;
+  --nt-s0: #141b23;
+  --nt-s1: #19212b;
+  --nt-s2: #1f2a35;
+  --nt-s3: #273442;
+  --nt-border: #30404f;
+  --nt-border-strong: #42586c;
+  --nt-text: #f0f4f8;
+  --nt-text-2: #b4c0cb;
+  --nt-muted: #7f90a1;
+  --nt-accent: #59b7ff;
+  --nt-info: #7ec5ff;
+  --nt-chart-bg: #0d1620;
+  --nt-chart-grid: #243341;
+  --nt-chart-border: #3b5063;
+  --nt-chart-text: #bac8d5;
+}
+
+html,
+body,
+.nt-shell {
+  background: var(--nt-bg) !important;
+}
+
+.nt-topbar,
+.nt-primary-nav,
+.nt-utility-dock {
+  background: var(--nt-s0) !important;
+}
+
+.nt-main {
+  background: var(--nt-bg) !important;
+}
+
+.nt-panel,
+.nt-flat-surface,
+.nt-context-strip,
+.nt-toolbar,
+.nt-tabs,
+.nt-financial-strip,
+.nt-company-research-head,
+.nt-inline-controls {
+  background: var(--nt-s1) !important;
+}
+
+.nt-panel-title,
+.nt-subsection-title,
+.nt-table thead th,
+.nt-microtable thead th {
+  background: var(--nt-s2) !important;
+}
+
+.nt-table tbody td,
+.nt-microtable tbody td {
+  background: var(--nt-s1);
+}
+
+.nt-table tbody tr:hover td,
+.nt-microtable tbody tr:hover td {
+  background: var(--nt-s3);
+}
+
+/* Brand and navigation icons are intentional accent points, not decorative cards. */
+.nt-brand-mark {
+  background: var(--nt-accent) !important;
+  color: #071019 !important;
+  border: 1px solid #98d7ff;
+}
+
+.nt-primary-nav .nt-nav-link svg,
+.nt-utility-button svg,
+.nt-command svg {
+  color: #87b9df;
+  stroke-width: 1.8;
+}
+
+.nt-primary-nav .nt-nav-link[data-active="true"] svg,
+.nt-primary-nav .nt-nav-link:hover svg,
+.nt-utility-button[data-active="true"] svg,
+.nt-utility-button:hover svg {
+  color: var(--nt-accent);
+}
+
+.nt-primary-nav .nt-nav-link[data-active="true"] {
+  background: #22303e !important;
+}
+
+/* Charts use a distinct plotting field one tonal level darker than their containing surface. */
+.nt-chart-primary-panel .nt-panel-body,
+.nt-financial-trend-chart,
+.nt-price-monitor svg,
+.nt-radar {
+  background: var(--nt-chart-bg) !important;
+}
+
+.nt-chart-primary-panel .nt-panel-body {
+  border-top: 1px solid var(--nt-chart-border);
+  border-bottom: 1px solid var(--nt-chart-border);
+}
+
+.nt-financial-trend-chart,
+.nt-price-monitor svg,
+.nt-radar {
+  outline: 1px solid rgba(66,88,108,.55);
+  outline-offset: -1px;
+}
+
+/* Primary research content uses page flow. Internal vertical scrolling is reserved for overlays/utilities. */
+.nt-chart-rail,
+.nt-market-rail,
+.nt-screener-inspector {
+  position: static !important;
+  max-height: none !important;
+  overflow: visible !important;
+  scrollbar-gutter: auto !important;
+}
+
+.nt-table-wrap {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  max-height: none !important;
+}
+
+.nt-flat-rail {
+  overflow: visible !important;
+}
+
+.nt-utility-drawer {
+  overflow-y: auto;
+}
+
+/* Long prose uses available width instead of a clipped mini-scroll area. */
+.nt-company-description {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 10px 12px !important;
+  color: var(--nt-text-2);
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-body);
+  line-height: 1.55;
+  column-count: 2;
+  column-gap: 30px;
+  column-rule: 1px solid var(--nt-border);
+}
+
+.nt-company-description-panel {
+  overflow: visible;
+}
+
+.nt-company-bottom-research-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: start !important;
+}
+
+.nt-company-research-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+
+.nt-company-research-links a {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-right: 1px solid var(--nt-border);
+  border-bottom: 1px solid var(--nt-border);
+  color: #9fd3ff;
+  text-decoration: none;
+  font-size: var(--nt-type-body);
+}
+
+.nt-company-research-links a:nth-child(2n) {
+  border-right: 0;
+}
+
+.nt-company-research-links a:hover {
+  background: var(--nt-s2);
+  color: var(--nt-text);
+}
+
+/* Same semantic role always uses the same shared typography contract. */
+.nt-panel-title strong,
+.nt-subsection-title strong {
+  font-family: var(--nt-font-ui) !important;
+  font-size: var(--nt-type-section) !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+  color: var(--nt-text) !important;
+}
+
+.nt-panel-meta,
+.nt-subsection-title > span,
+.nt-subsection-title > a,
+.nt-database-note {
+  font-family: var(--nt-font-ui) !important;
+  font-size: var(--nt-type-meta) !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+}
+
+.nt-table th,
+.nt-microtable th,
+.nt-label,
+.nt-control-caption,
+.nt-index-name,
+.nt-data-cell .k {
+  font-family: var(--nt-font-ui) !important;
+  font-size: var(--nt-type-label) !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+  color: var(--nt-muted) !important;
+}
+
+.nt-table td,
+.nt-microtable td,
+.nt-indicator-row,
+.nt-filter-item,
+.nt-company-description {
+  font-family: var(--nt-font-ui);
+  font-size: var(--nt-type-body);
+}
+
+.nt-data-cell .v,
+.nt-company-head-metrics b,
+.nt-company-quote strong,
+.nt-index-values,
+.nt-price,
+.nt-mono {
+  font-family: var(--nt-font-data) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Containers should size to content; sibling grids must not create decorative stretching. */
+.nt-company-visual-grid,
+.nt-company-monitor-grid,
+.nt-company-bottom-research-grid,
+.nt-market-main-grid,
+.nt-chart-main-grid,
+.nt-screener-layout {
+  align-items: start !important;
+}
+
+.nt-panel,
+.nt-flat-surface,
+.nt-subsection,
+.nt-summary-column {
+  min-height: 0;
+}
+
+@media (max-width: 1180px) {
+  .nt-company-description {
+    column-count: 1;
+    column-rule: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .nt-company-research-links {
+    grid-template-columns: 1fr;
+  }
+  .nt-company-research-links a {
+    border-right: 0;
+  }
+}
