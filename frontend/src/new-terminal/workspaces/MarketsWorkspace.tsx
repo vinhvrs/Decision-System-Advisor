@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import DataTable from "../DataTable";
 import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
+import { EQUITY_HEATMAP_SIZE, EQUITY_HEATMAP_UNIVERSE } from "../equityUniverse";
 import type { MarketRow } from "../marketSnapshot";
 
 type Quote = { price: number; change: number | null; at: number };
@@ -99,8 +100,8 @@ export default function MarketsWorkspace({
   const [updated, setUpdated] = useState(0);
   const [connected, setConnected] = useState(false);
   const subscriptionSymbols = useMemo(
-    () => initialRows.filter(row => row.market === "stock").map(row => row.symbol).slice(0, 60),
-    [initialRows],
+    () => EQUITY_HEATMAP_UNIVERSE.map(item => item.symbol),
+    [],
   );
 
   useEffect(() => {
@@ -171,34 +172,53 @@ export default function MarketsWorkspace({
   }, [subscriptionSymbols]);
 
   const bySymbol = useMemo(() => new Map(rows.map(row => [row.symbol, row])), [rows]);
-  const equities = rows.filter(row => row.market === "stock" && row.change_pct != null);
+  const persistedEquities = rows.filter(row => row.market === "stock" && row.change_pct != null);
+  const equities = EQUITY_HEATMAP_UNIVERSE.flatMap(member => {
+    const stored = bySymbol.get(member.symbol);
+    const quote = quotes[member.symbol];
+    const storedAt = stored?.as_of ? Date.parse(stored.as_of) : 0;
+    const useQuote = Boolean(quote && (!storedAt || quote.at >= storedAt));
+    const price = useQuote ? quote?.price : stored?.price;
+    const change = useQuote ? quote?.change : stored?.change_pct;
+    if (price == null || change == null || !Number.isFinite(price) || !Number.isFinite(change)) return [];
+    return [{
+      symbol: member.symbol,
+      market: "stock",
+      sector: member.sector,
+      price,
+      change_pct: change,
+      traded_value: stored?.traded_value ?? null,
+      market_cap: stored?.market_cap ?? null,
+      as_of: useQuote && quote ? new Date(quote.at).toISOString() : stored?.as_of ?? null,
+      session_date: stored?.session_date ?? null,
+      previous_session_date: stored?.previous_session_date ?? null,
+      last_sync_at: stored?.last_sync_at ?? null,
+      coverage_partial: stored?.coverage_partial ?? !stored,
+      session_final: stored?.session_final ?? false,
+      provider_error: stored?.provider_error ?? false,
+    } satisfies MarketRow];
+  });
   const leaders = [...equities].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
   const laggards = [...leaders].reverse();
   const macroByCode = new Map(macroData?.data.map(row => [row.series_code, row]));
-  const upValue = equities.filter(row => (row.change_pct ?? 0) > 0 && row.traded_value != null);
-  const downValue = equities.filter(row => (row.change_pct ?? 0) < 0 && row.traded_value != null);
-  const valueTotal = (items: MarketRow[]) => items.length ? `$${(items.reduce((sum, row) => sum + (row.traded_value ?? 0), 0) / 1e9).toFixed(2)}B` : "—";
+  const upValue = persistedEquities.filter(row => (row.change_pct ?? 0) > 0 && row.traded_value != null);
+  const downValue = persistedEquities.filter(row => (row.change_pct ?? 0) < 0 && row.traded_value != null);
+  const valueTotal = (items: MarketRow[]) => items.length ? `${(items.reduce((sum, row) => sum + (row.traded_value ?? 0), 0) / 1e9).toFixed(2)}B` : "—";
   const up = equities.filter(row => (row.change_pct ?? 0) > 0).length;
   const down = equities.filter(row => (row.change_pct ?? 0) < 0).length;
   const unchanged = Math.max(0, equities.length - up - down);
-  const traded = equities.flatMap(row => row.traded_value == null ? [] : [row.traded_value]);
-  const equitySession = equities.map(row => row.session_date ?? row.as_of?.slice(0,10) ?? null)
+  const traded = persistedEquities.flatMap(row => row.traded_value == null ? [] : [row.traded_value]);
+  const equitySession = persistedEquities.map(row => row.session_date ?? row.as_of?.slice(0,10) ?? null)
     .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
   const breadthPct = equities.length ? (up / equities.length) * 100 : null;
-  const heatRows = [...equities]
-    .sort((a, b) => {
-      const sectorA = normalizeSector(a.sector);
-      const sectorB = normalizeSector(b.sector);
-      return sectorA.localeCompare(sectorB) || ((b.traded_value ?? 0) - (a.traded_value ?? 0));
-    })
-    .slice(0, 40);
+  const heatRows = equities;
   const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
   const calendarState = calendarCoverageState(calendarData);
 
   const dailyRows = dailyData?.data;
   // Market snapshot already classifies rows by market. Do not block breadth on a second
   // universe request: daily analytics + stock rows are sufficient and avoid hydration gaps.
-  const breadthEquities = equities;
+  const breadthEquities = persistedEquities;
   const breadthSession = breadthEquities.map(row => dailyRows?.[row.symbol]?.as_of)
     .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
   const dailyGroup = (sample: MarketRow[], code: string) => {
@@ -232,7 +252,7 @@ export default function MarketsWorkspace({
     return metric?.quality === "OK" && metric.as_of === breadthSession && metric.value != null && Number.isFinite(metric.value)
       ? [{ symbol: row.symbol, value: metric.value }] : [];
   }).sort((a, b) => b.value - a.value);
-  const mostActive = [...equities]
+  const mostActive = [...persistedEquities]
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 18);
@@ -272,10 +292,10 @@ export default function MarketsWorkspace({
       <div className="nt-dense-grid nt-financial-strip">
         {[
           ["Equity session", equitySession ?? "—", equities.some(row => row.session_final) ? "Final" : "Latest"],
-          ["Feed", connected ? "LIVE" : "SNAPSHOT", updated ? `updated ${new Date(updated).toISOString().slice(11,19)}Z` : ""],
+          ["Feed", connected ? "LIVE" : "SNAPSHOT", `${equities.length}/${EQUITY_HEATMAP_SIZE} equity quotes`],
           ["Adv / Decl", equities.length ? `${up} / ${down}` : "—", equities.length ? `${unchanged} unchanged` : ""],
           ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Breadth"],
-          ["Traded value", traded.length ? `$${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", "Tracked equities"],
+          ["Traded value", traded.length ? `${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", `${persistedEquities.length} persisted equities`],
           ["> 20D MA", breadthValue(trend[0]), breadthSession ?? ""],
           ["> 50D MA", breadthValue(trend[1]), breadthSession ?? ""],
           ["> 200D MA", breadthValue(trend[2]), breadthSession ?? ""],
@@ -329,16 +349,14 @@ export default function MarketsWorkspace({
 
         <section className="nt-market-center">
           <section className="nt-panel nt-market-heatmap-panel">
-            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">price · session change · sector</span></div>
+            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · price · session change · sector</span></div>
             <div className="nt-panel-body">
               <div className="nt-heatmap">
-                {heatRows.length ? heatRows.map(stored => {
-                  const symbol = stored.symbol;
-                  const sector = normalizeSector(stored.sector);
-                  const quote = quotes[symbol];
-                  const useQuote = quote && (!stored.as_of || quote.at > Date.parse(stored.as_of));
-                  const price = useQuote ? quote.price : stored.price;
-                  const change = useQuote ? quote.change : stored.change_pct;
+                {heatRows.length ? heatRows.map(row => {
+                  const symbol = row.symbol;
+                  const sector = normalizeSector(row.sector);
+                  const price = row.price;
+                  const change = row.change_pct;
                   return (
                     <Link
                       className={`nt-heat-cell nt-heat-link ${directionClass(change)}`}
@@ -349,10 +367,10 @@ export default function MarketsWorkspace({
                       <div className="nt-heat-symbol-row"><b>{symbol}</b><span className={`nt-sector-dot ${sectorClass(sector)}`} aria-label={sector} /></div>
                       <span className="nt-heat-price nt-mono">{price == null ? "No quote" : priceFormat.format(price)}</span>
                       <span className={`nt-heat-change nt-mono ${change == null ? "nt-muted" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : ""}`}>{percent(change)}</span>
-                      <small title={useQuote ? new Date(quote.at).toISOString() : stored.as_of ?? undefined}><span className={`nt-sector-name ${sectorClass(sector)}`}>{sector}</span></small>
+                      <small title={row.as_of ?? undefined}><span className="nt-sector-name">{sector}</span></small>
                     </Link>
                   );
-                }) : <div className="nt-empty nt-empty-compact">No equity observations in the current market snapshot.</div>}
+                }) : <div className="nt-empty nt-empty-compact">No equity observations in the tracked universe.</div>}
               </div>
             </div>
           </section>
