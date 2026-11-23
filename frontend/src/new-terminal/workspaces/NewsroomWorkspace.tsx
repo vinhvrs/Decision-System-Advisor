@@ -39,8 +39,18 @@ export default function NewsroomWorkspace({
   const pool = (feed.data?.data ?? initialNews)
     .filter(item => item.title?.trim())
     .filter(item => {
-      const source = [item.author, item.publisher, item.source].filter(Boolean).join(" ").toLowerCase();
-      return source.includes("yahoo") || source.includes("forex") || source.includes("factory");
+      const publisher = (item.publisher ?? "").toLowerCase();
+      const source = (item.source ?? "").toLowerCase();
+
+      const isYahoo =
+        publisher === "finance.yahoo.com" ||
+        source.includes("finance.yahoo.com/");
+
+      const isForexFactory =
+        publisher.includes("forexfactory") ||
+        source.includes("forexfactory.com/");
+
+      return isYahoo || isForexFactory;
     });
   const visualRows = pool.filter(item => Boolean(sourceLink(item.image ?? undefined)));
   const rows = visualRows.slice(0, 18);
