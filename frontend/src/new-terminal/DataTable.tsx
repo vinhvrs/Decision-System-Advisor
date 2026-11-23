@@ -9,7 +9,7 @@ export default function DataTable({ title, columns, rows, note, meta, className 
   className?: string;
   empty?: string;
 }) {
-  return <section className={`nt-panel nt-data-table ${className}`.trim()}>
+  return <section className={`nt-panel nt-data-table ${className}`.trim()} data-layout-key={`table:${title}`}>
     <div className="nt-panel-title">
       <strong>{title}</strong>
       {meta && <span className="nt-panel-meta">{meta}</span>}
