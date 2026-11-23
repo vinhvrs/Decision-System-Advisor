@@ -81,7 +81,6 @@ function collectCards(pathname: string) {
     .filter(element => !element.closest(".nt-utility-drawer"))
     .filter((element, index, all) => all.indexOf(element) === index);
 
-  const editing = document.body.classList.contains("dsa-layout-editing");
   const counts = new Map<string, number>();
 
   return candidates.map(element => {
@@ -94,19 +93,37 @@ function collectCards(pathname: string) {
     element.dataset.dsaLayoutId = id;
     element.dataset.dsaLayoutLabel = label;
 
-    let handle = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
-    if (!handle) {
-      handle = document.createElement("div");
-      handle.className = "dsa-layout-top-handle dsa-layout-drag-handle";
-      element.appendChild(handle);
+    // Prefer the panel's real visible header. The entire header row becomes the
+    // drag surface. A synthetic strip is only used for cards that truly have no header.
+    let handle =
+      element.querySelector<HTMLElement>(":scope > .nt-panel-title") ??
+      element.querySelector<HTMLElement>(":scope > .nt-subsection-title") ??
+      element.querySelector<HTMLElement>(":scope > header") ??
+      element.querySelector<HTMLElement>(":scope > .nt-news-article-body > .nt-news-kicker") ??
+      element.querySelector<HTMLElement>(":scope .nt-subsection-title");
+
+    let synthetic = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
+
+    if (handle && synthetic) {
+      synthetic.remove();
+      synthetic = null;
     }
 
+    if (!handle) {
+      if (!synthetic) {
+        synthetic = document.createElement("div");
+        synthetic.className = "dsa-layout-top-handle";
+        element.appendChild(synthetic);
+      }
+      handle = synthetic;
+    }
+
+    handle.classList.add("dsa-layout-drag-handle");
     handle.dataset.dsaDragHandle = "true";
     handle.dataset.dsaLayoutOwner = id;
     handle.dataset.dsaDragLabel = label;
     handle.setAttribute("aria-label", `Drag ${label}`);
     handle.setAttribute("title", `Drag ${label}`);
-    handle.classList.toggle("dsa-layout-resize-mode", editing);
 
     return element;
   });
