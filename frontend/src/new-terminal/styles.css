@@ -5362,3 +5362,16 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .dsa-layout-drag-enabled .dsa-layout-top-handle::after {
   content: none !important;
 }
+/* 2026-11-24 events table-header separation */
+.nt-news-workspace .nt-data-table .nt-table thead th,
+.nt-news-workspace .nt-data-table .nt-table thead tr,
+.nt-news-workspace .nt-data-table .nt-table thead {
+  background: #050b10 !important;
+  color: #718594 !important;
+}
+
+.nt-news-workspace .nt-data-table .nt-table thead th {
+  border-top: 0 !important;
+  border-bottom: 1px solid #1c2b36 !important;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.32);
+}
