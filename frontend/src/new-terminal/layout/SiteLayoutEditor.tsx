@@ -195,7 +195,18 @@ export default function SiteLayoutEditor() {
   useEffect(() => {
     applySaved();
     const timer = window.setTimeout(applySaved, 350);
-    return () => window.clearTimeout(timer);
+    const main = document.querySelector(".nt-main");
+    let refreshTimer = 0;
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(applySaved, 80);
+    });
+    if (main) observer.observe(main, { childList: true, subtree: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(refreshTimer);
+      observer.disconnect();
+    };
   }, [applySaved]);
 
   useEffect(() => {
