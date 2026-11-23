@@ -37,7 +37,7 @@ type LayoutStore = {
   routes: Record<string, RouteLayout>;
 };
 
-type EditorAction = "toggle" | "enable" | "disable" | "export" | "reset";
+type EditorAction = "toggle" | "enable" | "disable" | "export" | "reset" | "test";
 
 function emptyStore(): LayoutStore {
   return { version: 1, routes: {} };
@@ -143,6 +143,7 @@ function snap4(value: number) {
 export default function SiteLayoutEditor() {
   const pathname = usePathname();
   const [active, setActive] = useState(false);
+  const [testStatus, setTestStatus] = useState<string>("");
   const dragState = useRef<{
     source: HTMLElement;
     handle: HTMLElement;
@@ -421,6 +422,86 @@ export default function SiteLayoutEditor() {
     };
   }, [active, pathname, persistCurrent]);
 
+  const runSelfTest = useCallback(() => {
+    setActive(true);
+    setTestStatus("Testing drag…");
+
+    window.setTimeout(() => {
+      const cards = collectCards(pathname);
+      const group = cards.find(card => {
+        if (!card.parentElement) return false;
+        return Array.from(card.parentElement.children).filter(
+          item => item instanceof HTMLElement && item.classList.contains("dsa-layout-card")
+        ).length >= 2;
+      });
+
+      if (!group?.parentElement) {
+        setTestStatus("Drag test: no sibling card group");
+        return;
+      }
+
+      const siblings = Array.from(group.parentElement.children).filter(
+        (item): item is HTMLElement => item instanceof HTMLElement && item.classList.contains("dsa-layout-card")
+      );
+      const source = siblings[0];
+      const target = siblings[1];
+      const handle = source.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
+      if (!source || !target || !handle) {
+        setTestStatus("Drag test: handle unavailable");
+        return;
+      }
+
+      const original = siblings.map(item => item.style.order);
+      const sourceBefore = currentOrder(source);
+      const targetBefore = currentOrder(target);
+      const handleRect = handle.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const pointerId = 777;
+
+      handle.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        button: 0,
+        buttons: 1,
+        clientX: handleRect.left + Math.min(12, handleRect.width / 2),
+        clientY: handleRect.top + Math.min(10, handleRect.height / 2),
+      }));
+
+      document.dispatchEvent(new PointerEvent("pointermove", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        buttons: 1,
+        clientX: targetRect.left + targetRect.width * 0.75,
+        clientY: targetRect.top + targetRect.height * 0.75,
+      }));
+
+      document.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        button: 0,
+        buttons: 0,
+        clientX: targetRect.left + targetRect.width * 0.75,
+        clientY: targetRect.top + targetRect.height * 0.75,
+      }));
+
+      window.setTimeout(() => {
+        const moved = currentOrder(source) !== sourceBefore || currentOrder(target) !== targetBefore;
+        siblings.forEach((item, index) => {
+          if (original[index]) item.style.order = original[index];
+          else item.style.removeProperty("order");
+        });
+        persistCurrent();
+        setTestStatus(moved ? "Drag test: PASS" : "Drag test: FAIL");
+      }, 40);
+    }, 120);
+  }, [pathname, persistCurrent]);
+
   useEffect(() => {
     function handleAction(event: Event) {
       const action = (event as CustomEvent<{ action?: EditorAction }>).detail?.action;
@@ -432,6 +513,7 @@ export default function SiteLayoutEditor() {
       }
       if (action === "export") exportContract();
       if (action === "reset") resetCurrent();
+      if (action === "test") runSelfTest();
     }
 
     function shortcut(event: KeyboardEvent) {
@@ -448,6 +530,7 @@ export default function SiteLayoutEditor() {
       done: () => { persistCurrent(); setActive(false); },
       export: exportContract,
       reset: resetCurrent,
+      test: runSelfTest,
     };
 
     return () => {
@@ -455,14 +538,14 @@ export default function SiteLayoutEditor() {
       window.removeEventListener("keydown", shortcut);
       delete (window as Window & { DSALayout?: Record<string, () => void> }).DSALayout;
     };
-  }, [exportContract, persistCurrent, resetCurrent]);
+  }, [exportContract, persistCurrent, resetCurrent, runSelfTest]);
 
   if (!active) return null;
 
   return (
     <div className="dsa-layout-editor-bar" role="toolbar" aria-label="DSA layout editor">
       <strong>Layout edit</strong>
-      <span>Drag from panel header · resize bottom-right · 4px snap</span>
+      <span>Drag from panel header · resize bottom-right · 4px snap{testStatus ? ` · ${testStatus}` : ""}</span>
       <button type="button" onClick={exportContract}>Export JSON</button>
       <button type="button" onClick={resetCurrent}>Reset route</button>
       <button type="button" onClick={() => { persistCurrent(); setActive(false); }}>Done</button>
