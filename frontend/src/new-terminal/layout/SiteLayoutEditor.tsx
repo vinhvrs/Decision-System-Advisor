@@ -127,6 +127,15 @@ function collectCards(pathname: string) {
     handle.setAttribute("aria-label", `Drag ${label}`);
     handle.setAttribute("title", `Drag ${label}`);
 
+    let grip = handle.querySelector<HTMLElement>(":scope > .dsa-layout-grip");
+    if (!grip) {
+      grip = document.createElement("span");
+      grip.className = "dsa-layout-grip";
+      grip.textContent = "⋮⋮";
+      grip.setAttribute("aria-hidden", "true");
+      handle.appendChild(grip);
+    }
+
     return element;
   });
 }
