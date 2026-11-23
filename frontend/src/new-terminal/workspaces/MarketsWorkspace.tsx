@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "../DataTable";
-import { calendarCoverageState, calendarEventsInDeclaredCoverage, valueText, type Calendar, type DailyAnalytics, type Universe, type Crypto, type Macro, type News } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
@@ -58,7 +59,6 @@ const internalFields = [
 export default function MarketsWorkspace({ initialRows }: { initialRows: MarketRow[] }) {
   const [rows, setRows] = useState(initialRows);
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
-  const universe = useFeed<{ data: Universe[] }>("/api/v1/universe");
   const macro = useFeed<Macro>("/api/v1/macro/dashboard", 60000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=12", 60000);
@@ -164,8 +164,9 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const calendarState = calendarCoverageState(calendar.data);
 
   const dailyRows = daily.data?.data;
-  const equitySymbols = new Set(universe.data?.data.filter(item => item.asset_class === "EQUITY").map(item => item.symbol));
-  const breadthEquities = rows.filter(row => equitySymbols.has(row.symbol));
+  // Market snapshot already classifies rows by market. Do not block breadth on a second
+  // universe request: daily analytics + stock rows are sufficient and avoid hydration gaps.
+  const breadthEquities = equities;
   const breadthSession = breadthEquities.map(row => dailyRows?.[row.symbol]?.as_of)
     .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
   const dailyGroup = (sample: MarketRow[], code: string) => {
@@ -175,7 +176,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
     });
     const observed = current.filter(metric =>
       metric.quality === "OK" && metric.value != null && Number.isFinite(metric.value));
-    const emptyState = daily.error || universe.error ? "UNAVAILABLE"
+    const emptyState = daily.error ? "UNAVAILABLE"
       : current.some(metric => metric.quality === "LICENSE_RESTRICTED") ? "LICENSE_RESTRICTED"
       : current.some(metric => metric.quality === "PARTIAL") ? "PARTIAL" : "NOT_INGESTED";
     const sources = [...new Set(observed.flatMap(metric =>
@@ -307,12 +308,17 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
                   const price = useQuote ? quote.price : stored.price;
                   const change = useQuote ? quote.change : stored.change_pct;
                   return (
-                    <div className={`nt-heat-cell ${directionClass(change)}`} key={symbol}>
+                    <Link
+                      className={`nt-heat-cell nt-heat-link ${directionClass(change)}`}
+                      href={`/companies?symbol=${encodeURIComponent(symbol)}`}
+                      key={symbol}
+                      aria-label={`Open ${symbol} company research`}
+                    >
                       <div className="nt-heat-symbol-row"><b>{symbol}</b><span className={`nt-sector-dot ${sectorClass(sector)}`} aria-label={sector} /></div>
                       <span className="nt-heat-price nt-mono">{price == null ? "No quote" : priceFormat.format(price)}</span>
                       <span className={`nt-heat-change nt-mono ${change == null ? "nt-muted" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : ""}`}>{percent(change)}</span>
                       <small title={useQuote ? new Date(quote.at).toISOString() : stored.as_of ?? undefined}><span className={`nt-sector-name ${sectorClass(sector)}`}>{sector}</span></small>
-                    </div>
+                    </Link>
                   );
                 }) : <div className="nt-empty nt-empty-compact">No equity observations in the current market snapshot.</div>}
               </div>
@@ -340,8 +346,8 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               ? ["Symbol","Last","Change %","Traded value","Market cap","As of"]
               : ["Symbol","Last","Change %","Traded value","As of"]}
             rows={marketTape.map(row => ({ key: row.symbol, cells: marketTape.some(item => item.market_cap != null)
-              ? [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), valueText(row.market_cap), row.as_of?.slice(0,10)]
-              : [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), row.as_of?.slice(0,10)] }))}
+              ? [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, valueText(row.market_cap), row.as_of?.slice(0,10)]
+              : [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, row.as_of?.slice(0,10)] }))}
             empty="No market observations."
           />
 
