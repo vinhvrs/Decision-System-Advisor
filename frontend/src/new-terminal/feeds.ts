@@ -12,7 +12,15 @@ export type Universe = { symbol: string; name: string; asset_class: string; volu
 export type MacroRow = { series_code: string; value: number | null; quality: string; unit: string; source?: string; observed_at?: string; reason?: string };
 export type Macro = { data: MacroRow[]; spreads: MacroRow[]; generated_at: string; quality: string };
 export type Health = { quality: string; generated_at: string; pipeline: { covered: number; total: number }; sources: { source_code: string; status: string; last_data_at: string | null; last_error: string | null }[] };
-export type Calendar = { source: string; events: { id: string; title: string; scheduled_at: string | null; currency: string; impact: string; forecast: string | null; previous: string | null; actual: string | null }[]; stale: boolean; provider_error: boolean };
+export type Calendar = {
+  source: string;
+  source_url?: string;
+  last_success_at?: string | null;
+  coverage?: { start?: string | null; end?: string | null };
+  events: { id: string; title: string; scheduled_at: string | null; currency: string; impact: string; forecast: string | null; previous: string | null; actual: string | null }[];
+  stale: boolean;
+  provider_error: boolean;
+};
 export type News = { id: string; title: string; symbol?: string; published_at?: string; source?: string; author?: string };
 export type Filing = { accession_number: string; form: string; filing_date: string; report_date: string; filing_url: string };
 export type Crypto = { symbol: string; data: { metric_code: string; value: number | null; source: string; quality: string; observed_at: string; metadata?: { unit?: string } }[] };
@@ -37,4 +45,30 @@ export async function getFeed<T>(path: string, signal?: AbortSignal): Promise<T>
   const response = await fetch(path, { signal, headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`Feed returned ${response.status}`);
   return response.json() as Promise<T>;
+}
+
+
+export function calendarEventsInDeclaredCoverage(calendar?: Calendar) {
+  if (!calendar) return [];
+  const start = calendar.coverage?.start ?? null;
+  const end = calendar.coverage?.end ?? null;
+  if (!start && !end) return calendar.events ?? [];
+  return (calendar.events ?? []).filter(event => {
+    if (!event.scheduled_at) return false;
+    const date = event.scheduled_at.slice(0, 10);
+    return (!start || date >= start) && (!end || date <= end);
+  });
+}
+
+export function calendarCoverageState(calendar?: Calendar) {
+  if (!calendar) return { valid: false, label: "Awaiting calendar feed" };
+  const validEvents = calendarEventsInDeclaredCoverage(calendar);
+  const declared = calendar.coverage?.start || calendar.coverage?.end;
+  if (calendar.provider_error) return { valid: false, label: "Calendar provider error" };
+  if (calendar.stale) return { valid: false, label: "Calendar feed stale" };
+  if (declared && calendar.events.length > 0 && validEvents.length === 0) {
+    const range = [calendar.coverage?.start, calendar.coverage?.end].filter(Boolean).join(" → ");
+    return { valid: false, label: range ? `Coverage mismatch · ${range}` : "Calendar coverage mismatch" };
+  }
+  return { valid: true, label: calendar.last_success_at ? `Updated ${calendar.last_success_at.slice(0, 16).replace("T", " ")}Z` : calendar.source };
 }
