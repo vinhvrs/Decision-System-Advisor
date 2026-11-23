@@ -139,7 +139,15 @@ function snap4(value: number) {
 export default function SiteLayoutEditor() {
   const pathname = usePathname();
   const [active, setActive] = useState(false);
-  const dragged = useRef<HTMLElement | null>(null);
+  const dragState = useRef<{
+    source: HTMLElement;
+    handle: HTMLElement;
+    startX: number;
+    startY: number;
+    target: HTMLElement | null;
+    started: boolean;
+    pointerId: number;
+  } | null>(null);
 
   const persistCurrent = useCallback(() => {
     const cards = collectCards(pathname);
@@ -225,10 +233,25 @@ export default function SiteLayoutEditor() {
   useEffect(() => {
     document.body.classList.toggle("dsa-layout-editing", active);
     const cards = collectCards(pathname);
+
     cards.forEach(card => {
-      card.draggable = active;
+      card.draggable = false;
       card.classList.toggle("dsa-layout-card", active);
-      const handle = card.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
+
+      let handle = card.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
+      const staleSynthetic = card.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
+
+      if (active && !handle) {
+        const synthetic = staleSynthetic ?? document.createElement("div");
+        synthetic.className = "dsa-layout-top-handle";
+        synthetic.dataset.dsaDragHandle = "true";
+        synthetic.setAttribute("aria-label", `Drag ${card.dataset.dsaLayoutLabel || "panel"}`);
+        synthetic.setAttribute("title", "Drag panel");
+        if (!staleSynthetic) card.appendChild(synthetic);
+        handle = synthetic;
+      }
+
+      if (!active && staleSynthetic) staleSynthetic.remove();
       if (handle) handle.classList.toggle("dsa-layout-drag-handle", active);
 
       if (active) {
@@ -237,79 +260,160 @@ export default function SiteLayoutEditor() {
       } else {
         card.style.removeProperty("resize");
         card.style.removeProperty("overflow");
+        card.style.removeProperty("transform");
+        card.style.removeProperty("z-index");
+        card.style.removeProperty("pointer-events");
       }
     });
 
     if (!active) return;
 
-    function onDragStart(event: DragEvent) {
+    function orderedSiblings(source: HTMLElement) {
+      if (!source.parentElement) return [];
+      return Array.from(source.parentElement.children)
+        .filter((item): item is HTMLElement => item instanceof HTMLElement && item.classList.contains("dsa-layout-card"))
+        .sort((a, b) => currentOrder(a) - currentOrder(b));
+    }
+
+    function commitReorder(source: HTMLElement, target: HTMLElement, event: PointerEvent) {
+      if (!source.parentElement || source.parentElement !== target.parentElement) return;
+
+      const ordered = orderedSiblings(source);
+      const sourceIndex = ordered.indexOf(source);
+      const targetIndex = ordered.indexOf(target);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+
+      const next = ordered.filter(item => item !== source);
+      const targetRect = target.getBoundingClientRect();
+      const parentStyle = getComputedStyle(source.parentElement);
+      const horizontal =
+        parentStyle.display.includes("grid") ||
+        parentStyle.flexDirection === "row" ||
+        parentStyle.flexDirection === "row-reverse";
+      const after = horizontal
+        ? event.clientX > targetRect.left + targetRect.width / 2
+        : event.clientY > targetRect.top + targetRect.height / 2;
+
+      const baseIndex = next.indexOf(target);
+      next.splice(Math.max(0, baseIndex + (after ? 1 : 0)), 0, source);
+      next.forEach((item, index) => {
+        item.style.order = String(index);
+      });
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if (event.button !== 0) return;
       const eventTarget = event.target as HTMLElement | null;
-      const target = eventTarget?.closest<HTMLElement>(".dsa-layout-card");
-      if (!target) return;
+      const handle = eventTarget?.closest<HTMLElement>("[data-dsa-drag-handle='true']");
+      if (!handle) return;
 
-      const explicitHandle = eventTarget?.closest<HTMLElement>("[data-dsa-drag-handle='true']");
-      const rect = target.getBoundingClientRect();
-      const topEdgeHit = event.clientY >= rect.top && event.clientY <= rect.top + 28;
+      const source = handle.closest<HTMLElement>(".dsa-layout-card");
+      if (!source) return;
 
-      if (!explicitHandle && !topEdgeHit) {
-        event.preventDefault();
-        return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      dragState.current = {
+        source,
+        handle,
+        startX: event.clientX,
+        startY: event.clientY,
+        target: null,
+        started: false,
+        pointerId: event.pointerId,
+      };
+
+      try { handle.setPointerCapture(event.pointerId); } catch {}
+      document.body.classList.add("dsa-layout-pointer-armed");
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      const state = dragState.current;
+      if (!state || state.pointerId !== event.pointerId) return;
+
+      const dx = event.clientX - state.startX;
+      const dy = event.clientY - state.startY;
+      if (!state.started && Math.hypot(dx, dy) < 5) return;
+
+      if (!state.started) {
+        state.started = true;
+        state.source.classList.add("dsa-layout-dragging");
+        document.body.classList.add("dsa-layout-pointer-dragging");
+        state.source.style.zIndex = "450";
+        state.source.style.pointerEvents = "none";
       }
 
-      dragged.current = target;
-      target.classList.add("dsa-layout-dragging");
-      event.dataTransfer?.setData("text/plain", target.dataset.dsaLayoutId || "");
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-    }
-
-    function onDragOver(event: DragEvent) {
-      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dsa-layout-card");
-      if (!target || !dragged.current || target === dragged.current) return;
-      if (target.parentElement !== dragged.current.parentElement) return;
       event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      state.source.style.transform = `translate(${dx}px, ${dy}px)`;
+
+      const hit = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+      const candidate = hit?.closest<HTMLElement>(".dsa-layout-card") ?? null;
+      const valid =
+        candidate &&
+        candidate !== state.source &&
+        candidate.parentElement === state.source.parentElement
+          ? candidate
+          : null;
+
+      if (state.target !== valid) {
+        state.target?.classList.remove("dsa-layout-drop-target");
+        state.target = valid;
+        state.target?.classList.add("dsa-layout-drop-target");
+      }
     }
 
-    function onDrop(event: DragEvent) {
-      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dsa-layout-card");
-      const source = dragged.current;
-      if (!target || !source || target === source || target.parentElement !== source.parentElement) return;
-      event.preventDefault();
-      const sourceOrder = currentOrder(source);
-      const targetOrder = currentOrder(target);
-      source.style.order = String(targetOrder);
-      target.style.order = String(sourceOrder);
-      persistCurrent();
-    }
+    function finishPointerDrag(event: PointerEvent, cancelled = false) {
+      const state = dragState.current;
+      if (!state || state.pointerId !== event.pointerId) return;
 
-    function onDragEnd() {
-      dragged.current?.classList.remove("dsa-layout-dragging");
-      dragged.current = null;
+      if (!cancelled && state.started && state.target) {
+        commitReorder(state.source, state.target, event);
+      }
+
+      state.target?.classList.remove("dsa-layout-drop-target");
+      state.source.classList.remove("dsa-layout-dragging");
+      state.source.style.removeProperty("transform");
+      state.source.style.removeProperty("z-index");
+      state.source.style.removeProperty("pointer-events");
+      document.body.classList.remove("dsa-layout-pointer-armed", "dsa-layout-pointer-dragging");
+
+      try { state.handle.releasePointerCapture(event.pointerId); } catch {}
+      dragState.current = null;
       persistCurrent();
     }
 
     function onPointerUp(event: PointerEvent) {
+      const state = dragState.current;
+      if (state && state.pointerId === event.pointerId) {
+        finishPointerDrag(event);
+        return;
+      }
+
       const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dsa-layout-card");
       if (target) {
         const rect = target.getBoundingClientRect();
         target.style.width = `${snap4(rect.width)}px`;
         target.style.height = `${snap4(rect.height)}px`;
+        persistCurrent();
       }
-      persistCurrent();
     }
 
-    document.addEventListener("dragstart", onDragStart);
-    document.addEventListener("dragover", onDragOver);
-    document.addEventListener("drop", onDrop);
-    document.addEventListener("dragend", onDragEnd);
-    window.addEventListener("pointerup", onPointerUp);
+    function onPointerCancel(event: PointerEvent) {
+      finishPointerDrag(event, true);
+    }
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointermove", onPointerMove, true);
+    document.addEventListener("pointerup", onPointerUp, true);
+    document.addEventListener("pointercancel", onPointerCancel, true);
 
     return () => {
-      document.removeEventListener("dragstart", onDragStart);
-      document.removeEventListener("dragover", onDragOver);
-      document.removeEventListener("drop", onDrop);
-      document.removeEventListener("dragend", onDragEnd);
-      window.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointermove", onPointerMove, true);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      document.removeEventListener("pointercancel", onPointerCancel, true);
+      document.body.classList.remove("dsa-layout-pointer-armed", "dsa-layout-pointer-dragging");
+      dragState.current = null;
     };
   }, [active, pathname, persistCurrent]);
 
