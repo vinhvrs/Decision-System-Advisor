@@ -4503,3 +4503,54 @@ body,
 .nt-market-heatmap-panel .nt-panel-meta {
   font-variant-numeric: tabular-nums;
 }
+/* 2026-11-23 markets dead-space <5% layout pass */
+.nt-market-supporting-grid {
+  grid-template-columns: minmax(0, .98fr) minmax(0, 1.02fr) !important;
+  align-items: start !important;
+}
+
+.nt-market-support-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  align-self: start;
+}
+
+.nt-market-support-stack > .nt-panel {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+}
+
+.nt-market-headlines-table .nt-table {
+  table-layout: fixed;
+}
+
+.nt-market-headlines-table .nt-table th:nth-child(1),
+.nt-market-headlines-table .nt-table td:nth-child(1) {
+  width: 54px;
+}
+
+.nt-market-headlines-table .nt-table th:nth-child(2),
+.nt-market-headlines-table .nt-table td:nth-child(2) {
+  width: 62px;
+}
+
+.nt-market-headlines-table .nt-table td:last-child {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 1.22;
+}
+
+.nt-market-main-grid,
+.nt-market-center,
+.nt-market-supporting-grid,
+.nt-market-support-stack {
+  align-content: start !important;
+}
+
+@media (max-width: 1180px) {
+  .nt-market-supporting-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
