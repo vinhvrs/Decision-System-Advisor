@@ -92,6 +92,9 @@ function collectCards(pathname: string) {
 
     element.dataset.dsaLayoutId = id;
     element.dataset.dsaLayoutLabel = label;
+    if (!element.dataset.dsaDefaultOrder && element.parentElement) {
+      element.dataset.dsaDefaultOrder = String(Array.from(element.parentElement.children).indexOf(element));
+    }
     element.classList.add("dsa-layout-card");
     element.draggable = false;
 
@@ -145,6 +148,21 @@ function currentOrder(element: HTMLElement) {
   if (Number.isFinite(raw)) return raw;
   if (!element.parentElement) return 0;
   return Array.from(element.parentElement.children).indexOf(element);
+}
+
+function reorderDomCards(parent: HTMLElement, desired: HTMLElement[]) {
+  const desiredSet = new Set(desired);
+  const current = Array.from(parent.children).filter(
+    (item): item is HTMLElement => item instanceof HTMLElement && desiredSet.has(item),
+  );
+  if (
+    current.length !== desired.length ||
+    current.every((item, index) => item === desired[index])
+  ) return;
+
+  const placeholders = current.map(() => document.createComment("dsa-layout-slot"));
+  current.forEach((card, index) => parent.replaceChild(placeholders[index], card));
+  desired.forEach((card, index) => parent.replaceChild(card, placeholders[index]));
 }
 
 function measure(element: HTMLElement): CardLayout {
@@ -203,12 +221,33 @@ export default function SiteLayoutEditor() {
   const applySaved = useCallback(() => {
     const saved = readStore().routes[pathname];
     const cards = collectCards(pathname);
+    const groups = new Map<HTMLElement, HTMLElement[]>();
+
     for (const card of cards) {
       const state = saved?.cards?.[card.dataset.dsaLayoutId || ""];
-      if (!state) continue;
-      card.style.order = String(state.order);
-      if (state.widthPx > 0) card.style.width = `${state.widthPx}px`;
-      if (state.heightPx > 0) card.style.height = `${state.heightPx}px`;
+      if (state) {
+        card.style.order = String(state.order);
+        if (state.widthPx > 0) card.style.width = `${state.widthPx}px`;
+        if (state.heightPx > 0) card.style.height = `${state.heightPx}px`;
+      }
+      if (card.parentElement) {
+        const group = groups.get(card.parentElement) ?? [];
+        group.push(card);
+        groups.set(card.parentElement, group);
+      }
+    }
+
+    if (!saved) return;
+
+    for (const [parent, group] of groups) {
+      const desired = [...group].sort((a, b) => {
+        const aState = saved.cards[a.dataset.dsaLayoutId || ""];
+        const bState = saved.cards[b.dataset.dsaLayoutId || ""];
+        const aOrder = aState?.order ?? Number(a.dataset.dsaDefaultOrder ?? currentOrder(a));
+        const bOrder = bState?.order ?? Number(b.dataset.dsaDefaultOrder ?? currentOrder(b));
+        return aOrder - bOrder;
+      });
+      reorderDomCards(parent, desired);
     }
   }, [pathname]);
 
@@ -216,10 +255,25 @@ export default function SiteLayoutEditor() {
     const store = readStore();
     delete store.routes[pathname];
     writeStore(store);
-    for (const card of collectCards(pathname)) {
+
+    const cards = collectCards(pathname);
+    const groups = new Map<HTMLElement, HTMLElement[]>();
+    for (const card of cards) {
       card.style.removeProperty("order");
       card.style.removeProperty("width");
       card.style.removeProperty("height");
+      if (card.parentElement) {
+        const group = groups.get(card.parentElement) ?? [];
+        group.push(card);
+        groups.set(card.parentElement, group);
+      }
+    }
+
+    for (const [parent, group] of groups) {
+      const desired = [...group].sort(
+        (a, b) => Number(a.dataset.dsaDefaultOrder ?? 0) - Number(b.dataset.dsaDefaultOrder ?? 0),
+      );
+      reorderDomCards(parent, desired);
     }
   }, [pathname]);
 
@@ -316,6 +370,10 @@ export default function SiteLayoutEditor() {
       next.forEach((item, index) => {
         item.style.order = String(index);
       });
+
+      // Move the real DOM nodes as well as setting CSS order. This makes the
+      // interaction work consistently for flex, grid, and ordinary block parents.
+      reorderDomCards(source.parentElement, next);
     }
 
     function onPointerDown(event: PointerEvent) {
