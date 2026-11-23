@@ -90,6 +90,19 @@ function collectCards(pathname: string) {
     const id = `${pathname}::${base}::${count}`;
     element.dataset.dsaLayoutId = id;
     element.dataset.dsaLayoutLabel = label;
+
+    element.querySelectorAll<HTMLElement>("[data-dsa-drag-handle]").forEach(handle => {
+      delete handle.dataset.dsaDragHandle;
+    });
+
+    const handle = element.querySelector<HTMLElement>(
+      ":scope > .nt-panel-title, :scope > .nt-subsection-title, :scope > .nt-context-strip, :scope > .nt-toolbar, :scope > header"
+    );
+    if (handle) {
+      handle.dataset.dsaDragHandle = "true";
+      handle.setAttribute("title", "Drag panel");
+    }
+
     return element;
   });
 }
@@ -215,6 +228,9 @@ export default function SiteLayoutEditor() {
     cards.forEach(card => {
       card.draggable = active;
       card.classList.toggle("dsa-layout-card", active);
+      const handle = card.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
+      if (handle) handle.classList.toggle("dsa-layout-drag-handle", active);
+
       if (active) {
         card.style.resize = "both";
         card.style.overflow = "auto";
@@ -227,8 +243,19 @@ export default function SiteLayoutEditor() {
     if (!active) return;
 
     function onDragStart(event: DragEvent) {
-      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dsa-layout-card");
+      const eventTarget = event.target as HTMLElement | null;
+      const target = eventTarget?.closest<HTMLElement>(".dsa-layout-card");
       if (!target) return;
+
+      const explicitHandle = eventTarget?.closest<HTMLElement>("[data-dsa-drag-handle='true']");
+      const rect = target.getBoundingClientRect();
+      const topEdgeHit = event.clientY >= rect.top && event.clientY <= rect.top + 28;
+
+      if (!explicitHandle && !topEdgeHit) {
+        event.preventDefault();
+        return;
+      }
+
       dragged.current = target;
       target.classList.add("dsa-layout-dragging");
       event.dataTransfer?.setData("text/plain", target.dataset.dsaLayoutId || "");
@@ -327,7 +354,7 @@ export default function SiteLayoutEditor() {
   return (
     <div className="dsa-layout-editor-bar" role="toolbar" aria-label="DSA layout editor">
       <strong>Layout edit</strong>
-      <span>Drag cards · resize from bottom-right · 4px snap</span>
+      <span>Drag from panel header · resize bottom-right · 4px snap</span>
       <button type="button" onClick={exportContract}>Export JSON</button>
       <button type="button" onClick={resetCurrent}>Reset route</button>
       <button type="button" onClick={() => { persistCurrent(); setActive(false); }}>Done</button>
