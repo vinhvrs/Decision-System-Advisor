@@ -4460,3 +4460,26 @@ body,
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
+/* 2026-11-23 interaction + terminal number polish */
+.nt-heat-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nt-heat-link:focus-visible {
+  outline: 1px solid var(--nt-accent);
+  outline-offset: -2px;
+}
+
+.nt-heat-link:hover .nt-heat-symbol-row b {
+  color: #d9e5ee;
+}
+
+.nt-company-head-metrics b {
+  letter-spacing: -.01em;
+}
+
+.nt-company-head-metrics span {
+  color: var(--nt-muted);
+}
