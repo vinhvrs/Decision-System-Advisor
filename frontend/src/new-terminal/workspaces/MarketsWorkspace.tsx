@@ -239,6 +239,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
       <div className="nt-dense-grid nt-financial-strip">
         {[
           ["Equity session", equitySession ?? "—", equities.some(row => row.session_final) ? "Final" : "Latest"],
+          ["Feed", connected ? "LIVE" : "SNAPSHOT", updated ? `updated ${new Date(updated).toISOString().slice(11,19)}Z` : ""],
           ["Adv / Decl", equities.length ? `${up} / ${down}` : "—", equities.length ? `${unchanged} unchanged` : ""],
           ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Breadth"],
           ["Traded value", traded.length ? `$${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", "Tracked equities"],
