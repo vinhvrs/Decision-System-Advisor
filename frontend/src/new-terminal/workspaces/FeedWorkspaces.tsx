@@ -14,6 +14,7 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=30");
   const market = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const newsRows = news.data?.data ?? initialNews;
+  const publishedNewsRows = newsRows.filter(item => item.published_at && item.title?.trim());
   const calendarData = calendar.data ?? initialCalendar;
   const marketRows = market.data?.data ?? initialRows;
   const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
@@ -31,7 +32,7 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
   return <div className="nt-workspace nt-full-workspace nt-news-workspace">
     <section className="nt-context-strip">
       <div className="nt-context-title"><div className="nt-label nt-info">News / Events</div><h1>Market Information Feed</h1></div>
-      <div className="nt-news-stat"><span>HEADLINES</span><b>{newsRows.length || "—"}</b></div>
+      <div className="nt-news-stat"><span>HEADLINES</span><b>{publishedNewsRows.length || "—"}</b></div>
       <div className="nt-news-stat"><span>EVENTS</span><b className={calendarState.valid ? "" : "nt-warning"}>{calendarData ? calendarEvents.length : "—"}</b></div>
       <div className="nt-news-stat"><span>HIGH</span><b className="nt-negative">{eventCounts.high ?? 0}</b></div>
       <div className="nt-news-stat"><span>MED</span><b className="nt-warning">{eventCounts.medium ?? 0}</b></div>
@@ -43,7 +44,7 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
       meta="primary information feed"
       className="nt-primary-table"
       columns={["Published", "Context", "Symbol", "Headline", "Publisher"]}
-      rows={newsRows.filter(item => item.published_at).map(item => ({
+      rows={publishedNewsRows.map(item => ({
         key: item.id,
         cells: [
           item.published_at,
