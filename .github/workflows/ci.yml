@@ -84,6 +84,26 @@ jobs:
             app/warm_up/warm_up.py \
             snapshot_build.py
 
+      - name: Verify canonical 40-stock quote contract
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          source = Path("app/socket/events.py").read_text(encoding="utf-8")
+          tree = ast.parse(source)
+          symbols = None
+          for node in tree.body:
+              if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "MARKET_BOARD_EQUITY_SYMBOLS":
+                  symbols = ast.literal_eval(node.value)
+                  break
+
+          assert symbols is not None, "MARKET_BOARD_EQUITY_SYMBOLS missing"
+          assert len(symbols) == 40, f"expected 40 stocks, got {len(symbols)}"
+          for required in ("AAPL", "NVDA", "AMD", "JPM", "XOM", "LLY", "CAT", "NEE"):
+              assert required in symbols, f"missing canonical stock: {required}"
+          PY
+
       - name: Verify 40-symbol runtime contract
         run: |
           grep -q 'SYMBOL_INGEST_TOP_N=40' ../../docker-compose.yml
