@@ -81,43 +81,33 @@ function collectCards(pathname: string) {
     .filter(element => !element.closest(".nt-utility-drawer"))
     .filter((element, index, all) => all.indexOf(element) === index);
 
+  const editing = document.body.classList.contains("dsa-layout-editing");
   const counts = new Map<string, number>();
+
   return candidates.map(element => {
     const label = labelFor(element);
     const base = clean(element.dataset.layoutKey || label || element.tagName) || "card";
     const count = counts.get(base) ?? 0;
     counts.set(base, count + 1);
     const id = `${pathname}::${base}::${count}`;
+
     element.dataset.dsaLayoutId = id;
     element.dataset.dsaLayoutLabel = label;
 
-    const editing = document.body.classList.contains("dsa-layout-editing");
-    element.querySelectorAll<HTMLElement>("[data-dsa-drag-handle]").forEach(handle => {
-      delete handle.dataset.dsaDragHandle;
-      handle.classList.remove("dsa-layout-drag-handle");
-    });
+    let handle = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
 
-    let handle = element.querySelector<HTMLElement>(
-      ":scope > .nt-panel-title, :scope > .nt-subsection-title, :scope > .nt-context-strip, :scope > .nt-toolbar, :scope > header, :scope > .nt-news-article-body > .nt-news-kicker"
-    );
-
-    let synthetic = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
-    if (!handle && editing) {
-      if (!synthetic) {
-        synthetic = document.createElement("div");
-        synthetic.className = "dsa-layout-top-handle";
-        element.appendChild(synthetic);
+    if (editing) {
+      if (!handle) {
+        handle = document.createElement("div");
+        handle.className = "dsa-layout-top-handle dsa-layout-drag-handle";
+        element.appendChild(handle);
       }
-      handle = synthetic;
-    } else if (!editing && synthetic) {
-      synthetic.remove();
-      synthetic = null;
-    }
-
-    if (handle) {
       handle.dataset.dsaDragHandle = "true";
-      handle.setAttribute("title", "Drag panel");
-      if (editing) handle.classList.add("dsa-layout-drag-handle");
+      handle.dataset.dsaLayoutOwner = id;
+      handle.setAttribute("aria-label", `Drag ${label}`);
+      handle.setAttribute("title", `Drag ${label}`);
+    } else if (handle) {
+      handle.remove();
     }
 
     return element;
