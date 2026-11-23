@@ -335,6 +335,31 @@ export default function SiteLayoutEditor() {
       document.body.classList.add("dsa-layout-pointer-armed");
     }
 
+    function findDropTarget(source: HTMLElement, x: number, y: number) {
+      const siblings = orderedSiblings(source).filter(item => item !== source);
+      if (!siblings.length) return null;
+
+      const containing = siblings.find(item => {
+        const rect = item.getBoundingClientRect();
+        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      });
+      if (containing) return containing;
+
+      let nearest: HTMLElement | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const item of siblings) {
+        const rect = item.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const distance = Math.hypot(x - cx, y - cy);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = item;
+        }
+      }
+      return nearest;
+    }
+
     function onPointerMove(event: PointerEvent) {
       const state = dragState.current;
       if (!state || state.pointerId !== event.pointerId) return;
@@ -348,20 +373,12 @@ export default function SiteLayoutEditor() {
         state.source.classList.add("dsa-layout-dragging");
         document.body.classList.add("dsa-layout-pointer-dragging");
         state.source.style.zIndex = "450";
-        state.source.style.pointerEvents = "none";
       }
 
       event.preventDefault();
       state.source.style.transform = `translate(${dx}px, ${dy}px)`;
 
-      const hit = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
-      const candidate = hit?.closest<HTMLElement>(".dsa-layout-card") ?? null;
-      const valid =
-        candidate &&
-        candidate !== state.source &&
-        candidate.parentElement === state.source.parentElement
-          ? candidate
-          : null;
+      const valid = findDropTarget(state.source, event.clientX, event.clientY);
 
       if (state.target !== valid) {
         state.target?.classList.remove("dsa-layout-drop-target");
