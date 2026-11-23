@@ -56,13 +56,34 @@ const internalFields = [
   ["GOLD / DXY","Cross asset"],
 ];
 
-export default function MarketsWorkspace({ initialRows }: { initialRows: MarketRow[] }) {
+type MarketsWorkspaceProps = {
+  initialRows: MarketRow[];
+  initialDaily?: DailyAnalytics;
+  initialMacro?: Macro;
+  initialCrypto?: Crypto;
+  initialCalendar?: Calendar;
+  initialNews?: { data: News[] };
+};
+
+export default function MarketsWorkspace({
+  initialRows,
+  initialDaily,
+  initialMacro,
+  initialCrypto,
+  initialCalendar,
+  initialNews,
+}: MarketsWorkspaceProps) {
   const [rows, setRows] = useState(initialRows);
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
   const macro = useFeed<Macro>("/api/v1/macro/dashboard", 60000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
   const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=12", 60000);
   const news = useFeed<{ data: News[] }>("/api/news", 60000);
+  const dailyData = daily.data ?? initialDaily;
+  const macroData = macro.data ?? initialMacro;
+  const cryptoData = crypto.data ?? initialCrypto;
+  const calendarData = calendar.data ?? initialCalendar;
+  const newsData = news.data ?? initialNews;
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [updated, setUpdated] = useState(0);
   const [connected, setConnected] = useState(false);
@@ -142,7 +163,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const equities = rows.filter(row => row.market === "stock" && row.change_pct != null);
   const leaders = [...equities].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
   const laggards = [...leaders].reverse();
-  const macroByCode = new Map(macro.data?.data.map(row => [row.series_code, row]));
+  const macroByCode = new Map(macroData?.data.map(row => [row.series_code, row]));
   const upValue = equities.filter(row => (row.change_pct ?? 0) > 0 && row.traded_value != null);
   const downValue = equities.filter(row => (row.change_pct ?? 0) < 0 && row.traded_value != null);
   const valueTotal = (items: MarketRow[]) => items.length ? `$${(items.reduce((sum, row) => sum + (row.traded_value ?? 0), 0) / 1e9).toFixed(2)}B` : "—";
@@ -160,10 +181,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
       return sectorA.localeCompare(sectorB) || ((b.traded_value ?? 0) - (a.traded_value ?? 0));
     })
     .slice(0, 40);
-  const calendarEvents = calendarEventsInDeclaredCoverage(calendar.data);
-  const calendarState = calendarCoverageState(calendar.data);
+  const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
+  const calendarState = calendarCoverageState(calendarData);
 
-  const dailyRows = daily.data?.data;
+  const dailyRows = dailyData?.data;
   // Market snapshot already classifies rows by market. Do not block breadth on a second
   // universe request: daily analytics + stock rows are sufficient and avoid hydration gaps.
   const breadthEquities = equities;
@@ -176,7 +197,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
     });
     const observed = current.filter(metric =>
       metric.quality === "OK" && metric.value != null && Number.isFinite(metric.value));
-    const emptyState = daily.error ? "UNAVAILABLE"
+    const emptyState = daily.error && !dailyData ? "UNAVAILABLE"
       : current.some(metric => metric.quality === "LICENSE_RESTRICTED") ? "LICENSE_RESTRICTED"
       : current.some(metric => metric.quality === "PARTIAL") ? "PARTIAL" : "NOT_INGESTED";
     const sources = [...new Set(observed.flatMap(metric =>
@@ -204,7 +225,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 18);
-  const recentHeadlines = (news.data?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 18);
+  const recentHeadlines = (newsData?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 18);
   const marketTape = [...rows]
     .filter(row => row.market === "stock")
     .sort((a, b) => ((b.traded_value ?? 0) - (a.traded_value ?? 0)))
@@ -248,8 +269,8 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           ["> 50D MA", breadthValue(trend[1]), breadthSession ?? ""],
           ["> 200D MA", breadthValue(trend[2]), breadthSession ?? ""],
           ["Rel volume", relativeVolumeLeaders[0] ? `${relativeVolumeLeaders[0].symbol} ${relativeVolumeLeaders[0].value.toFixed(2)}×` : "—", "20D"],
-          ["Headlines", news.data ? String(news.data.data.filter(item => item.published_at && item.title?.trim()).length) : "—", "Latest"],
-          ["Events", calendar.data ? String(calendarEvents.length) : "—", calendarState.valid ? "Calendar" : calendarState.label],
+          ["Headlines", newsData ? String(newsData.data.filter(item => item.published_at && item.title?.trim()).length) : "—", "Latest"],
+          ["Events", calendarData ? String(calendarEvents.length) : "—", calendarState.valid ? "Calendar" : calendarState.label],
         ].map(([k,v,s]) => (
           <div className="nt-data-cell" key={k}>
             <div className="k">{k}</div><div className="v">{v}</div><div className="s">{s}</div>
@@ -357,7 +378,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               meta="supporting context"
               className="nt-secondary-table"
               columns={["Series","Value","Unit","Observed"]}
-              rows={[...(macro.data?.data ?? []), ...(macro.data?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
+              rows={[...(macroData?.data ?? []), ...(macroData?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
               empty="No macro observations."
             />
             <DataTable
@@ -365,7 +386,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               meta="supporting context"
               className="nt-secondary-table"
               columns={["Metric","Value","Unit","Venue","Observed"]}
-              rows={(crypto.data?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
+              rows={(cryptoData?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
               empty="No crypto derivatives observations."
             />
           </div>
@@ -377,7 +398,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-                <tbody>{calendarEvents.length ? calendarEvents.slice(0,10).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendar.data ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
+                <tbody>{calendarEvents.length ? calendarEvents.slice(0,10).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
               </table>
             </div>
 
@@ -398,8 +419,8 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Macro pulse</strong><span>latest observations</span></div>
               <table className="nt-microtable"><thead><tr><th>Series</th><th>Value</th><th>Unit</th></tr></thead><tbody>
-                {(macro.data?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{row.series_code}</td><td>{valueText(row.value)}</td><td>{row.unit ?? ""}</td></tr>)}
-                {!macro.data?.data?.length && <tr><td colSpan={3}>No macro observations</td></tr>}
+                {(macroData?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{row.series_code}</td><td>{valueText(row.value)}</td><td>{row.unit ?? ""}</td></tr>)}
+                {!macroData?.data?.length && <tr><td colSpan={3}>No macro observations</td></tr>}
               </tbody></table>
             </div>
 
