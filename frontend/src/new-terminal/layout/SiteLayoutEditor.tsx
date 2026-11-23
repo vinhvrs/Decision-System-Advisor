@@ -93,6 +93,7 @@ function collectCards(pathname: string) {
 
     element.querySelectorAll<HTMLElement>("[data-dsa-drag-handle]").forEach(handle => {
       delete handle.dataset.dsaDragHandle;
+      handle.classList.remove("dsa-layout-drag-handle");
     });
 
     const handle = element.querySelector<HTMLElement>(
@@ -101,6 +102,9 @@ function collectCards(pathname: string) {
     if (handle) {
       handle.dataset.dsaDragHandle = "true";
       handle.setAttribute("title", "Drag panel");
+      if (document.body.classList.contains("dsa-layout-editing")) {
+        handle.classList.add("dsa-layout-drag-handle");
+      }
     }
 
     return element;
