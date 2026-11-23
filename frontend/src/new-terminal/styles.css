@@ -5258,3 +5258,36 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   background: #1d3a52 !important;
   border-bottom-color: #6b91ac !important;
 }
+/* 2026-11-24 stronger visible draggable headers */
+:root {
+  --nt-card-header: #24455c;
+  --nt-card-header-soft: #1b3446;
+  --nt-card-header-border: #567a94;
+}
+
+.nt-panel-title,
+.nt-subsection-title {
+  background: var(--nt-card-header) !important;
+  border-bottom-color: var(--nt-card-header-border) !important;
+}
+
+.nt-secondary-table .nt-panel-title,
+.nt-market-rail .nt-subsection-title,
+.nt-chart-rail .nt-subsection-title,
+.nt-company-dashboard-column:nth-child(1) .nt-subsection-title,
+.nt-company-dashboard-column:nth-child(3) .nt-subsection-title {
+  background: var(--nt-card-header-soft) !important;
+}
+
+.nt-table thead th,
+.nt-microtable thead th {
+  background: #0a131b !important;
+  color: #8395a4 !important;
+}
+
+.dsa-layout-drag-enabled .nt-panel-title.dsa-layout-drag-handle:hover,
+.dsa-layout-drag-enabled .nt-subsection-title.dsa-layout-drag-handle:hover,
+.dsa-layout-drag-enabled .nt-news-kicker.dsa-layout-drag-handle:hover {
+  background: #2d5670 !important;
+  border-bottom-color: #7ba0ba !important;
+}
