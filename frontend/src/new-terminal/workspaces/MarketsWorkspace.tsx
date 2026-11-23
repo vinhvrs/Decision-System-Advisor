@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "../DataTable";
-import { valueText, type Calendar, type DailyAnalytics, type Universe, type Crypto, type Macro, type News } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, valueText, type Calendar, type DailyAnalytics, type Universe, type Crypto, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
@@ -16,30 +16,25 @@ const percent = (value: number | null | undefined) =>
 const directionClass = (value: number | null | undefined) =>
   value == null ? "nt-heat-awaiting" : value > 0 ? "nt-heat-up" : value < 0 ? "nt-heat-down" : "nt-heat-flat";
 
-const sectorClass = (sector: string) => {
-  if (sector === "Technology") return "nt-sector-tech";
-  if (sector === "Consumer") return "nt-sector-consumer";
-  if (sector === "Communication") return "nt-sector-communication";
-  if (sector === "Financials") return "nt-sector-financials";
-  if (sector === "Energy") return "nt-sector-energy";
-  if (sector === "Health Care") return "nt-sector-health";
-  if (sector === "Industrials") return "nt-sector-industrials";
-  if (sector === "Utilities") return "nt-sector-utilities";
-  return "nt-sector-neutral";
+const normalizeSector = (sector: string | null | undefined) => {
+  if (sector === "Consumer Cyclical") return "Consumer Discr.";
+  if (sector === "Financial Services") return "Financials";
+  if (sector === "Healthcare") return "Health Care";
+  return sector || "Unclassified";
 };
 
-const heat = [
-  ["NVDA","Technology"],["MSFT","Technology"],["AAPL","Technology"],["AVGO","Technology"],
-  ["AMD","Technology"],["ORCL","Technology"],["CRM","Technology"],["MU","Technology"],
-  ["ADBE","Technology"],["QCOM","Technology"],["AMAT","Technology"],["PANW","Technology"],
-  ["PLTR","Technology"],["AMZN","Consumer"],["TSLA","Consumer"],["COST","Consumer"],
-  ["WMT","Consumer"],["HD","Consumer"],["MCD","Consumer"],["NKE","Consumer"],
-  ["SBUX","Consumer"],["GOOGL","Communication"],["META","Communication"],["NFLX","Communication"],
-  ["DIS","Communication"],["JPM","Financials"],["BAC","Financials"],["V","Financials"],
-  ["MA","Financials"],["GS","Financials"],["XOM","Energy"],["CVX","Energy"],
-  ["LLY","Health Care"],["UNH","Health Care"],["JNJ","Health Care"],["ABBV","Health Care"],
-  ["CAT","Industrials"],["GE","Industrials"],["HON","Industrials"],["NEE","Utilities"],
-];
+const sectorClass = (sector: string) => {
+  const normalized = normalizeSector(sector);
+  if (normalized === "Technology") return "nt-sector-tech";
+  if (normalized === "Consumer Discr.") return "nt-sector-consumer";
+  if (normalized === "Communication") return "nt-sector-communication";
+  if (normalized === "Financials") return "nt-sector-financials";
+  if (normalized === "Energy") return "nt-sector-energy";
+  if (normalized === "Health Care") return "nt-sector-health";
+  if (normalized === "Industrials") return "nt-sector-industrials";
+  if (normalized === "Utilities") return "nt-sector-utilities";
+  return "nt-sector-neutral";
+};
 
 const sectors = [
   "Technology","Communication","Financials","Consumer Discr.","Health Care","Industrials",
@@ -71,6 +66,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [updated, setUpdated] = useState(0);
   const [connected, setConnected] = useState(false);
+  const subscriptionSymbols = useMemo(
+    () => initialRows.filter(row => row.market === "stock").map(row => row.symbol).slice(0, 60),
+    [initialRows],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,7 +91,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
       socket = new WebSocket("wss://data.aitemple.tech/ws/quotes");
       socket.onopen = () => {
         setConnected(true);
-        socket.send(JSON.stringify({ type: "subscribe", symbols: heat.map(([symbol]) => symbol) }));
+        socket.send(JSON.stringify({ type: "subscribe", symbols: subscriptionSymbols }));
       };
       socket.onmessage = ({ data }) => {
         try {
@@ -137,7 +136,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
       clearTimeout(retry);
       socket?.close();
     };
-  }, []);
+  }, [subscriptionSymbols]);
 
   const bySymbol = useMemo(() => new Map(rows.map(row => [row.symbol, row])), [rows]);
   const equities = rows.filter(row => row.market === "stock" && row.change_pct != null);
@@ -151,9 +150,18 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
   const down = equities.filter(row => (row.change_pct ?? 0) < 0).length;
   const unchanged = Math.max(0, equities.length - up - down);
   const traded = equities.flatMap(row => row.traded_value == null ? [] : [row.traded_value]);
-  const storedTimes = rows.flatMap(row => row.as_of ? [Date.parse(row.as_of)] : []).filter(Number.isFinite);
-  const latestStored = storedTimes.length ? Math.max(...storedTimes) : null;
+  const equitySession = equities.map(row => row.session_date ?? row.as_of?.slice(0,10) ?? null)
+    .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
   const breadthPct = equities.length ? (up / equities.length) * 100 : null;
+  const heatRows = [...equities]
+    .sort((a, b) => {
+      const sectorA = normalizeSector(a.sector);
+      const sectorB = normalizeSector(b.sector);
+      return sectorA.localeCompare(sectorB) || ((b.traded_value ?? 0) - (a.traded_value ?? 0));
+    })
+    .slice(0, 40);
+  const calendarEvents = calendarEventsInDeclaredCoverage(calendar.data);
+  const calendarState = calendarCoverageState(calendar.data);
 
   const dailyRows = daily.data?.data;
   const equitySymbols = new Set(universe.data?.data.filter(item => item.asset_class === "EQUITY").map(item => item.symbol));
@@ -230,7 +238,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
 
       <div className="nt-dense-grid nt-financial-strip">
         {[
-          ["Session",latestStored ? new Date(latestStored).toISOString().slice(0,10) : "—",""],
+          ["Equity session", equitySession ?? "—", equities.some(row => row.session_final) ? "Final" : "Latest"],
           ["Adv / Decl", equities.length ? `${up} / ${down}` : "—", equities.length ? `${unchanged} unchanged` : ""],
           ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Breadth"],
           ["Traded value", traded.length ? `$${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", "Tracked equities"],
@@ -239,7 +247,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           ["> 200D MA", breadthValue(trend[2]), breadthSession ?? ""],
           ["Rel volume", relativeVolumeLeaders[0] ? `${relativeVolumeLeaders[0].symbol} ${relativeVolumeLeaders[0].value.toFixed(2)}×` : "—", "20D"],
           ["Headlines", news.data ? String(news.data.data.filter(item => item.published_at).length) : "—", "Latest"],
-          ["Events", calendar.data ? String(calendar.data.events.length) : "—", "Calendar"],
+          ["Events", calendar.data ? String(calendarEvents.length) : "—", calendarState.valid ? "Calendar" : calendarState.label],
         ].map(([k,v,s]) => (
           <div className="nt-data-cell" key={k}>
             <div className="k">{k}</div><div className="v">{v}</div><div className="s">{s}</div>
@@ -290,21 +298,22 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
             <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">price · session change · sector</span></div>
             <div className="nt-panel-body">
               <div className="nt-heatmap">
-                {heat.map(([symbol, sector]) => {
-                  const stored = bySymbol.get(symbol);
+                {heatRows.length ? heatRows.map(stored => {
+                  const symbol = stored.symbol;
+                  const sector = normalizeSector(stored.sector);
                   const quote = quotes[symbol];
-                  const useQuote = quote && (!stored?.as_of || quote.at > Date.parse(stored.as_of));
-                  const price = useQuote ? quote.price : stored?.price;
-                  const change = useQuote ? quote.change : stored?.change_pct;
+                  const useQuote = quote && (!stored.as_of || quote.at > Date.parse(stored.as_of));
+                  const price = useQuote ? quote.price : stored.price;
+                  const change = useQuote ? quote.change : stored.change_pct;
                   return (
                     <div className={`nt-heat-cell ${directionClass(change)}`} key={symbol}>
                       <div className="nt-heat-symbol-row"><b>{symbol}</b><span className={`nt-sector-dot ${sectorClass(sector)}`} aria-label={sector} /></div>
-                      <span className="nt-heat-price nt-mono">{price == null ? "—" : priceFormat.format(price)}</span>
+                      <span className="nt-heat-price nt-mono">{price == null ? "No quote" : priceFormat.format(price)}</span>
                       <span className={`nt-heat-change nt-mono ${change == null ? "nt-muted" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : ""}`}>{percent(change)}</span>
-                      <small title={useQuote ? new Date(quote.at).toISOString() : stored?.as_of ?? undefined}><span className={`nt-sector-name ${sectorClass(sector)}`}>{sector}</span></small>
+                      <small title={useQuote ? new Date(quote.at).toISOString() : stored.as_of ?? undefined}><span className={`nt-sector-name ${sectorClass(sector)}`}>{sector}</span></small>
                     </div>
                   );
-                })}
+                }) : <div className="nt-empty nt-empty-compact">No equity observations in the current market snapshot.</div>}
               </div>
             </div>
           </section>
@@ -324,10 +333,14 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
 
           <DataTable
             title="Market tape"
-            meta="tracked universe · session"
+            meta={`tracked universe · equity session ${equitySession ?? "—"}`}
             className="nt-primary-table nt-market-tape-table"
-            columns={["Symbol","Last","Change %","Traded value","Market cap","As of"]}
-            rows={marketTape.map(row => ({ key: row.symbol, cells: [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), valueText(row.market_cap), row.as_of?.slice(0,10)] }))}
+            columns={marketTape.some(row => row.market_cap != null)
+              ? ["Symbol","Last","Change %","Traded value","Market cap","As of"]
+              : ["Symbol","Last","Change %","Traded value","As of"]}
+            rows={marketTape.map(row => ({ key: row.symbol, cells: marketTape.some(item => item.market_cap != null)
+              ? [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), valueText(row.market_cap), row.as_of?.slice(0,10)]
+              : [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), valueText(row.traded_value), row.as_of?.slice(0,10)] }))}
             empty="No market observations."
           />
 
@@ -354,10 +367,10 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
         <aside className="nt-market-rail nt-flat-rail">
           <section className="nt-flat-surface">
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Upcoming events</strong><span>ET</span></div>
+              <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-                <tbody>{calendar.data?.events.length ? calendar.data.events.slice(0,10).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3}>No scheduled events</td></tr>}</tbody>
+                <tbody>{calendarEvents.length ? calendarEvents.slice(0,10).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendar.data ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
               </table>
             </div>
 
