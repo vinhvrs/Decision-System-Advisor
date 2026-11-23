@@ -95,20 +95,18 @@ function collectCards(pathname: string) {
     element.dataset.dsaLayoutLabel = label;
 
     let handle = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
-
-    if (editing) {
-      if (!handle) {
-        handle = document.createElement("div");
-        handle.className = "dsa-layout-top-handle dsa-layout-drag-handle";
-        element.appendChild(handle);
-      }
-      handle.dataset.dsaDragHandle = "true";
-      handle.dataset.dsaLayoutOwner = id;
-      handle.setAttribute("aria-label", `Drag ${label}`);
-      handle.setAttribute("title", `Drag ${label}`);
-    } else if (handle) {
-      handle.remove();
+    if (!handle) {
+      handle = document.createElement("div");
+      handle.className = "dsa-layout-top-handle dsa-layout-drag-handle";
+      element.appendChild(handle);
     }
+
+    handle.dataset.dsaDragHandle = "true";
+    handle.dataset.dsaLayoutOwner = id;
+    handle.dataset.dsaDragLabel = label;
+    handle.setAttribute("aria-label", `Drag ${label}`);
+    handle.setAttribute("title", `Drag ${label}`);
+    handle.classList.toggle("dsa-layout-resize-mode", editing);
 
     return element;
   });
@@ -228,7 +226,10 @@ export default function SiteLayoutEditor() {
     let refreshTimer = 0;
     const observer = new MutationObserver(() => {
       window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(applySaved, 80);
+      refreshTimer = window.setTimeout(() => {
+        collectCards(pathname);
+        applySaved();
+      }, 80);
     });
     if (main) observer.observe(main, { childList: true, subtree: true });
     return () => {
@@ -240,27 +241,12 @@ export default function SiteLayoutEditor() {
 
   useEffect(() => {
     document.body.classList.toggle("dsa-layout-editing", active);
+    document.body.classList.add("dsa-layout-drag-enabled");
     const cards = collectCards(pathname);
 
     cards.forEach(card => {
       card.draggable = false;
-      card.classList.toggle("dsa-layout-card", active);
-
-      let handle = card.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
-      const staleSynthetic = card.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
-
-      if (active && !handle) {
-        const synthetic = staleSynthetic ?? document.createElement("div");
-        synthetic.className = "dsa-layout-top-handle";
-        synthetic.dataset.dsaDragHandle = "true";
-        synthetic.setAttribute("aria-label", `Drag ${card.dataset.dsaLayoutLabel || "panel"}`);
-        synthetic.setAttribute("title", "Drag panel");
-        if (!staleSynthetic) card.appendChild(synthetic);
-        handle = synthetic;
-      }
-
-      if (!active && staleSynthetic) staleSynthetic.remove();
-      if (handle) handle.classList.toggle("dsa-layout-drag-handle", active);
+      card.classList.add("dsa-layout-card");
 
       if (active) {
         card.style.resize = "both";
@@ -268,13 +254,8 @@ export default function SiteLayoutEditor() {
       } else {
         card.style.removeProperty("resize");
         card.style.removeProperty("overflow");
-        card.style.removeProperty("transform");
-        card.style.removeProperty("z-index");
-        card.style.removeProperty("pointer-events");
       }
     });
-
-    if (!active) return;
 
     function orderedSiblings(source: HTMLElement) {
       if (!source.parentElement) return [];
@@ -379,7 +360,6 @@ export default function SiteLayoutEditor() {
       state.source.style.transform = `translate(${dx}px, ${dy}px)`;
 
       const valid = findDropTarget(state.source, event.clientX, event.clientY);
-
       if (state.target !== valid) {
         state.target?.classList.remove("dsa-layout-drop-target");
         state.target = valid;
@@ -399,7 +379,6 @@ export default function SiteLayoutEditor() {
       state.source.classList.remove("dsa-layout-dragging");
       state.source.style.removeProperty("transform");
       state.source.style.removeProperty("z-index");
-      state.source.style.removeProperty("pointer-events");
       document.body.classList.remove("dsa-layout-pointer-armed", "dsa-layout-pointer-dragging");
 
       try { state.handle.releasePointerCapture(event.pointerId); } catch {}
@@ -414,6 +393,7 @@ export default function SiteLayoutEditor() {
         return;
       }
 
+      if (!active) return;
       const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dsa-layout-card");
       if (target) {
         const rect = target.getBoundingClientRect();
@@ -438,6 +418,7 @@ export default function SiteLayoutEditor() {
       document.removeEventListener("pointerup", onPointerUp, true);
       document.removeEventListener("pointercancel", onPointerCancel, true);
       document.body.classList.remove("dsa-layout-pointer-armed", "dsa-layout-pointer-dragging");
+      document.body.classList.remove("dsa-layout-drag-enabled");
       dragState.current = null;
     };
   }, [active, pathname, persistCurrent]);
