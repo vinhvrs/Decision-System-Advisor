@@ -1,8 +1,5 @@
-import { DocumentsWorkspace } from "@/src/new-terminal/workspaces/FeedWorkspaces";
-import { readData } from "@/src/new-terminal/serverData";
-import type { Filing } from "@/src/new-terminal/feeds";
+import { redirect } from "next/navigation";
 
-export default async function DocumentsPage() {
-  const payload = await readData<{ data: Filing[] }>("/api/filings/AAPL", 120);
-  return <DocumentsWorkspace initialFilings={payload?.data ?? []} />;
+export default function DocumentsPage() {
+  redirect("/news");
 }
