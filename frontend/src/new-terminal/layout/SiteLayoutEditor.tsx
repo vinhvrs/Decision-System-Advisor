@@ -92,6 +92,8 @@ function collectCards(pathname: string) {
 
     element.dataset.dsaLayoutId = id;
     element.dataset.dsaLayoutLabel = label;
+    element.classList.add("dsa-layout-card");
+    element.draggable = false;
 
     // Prefer the panel's real visible header. The entire header row becomes the
     // drag surface. A synthetic strip is only used for cards that truly have no header.
