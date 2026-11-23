@@ -9,7 +9,22 @@ import { useFeed } from "../useFeed";
 import { EQUITY_HEATMAP_SIZE, EQUITY_HEATMAP_UNIVERSE } from "../equityUniverse";
 import type { MarketRow } from "../marketSnapshot";
 
-type Quote = { price: number; change: number | null; at: number };
+type Quote = {
+  price: number;
+  change: number | null;
+  at: number;
+  source: "live" | "snapshot";
+};
+
+type SnapshotQuoteResponse = {
+  data?: Array<{
+    symbol: string;
+    price: number;
+    change: number;
+    observed_at: number | null;
+    retrieved_at: number;
+  }>;
+};
 
 const priceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const percent = (value: number | null | undefined) =>
@@ -145,6 +160,7 @@ export default function MarketsWorkspace({
               price: quote.price,
               change: Number.isFinite(quote.change) ? quote.change : null,
               at,
+              source: "live",
             },
           });
           setUpdated(Date.now());
@@ -171,8 +187,64 @@ export default function MarketsWorkspace({
     };
   }, [subscriptionSymbols]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function hydrateSnapshotQuotes() {
+      try {
+        const response = await fetch("/api/v1/equity-quotes", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as SnapshotQuoteResponse;
+        const incoming = payload.data ?? [];
+        if (!incoming.length || controller.signal.aborted) return;
+
+        setQuotes(previous => {
+          const next = { ...previous };
+          for (const item of incoming) {
+            if (
+              !item?.symbol ||
+              !Number.isFinite(item.price) ||
+              item.price <= 0 ||
+              !Number.isFinite(item.change)
+            ) continue;
+
+            const symbol = item.symbol.toUpperCase();
+            const existing = next[symbol];
+            // Snapshot fallback must never overwrite a real websocket quote.
+            if (existing?.source === "live") continue;
+
+            const at = Number.isFinite(item.retrieved_at) ? item.retrieved_at : Date.now();
+            if (!existing || at >= existing.at) {
+              next[symbol] = {
+                price: item.price,
+                change: item.change,
+                at,
+                source: "snapshot",
+              };
+            }
+          }
+          return next;
+        });
+      } catch {
+        // WebSocket/persisted observations remain authoritative if fallback is unavailable.
+      }
+    }
+
+    void hydrateSnapshotQuotes();
+    const timer = setInterval(hydrateSnapshotQuotes, 60_000);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
+  }, []);
+
   const bySymbol = useMemo(() => new Map(rows.map(row => [row.symbol, row])), [rows]);
   const persistedEquities = rows.filter(row => row.market === "stock" && row.change_pct != null);
+  const liveQuoteCount = EQUITY_HEATMAP_UNIVERSE.filter(member => quotes[member.symbol]?.source === "live").length;
+  const snapshotQuoteCount = EQUITY_HEATMAP_UNIVERSE.filter(member => quotes[member.symbol]?.source === "snapshot").length;
   const equities = EQUITY_HEATMAP_UNIVERSE.flatMap(member => {
     const stored = bySymbol.get(member.symbol);
     const quote = quotes[member.symbol];
@@ -292,7 +364,7 @@ export default function MarketsWorkspace({
       <div className="nt-dense-grid nt-financial-strip">
         {[
           ["Equity session", equitySession ?? "—", equities.some(row => row.session_final) ? "Final" : "Latest"],
-          ["Feed", connected ? "LIVE" : "SNAPSHOT", `${equities.length}/${EQUITY_HEATMAP_SIZE} equity quotes`],
+          ["Feed", connected ? "LIVE + SNAPSHOT" : "SNAPSHOT", `${equities.length}/${EQUITY_HEATMAP_SIZE} observed · ${liveQuoteCount} live`],
           ["Adv / Decl", equities.length ? `${up} / ${down}` : "—", equities.length ? `${unchanged} unchanged` : ""],
           ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Breadth"],
           ["Traded value", traded.length ? `${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", `${persistedEquities.length} persisted equities`],
@@ -349,7 +421,7 @@ export default function MarketsWorkspace({
 
         <section className="nt-market-center">
           <section className="nt-panel nt-market-heatmap-panel">
-            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · price · session change · sector</span></div>
+            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {liveQuoteCount} live · {snapshotQuoteCount} snapshot</span></div>
             <div className="nt-panel-body">
               <div className="nt-heatmap">
                 {heatRows.length ? heatRows.map(row => {
