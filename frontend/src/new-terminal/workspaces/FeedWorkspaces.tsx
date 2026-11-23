@@ -8,13 +8,9 @@ import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../Con
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
-export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows = [] }: { initialNews?: News[]; initialCalendar?: Calendar; initialRows?: MarketRow[] }) {
-  const [page, setPage] = useState(1);
-  const news = useFeed<{ data: News[]; last_page: number }>(`/api/news?page=${page}`);
-  const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=30");
+export function NewsWorkspace({ initialCalendar, initialRows = [] }: { initialCalendar?: Calendar; initialRows?: MarketRow[] }) {
+  const calendar = useFeed<Calendar>("/api/v1/forexfactory-calendar", 300000);
   const market = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
-  const newsRows = news.data?.data ?? initialNews;
-  const publishedNewsRows = newsRows.filter(item => item.published_at && item.title?.trim());
   const calendarData = calendar.data ?? initialCalendar;
   const marketRows = market.data?.data ?? initialRows;
   const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
@@ -22,79 +18,70 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
   const marketMovers = [...marketRows]
     .filter(row => row.market === "stock" && row.change_pct != null)
     .sort((a,b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
-    .slice(0,8);
+    .slice(0,10);
   const eventCounts = calendarEvents.reduce((acc, item) => {
-    const key = item.impact?.toLowerCase().includes("high") ? "high" : item.impact?.toLowerCase().includes("med") ? "medium" : "low";
+    const impact = item.impact?.toLowerCase() ?? "";
+    const key = impact.includes("high") ? "high" : impact.includes("med") ? "medium" : impact.includes("holiday") ? "holiday" : "low";
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+  const eventTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 
   return <div className="nt-workspace nt-full-workspace nt-news-workspace">
-    <section className="nt-context-strip">
-      <div className="nt-context-title"><div className="nt-label nt-info">News / Events</div><h1>Market Information Feed</h1></div>
-      <div className="nt-news-stat"><span>HEADLINES</span><b>{publishedNewsRows.length || "—"}</b></div>
-      <div className="nt-news-stat"><span>EVENTS</span><b className={calendarState.valid ? "" : "nt-warning"}>{calendarData ? calendarEvents.length : "—"}</b></div>
+    <section className="nt-context-strip" data-layout-key="events:summary">
+      <div className="nt-context-title">
+        <div className="nt-label nt-info">Events / ForexFactory</div>
+        <h1>Economic Calendar</h1>
+      </div>
+      <div className="nt-news-stat"><span>EVENTS</span><b>{calendarEvents.length || "—"}</b></div>
       <div className="nt-news-stat"><span>HIGH</span><b className="nt-negative">{eventCounts.high ?? 0}</b></div>
       <div className="nt-news-stat"><span>MED</span><b className="nt-warning">{eventCounts.medium ?? 0}</b></div>
       <div className="nt-news-stat"><span>LOW</span><b className="nt-info">{eventCounts.low ?? 0}</b></div>
+      <div className="nt-news-stat"><span>HOLIDAY</span><b>{eventCounts.holiday ?? 0}</b></div>
     </section>
 
     <DataTable
-      title="Market headlines"
-      meta="primary information feed"
-      className="nt-primary-table"
-      columns={["Published", "Context", "Symbol", "Headline", "Publisher"]}
-      rows={publishedNewsRows.map(item => ({
+      title="ForexFactory economic calendar"
+      meta={calendarData?.coverage?.start && calendarData?.coverage?.end
+        ? `${calendarData.coverage.start} → ${calendarData.coverage.end} · ET`
+        : calendarState.label}
+      className={`nt-primary-table ${calendarState.valid ? "" : "nt-data-source-gap"}`.trim()}
+      columns={["Scheduled (ET)", "Currency", "Event", "Importance", "Forecast", "Previous"]}
+      rows={calendarEvents.map(item => ({
         key: item.id,
         cells: [
-          item.published_at,
-          <SymbolContext key="context" symbol={item.symbol} />,
-          item.symbol || "—",
-          <a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,
-          <SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>,
+          item.scheduled_at ? eventTime.format(new Date(item.scheduled_at)) : "—",
+          <CurrencyContext key="currency" currency={item.currency} />,
+          item.title,
+          <ImpactBadge key="impact" impact={item.impact} />,
+          item.forecast,
+          item.previous,
         ],
       }))}
-      empty="No recent headlines."
-      note="Context badges are derived only from explicit symbol format or the tracked US-equity universe; unclassified stories remain global."
+      empty={calendarData && !calendarState.valid ? calendarState.label : "No ForexFactory events in current coverage."}
+      note={<span>Source: <a href={calendarData?.source_url || "https://www.forexfactory.com/calendar"} rel="noreferrer">ForexFactory calendar ↗</a>. Current-week feed is preferred; stale backend batches are not used as the primary display.</span>}
     />
 
-    <div className="nt-toolbar nt-news-pager"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={!news.data || page >= news.data.last_page} onClick={() => setPage(page + 1)}>Next</button></div>
-
-    <div className="nt-supporting-grid nt-news-supporting-grid">
-      <DataTable
-        title="Market movers"
-        meta="session context"
-        className="nt-secondary-table"
-        columns={["Symbol","Last","Change %","Traded value"]}
-        rows={marketMovers.map(row => ({ key: row.symbol, cells: [
-          <SymbolContext key="symbol" symbol={row.symbol} />,
-          valueText(row.price),
-          row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
-          valueText(row.traded_value),
-        ] }))}
-        empty="No session movers."
-      />
-
-      <DataTable
-        title="Economic calendar"
-        meta={calendarState.valid ? "declared provider coverage" : calendarState.label}
-        className={`nt-secondary-table ${calendarState.valid ? "" : "nt-data-source-gap"}`.trim()}
-        columns={["Scheduled", "Country / Currency", "Event", "Importance", "Actual", "Forecast", "Previous"]}
-        rows={calendarEvents.map(item => ({
-          key: item.id,
-          cells: [
-            item.scheduled_at,
-            <CurrencyContext key="currency" currency={item.currency} />,
-            item.title,
-            <ImpactBadge key="impact" impact={item.impact} />,
-            item.actual,
-            item.forecast,
-            item.previous,
-          ],
-        }))}
-        empty={calendarData && !calendarState.valid ? calendarState.label : "No scheduled economic events in declared coverage."}
-      />
-    </div>
+    <DataTable
+      title="Market movers"
+      meta="session context"
+      className="nt-secondary-table"
+      columns={["Symbol","Last","Change %","Traded value"]}
+      rows={marketMovers.map(row => ({ key: row.symbol, cells: [
+        <SymbolContext key="symbol" symbol={row.symbol} />,
+        valueText(row.price),
+        row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
+        valueText(row.traded_value),
+      ] }))}
+      empty="No session movers."
+    />
   </div>;
 }
 
