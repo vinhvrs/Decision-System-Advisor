@@ -90,6 +90,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
       command === "layout edit" ? "enable" :
       command === "layout export" ? "export" :
       command === "layout reset" ? "reset" :
+      command === "layout test" ? "test" :
       command === "layout done" ? "disable" :
       null;
     if (!action) return false;
@@ -103,6 +104,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
     { command: "layout edit", description: "Drag and resize cards across the current workspace" },
     { command: "layout export", description: "Download the site layout contract JSON" },
     { command: "layout reset", description: "Reset the saved layout for this route" },
+    { command: "layout test", description: "Run a real pointer drag self-test and automatically restore layout" },
     { command: "layout done", description: "Save the current route layout and exit edit mode" },
   ].filter(item => !query.trim() || item.command.includes(query.trim().replace(/^\//, "").toLowerCase()));
 
