@@ -36,12 +36,14 @@ export default function NewsroomWorkspace({
 }) {
   const [page, setPage] = useState(1);
   const feed = useFeed<NewsPayload>(`/api/news?per_page=60&page=${page}`);
-  const pool = (feed.data?.data ?? initialNews).filter(item => item.title?.trim());
+  const pool = (feed.data?.data ?? initialNews)
+    .filter(item => item.title?.trim())
+    .filter(item => {
+      const source = [item.author, item.publisher, item.source].filter(Boolean).join(" ").toLowerCase();
+      return source.includes("yahoo") || source.includes("forex") || source.includes("factory");
+    });
   const visualRows = pool.filter(item => Boolean(sourceLink(item.image ?? undefined)));
-  const textRows = pool.filter(item => !sourceLink(item.image ?? undefined));
-  const rows = visualRows.length
-    ? visualRows.slice(0, 18)
-    : textRows.slice(0, 6);
+  const rows = visualRows.slice(0, 18);
   const lastPage = feed.data?.last_page ?? initialLastPage;
   const total = feed.data?.total ?? initialTotal;
 
