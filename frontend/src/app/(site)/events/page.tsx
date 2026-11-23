@@ -1,17 +1,17 @@
 import { NewsWorkspace } from "@/src/new-terminal/workspaces/FeedWorkspaces";
 import { readMarketSnapshot } from "@/src/new-terminal/marketSnapshot";
-import { readData } from "@/src/new-terminal/serverData";
-import type { Calendar, News } from "@/src/new-terminal/feeds";
+import { readForexFactoryCalendar } from "@/src/new-terminal/forexFactoryCalendar";
 
 export default async function EventsPage() {
-  const [initialRows, newsPayload, initialCalendar] = await Promise.all([
+  const [initialRows, initialCalendar] = await Promise.all([
     readMarketSnapshot().catch(() => []),
-    readData<{ data: News[]; last_page: number }>("/api/news?page=1", 60),
-    readData<Calendar>("/api/v1/economic-calendar?limit=30", 60),
+    readForexFactoryCalendar(),
   ]);
-  return <NewsWorkspace
-    initialRows={initialRows}
-    initialNews={newsPayload?.data ?? []}
-    initialCalendar={initialCalendar}
-  />;
+
+  return (
+    <NewsWorkspace
+      initialRows={initialRows}
+      initialCalendar={initialCalendar ?? undefined}
+    />
+  );
 }
