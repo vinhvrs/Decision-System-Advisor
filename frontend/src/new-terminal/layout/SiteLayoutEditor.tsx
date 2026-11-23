@@ -91,20 +91,33 @@ function collectCards(pathname: string) {
     element.dataset.dsaLayoutId = id;
     element.dataset.dsaLayoutLabel = label;
 
+    const editing = document.body.classList.contains("dsa-layout-editing");
     element.querySelectorAll<HTMLElement>("[data-dsa-drag-handle]").forEach(handle => {
       delete handle.dataset.dsaDragHandle;
       handle.classList.remove("dsa-layout-drag-handle");
     });
 
-    const handle = element.querySelector<HTMLElement>(
+    let handle = element.querySelector<HTMLElement>(
       ":scope > .nt-panel-title, :scope > .nt-subsection-title, :scope > .nt-context-strip, :scope > .nt-toolbar, :scope > header, :scope > .nt-news-article-body > .nt-news-kicker"
     );
+
+    let synthetic = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
+    if (!handle && editing) {
+      if (!synthetic) {
+        synthetic = document.createElement("div");
+        synthetic.className = "dsa-layout-top-handle";
+        element.appendChild(synthetic);
+      }
+      handle = synthetic;
+    } else if (!editing && synthetic) {
+      synthetic.remove();
+      synthetic = null;
+    }
+
     if (handle) {
       handle.dataset.dsaDragHandle = "true";
       handle.setAttribute("title", "Drag panel");
-      if (document.body.classList.contains("dsa-layout-editing")) {
-        handle.classList.add("dsa-layout-drag-handle");
-      }
+      if (editing) handle.classList.add("dsa-layout-drag-handle");
     }
 
     return element;
