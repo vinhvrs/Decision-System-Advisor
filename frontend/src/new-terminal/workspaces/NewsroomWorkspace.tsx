@@ -35,8 +35,14 @@ export default function NewsroomWorkspace({
   initialTotal?: number;
 }) {
   const [page, setPage] = useState(1);
-  const feed = useFeed<NewsPayload>(`/api/news?per_page=18&page=${page}`);
-  const rows = (feed.data?.data ?? initialNews).filter(item => item.title?.trim());
+  const feed = useFeed<NewsPayload>(`/api/news?per_page=60&page=${page}`);
+  const pool = (feed.data?.data ?? initialNews).filter(item => item.title?.trim());
+  const visualRows = pool.filter(item => Boolean(sourceLink(item.image ?? undefined)));
+  const textRows = pool.filter(item => !sourceLink(item.image ?? undefined));
+  const rows = [
+    ...visualRows.slice(0, 18),
+    ...textRows.slice(0, Math.max(0, 12 - visualRows.length)),
+  ].slice(0, 18);
   const lastPage = feed.data?.last_page ?? initialLastPage;
   const total = feed.data?.total ?? initialTotal;
 
@@ -47,7 +53,7 @@ export default function NewsroomWorkspace({
           <div className="nt-label nt-info">News / Research Feed</div>
           <h1>Market Newsroom</h1>
         </div>
-        <div className="nt-news-stat"><span>ARTICLES</span><b>{rows.length}</b></div>
+        <div className="nt-news-stat"><span>VISUAL</span><b>{visualRows.slice(0, 18).length}</b></div>
         <div className="nt-news-stat"><span>INDEXED</span><b>{total || "—"}</b></div>
         <div className="nt-news-stat"><span>PAGE</span><b>{page}</b></div>
       </section>
@@ -58,7 +64,7 @@ export default function NewsroomWorkspace({
           const external = sourceLink(item.source);
           return (
             <article
-              className={`nt-news-article ${index === 0 ? "nt-news-featured" : ""}`}
+              className={`nt-news-article ${index === 0 ? "nt-news-featured" : ""} ${image ? "nt-news-has-image" : "nt-news-text-only"}`}
               data-layout-key={`news:${item.id}`}
               key={item.id}
             >
