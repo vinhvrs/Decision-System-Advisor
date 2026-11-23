@@ -203,7 +203,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 18);
-  const recentHeadlines = (news.data?.data ?? []).filter(item => item.published_at).slice(0, 18);
+  const recentHeadlines = (news.data?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 18);
   const marketTape = [...rows]
     .filter(row => row.market === "stock")
     .sort((a, b) => ((b.traded_value ?? 0) - (a.traded_value ?? 0)))
@@ -247,7 +247,7 @@ export default function MarketsWorkspace({ initialRows }: { initialRows: MarketR
           ["> 50D MA", breadthValue(trend[1]), breadthSession ?? ""],
           ["> 200D MA", breadthValue(trend[2]), breadthSession ?? ""],
           ["Rel volume", relativeVolumeLeaders[0] ? `${relativeVolumeLeaders[0].symbol} ${relativeVolumeLeaders[0].value.toFixed(2)}×` : "—", "20D"],
-          ["Headlines", news.data ? String(news.data.data.filter(item => item.published_at).length) : "—", "Latest"],
+          ["Headlines", news.data ? String(news.data.data.filter(item => item.published_at && item.title?.trim()).length) : "—", "Latest"],
           ["Events", calendar.data ? String(calendarEvents.length) : "—", calendarState.valid ? "Calendar" : calendarState.label],
         ].map(([k,v,s]) => (
           <div className="nt-data-cell" key={k}>
