@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { sourceLink, type News, type Universe } from "../feeds";
+import SiteLayoutEditor from "../layout/SiteLayoutEditor";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 import {
@@ -11,7 +12,7 @@ import {
   Bell,
   Building2,
   ChartNoAxesCombined,
-  FileText,
+  CalendarDays,
   Gauge,
   Newspaper,
   Search,
@@ -27,8 +28,8 @@ const items = [
   { href: "/companies", label: "Company", icon: Building2 },
   { href: "/investing", label: "Chart Lab", icon: ChartNoAxesCombined },
   { href: "/indicators", label: "Indicators", icon: BarChart3 },
+  { href: "/events", label: "Events", icon: CalendarDays },
   { href: "/news", label: "News", icon: Newspaper },
-  { href: "/documents", label: "Documents", icon: FileText },
   { href: "/watchlists", label: "Watchlists", icon: Star },
 ];
 
@@ -83,6 +84,28 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
     return () => window.removeEventListener("keydown", shortcut);
   }, []);
 
+  function runCommand(raw: string) {
+    const command = raw.trim().replace(/^\//, "").toLowerCase();
+    const action =
+      command === "layout edit" ? "enable" :
+      command === "layout export" ? "export" :
+      command === "layout reset" ? "reset" :
+      command === "layout done" ? "disable" :
+      null;
+    if (!action) return false;
+    window.dispatchEvent(new CustomEvent("dsa:layout-editor", { detail: { action } }));
+    setQuery("");
+    setSearchOpen(false);
+    return true;
+  }
+
+  const layoutCommands = [
+    { command: "layout edit", description: "Drag and resize cards across the current workspace" },
+    { command: "layout export", description: "Download the site layout contract JSON" },
+    { command: "layout reset", description: "Reset the saved layout for this route" },
+    { command: "layout done", description: "Save the current route layout and exit edit mode" },
+  ].filter(item => !query.trim() || item.command.includes(query.trim().replace(/^\//, "").toLowerCase()));
+
   return (
     <div className="nt-shell">
       <header className="nt-topbar">
@@ -103,10 +126,13 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         </div>
       </header>
 
-      {searchOpen && <section className="nt-panel" aria-label="Search instruments">
-        <div className="nt-toolbar"><label>Symbol or company <input autoFocus value={query} onChange={event => setQuery(event.target.value)} /></label><button type="button" onClick={() => setSearchOpen(false)}>Close</button></div>
+      {searchOpen && <section className="nt-panel nt-command-palette" aria-label="Search instruments and commands">
+        <div className="nt-toolbar"><label>Symbol, company or command <input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && runCommand(query)) event.preventDefault(); }} placeholder="Try: layout edit" /></label><button type="button" onClick={() => setSearchOpen(false)}>Close</button></div>
+        {layoutCommands.length > 0 && <div className="nt-command-results">
+          {layoutCommands.map(item => <button key={item.command} type="button" className="nt-command-result" onClick={() => runCommand(item.command)}><kbd>{item.command}</kbd><span>{item.description}</span></button>)}
+        </div>}
         <div className="nt-toolbar">{matching.map(row => <Link key={row.symbol} href={`/companies/profile/${encodeURIComponent(row.symbol)}`} onClick={() => setSearchOpen(false)}>{row.symbol} · {row.name}</Link>)}
-          {!matching.length && <span>{universe.data ? "No matching instruments" : "Loading instruments…"}</span>}
+          {!matching.length && query.trim() && !layoutCommands.length && <span>{universe.data ? "No matching instruments" : "Loading instruments…"}</span>}
         </div>
       </section>}
 
@@ -184,6 +210,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         <div className="nt-database-note">Movers, headlines and saved price levels stay linked to the current research workflow.</div>
       </section>}
 
+      <SiteLayoutEditor />
     </div>
   );
 }
