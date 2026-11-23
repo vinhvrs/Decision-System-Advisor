@@ -4,7 +4,7 @@ export default function DataTable({ title, columns, rows, note, meta, className 
   title: string;
   columns: string[];
   rows: { key: string; cells: ReactNode[] }[];
-  note?: string;
+  note?: ReactNode;
   meta?: string;
   className?: string;
   empty?: string;
