@@ -64,7 +64,16 @@ export default function NewsroomWorkspace({
             >
               {image && (
                 <Link className="nt-news-media" href={`/news/${encodeURIComponent(item.id)}`}>
-                  <img src={image} alt="" loading={index < 3 ? "eager" : "lazy"} referrerPolicy="no-referrer" />
+                  <img
+                    src={image}
+                    alt=""
+                    loading={index < 3 ? "eager" : "lazy"}
+                    referrerPolicy="no-referrer"
+                    onError={event => {
+                      const media = event.currentTarget.closest<HTMLElement>(".nt-news-media");
+                      if (media) media.style.display = "none";
+                    }}
+                  />
                 </Link>
               )}
               <div className="nt-news-article-body">
@@ -117,7 +126,7 @@ export function NewsArticleWorkspace({ article }: { article: News }) {
       </section>
 
       <article className="nt-news-reader nt-panel" data-layout-key={`news-reader:${article.id}`}>
-        {image && <img className="nt-news-reader-image" src={image} alt="" referrerPolicy="no-referrer" />}
+        {image && <img className="nt-news-reader-image" src={image} alt="" referrerPolicy="no-referrer" onError={event => { event.currentTarget.style.display = "none"; }} />}
         <div className="nt-news-reader-body">
           <div className="nt-news-kicker"><SymbolContext symbol={article.symbol} /><span>{articleMeta(article)}</span></div>
           <h1>{article.title}</h1>
