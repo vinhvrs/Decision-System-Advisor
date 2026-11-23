@@ -5375,3 +5375,12 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   border-bottom: 1px solid #1c2b36 !important;
   box-shadow: inset 0 -1px 0 rgba(0,0,0,.32);
 }
+/* 2026-11-24 heatmap header-body contrast */
+.nt-market-heatmap-panel .nt-panel-body,
+.nt-market-heatmap-panel .nt-heatmap {
+  background: #050a0f !important;
+}
+
+.nt-market-heatmap-panel {
+  background: #070d12 !important;
+}
