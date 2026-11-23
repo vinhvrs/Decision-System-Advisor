@@ -4246,3 +4246,217 @@ body,
     grid-template-columns: 1fr;
   }
 }
+/* 2026-11-23 production tonal hierarchy + data-state pass */
+:root {
+  --nt-bg: #070b10;
+  --nt-s0: #05080c;
+  --nt-s1: #090f15;
+  --nt-s2: #101820;
+  --nt-s3: #16222d;
+  --nt-border: #1e2c38;
+  --nt-border-strong: #33485a;
+  --nt-text: #e8eef4;
+  --nt-text-2: #aeb9c5;
+  --nt-muted: #758493;
+  --nt-accent: #78a4c7;
+  --nt-positive: #4fbd88;
+  --nt-negative: #d96d75;
+  --nt-warning: #c4a05c;
+  --nt-info: #839fb8;
+  --nt-chart-bg: #05090d;
+  --nt-chart-grid: #18242e;
+  --nt-chart-border: #2b3e4d;
+
+  --nt-surface-support: #080d12;
+  --nt-surface-primary: #0b1219;
+  --nt-surface-primary-2: #0d151d;
+  --nt-surface-header: #111b24;
+  --nt-surface-header-soft: #0d151c;
+}
+
+.nt-shell,
+.nt-main {
+  background: var(--nt-bg) !important;
+}
+
+.nt-topbar,
+.nt-primary-nav,
+.nt-utility-dock {
+  background: var(--nt-s0) !important;
+}
+
+.nt-primary-nav .nt-nav-link[data-active="true"] {
+  background: #121d27 !important;
+  color: var(--nt-text);
+}
+
+.nt-primary-nav .nt-nav-link[data-active="true"]::before {
+  background: var(--nt-accent) !important;
+  opacity: .9;
+}
+
+/* Supporting rails are intentionally darker than analytical center content. */
+.nt-market-rail > .nt-flat-surface,
+.nt-chart-rail > .nt-flat-surface,
+.nt-screener-inspector,
+.nt-secondary-table,
+.nt-company-dashboard-column:nth-child(1) > .nt-flat-surface,
+.nt-company-dashboard-column:nth-child(3) > .nt-flat-surface {
+  background: var(--nt-surface-support) !important;
+  border-color: var(--nt-border) !important;
+}
+
+.nt-market-center > .nt-panel,
+.nt-market-center > .nt-flat-surface,
+.nt-primary-table,
+.nt-chart-primary-panel,
+.nt-company-dashboard-column:nth-child(2) > .nt-flat-surface,
+.nt-company-financial-table {
+  background: var(--nt-surface-primary) !important;
+  border-color: var(--nt-border-strong) !important;
+}
+
+/* Header bands define sections without neon outlines. */
+.nt-panel-title,
+.nt-subsection-title,
+.nt-primary-table .nt-panel-title,
+.nt-company-dashboard-column:nth-child(2) .nt-subsection-title {
+  background: var(--nt-surface-header) !important;
+  border-bottom-color: var(--nt-border) !important;
+}
+
+.nt-market-rail .nt-subsection-title,
+.nt-chart-rail .nt-subsection-title,
+.nt-secondary-table .nt-panel-title,
+.nt-company-dashboard-column:nth-child(1) .nt-subsection-title,
+.nt-company-dashboard-column:nth-child(3) .nt-subsection-title {
+  background: var(--nt-surface-header-soft) !important;
+}
+
+/* Table bodies inherit the hierarchy of their parent surface. */
+.nt-primary-table .nt-table tbody td,
+.nt-company-financial-table .nt-table tbody td,
+.nt-market-center .nt-microtable tbody td {
+  background: var(--nt-surface-primary) !important;
+}
+
+.nt-secondary-table .nt-table tbody td,
+.nt-market-rail .nt-microtable tbody td,
+.nt-chart-rail .nt-microtable tbody td,
+.nt-company-dashboard-column:nth-child(1) .nt-microtable tbody td,
+.nt-company-dashboard-column:nth-child(3) .nt-microtable tbody td {
+  background: var(--nt-surface-support) !important;
+}
+
+.nt-table tbody tr:hover td,
+.nt-microtable tbody tr:hover td {
+  background: var(--nt-s3) !important;
+}
+
+/* Summary band is one continuous surface and has exactly the number of cells rendered. */
+.nt-market-workspace .nt-financial-strip {
+  grid-template-columns: repeat(11, minmax(0, 1fr)) !important;
+  background: #0a1118 !important;
+  border-color: var(--nt-border-strong) !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell {
+  background: transparent !important;
+  min-height: 44px;
+}
+
+/* Muted semantic heatmap: direction remains obvious, but tiles do not glow. */
+.nt-heat-up {
+  background: #0a1511 !important;
+  border-color: #29463a !important;
+}
+
+.nt-heat-down {
+  background: #160e11 !important;
+  border-color: #493036 !important;
+}
+
+.nt-heat-flat {
+  background: #0b1117 !important;
+  border-color: #263542 !important;
+}
+
+.nt-heat-awaiting {
+  background: #090e13 !important;
+  border-color: var(--nt-border) !important;
+}
+
+.nt-heat-cell {
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+.nt-heat-cell:hover {
+  background: #101922 !important;
+  border-color: #3b5062 !important;
+}
+
+.nt-sector-tech { color: #7d9fbd !important; background-color: #7d9fbd !important; }
+.nt-sector-consumer { color: #b39a6e !important; background-color: #b39a6e !important; }
+.nt-sector-communication { color: #9b88b1 !important; background-color: #9b88b1 !important; }
+.nt-sector-financials { color: #72a89e !important; background-color: #72a89e !important; }
+.nt-sector-energy { color: #b1806e !important; background-color: #b1806e !important; }
+.nt-sector-health { color: #a98298 !important; background-color: #a98298 !important; }
+.nt-sector-industrials { color: #9da57c !important; background-color: #9da57c !important; }
+.nt-sector-utilities { color: #7c9daa !important; background-color: #7c9daa !important; }
+.nt-sector-neutral { color: #7e8a95 !important; background-color: #7e8a95 !important; }
+
+.nt-company-research-links a,
+.nt-inline-links a,
+.nt-headline-link {
+  color: #89aecb !important;
+}
+
+.nt-company-research-links a:hover,
+.nt-inline-links a:hover,
+.nt-headline-link:hover {
+  color: #b8cee0 !important;
+}
+
+/* Data quality problems are explicit states, not rows of anonymous dashes. */
+.nt-data-gap,
+.nt-data-source-gap .nt-panel-meta {
+  color: var(--nt-warning) !important;
+}
+
+.nt-data-source-gap {
+  border-color: #5a4a2c !important;
+}
+
+.nt-data-source-gap .nt-panel-title {
+  background: #17140d !important;
+}
+
+/* Plot areas remain the darkest visual field. */
+.nt-chart-primary-panel .nt-panel-body,
+.nt-financial-trend-chart,
+.nt-price-monitor svg,
+.nt-radar,
+.nt-chart-canvas {
+  background: var(--nt-chart-bg) !important;
+}
+
+/* Avoid visual noise from decorative glow. */
+.nt-brand-mark,
+.nt-market-heatmap-panel,
+.nt-chart-primary-panel,
+.nt-primary-table {
+  box-shadow: none !important;
+}
+
+@media (max-width: 1450px) {
+  .nt-market-workspace .nt-financial-strip {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .nt-market-workspace .nt-financial-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
