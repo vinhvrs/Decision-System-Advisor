@@ -33,7 +33,6 @@ import {
   Heart,
   TrendingUp,
   BarChart3,
-  Gauge,
   Droplets,
   Users,
   Clock,
@@ -47,6 +46,13 @@ import {
 } from "lucide-react";
 
 type Period = "daily" | "annual";
+
+// Yahoo reports share volume for these US equities. Keep market-wide/futures/FX
+// volume semantics intact instead of treating every asset's volume as shares.
+const LIVE_BOARD_EQUITY_SYMBOLS = new Set([
+  "NVDA", "TSLA", "AAPL", "GOOGL", "AMZN", "MSFT", "META", "AVGO", "ORCL", "IBM",
+  "AMD", "ADBE", "CRM", "CSCO", "ASML", "INTU", "QCOM", "NOW", "PANW", "SNOW",
+]);
 
 /** Socket / instrument API use `yearly` slug for annual bars. */
 function periodToApiSlug(period: Period): "daily" | "yearly" {
@@ -469,7 +475,7 @@ function isRowEligibleForConviction(r: BeginnerBoardRow): boolean {
   );
 }
 
-/** Five-tier stance from validated Python-engine indicators only (Str + radar averages). */
+/** Five-tier research bias from validated Python-engine indicators only (strength + radar averages). */
 function convictionFromRow(r: BeginnerBoardRow): Conviction5 {
   if (!isRowEligibleForConviction(r)) return "unrated";
   const st = Math.max(0, Math.min(5, Math.round(Number(r.strong_count)) || 0));
@@ -657,64 +663,6 @@ function upsidePotentialToneClass(pct: number): string {
   return C.muted;
 }
 
-const MiniSparkline = memo(function MiniSparkline({
-  values,
-  className,
-  netChangePct,
-}: {
-  values: number[];
-  className?: string;
-  /** When set, line color matches the same sign as the dashboard % badge (snapshot / mean). */
-  netChangePct?: number | null;
-}) {
-  const w = 120;
-  const h = 36;
-  const pad = 2;
-  const poly = useMemo(() => {
-    if (values.length < 2) return null;
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-    const pts = values
-      .map((v, i) => {
-        const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
-        const y = h - pad - ((v - min) / range) * (h - 2 * pad);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
-    let stroke: string;
-    if (netChangePct != null && Number.isFinite(netChangePct)) {
-      if (netChangePct > 0) stroke = "#16c784";
-      else if (netChangePct < 0) stroke = "#ea3943";
-      else stroke = "#848e9c";
-    } else {
-      stroke = values[values.length - 1] >= values[0] ? "#16c784" : "#ea3943";
-    }
-    return { pts, stroke };
-  }, [values, netChangePct]);
-
-  if (values.length < 2 || !poly) {
-    return (
-      <div
-        className={`h-9 w-full max-w-[120px] rounded bg-white/[0.04] ${className ?? ""}`}
-        aria-hidden
-      />
-    );
-  }
-  return (
-    <svg
-      width="100%"
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className={className}
-      aria-hidden
-    >
-      <polyline fill="none" stroke={poly.stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" points={poly.pts} />
-    </svg>
-  );
-});
-
 const RowAvatar = memo(function RowAvatar({ symbol, logoUrl }: { symbol: string; logoUrl?: string | null }) {
   const [broken, setBroken] = useState(false);
   const src = symbolLogoUrl(symbol, logoUrl);
@@ -800,43 +748,6 @@ function effectiveChangeForFearGreed(
 ): number | null {
   const series = closes ?? [];
   return periodChangeForRow(row, series, period);
-}
-
-function FearGreedGauge({ value }: { value: number }) {
-  const cx = 60;
-  const cy = 58;
-  const needleLen = 32;
-  const deg = -90 + (value / 100) * 180;
-  return (
-    <svg viewBox="0 0 120 64" className="w-full max-w-[140px]" aria-hidden>
-      <defs>
-        <linearGradient id="fgArc" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#ea3943" />
-          <stop offset="35%" stopColor="#f0b90b" />
-          <stop offset="70%" stopColor="#a3e635" />
-          <stop offset="100%" stopColor="#16c784" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M 14 58 A 46 46 0 0 1 106 58"
-        fill="none"
-        stroke="url(#fgArc)"
-        strokeWidth={7}
-        strokeLinecap="round"
-      />
-      <line
-        x1={cx}
-        y1={cy}
-        x2={cx}
-        y2={cy - needleLen}
-        stroke="#eaecef"
-        strokeWidth={2}
-        strokeLinecap="round"
-        transform={`rotate(${deg} ${cx} ${cy})`}
-      />
-      <circle cx={cx} cy={cy} r={4} fill="#eaecef" />
-    </svg>
-  );
 }
 
 const PctBadge = memo(function PctBadge({ pct }: { pct: number }) {
@@ -942,7 +853,7 @@ const BoardRankingTableRow = memo(function BoardRankingTableRow({
         </Link>
       </td>
       <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">
-        <span title={r.quote_stale && r.quote_ts ? `Last quote: ${new Date(r.quote_ts).toLocaleString()}` : undefined}>
+        <span title={r.quote_stale && r.quote_ts ? `Last quote: ${new Date(r.quote_ts).toLocaleString()}. Freshness status is independent of exchange session hours.` : "Quote freshness is independent of exchange session hours."}>
           {formatUsd(r.price)}{r.quote_stale && <span className="ml-1 text-[10px] text-amber-400">stale</span>}
         </span>
       </td>
@@ -1058,7 +969,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
           </div>
         </div>
         <div className="col-span-2 phone:col-span-1">
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Stance / Str</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Bias / Strength</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <span
               className={`inline-block max-w-[6.5rem] rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${convictionBadgeClass(conviction)}`}
@@ -1081,7 +992,7 @@ const BoardRankingMobileCard = memo(function BoardRankingMobileCard({
           </div>
         </div>
         <div className="col-span-2 phone:col-span-1">
-          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Upside</p>
+          <p className={`text-[10px] uppercase tracking-wide ${C.muted}`}>Room to high</p>
           <div className="mt-0.5">
             <UpsidePotentialCell r={r} closes={sparklineValues} sparklinesLoading={sparklinesLoading} />
           </div>
@@ -1440,6 +1351,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           symbol?: string;
           price?: unknown;
           change?: unknown;
+          volume?: unknown;
           quote_ts?: number;
           ts?: number;
           quote_stale?: boolean;
@@ -1450,6 +1362,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
           const sym = String(msg.symbol).toUpperCase();
           const price = parseSocketQuoteNumber(msg.price);
           const chg = parseSocketQuoteNumber(msg.change);
+          const isShareVolume = LIVE_BOARD_EQUITY_SYMBOLS.has(sym);
+          const volume = isShareVolume ? parseSocketQuoteNumber(msg.volume) : null;
           const isInitial = msg.type === "initial_quote";
           // For initial_quote, only quote_ts proves when the market quote was
           // observed. msg.ts is merely the websocket envelope send time.
@@ -1468,6 +1382,11 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                 row.price = price;
                 row.missing_fields = row.missing_fields?.filter((field) => field !== "price");
               }
+              if (isShareVolume && volume != null && volume >= 0) {
+                row.volume = volume;
+                row.liquidity = (price != null && price > 0 ? price : row.price) * volume;
+                row.missing_fields = row.missing_fields?.filter((field) => field !== "volume" && field !== "liquidity");
+              }
               if (Number.isFinite(quoteTs)) {
                 row.quote_stale = isInitial
                   ? msg.quote_stale === true || quoteAge > 90_000
@@ -1484,6 +1403,18 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             });
             return touched ? alignLiveChangeScores(next) : prev;
           });
+          // Keep the latest chart point in step with the live quote; the rest of
+          // the persisted close history remains unchanged.
+          if (!isInitial && price != null && price > 0) {
+            setRowSparklines((prev) => {
+              const row = boardRowsRef.current.find((item) => String(item.symbol || "").toUpperCase() === sym);
+              const values = prev[sym] ?? (row ? sparklineValuesForRow(row, {}, period) : []);
+              if (values.length < 2) return prev;
+              const next = [...values.slice(0, -1), price];
+              if (prev[sym] && prev[sym].length === next.length && prev[sym].at(-1) === price) return prev;
+              return { ...prev, [sym]: next };
+            });
+          }
           return;
         }
 
@@ -1654,6 +1585,51 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
     };
   }, [boardRows, rowSparklines, period]);
 
+  const boardProvenance = useMemo(() => {
+    const total = boardRows.length;
+    let liveQuotes = 0;
+    let historyOk = 0;
+    let historyShort = 0;
+    let historyMissing = 0;
+    let notRated = 0;
+
+    for (const row of boardRows) {
+      if (Number.isFinite(Number(row.quote_ts)) && row.quote_stale !== true) {
+        liveQuotes++;
+      }
+
+      const historyState =
+        row.history_state ??
+        (Array.isArray(row.chart) && row.chart.length >= 2
+          ? "ok"
+          : Array.isArray(row.chart) && row.chart.length === 1
+            ? "short"
+            : "missing");
+
+      if (historyState === "ok") historyOk++;
+      else if (historyState === "short") historyShort++;
+      else historyMissing++;
+
+      if (!isRowEligibleForConviction(row)) notRated++;
+    }
+
+    return { total, liveQuotes, historyOk, historyShort, historyMissing, notRated };
+  }, [boardRows]);
+
+  const boardSnapshotLabel = useMemo(() => {
+    if (!dashboardUpdatedAt) return "Unavailable";
+    const parsed = new Date(dashboardUpdatedAt);
+    if (Number.isNaN(parsed.getTime())) return "Unavailable";
+    return parsed.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }, [dashboardUpdatedAt]);
+
   const rowPeriodChanges = useMemo(() => {
     const out: Record<string, number | null> = {};
     for (const r of boardRows) {
@@ -1749,135 +1725,164 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
 
   return (
     <div className={`min-h-screen ${C.page} ${C.text} font-sans antialiased`}>
-      {/* Top strip — CMC-style compact header */}
-      <header className={`sticky top-[var(--dsa-header-height)] z-30 border-b ${C.line} ${C.surface}`}>
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
-          <h1 className="min-w-0 text-sm font-semibold tracking-tight text-white sm:text-base">
-            Market view
-          </h1>
-          <div className="flex shrink-0 flex-wrap items-center gap-4 sm:gap-5">
-            <SelectDropdown
-              className="w-[7.5rem] shrink-0"
-              options={[
-                { id: "daily", label: "Daily" },
-                { id: "annual", label: "Annual" },
-              ]}
-              selected={{
-                id: period,
-                label: period === "daily" ? "Daily" : "Annual",
-              }}
-              onSelect={(opt) => setPeriod(opt.id as Period)}
-            />
-            <Link
-              href="/investing"
-              className={`ml-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg ${C.card} px-3 py-2 text-xs font-medium ${C.muted} transition hover:text-white`}
-            >
-              <Home className="h-3.5 w-3.5 shrink-0" />
-              Research workspace
-            </Link>
+      <section className="dsa-terminal-page-head mb-3">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Market intelligence</p>
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+            <h1 className="truncate text-sm font-semibold text-white">Market overview</h1>
+            <span className="shrink-0 text-[10px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+              Multi-factor board
+            </span>
           </div>
         </div>
-      </header>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <SelectDropdown
+            className="w-[7.25rem] shrink-0"
+            options={[
+              { id: "daily", label: "Daily" },
+              { id: "annual", label: "Annual" },
+            ]}
+            selected={{
+              id: period,
+              label: period === "daily" ? "Daily" : "Annual",
+            }}
+            onSelect={(opt) => setPeriod(opt.id as Period)}
+          />
+          <Link
+            href="/search"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
+          >
+            <Search className="h-3 w-3" />
+            Symbol search
+          </Link>
+          <Link
+            href="/investing"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
+          >
+            <Home className="h-3 w-3" />
+            Workspace
+          </Link>
+        </div>
+      </section>
 
       <div className="mx-auto max-w-[1600px] px-2 py-4 phone:px-3 sm:px-4 sm:py-5">
-        {/* Stat widgets — stack on small screens, grid on medium, optional horizontal scroll on very wide */}
-        <section className="mb-4 grid grid-cols-1 gap-3 phone:grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-3 xl:grid-cols-5 xl:gap-3">
-          <div
-            className={`relative min-w-0 overflow-hidden rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[200px] xl:shrink-0 2xl:min-w-[220px]`}
-          >
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-8 opacity-[0.35]">
-              <MiniSparkline values={boardAvgSparkline} netChangePct={boardAggregates?.avgChangePct ?? null} />
-            </div>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg price</p>
+        <section
+          className="mb-3 grid gap-px overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-5"
+          aria-label="Market data provenance"
+        >
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Research snapshot</p>
+            <p className="mt-1 font-mono text-[11px] tabular-nums text-[var(--dsa-text-secondary)]">
+              {boardSnapshotLabel}
+            </p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Realtime quotes</p>
+            <p className="mt-1 font-mono text-xs tabular-nums text-white">
+              {boardProvenance.liveQuotes}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Received and not marked stale</p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Persisted history</p>
+            <p
+              className={`mt-1 font-mono text-xs tabular-nums ${
+                boardProvenance.historyMissing || boardProvenance.historyShort
+                  ? "text-[var(--dsa-warning)]"
+                  : "text-[var(--dsa-positive)]"
+              }`}
+            >
+              {boardProvenance.historyOk}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">
+              {boardProvenance.historyShort} short · {boardProvenance.historyMissing} missing
+            </p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Analysis eligibility</p>
+            <p className="mt-1 font-mono text-xs tabular-nums text-white">
+              {Math.max(0, boardProvenance.total - boardProvenance.notRated)}/{boardProvenance.total || BOARD_LIMIT_PROD}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">{boardProvenance.notRated} Not Rated</p>
+          </div>
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2">
+            <p className="dsa-section-label">Data model</p>
+            <p className="mt-1 text-[10px] font-medium text-[var(--dsa-text-secondary)]">
+              Realtime quote ≠ persisted OHLC
+            </p>
+            <p className="mt-0.5 text-[9px] leading-snug text-[var(--dsa-text-muted)]">
+              Missing history stays missing; it is not rebuilt from the latest quote.
+            </p>
+          </div>
+        </section>
+
+        {/* Dense market metric strip */}
+        <section className="mb-3 grid gap-px overflow-hidden rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border)] bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-5">
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Average price</p>
             {!headerStatsReady ? (
-              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
-            ) : boardAggregates?.avgPrice != null ? (
-              <>
-                <p className="relative mt-1 font-mono text-2xl font-semibold tabular-nums tracking-tight">
-                  {formatUsd(boardAggregates.avgPrice)}
-                </p>
-                <div className="relative mt-1">
-                  {boardAggregates.avgChangePct != null ? (
-                    <PctBadge pct={boardAggregates.avgChangePct} />
-                  ) : (
-                    <span className={`text-sm ${C.muted}`}>—</span>
-                  )}
-                </div>
-              </>
+              <p className="mt-1 h-5 w-20 animate-pulse rounded bg-white/10" />
             ) : (
-              <p className={`relative mt-2 text-sm ${C.muted}`}>—</p>
-            )}
-          </div>
-
-          <div className={`min-w-0 rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[180px] xl:shrink-0 2xl:min-w-[200px]`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg Vol $</p>
-            {!headerStatsReady ? (
-              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
-            ) : boardAggregates?.avgLiquidity != null ? (
-              <>
-                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatUsd(boardAggregates.avgLiquidity)}</p>
-              </>
-            ) : (
-              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
-            )}
-          </div>
-
-          <div className={`min-w-0 rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[160px] xl:shrink-0`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Avg volume</p>
-            {!headerStatsReady ? (
-              <p className="mt-2 h-8 animate-pulse rounded bg-white/10" />
-            ) : boardAggregates?.avgVolume != null ? (
-              <>
-                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{formatShares(boardAggregates.avgVolume)}</p>
-                <p className={`mt-1 text-[11px] ${C.muted}`}>Mean shares (last snapshot)</p>
-              </>
-            ) : (
-              <p className={`mt-2 text-sm ${C.muted}`}>—</p>
-            )}
-          </div>
-
-          <div className={`min-w-0 rounded-[var(--dsa-radius-md)] ${C.card} p-4 xl:min-w-[180px] xl:shrink-0`}>
-            <p className={`text-[11px] font-medium uppercase tracking-wider ${C.muted}`}>Board Vol $ (sum)</p>
-            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{formatUsd(boardLiquiditySum)}</p>
-            <p className={`mt-1 text-[11px] ${C.muted}`}>Sum of price × volume for rows on this list (not market cap)</p>
-          </div>
-
-          <div className={`relative flex min-w-0 flex-row items-center gap-3 overflow-hidden rounded-[var(--dsa-radius-md)] ${C.card} p-3 xl:min-w-[220px] xl:flex-1 xl:shrink-0 2xl:min-w-[260px]`}>
-            <div className="shrink-0">
-              <FearGreedGauge value={fearGreed.value} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <Gauge className="h-3.5 w-3.5 text-[#f0b90b]" aria-hidden />
-                <p className={`text-[11px] font-semibold uppercase tracking-wider ${C.muted}`}>Fear & Greed</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="font-mono text-base font-semibold tabular-nums text-white">
+                  {boardAggregates?.avgPrice != null ? formatUsd(boardAggregates.avgPrice) : "—"}
+                </span>
+                {boardAggregates?.avgChangePct != null ? <PctBadge pct={boardAggregates.avgChangePct} /> : null}
               </div>
-              <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-white">{fearGreed.value}</p>
-              <p className="text-xs font-medium text-[#eaecef]">{fearGreed.label}</p>
+            )}
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Average dollar volume</p>
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums text-white">
+              {headerStatsReady && boardAggregates?.avgLiquidity != null ? formatUsd(boardAggregates.avgLiquidity) : "—"}
+            </p>
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Average share volume</p>
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums text-white">
+              {headerStatsReady && boardAggregates?.avgVolume != null ? formatShares(boardAggregates.avgVolume) : "—"}
+            </p>
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Board dollar volume</p>
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums text-white">{formatUsd(boardLiquiditySum)}</p>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Σ price × volume · not market cap</p>
+          </div>
+
+          <div className="bg-[var(--dsa-surface-1)] px-3 py-2.5">
+            <p className="dsa-section-label">Market mood</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-mono text-base font-semibold tabular-nums text-white">{fearGreed.value}</span>
+              <span className="text-[11px] font-medium text-[var(--dsa-text-secondary)]">{fearGreed.label}</span>
             </div>
+            <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">Derived from eligible board moves</p>
           </div>
         </section>
 
         {/* Chips + toolbar */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#16c784]/35 bg-[#16c784]/10 px-3 py-1 text-[11px] font-semibold text-[#16c784]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--dsa-radius-sm)] border border-[#16c784]/30 bg-[#16c784]/10 px-2 py-1 text-[11px] font-semibold text-[#16c784]"
           >
             Bullish
           </span>
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#ea3943]/35 bg-[#ea3943]/10 px-3 py-1 text-[11px] font-semibold text-[#ea3943]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--dsa-radius-sm)] border border-[#ea3943]/30 bg-[#ea3943]/10 px-2 py-1 text-[11px] font-semibold text-[#ea3943]"
           >
             Bearish
           </span>
-          <span className={`rounded-full border ${C.line} px-3 py-1 text-[11px] ${C.muted}`}>
+          <span className={`rounded-[var(--dsa-radius-sm)] border ${C.line} px-2 py-1 text-[11px] ${C.muted}`}>
             Green / red = positive / negative session bias
           </span>
-          <span className={`rounded-full border border-[#3861fb]/30 bg-[#3861fb]/10 px-3 py-1 text-[11px] font-medium text-[#7b9cff]`}>
+          <span className={`rounded-[var(--dsa-radius-sm)] border border-[#3861fb]/30 bg-[#3861fb]/10 px-2 py-1 text-[11px] font-medium text-[#7b9cff]`}>
             Hover a row for radar
           </span>
           <Link
             href="/search"
-            className="inline-flex items-center gap-1 rounded-full bg-[#a855f7]/15 px-3 py-1 text-[11px] font-semibold text-[#c4a3ff] hover:bg-[#a855f7]/25"
+            className="inline-flex items-center gap-1 rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-2 py-1 text-[11px] font-semibold text-[#c4a3ff] hover:bg-[#a855f7]/25"
           >
             <Search className="h-3 w-3" />
             Search
@@ -1899,7 +1904,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
             <div className="flex min-w-0 items-center gap-2">
               <Trophy className="h-5 w-5 shrink-0 text-[#f0b90b]" />
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-white">Ideal Investing Ranking</h2>
+                <h2 className="text-sm font-semibold text-white">Multi-factor research ranking</h2>
               </div>
             </div>
             <p className={`min-w-0 text-[11px] ${C.muted} sm:shrink-0`}>
@@ -1967,8 +1972,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Stance"
-                          title={`Blend of model signals (strength + multi-factor scores). Shown separately from the ${periodChangeLabel(period)} column.`}
+                          label="Bias"
+                          title={`Directional research bias from strength + validated multi-factor scores. Shown separately from the ${periodChangeLabel(period)} column.`}
                           columnKey="bias"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1976,7 +1981,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Str"
+                          label="Strength"
                           columnKey="strong"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -1984,8 +1989,8 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`border-b ${C.line} px-2 py-2.5 lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Upside"
-                          title="Room to recent highs vs last price. Hover the cell for target and risk context."
+                          label="Room to high"
+                          title="Technical room to recent highs vs last price. Hover the cell for consensus-target and risk context."
                           columnKey="upside"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -2002,7 +2007,7 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                           className={`hidden border-b ${C.line} px-2 py-2.5 sm:table-cell lg:px-3`}
                         />
                         <BoardSortHeader
-                          label="Care"
+                          label="Watchers"
                           columnKey="care"
                           sort={tableSort}
                           onSort={(key, dir) => setTableSort({ key, dir })}
@@ -2062,16 +2067,15 @@ export default function BeginnerTestHome({ dataSource = "beginner-board" }: Begi
                       window is up or down overall.
                     </li>
                     <li>
-                      <strong className="text-white/80">Radar</strong> blends five quality and momentum scores.{" "}
-                      <strong className="text-white/80">Str</strong> counts how many of those scores are in the top tier.
+                      <strong className="text-white/80">Radar</strong> shows six validated factors.{" "}
+                      <strong className="text-white/80">Strength</strong> counts the five configured strong-trait inputs at or above the strong threshold.
                     </li>
                     <li>
-                      <strong className="text-white/80">Upside</strong> compares the last price to the highs in the same
-                      window and includes analyst targets when available. For education only — not a recommendation to
-                      trade.
+                      <strong className="text-white/80">Room to high</strong> compares the last price with recent highs.
+                      Analyst consensus targets are shown only when sourced; no synthetic target is generated.
                     </li>
                     <li>
-                      <strong className="text-white/80">Stance</strong> summarizes the model outlook; it does not replace
+                      <strong className="text-white/80">Bias</strong> summarizes the directional research view; it does not replace
                       the {periodChangeLabel(period)} column.
                     </li>
                   </ul>

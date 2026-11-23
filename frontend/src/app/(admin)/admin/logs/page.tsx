@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminService } from "@/src/services/Admin.service";
-import { RefreshCw, Terminal, Activity, AlertTriangle, FileText } from "lucide-react";
+import { RefreshCw, Activity, AlertTriangle, FileText } from "lucide-react";
 
 type MainTab = "activity" | "laravel" | "raw";
 
@@ -161,253 +161,255 @@ export default function AdminLogsPage() {
   const rawOk = rawPayload?.readable?.[rawTab] ?? false;
 
   return (
-    <div className="max-w-[1400px]">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Terminal className="text-blue-400" size={28} />
-            Logs &amp; activity
-          </h1>
-          <p className="mt-1 text-sm text-white/55">
-            Admin actions (mutating API calls), parsed Laravel levels (warning / error / …), and raw service tails.
+    <div className="space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Operations</p>
+          <h1 className="mt-0.5 text-sm font-semibold text-white">Logs & activity</h1>
+          <p className="mt-0.5 max-w-3xl truncate text-[10px] text-[var(--dsa-text-muted)]">
+            Admin actions, Laravel levels, and raw service tails.
           </p>
         </div>
         <button
           type="button"
           onClick={() => refresh()}
           disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+          className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[11px]"
         >
-          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
           Refresh
         </button>
-      </div>
+      </section>
 
-      <div className="mb-4 flex flex-wrap gap-2 border-b border-white/10 pb-3">
-        {(
-          [
-            ["activity", "User & admin actions", Activity],
-            ["laravel", "Laravel log (levels)", AlertTriangle],
-            ["raw", "Raw service logs", FileText],
-          ] as const
-        ).map(([id, label, Icon]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setMainTab(id)}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              mainTab === id ? "bg-blue-600 text-white" : "bg-white/5 text-white/70 hover:bg-white/10"
-            }`}
-          >
-            <Icon size={16} />
-            {label}
-          </button>
-        ))}
-      </div>
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <div className="flex min-w-0 flex-wrap gap-1">
+            {(
+              [
+                ["activity", "Activity", Activity],
+                ["laravel", "Laravel", AlertTriangle],
+                ["raw", "Raw logs", FileText],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setMainTab(id)}
+                className={`inline-flex min-h-7 items-center gap-1.5 rounded-[var(--dsa-radius-sm)] border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.04em] transition-colors ${
+                  mainTab === id
+                    ? "border-[rgba(76,141,255,0.4)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+                    : "border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
+                }`}
+              >
+                <Icon size={12} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+            {mainTab === "activity"
+              ? `${activityMeta.total} rows`
+              : mainTab === "laravel"
+                ? `${laravelData?.entries?.length ?? 0} entries`
+                : rawOk
+                  ? "Readable"
+                  : "Unavailable"}
+          </div>
+        </div>
 
-      {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
+        {error ? (
+          <div className="border-b border-[rgba(231,91,100,0.28)] bg-[rgba(231,91,100,0.08)] px-3 py-2 text-[11px] text-[var(--dsa-negative)]">
+            {error}
+          </div>
+        ) : null}
 
-      {mainTab === "activity" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-white/50">Level</label>
+        {mainTab === "activity" && (
+          <>
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--dsa-border)] bg-[#0b1118] px-3 py-2">
               <select
                 value={activityLevel}
                 onChange={(e) => setActivityLevel(e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                className="dsa-control h-7 min-h-0 px-2 text-[11px] outline-none"
               >
-                <option value="">All</option>
+                <option value="">All levels</option>
                 <option value="action">action</option>
                 <option value="info">info</option>
                 <option value="warning">warning</option>
                 <option value="error">error</option>
               </select>
-            </div>
-            <div className="min-w-[200px] flex-1">
-              <label className="mb-1 block text-[11px] font-medium text-white/50">Search message</label>
               <input
                 value={activitySearch}
                 onChange={(e) => setActivitySearch(e.target.value)}
-                placeholder="e.g. email/send"
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/30"
+                placeholder="Filter message"
+                className="dsa-control h-7 min-h-0 w-[260px] max-w-[55vw] px-2.5 text-[11px] outline-none"
               />
+              <button
+                type="button"
+                onClick={() => loadActivity(1)}
+                className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
+              >
+                Apply
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => loadActivity(1)}
-              className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              Apply
-            </button>
-          </div>
 
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-white/10 bg-black/30 text-[11px] uppercase tracking-wide text-white/50">
-                <tr>
-                  <th className="px-3 py-2">When</th>
-                  <th className="px-3 py-2">Level</th>
-                  <th className="px-3 py-2">User</th>
-                  <th className="px-3 py-2">Message</th>
-                  <th className="px-3 py-2">IP</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {activityRows.map((row) => (
-                  <tr key={row.id} className="hover:bg-white/[0.03]">
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-white/70">
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${levelStyle(row.level)}`}
-                      >
-                        {row.level}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-white/80">
-                      {row.user?.email || row.user?.name || "—"}
-                    </td>
-                    <td className="max-w-md px-3 py-2">
-                      <div className="font-mono text-xs text-emerald-100/90">{row.message}</div>
-                      {row.context && Object.keys(row.context).length > 0 ? (
-                        <pre className="mt-1 max-h-24 overflow-auto text-[10px] text-white/40">
-                          {JSON.stringify(row.context, null, 0)}
-                        </pre>
-                      ) : null}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-white/50">
-                      {row.ip_address ?? "—"}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="dsa-terminal-table min-w-[820px]">
+                <thead>
+                  <tr>
+                    <th className="text-left">When</th>
+                    <th className="text-left">Level</th>
+                    <th className="text-left">User</th>
+                    <th className="text-left">Message</th>
+                    <th className="text-left">IP</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-white/60">
-            <span>
-              Page {activityMeta.current_page} / {activityMeta.last_page} · {activityMeta.total} rows
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={activityMeta.current_page <= 1}
-                onClick={() => loadActivity(activityMeta.current_page - 1)}
-                className="rounded-lg border border-white/10 px-3 py-1 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={activityMeta.current_page >= activityMeta.last_page}
-                onClick={() => loadActivity(activityMeta.current_page + 1)}
-                className="rounded-lg border border-white/10 px-3 py-1 disabled:opacity-40"
-              >
-                Next
-              </button>
+                </thead>
+                <tbody>
+                  {activityRows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="whitespace-nowrap font-mono text-[10px] text-[var(--dsa-text-muted)]">
+                        {new Date(row.created_at).toLocaleString()}
+                      </td>
+                      <td>
+                        <span className={`rounded-[var(--dsa-radius-sm)] border px-1.5 py-0.5 text-[9px] font-bold uppercase ${levelStyle(row.level)}`}>
+                          {row.level}
+                        </span>
+                      </td>
+                      <td className="max-w-[180px] truncate text-[var(--dsa-text-secondary)]">
+                        {row.user?.email || row.user?.name || "—"}
+                      </td>
+                      <td className="max-w-[520px]">
+                        <div className="truncate font-mono text-[11px] text-[#b9e2cf]">{row.message}</div>
+                        {row.context && Object.keys(row.context).length > 0 ? (
+                          <pre className="mt-1 max-h-16 overflow-auto whitespace-pre-wrap text-[9px] text-[var(--dsa-text-muted)]">
+                            {JSON.stringify(row.context, null, 0)}
+                          </pre>
+                        ) : null}
+                      </td>
+                      <td className="whitespace-nowrap font-mono text-[10px] text-[var(--dsa-text-muted)]">
+                        {row.ip_address ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      )}
 
-      {mainTab === "laravel" && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <label className="mb-1 block text-[11px] font-medium text-white/50">
-              Levels (comma-separated, empty = all)
-            </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between border-t border-[var(--dsa-border)] px-3 py-2">
+              <span className="font-mono text-[10px] text-[var(--dsa-text-muted)]">
+                {activityMeta.current_page}/{activityMeta.last_page} · {activityMeta.total} rows
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={activityMeta.current_page <= 1}
+                  onClick={() => loadActivity(activityMeta.current_page - 1)}
+                  className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  disabled={activityMeta.current_page >= activityMeta.last_page}
+                  onClick={() => loadActivity(activityMeta.current_page + 1)}
+                  className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {mainTab === "laravel" && (
+          <>
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--dsa-border)] bg-[#0b1118] px-3 py-2">
               <input
                 value={laravelLevels}
                 onChange={(e) => setLaravelLevels(e.target.value)}
-                className="min-w-[240px] flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                className="dsa-control h-7 min-h-0 w-[320px] max-w-[65vw] px-2.5 font-mono text-[11px] outline-none"
                 placeholder="ERROR,WARNING,CRITICAL"
               />
               <button
                 type="button"
                 onClick={() => loadLaravel()}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+                className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
               >
                 Reload
               </button>
+              {laravelData?.path ? (
+                <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-[var(--dsa-text-muted)]" title={laravelData.path}>
+                  {laravelData.path}
+                </span>
+              ) : null}
             </div>
-            {laravelData?.path ? (
-              <p className="mt-2 font-mono text-[11px] text-white/40 break-all">{laravelData.path}</p>
-            ) : null}
-          </div>
 
-          <div className="max-h-[min(72vh,720px)] space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-3">
-            {(laravelData?.entries ?? []).length === 0 ? (
-              <p className="text-sm text-white/45">No matching log lines in the last ~{laravelData?.truncated_bytes ?? "—"} bytes.</p>
-            ) : (
-              (laravelData?.entries ?? []).map((e, i) => (
-                <div
-                  key={`${e.at}-${i}`}
-                  className="rounded-lg border border-white/10 bg-[#0b1220]/80 p-3 text-sm"
-                >
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] text-white/50">{e.at}</span>
-                    <span
-                      className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${levelStyle(e.level)}`}
-                    >
-                      {e.level}
-                    </span>
-                    {e.env ? <span className="text-[10px] text-white/40">{e.env}</span> : null}
+            <div className="max-h-[min(72vh,720px)] divide-y divide-[var(--dsa-border)] overflow-y-auto">
+              {(laravelData?.entries ?? []).length === 0 ? (
+                <p className="px-3 py-8 text-center text-xs text-[var(--dsa-text-muted)]">
+                  No matching log lines in the last ~{laravelData?.truncated_bytes ?? "—"} bytes.
+                </p>
+              ) : (
+                (laravelData?.entries ?? []).map((entry, i) => (
+                  <div key={`${entry.at}-${i}`} className="px-3 py-2.5 hover:bg-[var(--dsa-surface-2)]">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-[9px] text-[var(--dsa-text-muted)]">{entry.at}</span>
+                      <span className={`rounded-[var(--dsa-radius-sm)] border px-1.5 py-0.5 text-[9px] font-bold uppercase ${levelStyle(entry.level)}`}>
+                        {entry.level}
+                      </span>
+                      {entry.env ? <span className="text-[9px] text-[var(--dsa-text-muted)]">{entry.env}</span> : null}
+                    </div>
+                    <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-[#b9e2cf]">
+                      {entry.message}
+                    </pre>
                   </div>
-                  <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-emerald-100/85">
-                    {e.message}
-                  </pre>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+                ))
+              )}
+            </div>
+          </>
+        )}
 
-      {mainTab === "raw" && (
-        <>
-          <div className="mb-3 flex flex-wrap gap-2 border-b border-white/10 pb-3">
-            {(
-              [
-                ["php", "PHP (Laravel)"],
-                ["python", "Python engine"],
-                ["frontend", "Frontend"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setRawTab(id)}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  rawTab === id ? "bg-blue-600 text-white" : "bg-white/5 text-white/70 hover:bg-white/10"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        {mainTab === "raw" && (
+          <>
+            <div className="flex flex-wrap items-center gap-1 border-b border-[var(--dsa-border)] bg-[#0b1118] px-3 py-2">
+              {(
+                [
+                  ["php", "PHP"],
+                  ["python", "Python"],
+                  ["frontend", "Frontend"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setRawTab(id)}
+                  className={`min-h-7 rounded-[var(--dsa-radius-sm)] border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.04em] ${
+                    rawTab === id
+                      ? "border-[rgba(76,141,255,0.4)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+                      : "border-[var(--dsa-border)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              {rawPath ? (
+                <span className="ml-2 min-w-0 flex-1 truncate font-mono text-[9px] text-[var(--dsa-text-muted)]" title={rawPath}>
+                  {rawOk ? "" : "⚠ "}{rawPath}
+                </span>
+              ) : null}
+            </div>
 
-          {rawPath ? (
-            <p className="mb-2 font-mono text-[11px] text-white/45 break-all">
-              {rawOk ? "" : "⚠ "}
-              {rawPath}
+            <pre
+              className="max-h-[min(72vh,720px)] overflow-auto whitespace-pre-wrap break-words bg-[#070b0f] p-3 font-mono text-[10px] leading-relaxed text-[#b9e2cf]"
+              aria-live="polite"
+            >
+              {loading && !rawPayload ? "Loading…" : rawText || "(no output)"}
+            </pre>
+            <p className="border-t border-[var(--dsa-border)] px-3 py-2 font-mono text-[9px] text-[var(--dsa-text-muted)]">
+              Tail ~{rawPayload?.truncated_bytes ?? 120000} bytes · ADMIN_LOG_MAX_BYTES controls the limit.
             </p>
-          ) : null}
-
-          <pre
-            className="max-h-[min(70vh,720px)] overflow-auto rounded-xl border border-white/10 bg-black/50 p-4 text-[11px] leading-relaxed text-emerald-100/90 whitespace-pre-wrap break-words"
-            aria-live="polite"
-          >
-            {loading && !rawPayload ? "Loading…" : rawText || "(no output)"}
-          </pre>
-          <p className="mt-2 text-[11px] text-white/40">
-            Tail ~{rawPayload?.truncated_bytes ?? 120000} bytes. Override with{" "}
-            <code className="rounded bg-black/40 px-1">ADMIN_LOG_MAX_BYTES</code>.
-          </p>
-        </>
-      )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

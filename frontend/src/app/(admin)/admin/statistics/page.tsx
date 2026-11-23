@@ -32,52 +32,67 @@ export default function AdminStatisticsPage() {
   }, []);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-2">Most Watched Companies</h1>
-      <p className="text-white/60 text-sm mb-6">
-        Based on watchlist entries from all users. Shows which symbols are most added to watchlists.
-      </p>
+    <div className="space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div>
+          <p className="dsa-section-label">Usage analytics</p>
+          <h1 className="mt-0.5 text-sm font-semibold text-white">Most watched companies</h1>
+          <p className="mt-0.5 text-[10px] text-[var(--dsa-text-muted)]">
+            Aggregated watchlist demand across users.
+          </p>
+        </div>
+        <div className="font-mono text-[10px] text-[var(--dsa-text-muted)]">
+          {data.length} symbols
+        </div>
+      </section>
 
-      <div className="rounded-xl border border-white/10 overflow-hidden bg-[#161D2C]">
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <div>
+            <p className="text-xs font-semibold text-white">Watchlist ranking</p>
+            <p className="text-[10px] text-[var(--dsa-text-muted)]">Sorted by stored watchlist activity from the admin statistics endpoint.</p>
+          </div>
+        </div>
+
         {loading ? (
-          <div className="p-12 text-center text-white/60 flex items-center justify-center gap-2">
-            <Loader2 size={20} className="animate-spin" />
-            Loading...
+          <div className="flex min-h-40 items-center justify-center gap-2 text-xs text-[var(--dsa-text-muted)]">
+            <Loader2 size={15} className="animate-spin" />
+            Loading statistics…
           </div>
         ) : data.length === 0 ? (
-          <div className="p-12 text-center text-white/60">No watchlist data yet.</div>
+          <div className="px-4 py-10 text-center text-xs text-[var(--dsa-text-muted)]">No watchlist data yet.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="dsa-terminal-table min-w-[700px]">
               <thead>
-                <tr className="border-b border-white/10 text-left text-sm text-white/60">
-                  <th className="p-4 font-medium">#</th>
-                  <th className="p-4 font-medium">Symbol</th>
-                  <th className="p-4 font-medium">Company</th>
-                  <th className="p-4 font-medium">Total Watchlist Adds</th>
-                  <th className="p-4 font-medium">Unique Users</th>
+                <tr>
+                  <th className="text-right">#</th>
+                  <th className="text-left">Symbol</th>
+                  <th className="text-left">Company</th>
+                  <th className="text-right">Watchlist adds</th>
+                  <th className="text-right">Unique users</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((item, idx) => (
-                  <tr key={item.symbol} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="p-4 font-bold text-white/60">{idx + 1}</td>
-                    <td className="p-4 font-mono font-bold">{item.symbol}</td>
-                    <td className="p-4">{item.company_name ?? "—"}</td>
-                    <td className="p-4">
-                      <span className="flex items-center gap-1 text-blue-400">
-                        <TrendingUp size={14} />
+                  <tr key={item.symbol}>
+                    <td className="text-right font-mono tabular-nums text-[var(--dsa-text-muted)]">{idx + 1}</td>
+                    <td className="font-mono font-semibold text-[#8ab4ff]">{item.symbol}</td>
+                    <td className="text-[var(--dsa-text-secondary)]">{item.company_name ?? "—"}</td>
+                    <td className="text-right">
+                      <span className="inline-flex items-center justify-end gap-1 font-mono tabular-nums text-white">
+                        <TrendingUp size={12} className="text-[var(--dsa-positive)]" />
                         {item.watch_count}
                       </span>
                     </td>
-                    <td className="p-4">{item.user_count}</td>
+                    <td className="text-right font-mono tabular-nums text-[var(--dsa-text-secondary)]">{item.user_count}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

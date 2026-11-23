@@ -29,99 +29,114 @@ export default function ChangePasswordPage() {
   if (!ready) {
     return (
       <ProfileSettingsLayout title="Security" breadcrumbLabel="Security">
-        <div className="rounded-2xl border border-white/10 bg-[#161a21] p-8 text-sm text-white/45">
-          Loading…
+        <div className="dsa-terminal-panel flex min-h-28 items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+          Loading security settings…
         </div>
       </ProfileSettingsLayout>
     );
   }
 
+  const fields = [
+    {
+      id: "current",
+      label: "Current password",
+      show: showCurrent,
+      toggle: () => setShowCurrent((v) => !v),
+    },
+    {
+      id: "new",
+      label: "New password",
+      show: showNew,
+      toggle: () => setShowNew((v) => !v),
+    },
+    {
+      id: "confirm",
+      label: "Confirm new password",
+      show: showConfirm,
+      toggle: () => setShowConfirm((v) => !v),
+    },
+  ];
+
   return (
     <ProfileSettingsLayout title="Security" breadcrumbLabel="Security">
-      <div className="rounded-2xl border border-white/10 bg-[#161a21] p-6 phone:p-8">
-        <h2 className="text-lg font-semibold text-white">Change password</h2>
-        <p className="mt-1 text-sm text-white/45">
-          Update your password to keep your account secure.
-        </p>
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <div>
+            <p className="text-xs font-semibold text-white">Change password</p>
+            <p className="text-[10px] text-[var(--dsa-text-muted)]">Update your account credential.</p>
+          </div>
+          <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">
+            Security
+          </span>
+        </div>
 
         <form
-          className="mt-8 space-y-5"
+          className="space-y-0"
           onSubmit={(e) => {
             e.preventDefault();
           }}
         >
-          {[
-            {
-              id: "current",
-              label: "Current password",
-              show: showCurrent,
-              toggle: () => setShowCurrent((v) => !v),
-            },
-            {
-              id: "new",
-              label: "New password",
-              show: showNew,
-              toggle: () => setShowNew((v) => !v),
-            },
-            {
-              id: "confirm",
-              label: "Confirm new password",
-              show: showConfirm,
-              toggle: () => setShowConfirm((v) => !v),
-            },
-          ].map(({ id, label, show, toggle }) => (
-            <div key={id} className="space-y-1.5">
-              <label htmlFor={id} className="text-xs font-medium uppercase tracking-wide text-white/40">
+          {fields.map(({ id, label, show, toggle }) => (
+            <div
+              key={id}
+              className="grid min-w-0 gap-2 border-b border-[var(--dsa-border)] px-3 py-3 tablet:grid-cols-[160px_minmax(0,1fr)] tablet:items-center"
+            >
+              <label
+                htmlFor={id}
+                className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]"
+              >
                 {label}
               </label>
-              <div className="relative">
+              <div className="relative max-w-xl">
                 <Lock
-                  size={16}
-                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25"
+                  size={13}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--dsa-text-muted)]"
                   aria-hidden
                 />
                 <input
                   id={id}
                   type={show ? "text" : "password"}
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-white/10 bg-[#0b0e14]/80 py-3 pl-10 pr-11 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="dsa-control h-8 min-h-0 w-full py-1.5 pl-8 pr-9 text-xs placeholder:text-[var(--dsa-text-muted)]"
                 />
                 <button
                   type="button"
                   onClick={toggle}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 transition hover:text-white/70"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[var(--dsa-radius-sm)] p-1 text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-3)] hover:text-white"
                   aria-label={show ? "Hide password" : "Show password"}
                 >
-                  {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {show ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
             </div>
           ))}
 
-          <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-300">Requirements</p>
-            <ul className="mt-2 space-y-1 text-xs text-white/50">
-              <li>At least 8 characters</li>
-              <li>Include letters and numbers</li>
-            </ul>
+          <div className="grid gap-3 px-3 py-3 tablet:grid-cols-[160px_minmax(0,1fr)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+              Requirements
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--dsa-text-secondary)]">
+              <span>≥ 8 characters</span>
+              <span>Letters + numbers</span>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-            <button
-              type="submit"
-              className="flex-1 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-500"
-            >
-              Update password
-            </button>
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--dsa-border)] bg-[#0b1118] px-3 py-2">
             <Link
               href="/profile"
-              className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+              className="dsa-button-secondary min-h-0 px-3 py-1.5 text-[11px]"
             >
               Back to profile
             </Link>
+            <button
+              type="submit"
+              className="dsa-button-primary min-h-0 px-3 py-1.5 text-[11px]"
+            >
+              Update password
+            </button>
           </div>
         </form>
-      </div>
+      </section>
     </ProfileSettingsLayout>
   );
 }

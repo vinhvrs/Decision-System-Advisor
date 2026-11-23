@@ -31,6 +31,15 @@ Several modern-looking branches have unrelated/diverged history. A blanket merge
 - Realtime subscription fixes from `codex/fix-realtime-board-rows-clean` are already ancestors of the selected source.
 - `audit.md`, `plan.md`, and `roadmap.md` are copied into this branch without importing stale `main` ancestry.
 
+## Confirmed source-parity blocker — 2026-11-18
+An exhaustive GitHub branch-tree scan found **no** `Data Health`, `Market Analytics`, or chart-data-map route source in any historical or likely production branch currently stored in this repository, including `main`, `deploy`, `pi4-server`, `investing`, `fix/local-mac-stabilization`, `security/history-scrub`, `codex/realtime-seed-symbols`, the dated February–March checkpoints, and the 05/05 refactor/thesis checkpoint.
+
+The live site has newer modules than the Git repository. Treat those live modules as **out-of-repository production source** until the Raspberry Pi checkout/uncommitted frontend source is captured and reconciled. The current public terminal also exposes a mixed-asset 40-instrument universe, while the Git Market View/history pipeline inspected here is stock-oriented.
+
+Use `scripts/pi-source-parity.sh` on the Pi before any production promotion. Do not recreate, overwrite, or remove live-only modules from this older Git tree.
+
+Release implication: **no production promotion from this baseline until the live Pi source SHA/working tree and route/build manifests are captured and reconciled into Git.**
+
 ## Next branch-audit gate
 Before selectively integrating anything from diverged branches:
 1. Verify the exact Raspberry Pi production checkout SHA/branch.

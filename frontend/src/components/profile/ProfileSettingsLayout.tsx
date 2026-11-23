@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Shield, ChevronRight } from "lucide-react";
+import { User, Shield } from "lucide-react";
 import clsx from "clsx";
 
 type ProfileSettingsLayoutProps = {
@@ -24,25 +24,33 @@ export default function ProfileSettingsLayout({
   const pathname = usePathname();
 
   return (
-    <div className="w-full">
-      <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-white/40">
-        <Link href="/" className="transition hover:text-white">
-          Home
-        </Link>
-        <ChevronRight size={14} className="shrink-0" aria-hidden />
-        <span className="text-white/70">Settings</span>
-        <ChevronRight size={14} className="shrink-0" aria-hidden />
-        <span className="text-indigo-300">{breadcrumbLabel}</span>
-      </nav>
-
-      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(220px,280px)_minmax(0,1fr)] md:gap-8 lg:gap-10">
-        <div className="flex flex-col gap-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white phone:text-3xl">{title}</h1>
-            <p className="mt-1 text-sm text-white/45">Manage your DSA account preferences.</p>
+    <div className="dsa-page space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Account settings</p>
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+            <h1 className="truncate text-sm font-semibold text-white">{title}</h1>
+            <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">
+              {breadcrumbLabel}
+            </span>
           </div>
+        </div>
+        <Link
+          href="/"
+          className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
+        >
+          Back to terminal
+        </Link>
+      </section>
 
-          <aside className="flex flex-row gap-2 md:flex-col md:gap-1.5">
+      <div className="grid min-w-0 gap-3 tablet:grid-cols-[190px_minmax(0,1fr)]">
+        <aside className="dsa-terminal-panel overflow-hidden tablet:sticky tablet:top-[calc(var(--dsa-header-height)_+_12px)] tablet:self-start">
+          <div className="dsa-terminal-panel-head">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">
+              Settings
+            </p>
+          </div>
+          <nav className="p-1.5">
             {NAV.map(({ href, label, icon: Icon }) => {
               const active = pathname === href;
               return (
@@ -50,19 +58,19 @@ export default function ProfileSettingsLayout({
                   key={href}
                   href={href}
                   className={clsx(
-                    "flex flex-1 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition md:flex-none",
+                    "flex min-h-9 items-center gap-2 rounded-[var(--dsa-radius-sm)] border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                     active
-                      ? "border border-white/10 bg-white/10 text-white"
-                      : "text-white/55 hover:bg-white/5 hover:text-white"
+                      ? "border-[rgba(76,141,255,0.28)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+                      : "border-transparent text-[var(--dsa-text-secondary)] hover:border-[var(--dsa-border)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
                   )}
                 >
-                  <Icon size={17} className={active ? "text-indigo-300" : "text-white/40"} />
-                  {label}
+                  <Icon size={14} className={active ? "text-[#8ab4ff]" : "text-[var(--dsa-text-muted)]"} />
+                  <span>{label}</span>
                 </Link>
               );
             })}
-          </aside>
-        </div>
+          </nav>
+        </aside>
 
         <div className="min-w-0">{children}</div>
       </div>

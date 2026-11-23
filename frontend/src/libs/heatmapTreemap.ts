@@ -21,7 +21,8 @@ export const HEATMAP_LABEL_STROKE = "rgba(2,6,23,0.95)";
 export const HEATMAP_LABEL_STROKE_WIDTH = 1.6;
 
 /** Graded red / green by |change| % with restrained saturation for label readability. */
-export function heatmapTreemapColor(change: number): string {
+export function heatmapTreemapColor(change: number | null | undefined): string {
+  if (change == null) return "#3f3f46";
   const n = Number(change);
   if (!Number.isFinite(n) || n === 0) return "#3f3f46";
   const a = Math.min(Math.abs(n), 12);
@@ -39,7 +40,8 @@ export function heatmapTreemapColor(change: number): string {
   return "#5f1b20";
 }
 
-export function formatHeatmapChangePct(change: number): string {
+export function formatHeatmapChangePct(change: number | null | undefined): string {
+  if (change == null) return "—";
   const n = Number(change);
   if (!Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
@@ -85,7 +87,7 @@ export function heatmapTileLabel(w: number, h: number, symbol: string): HeatmapT
   return { showSymbol, showPct, symFs, pctFs, symbolText, symY, pctY };
 }
 
-export type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number };
+export type HeatmapListRow = { symbol: string; liquidity?: number; change_pct?: number | null };
 
 export function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
   const bySym = new Map<string, HeatmapListRow>();
@@ -96,16 +98,17 @@ export function mergeHeatmapRows(rows: HeatmapListRow[]): HeatmapListRow[] {
     if (!sym) continue;
     const liq = Number(row?.liquidity);
     const liquidity = Number.isFinite(liq) && liq > 0 ? liq : 1;
-    const ch = Number(row?.change_pct);
-    const change_pct = Number.isFinite(ch) ? ch : 0;
+    const ch = row?.change_pct == null ? Number.NaN : Number(row.change_pct);
+    const changePct = Number.isFinite(ch) ? ch : undefined;
     const prev = bySym.get(sym);
     if (!prev) {
-      bySym.set(sym, { symbol: sym, liquidity, change_pct });
+      bySym.set(sym, { symbol: sym, liquidity, change_pct: changePct });
     } else {
+      const prevChange = Number(prev.change_pct);
       bySym.set(sym, {
         symbol: sym,
         liquidity: (prev.liquidity ?? 1) + liquidity,
-        change_pct: prev.change_pct ?? change_pct,
+        change_pct: Number.isFinite(prevChange) ? prevChange : changePct,
       });
     }
   }
@@ -117,7 +120,10 @@ const HEATMAP_API_MIN_ROWS = 10;
 
 export function boardRowsToHeatmap(rows: BeginnerBoardRow[]): HeatmapListRow[] {
   return rows.map((r) => {
-    const changePct = Number.isFinite(r.change_pct_snapshot) ? r.change_pct_snapshot : 0;
+    const changeMissing = r.missing_fields?.includes("change_pct") ?? false;
+    const rawChange = Number(r.change_pct_snapshot);
+    const changePct =
+      !changeMissing && Number.isFinite(rawChange) ? rawChange : undefined;
     const marketCap = Number(r.market_cap);
     const liquidity = Number(r.liquidity);
     const volume = Number(r.volume);

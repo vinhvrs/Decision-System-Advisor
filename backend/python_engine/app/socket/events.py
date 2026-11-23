@@ -41,6 +41,24 @@ DASHBOARD_YAHOO_MAP: Dict[str, tuple] = {
 
 DASHBOARD_YAHOO_SYMBOLS: Set[str] = set(DASHBOARD_YAHOO_MAP.keys())
 
+
+# Canonical 40-stock market board contract.
+#
+# This only controls which symbols may be streamed. It does not synthesize quotes or
+# historical rows; clients still render a symbol only after real quote/persisted data
+# exists for it.
+MARKET_BOARD_EQUITY_SYMBOLS: Set[str] = {
+    "NVDA", "MSFT", "AAPL", "AVGO", "AMD", "ORCL", "CRM", "MU",
+    "ADBE", "QCOM", "AMAT", "PANW", "PLTR",
+    "AMZN", "TSLA", "COST", "WMT", "HD", "MCD", "NKE", "SBUX",
+    "GOOGL", "META", "NFLX", "DIS",
+    "JPM", "BAC", "V", "MA", "GS",
+    "XOM", "CVX",
+    "LLY", "UNH", "JNJ", "ABBV",
+    "CAT", "GE", "HON",
+    "NEE",
+}
+
 try:
     MARKET_BOARD_SYMBOL_LIMIT = max(1, min(500, int(os.environ.get("MARKET_BOARD_SYMBOL_LIMIT", "40"))))
 except ValueError:
@@ -48,7 +66,13 @@ except ValueError:
 
 
 def _load_allowed_stock_symbols() -> Set[str]:
-    """Use the DB instrument catalog as the stock quote whitelist."""
+    """
+    Quote whitelist = canonical 40-stock board contract union DB stock catalog.
+
+    Persistence coverage must not silently remove an intentionally tracked stock before
+    Yahoo gets a chance to stream it.
+    """
+    allowed = set(MARKET_BOARD_EQUITY_SYMBOLS)
     conn = None
     try:
         conn = pymysql.connect(**DB_CONFIG)
@@ -62,20 +86,25 @@ def _load_allowed_stock_symbols() -> Set[str]:
                   AND TRIM(symbol) <> ''
                 """
             )
-            return {
+            allowed.update(
                 str(row["symbol"]).upper()
                 for row in (cur.fetchall() or [])
                 if row.get("symbol")
-            }
+            )
     except Exception as e:
-        logger.warning("[Socket] failed to load stock whitelist from instruments: %s", e)
-        return set()
+        logger.warning(
+            "[Socket] failed to load stock whitelist from instruments; "
+            "continuing with %d canonical board symbols: %s",
+            len(MARKET_BOARD_EQUITY_SYMBOLS),
+            e,
+        )
     finally:
         if conn is not None:
             try:
                 conn.close()
             except Exception:
                 pass
+    return allowed
 
 
 def _empty_market_overview() -> Dict[str, Any]:
@@ -463,10 +492,10 @@ async def startup_event():
                 for r in (cur.fetchall() or [])
                 if r.get("symbol")
             }
+            manager.base_symbols.update(MARKET_BOARD_EQUITY_SYMBOLS)
             manager.start_or_restart_engine()
     except Exception:
-        # TEMP stocks-only: was BTC-USD, ETH-USD
-        manager.base_symbols = {"AAPL", "MSFT", "NVDA"}
+        manager.base_symbols = set(MARKET_BOARD_EQUITY_SYMBOLS)
         manager.start_or_restart_engine()
     finally:
         if "conn" in locals():

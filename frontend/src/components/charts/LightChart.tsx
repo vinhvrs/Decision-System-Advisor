@@ -371,6 +371,19 @@ function pointerOffsetInChartContainer(
 
 const NO_HISTORY_DRAWN_RECTS: HistoryRectPick[] = [];
 
+function researchBiasLabel(advice: HistoryAdviceHover["advice"]): string {
+  switch (advice) {
+    case "BUY":
+      return "Bullish";
+    case "HOLD":
+      return "Neutral";
+    case "WATCH":
+      return "Watch";
+    default:
+      return "Not Rated";
+  }
+}
+
 function HistorySimulatorHoverTip(props: {
   tip: { x: number; y: number; pick: HistoryCandlePick };
   symbol: string;
@@ -390,7 +403,7 @@ function HistorySimulatorHoverTip(props: {
 
   return (
     <div
-      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-md border border-white/20 bg-[#0b1220]/95 px-2.5 py-2 text-[10px] leading-snug text-[#e5e7eb] shadow-xl backdrop-blur-sm"
+      className="pointer-events-none absolute z-[40] w-[min(280px,calc(100%-16px))] max-w-[min(280px,calc(100%-16px))] rounded-[var(--dsa-radius-md)] border border-[var(--dsa-border-strong)] bg-[var(--dsa-surface-2)] px-2.5 py-2 text-[10px] leading-snug text-[var(--dsa-text)] shadow-xl"
       style={{
         left: tip.x + 12,
         top: tip.y + 12,
@@ -416,11 +429,11 @@ function HistorySimulatorHoverTip(props: {
       {adv ? (
         <div className="mt-2 border-t border-white/10 pt-1.5">
           <div className="mb-1 flex flex-wrap items-center gap-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-white/45">Advice</span>
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-white/45">Research bias</span>
             <span className="text-[9px] text-white/35">· as of {adv.asOfDate}</span>
           </div>
           <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${adviceCls}`}>
-            {adv.advice}
+            {researchBiasLabel(adv.advice)}
           </span>
           {adv.note ? (
             <p className="mt-1 text-[9px] leading-relaxed text-white/65">{adv.note}</p>
@@ -878,20 +891,20 @@ export default function LightChart({
       width: Math.max(1, el.clientWidth),
       height: Math.max(minChartHeight, el.clientHeight || minChartHeight),
       layout: {
-        background: { type: ColorType.Solid, color: "#0B1220" },
-        textColor: "#DDD",
+        background: { type: ColorType.Solid, color: "#090d12" },
+        textColor: "#a7b2c0",
       },
       grid: {
-        vertLines: { color: "#1E222D" },
-        horzLines: { color: "#1E222D" },
+        vertLines: { color: "#202b37" },
+        horzLines: { color: "#202b37" },
       },
       timeScale: {
-        borderColor: "#334155",
+        borderColor: "#2c3947",
         timeVisible: true,
         secondsVisible: false,
       },
       rightPriceScale: {
-        borderColor: "#334155",
+        borderColor: "#2c3947",
       },
     });
 

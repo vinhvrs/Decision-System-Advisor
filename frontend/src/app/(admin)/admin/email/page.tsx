@@ -323,27 +323,26 @@ export default function AdminEmailPage() {
   };
 
   return (
-    <div className="max-w-6xl space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Mail className="text-blue-400" size={28} />
+    <div className="space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <p className="dsa-section-label">Communications</p>
+          <h1 className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-white">
+            <Mail className="h-3.5 w-3.5 text-[#8ab4ff]" />
             Email desk
           </h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/55">
-            Send mail to clients, keep copies in the thread list, and review messages from the public contact page.
-            Automatic inbound mail (IMAP/webhooks) is not wired yet — use <strong className="text-white/80">Log client message</strong>{" "}
-            to paste forwarded emails when needed.
+          <p className="mt-0.5 max-w-3xl truncate text-[10px] text-[var(--dsa-text-muted)]">
+            Client mail, public contact submissions, archived messages, and mail configuration.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => setShowSettings((s) => !s)}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
           >
-            <Settings className="h-4 w-4" />
-            Mail settings
+            <Settings className="h-3.5 w-3.5" />
+            Settings
           </button>
           <button
             type="button"
@@ -364,213 +363,208 @@ export default function AdminEmailPage() {
               }
             }}
             disabled={loadingCfg}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
           >
-            <RefreshCw className={loadingCfg ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+            <RefreshCw className={loadingCfg ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
             Refresh
           </button>
         </div>
-      </div>
+      </section>
 
       {!loadingCfg && cfg ? (
-        <div className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm space-y-2">
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="grid gap-px bg-[var(--dsa-border)] phone:grid-cols-2 laptop:grid-cols-4">
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">Mailer</p>
+              <p className="mt-1 font-mono text-xs text-white">{cfg.mailer || "—"}</p>
+            </div>
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">From</p>
+              <p className="mt-1 truncate text-xs text-[var(--dsa-text-secondary)]">{cfg.from_address || "—"}</p>
+            </div>
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">SMTP</p>
+              <p className={`mt-1 text-xs font-medium ${cfg.smtp_ready ? "text-[var(--dsa-positive)]" : "text-[var(--dsa-warning)]"}`}>
+                {cfg.smtp_ready ? "Ready" : "Not ready"}
+              </p>
+            </div>
+            <div className="dsa-terminal-kpi">
+              <p className="dsa-section-label">Contact inbox</p>
+              <p className="mt-1 font-mono text-xs text-white">
+                {contacts.filter((row) => !row.read_at).length} unread
+              </p>
+            </div>
+          </div>
+
           {cfg.mailer === "log" ? (
-            <p className="text-amber-200/95">
-              Outbound mailer is <strong>log</strong> — messages are written to the API log only, not delivered. Set{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_MAILER=smtp</code> plus host, port, username,
-              password, and <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_FROM_ADDRESS</code> in the Laravel{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">.env</code>.
-            </p>
+            <div className="border-t border-[rgba(216,163,64,0.28)] bg-[rgba(216,163,64,0.08)] px-3 py-2 text-[10px] leading-relaxed text-[#d9bb7a]">
+              Outbound mailer is <strong>log</strong>; messages are archived/logged but not delivered through SMTP.
+            </div>
           ) : null}
           {cfg.mailer === "smtp" && cfg.smtp_ready === false ? (
-            <p className="text-red-200/95">
-              SMTP looks incomplete: set <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_HOST</code>,{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_USERNAME</code>,{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_PASSWORD</code>, and a valid{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_FROM_ADDRESS</code>. For port 587 use{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_ENCRYPTION=tls</code> when your host requires it.
-            </p>
+            <div className="border-t border-[rgba(231,91,100,0.28)] bg-[rgba(231,91,100,0.08)] px-3 py-2 text-[10px] leading-relaxed text-[var(--dsa-negative)]">
+              SMTP configuration is incomplete. Verify host, credentials, from address, port, and encryption in Laravel environment.
+            </div>
           ) : null}
-          {cfg.mailer === "smtp" && cfg.smtp_ready ? (
-            <p className="text-emerald-200/95">SMTP appears ready for sending from {cfg.from_address || "—"}.</p>
+          {!cfg.support_notify_configured ? (
+            <div className="border-t border-[var(--dsa-border)] px-3 py-2 text-[10px] text-[var(--dsa-text-muted)]">
+              Optional support notification address is not configured.
+            </div>
           ) : null}
-          {cfg.support_notify_configured ? null : (
-            <p className="text-white/55">
-              Optional: set <code className="rounded bg-black/30 px-1 text-[11px]">MAIL_SUPPORT_ADDRESS</code> in{" "}
-              <code className="rounded bg-black/30 px-1 text-[11px]">.env</code> to receive a copy when someone submits the
-              site contact form.
-            </p>
-          )}
-        </div>
-      ) : null}
-
-
-      {contacts.length > 0 ? (
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-white/80">Website contacts</h2>
-            <button
-              type="button"
-              disabled={busy || !contacts.some((c) => !c.read_at)}
-              onClick={() => void onMarkAllContactsRead()}
-              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/10 disabled:opacity-40"
-            >
-              Mark all read
-            </button>
-          </div>
-          <ul className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
-            {contacts.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onMarkContactRead(c)}
-                  className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                    c.read_at
-                      ? "border-white/10 bg-black/20 hover:border-white/20"
-                      : "border-amber-500/40 bg-amber-500/5 hover:border-amber-400/60"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-white">{c.subject}</span>
-                    <span className="shrink-0 text-[10px] text-white/45">
-                      {new Date(c.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-white/60">
-                    {c.name} &lt;{c.email}&gt;
-                    {!c.read_at ? <span className="ml-2 text-amber-300/90">· New</span> : null}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-white/75">{c.message}</p>
-                  {!c.read_at ? (
-                    <p className="mt-1 text-[10px] text-white/40">Click to mark as read</p>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
         </section>
       ) : null}
 
-      {message ? (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-          {message}
-        </div>
-      ) : null}
-      {error ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
-      ) : null}
-
       {showSettings && (
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-white/80">Configuration</h2>
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <p className="text-xs font-semibold text-white">Mail configuration</p>
+          </div>
           {loadingCfg ? (
-            <p className="mt-3 text-sm text-white/40">Loading…</p>
+            <p className="px-3 py-4 text-xs text-[var(--dsa-text-muted)]">Loading configuration…</p>
           ) : cfg ? (
-            <dl className="mt-4 grid gap-2 text-sm">
-              <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-                <dt className="text-white/50">Mailer</dt>
-                <dd className="font-mono text-white">{cfg.mailer}</dd>
-              </div>
-              <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-                <dt className="text-white/50">From</dt>
-                <dd className="text-right text-white">
-                  {cfg.from_name} &lt;{cfg.from_address}&gt;
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-                <dt className="text-white/50">SMTP</dt>
-                <dd className="text-right font-mono text-white">
-                  {cfg.smtp_host ?? "—"}:{cfg.smtp_port ?? "—"}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-                <dt className="text-white/50">SMTP ready</dt>
-                <dd className="text-right text-white">{cfg.smtp_ready ? "Yes" : "No"}</dd>
-              </div>
-              <div className="flex justify-between gap-4 py-2">
-                <dt className="text-white/50">Notes</dt>
-                <dd className="text-right text-xs text-white/55">
-                  <code className="text-[11px]">MAIL_MAILER=log</code> writes to laravel.log only. Use real SMTP for delivery.
-                </dd>
-              </div>
+            <dl className="divide-y divide-[var(--dsa-border)]">
+              {[
+                ["Mailer", cfg.mailer],
+                ["From", `${cfg.from_name} <${cfg.from_address}>`],
+                ["SMTP", `${cfg.smtp_host ?? "—"}:${cfg.smtp_port ?? "—"}`],
+                ["SMTP ready", cfg.smtp_ready ? "Yes" : "No"],
+              ].map(([label, value]) => (
+                <div key={label} className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 px-3 py-2 text-[11px]">
+                  <dt className="text-[var(--dsa-text-muted)]">{label}</dt>
+                  <dd className="min-w-0 truncate font-mono text-white">{value}</dd>
+                </div>
+              ))}
             </dl>
           ) : (
-            <p className="mt-3 text-sm text-white/40">Could not load configuration.</p>
+            <p className="px-3 py-4 text-xs text-[var(--dsa-text-muted)]">Could not load configuration.</p>
           )}
         </section>
       )}
 
-      <div className="grid gap-6 laptop:grid-cols-2">
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white/80">
-              <Inbox className="h-4 w-4 text-blue-400" />
-              Inbox / Sent
-            </h2>
-            <div className="flex gap-1 rounded-lg bg-black/30 p-1">
-              {(["all", "inbound", "outbound"] as const).map((t) => (
+      {contacts.length > 0 ? (
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <div>
+              <p className="text-xs font-semibold text-white">Website contacts</p>
+              <p className="text-[10px] text-[var(--dsa-text-muted)]">Public contact submissions · click an unread row to mark it read.</p>
+            </div>
+            <button
+              type="button"
+              disabled={busy || !contacts.some((row) => !row.read_at)}
+              onClick={() => void onMarkAllContactsRead()}
+              className="dsa-button-secondary min-h-0 px-2 py-1 text-[10px] disabled:opacity-40"
+            >
+              Mark all read
+            </button>
+          </div>
+          <div className="max-h-[260px] divide-y divide-[var(--dsa-border)] overflow-y-auto">
+            {contacts.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                disabled={busy}
+                onClick={() => void onMarkContactRead(row)}
+                className={`grid w-full min-w-0 gap-1 px-3 py-2 text-left transition-colors tablet:grid-cols-[minmax(0,1fr)_160px] ${
+                  row.read_at ? "hover:bg-[var(--dsa-surface-2)]" : "bg-[rgba(216,163,64,0.06)] hover:bg-[rgba(216,163,64,0.1)]"
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[11px] font-semibold text-white">{row.subject}</span>
+                    {!row.read_at ? <span className="text-[9px] font-semibold uppercase text-[var(--dsa-warning)]">New</span> : null}
+                  </div>
+                  <p className="mt-0.5 truncate text-[10px] text-[var(--dsa-text-muted)]">
+                    {row.name} &lt;{row.email}&gt; · {row.message}
+                  </p>
+                </div>
+                <span className="font-mono text-[9px] text-[var(--dsa-text-muted)] tablet:text-right">
+                  {new Date(row.created_at).toLocaleString()}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {message ? (
+        <div className="rounded-[var(--dsa-radius-sm)] border border-[rgba(44,182,125,0.28)] bg-[rgba(44,182,125,0.08)] px-3 py-2 text-[10px] text-[var(--dsa-positive)]">
+          {message}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-[var(--dsa-radius-sm)] border border-[rgba(231,91,100,0.28)] bg-[rgba(231,91,100,0.08)] px-3 py-2 text-[10px] text-[var(--dsa-negative)]">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid min-w-0 gap-3 laptop:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+        <section className="dsa-terminal-panel min-w-0 overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <div className="flex items-center gap-2">
+              <Inbox className="h-3.5 w-3.5 text-[#8ab4ff]" />
+              <p className="text-xs font-semibold text-white">Inbox / sent</p>
+            </div>
+            <div className="flex gap-1">
+              {(["all", "inbound", "outbound"] as const).map((tab) => (
                 <button
-                  key={t}
+                  key={tab}
                   type="button"
-                  onClick={() => setListTab(t)}
-                  className={`rounded-md px-2 py-1 text-[11px] font-bold uppercase ${
-                    listTab === t ? "bg-blue-600 text-white" : "text-white/55 hover:text-white"
+                  onClick={() => setListTab(tab)}
+                  className={`rounded-[var(--dsa-radius-sm)] border px-2 py-1 text-[9px] font-semibold uppercase ${
+                    listTab === tab
+                      ? "border-[rgba(76,141,255,0.4)] bg-[var(--dsa-accent-soft)] text-[#c5d9ff]"
+                      : "border-[var(--dsa-border)] text-[var(--dsa-text-muted)] hover:bg-[var(--dsa-surface-2)] hover:text-white"
                   }`}
                 >
-                  {t}
+                  {tab}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[430px] divide-y divide-[var(--dsa-border)] overflow-y-auto">
             {messages.length === 0 ? (
-              <p className="text-sm text-white/45">No messages yet.</p>
+              <p className="px-3 py-8 text-center text-xs text-[var(--dsa-text-muted)]">No messages yet.</p>
             ) : (
-              messages.map((m) => (
+              messages.map((row) => (
                 <button
-                  key={m.id}
+                  key={row.id}
                   type="button"
-                  onClick={() => setSelected(m)}
-                  className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                    selected?.id === m.id
-                      ? "border-blue-500/50 bg-blue-500/10"
-                      : "border-white/10 bg-black/25 hover:border-white/20"
+                  onClick={() => setSelected(row)}
+                  className={`w-full px-3 py-2 text-left transition-colors ${
+                    selected?.id === row.id ? "bg-[var(--dsa-accent-soft)]" : "hover:bg-[var(--dsa-surface-2)]"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                        m.direction === "inbound" ? "bg-violet-500/20 text-violet-200" : "bg-emerald-500/20 text-emerald-200"
-                      }`}
-                    >
-                      {m.direction}
+                    <span className={`rounded-[var(--dsa-radius-sm)] px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                      row.direction === "inbound"
+                        ? "bg-[rgba(168,85,247,0.12)] text-[#c4a3ff]"
+                        : "bg-[rgba(44,182,125,0.12)] text-[var(--dsa-positive)]"
+                    }`}>
+                      {row.direction}
                     </span>
-                    <span className="text-[10px] text-white/40">{new Date(m.created_at).toLocaleString()}</span>
+                    <span className="font-mono text-[9px] text-[var(--dsa-text-muted)]">{new Date(row.created_at).toLocaleString()}</span>
                   </div>
-                  <p className="mt-1 line-clamp-1 text-xs font-semibold text-white">{m.subject}</p>
-                  <p className="text-[11px] text-white/50">
-                    {m.from_email} → {m.to_email}
+                  <p className="mt-1 truncate text-[11px] font-semibold text-white">{row.subject}</p>
+                  <p className="mt-0.5 truncate text-[9px] text-[var(--dsa-text-muted)]">
+                    {row.from_email} → {row.to_email}
                   </p>
-                  {m.status === "failed" ? (
-                    <p className="mt-1 text-[11px] text-red-300/90">Failed: {m.error_message}</p>
+                  {row.status === "failed" ? (
+                    <p className="mt-1 truncate text-[9px] text-[var(--dsa-negative)]">Failed: {row.error_message}</p>
                   ) : null}
                 </button>
               ))
             )}
           </div>
 
-          <div className="mt-3 flex items-center justify-between text-xs text-white/50">
-            <span>
-              Page {msgPage} / {msgLastPage}
-            </span>
-            <div className="flex gap-2">
+          <div className="flex items-center justify-between border-t border-[var(--dsa-border)] px-3 py-2">
+            <span className="font-mono text-[9px] text-[var(--dsa-text-muted)]">{msgPage}/{msgLastPage}</span>
+            <div className="flex gap-1.5">
               <button
                 type="button"
                 disabled={msgPage <= 1}
                 onClick={() => loadMessages(msgPage - 1)}
-                className="rounded border border-white/10 px-2 py-1 disabled:opacity-40"
+                className="dsa-button-secondary min-h-0 px-2 py-1 text-[9px] disabled:opacity-40"
               >
                 Prev
               </button>
@@ -578,7 +572,7 @@ export default function AdminEmailPage() {
                 type="button"
                 disabled={msgPage >= msgLastPage}
                 onClick={() => loadMessages(msgPage + 1)}
-                className="rounded border border-white/10 px-2 py-1 disabled:opacity-40"
+                className="dsa-button-secondary min-h-0 px-2 py-1 text-[9px] disabled:opacity-40"
               >
                 Next
               </button>
@@ -586,199 +580,182 @@ export default function AdminEmailPage() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-white/80">Message</h2>
+        <section className="dsa-terminal-panel min-w-0 overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <p className="text-xs font-semibold text-white">Message</p>
+            {selected ? <span className="text-[9px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">{selected.status}</span> : null}
+          </div>
           {selected ? (
-            <div className="space-y-2 text-sm">
-              <p className="text-white/50">
-                <span className="font-semibold text-white/80">{selected.subject}</span>
-              </p>
-              <p className="text-xs text-white/45">
-                {selected.from_email} → {selected.to_email}
-              </p>
-              <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-emerald-100/90">
+            <div>
+              <div className="border-b border-[var(--dsa-border)] px-3 py-2">
+                <p className="text-[11px] font-semibold text-white">{selected.subject}</p>
+                <p className="mt-0.5 text-[9px] text-[var(--dsa-text-muted)]">
+                  {selected.from_email} → {selected.to_email}
+                </p>
+              </div>
+              <pre className="max-h-[390px] min-h-[220px] overflow-auto whitespace-pre-wrap bg-[#070b0f] p-3 font-mono text-[10px] leading-relaxed text-[#b9e2cf]">
                 {selected.body_text || "(empty body in archive)"}
               </pre>
             </div>
           ) : (
-            <p className="text-sm text-white/45">Select a row to read the full body.</p>
+            <div className="flex min-h-[280px] items-center justify-center text-xs text-[var(--dsa-text-muted)]">
+              Select a message to inspect.
+            </div>
           )}
         </section>
       </div>
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white/80">
-          <ArrowUpRight className="h-4 w-4 text-emerald-400" />
-          Compose (send to client)
-        </h2>
-        <form onSubmit={onSend} className="grid gap-4 tablet:grid-cols-2">
-          <div className="tablet:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/50">To</label>
+      <div className="grid min-w-0 gap-3 laptop:grid-cols-2">
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <div className="flex items-center gap-2">
+              <ArrowUpRight className="h-3.5 w-3.5 text-[var(--dsa-positive)]" />
+              <p className="text-xs font-semibold text-white">Compose to client</p>
+            </div>
+          </div>
+          <form onSubmit={onSend} className="grid gap-2 p-3">
             <input
               type="email"
               required
               value={sendTo}
               onChange={(e) => setSendTo(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              placeholder="To"
+              className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Link registered user (optional)</label>
-            <select
-              value={clientUserId}
-              onChange={(e) => setClientUserId(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            >
-              <option value="">— None —</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {(u.email || u.name || u.id).slice(0, 60)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Reply-To (optional)</label>
-            <input
-              type="email"
-              value={replyTo}
-              onChange={(e) => setReplyTo(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div className="tablet:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/50">Subject</label>
+            <div className="grid gap-2 phone:grid-cols-2">
+              <select
+                value={clientUserId}
+                onChange={(e) => setClientUserId(e.target.value)}
+                className="dsa-control h-8 min-h-0 px-2 text-[11px]"
+              >
+                <option value="">Link user: none</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {(user.email || user.name || user.id).slice(0, 60)}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="email"
+                value={replyTo}
+                onChange={(e) => setReplyTo(e.target.value)}
+                placeholder="Reply-To (optional)"
+                className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
+              />
+            </div>
             <input
               type="text"
               required
               value={sendSubject}
               onChange={(e) => setSendSubject(e.target.value)}
               maxLength={255}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              placeholder="Subject"
+              className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
             />
-          </div>
-          <div className="tablet:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/50">Body (plain text)</label>
             <textarea
               required
               value={sendBody}
               onChange={(e) => setSendBody(e.target.value)}
-              rows={6}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              rows={5}
+              placeholder="Plain-text message"
+              className="dsa-control min-h-[120px] resize-y px-2.5 py-2 text-[11px]"
             />
-          </div>
-          <div className="tablet:col-span-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              Send &amp; archive
-            </button>
-          </div>
-        </form>
-      </section>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={busy}
+                className="dsa-button-primary min-h-0 px-3 py-1.5 text-[10px] disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Send & archive
+              </button>
+            </div>
+          </form>
+        </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-white/80">
-          Client message to support
-        </h2>
-        <p className="mb-4 text-xs text-white/45">
-          Use this when a client contacts support (email, forwarded thread, or pasted text). It creates the same
-          archived row as a real inbound email so your team has a single trail. IMAP is not connected yet—everything
-          here is manual entry.
-        </p>
-        <form onSubmit={onInbound} className="grid gap-4 tablet:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Client email (from)</label>
-            <input
-              type="email"
-              required
-              value={inFrom}
-              onChange={(e) => setInFrom(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
+        <section className="dsa-terminal-panel overflow-hidden">
+          <div className="dsa-terminal-panel-head">
+            <p className="text-xs font-semibold text-white">Log client support message</p>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Support / your inbox (to)</label>
-            <input
-              type="email"
-              required
-              value={inTo}
-              onChange={(e) => setInTo(e.target.value)}
-              placeholder={cfg?.from_address || "you@company.com"}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50">Link registered client (optional)</label>
+          <form onSubmit={onInbound} className="grid gap-2 p-3">
+            <div className="grid gap-2 phone:grid-cols-2">
+              <input
+                type="email"
+                required
+                value={inFrom}
+                onChange={(e) => setInFrom(e.target.value)}
+                placeholder="Client email"
+                className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
+              />
+              <input
+                type="email"
+                required
+                value={inTo}
+                onChange={(e) => setInTo(e.target.value)}
+                placeholder={cfg?.from_address || "Support inbox"}
+                className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
+              />
+            </div>
             <select
               value={inClientId}
               onChange={(e) => setInClientId(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              className="dsa-control h-8 min-h-0 px-2 text-[11px]"
             >
-              <option value="">— None —</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {(u.email || u.name || u.id).slice(0, 60)}
+              <option value="">Link registered client: none</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {(user.email || user.name || user.id).slice(0, 60)}
                 </option>
               ))}
             </select>
-          </div>
-          <div className="tablet:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/50">Subject (from client)</label>
             <input
               type="text"
               required
               value={inSubject}
               onChange={(e) => setInSubject(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              placeholder="Subject"
+              className="dsa-control h-8 min-h-0 px-2.5 text-[11px]"
             />
-          </div>
-          <div className="tablet:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/50">Their message</label>
             <textarea
               required
               value={inBody}
               onChange={(e) => setInBody(e.target.value)}
               rows={5}
-              placeholder="Paste the client’s email or support request here…"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              placeholder="Paste client email or support request"
+              className="dsa-control min-h-[120px] resize-y px-2.5 py-2 text-[11px]"
             />
-          </div>
-          <div className="tablet:col-span-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
-            >
-              Save support message
-            </button>
-          </div>
-        </form>
-      </section>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={busy}
+                className="dsa-button-secondary min-h-0 px-3 py-1.5 text-[10px] disabled:opacity-50"
+              >
+                Save support message
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-white/80">Quick test</h2>
-        <form onSubmit={onTest} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <label className="mb-1 block text-xs font-medium text-white/50">Recipient</label>
-            <input
-              type="email"
-              required
-              value={testTo}
-              onChange={(e) => setTestTo(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-          </div>
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <p className="text-xs font-semibold text-white">Quick test</p>
+        </div>
+        <form onSubmit={onTest} className="flex flex-col gap-2 p-3 phone:flex-row phone:items-center">
+          <input
+            type="email"
+            required
+            value={testTo}
+            onChange={(e) => setTestTo(e.target.value)}
+            placeholder="Recipient"
+            className="dsa-control h-8 min-h-0 min-w-0 flex-1 px-2.5 text-[11px]"
+          />
           <button
             type="submit"
             disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-50"
+            className="dsa-button-secondary min-h-0 px-3 py-1.5 text-[10px] disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-3.5 w-3.5" />
             Send test
           </button>
         </form>

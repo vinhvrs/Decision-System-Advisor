@@ -14,43 +14,55 @@ export default function FundamentalsSymbolPage({ params }: Props) {
   const symbol = decodeURIComponent(raw || "").trim().toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white">
-      <div className="mx-auto max-w-6xl px-4 py-8 phone:px-6">
-        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
-          <Link
-            href="/fundamentals"
-            className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-white/80 hover:bg-white/10"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            All symbols
-          </Link>
+    <div className="dsa-page space-y-3">
+      <section className="dsa-terminal-page-head">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1 text-[9px] text-[var(--dsa-text-muted)]">
+            <Link href="/fundamentals" className="inline-flex items-center gap-0.5 hover:text-white">
+              <ChevronLeft className="h-3 w-3" />
+              Fundamentals
+            </Link>
+            <span>/</span>
+            <span className="font-mono text-[#8ab4ff]">{symbol}</span>
+          </div>
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <h1 className="font-mono text-sm font-semibold text-white">{symbol}</h1>
+            <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--dsa-text-muted)]">Fundamental research</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
           <Link
             href={`/companies/profile/${encodeURIComponent(symbol.toLowerCase())}`}
-            className="rounded-lg border border-[#3861fb]/40 px-3 py-1.5 text-[#7b9cff] hover:bg-[#3861fb]/10"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
           >
-            Full company profile (chart + market stack)
+            Company profile
           </Link>
           <Link
             href={`/companies/profile/${encodeURIComponent(symbol.toLowerCase())}?tab=fundamentals`}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-white/70 hover:bg-white/5"
+            className="dsa-button-secondary min-h-0 px-2.5 py-1 text-[10px]"
           >
-            Same fundamentals in profile layout
+            Profile fundamentals
           </Link>
         </div>
+      </section>
 
-        <h1 className="text-2xl font-bold">
-          <span className="font-mono text-[#7b9cff]">{symbol}</span>{" "}
-          <span className="text-lg font-semibold text-white/80">fundamentals</span>
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-white/60">
-          Data from SEC EDGAR company facts (XBRL). Run the ingest pipeline after migrations to populate charts and
-          scores.
-        </p>
-
-        <div className="mt-8">
+      <section className="dsa-terminal-panel overflow-hidden">
+        <div className="dsa-terminal-panel-head">
+          <div>
+            <p className="text-xs font-semibold text-white">SEC fundamental history</p>
+            <p className="text-[10px] text-[var(--dsa-text-muted)]">
+              EDGAR company facts · XBRL annual metrics and orientation scores.
+            </p>
+          </div>
+          <span className="text-[9px] uppercase tracking-[0.05em] text-[var(--dsa-text-muted)]">
+            Source-aligned
+          </span>
+        </div>
+        <div className="p-3 tablet:p-4">
           <FundamentalSection symbol={symbol} />
         </div>
-      </div>
+      </section>
     </div>
   );
 }

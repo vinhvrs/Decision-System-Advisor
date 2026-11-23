@@ -51,20 +51,20 @@ export default function HeatmapPage({ maxTiles = HEATMAP_DISPLAY_TILE_MAX }: Hea
 
   return (
     <div className="flex w-full flex-col">
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg">
+      <div className="relative aspect-square w-full overflow-hidden rounded-[var(--dsa-radius-sm)] border border-[var(--dsa-border)] bg-[#0d0d0d]">
         {loadError && (
-          <p className="absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm text-white/50">
+          <p className="absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-xs text-[var(--dsa-text-muted)]">
             Heatmap data is currently unavailable.
           </p>
         )}
         {!loadError && loading && (
-          <p className="absolute inset-0 z-10 flex items-center justify-center text-sm text-white/40">
+          <p className="absolute inset-0 z-10 flex items-center justify-center text-xs text-[var(--dsa-text-muted)]">
             Loading heatmap…
           </p>
         )}
-        {!loadError && !loading && !data.length && raw.length > 0 && (
-          <p className="absolute inset-0 z-10 flex items-center justify-center text-sm text-white/40">
-            No heatmap rows returned.
+        {!loadError && !loading && !data.length && (
+          <p className="absolute inset-0 z-10 flex items-center justify-center px-4 text-center text-xs text-[var(--dsa-text-muted)]">
+            No eligible heatmap rows are currently available.
           </p>
         )}
         {!loadError && !loading && data.length > 0 && (

@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { memo, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import React, { memo, useEffect, useState } from "react";
 
 import BeginnerRadarChart from "@/src/app/(site)/test/BeginnerRadarChart";
 import { fearGreedFromChangePct } from "@/src/libs/fearGreed";
@@ -13,157 +11,25 @@ import {
   type BeginnerFormalRadarPayload,
 } from "@/src/services/Beginner.service";
 
-/** Legacy 6-axis chart when no symbol (0–100, profile heuristics). */
-const LegacyRadarChartClient = dynamic(
-  () =>
-    import("recharts").then((mod) => {
-      const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } = mod;
-
-      return function LegacyChart({ data }: { data: { subject: string; value: number }[] }) {
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="78%" data={data}>
-              <PolarGrid stroke="#374151" />
-              <PolarAngleAxis dataKey="subject" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} />
-              <Tooltip
-                formatter={(v) => [`${v ?? "—"} / 100`, "Score"]}
-                contentStyle={{
-                  backgroundColor: "#111827",
-                  border: "1px solid #374151",
-                  borderRadius: "10px",
-                  color: "#e5e7eb",
-                }}
-              />
-              <Radar
-                name="Score"
-                dataKey="value"
-                stroke="#3b82f6"
-                fill="#3b82f6"
-                fillOpacity={0.45}
-                isAnimationActive={false}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
-        );
-      };
-    }),
-  { ssr: false }
-);
-
-function clamp(value: number, min = 0, max = 100) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function scoreFromEmployees(employees: number) {
-  if (!employees || employees <= 0) return 40;
-  if (employees >= 200000) return 98;
-  if (employees >= 100000) return 94;
-  if (employees >= 50000) return 88;
-  if (employees >= 20000) return 80;
-  if (employees >= 10000) return 74;
-  if (employees >= 5000) return 66;
-  if (employees >= 1000) return 58;
-  return 48;
-}
-
-function scoreFromIpoDate(ipoDate?: string | null) {
-  if (!ipoDate) return 45;
-  const year = new Date(ipoDate).getFullYear();
-  if (!year || Number.isNaN(year)) return 45;
-  const age = new Date().getFullYear() - year;
-  if (age >= 40) return 95;
-  if (age >= 25) return 88;
-  if (age >= 15) return 78;
-  if (age >= 8) return 68;
-  if (age >= 3) return 58;
-  return 48;
-}
-
-function scoreGrowth(industry?: string, sector?: string) {
-  const text = `${industry || ""} ${sector || ""}`.toLowerCase();
-  if (text.includes("semiconductor") || text.includes("artificial intelligence") || text.includes("software") || text.includes("cloud")) {
-    return 92;
-  }
-  if (text.includes("technology") || text.includes("communication") || text.includes("cybersecurity")) {
-    return 84;
-  }
-  if (text.includes("healthcare") || text.includes("consumer") || text.includes("industrial")) {
-    return 72;
-  }
-  return 60;
-}
-
-function scoreLeadership(details: any) {
-  let score = 35;
-  if (details?.ceo) score += 20;
-  if (details?.website) score += 15;
-  if (details?.description) score += 15;
-  if (details?.country) score += 5;
-  if (details?.company_name) score += 10;
-  return clamp(score);
-}
-
-function scoreMarketPresence(details: any) {
-  let score = 40;
-  const exchange = String(details?.exchange || "").toUpperCase();
-  if (exchange.includes("NASDAQ") || exchange.includes("NYSE")) score += 25;
-  else if (exchange) score += 15;
-  if (details?.country === "US") score += 15;
-  else if (details?.country) score += 10;
-  if (details?.image) score += 8;
-  if (details?.symbol) score += 6;
-  return clamp(score);
-}
-
-function scoreTransparency(details: any) {
-  const fields = [
-    details?.company_name,
-    details?.symbol,
-    details?.exchange,
-    details?.industry,
-    details?.sector,
-    details?.website,
-    details?.description,
-    details?.ceo,
-    details?.country,
-    details?.image,
-    details?.full_time_employees,
-    details?.ipo_date,
-  ];
-  const filled = fields.filter((v) => v !== null && v !== undefined && v !== "").length;
-  return clamp((filled / fields.length) * 100);
-}
-
-function legacyFundamentalChartData(details: any) {
-  const employees = Number(details?.full_time_employees || 0);
-  return [
-    { subject: "Growth", value: scoreGrowth(details?.industry, details?.sector) },
-    { subject: "Scale", value: scoreFromEmployees(employees) },
-    { subject: "Leadership", value: scoreLeadership(details) },
-    { subject: "Maturity", value: scoreFromIpoDate(details?.ipo_date) },
-    { subject: "Presence", value: scoreMarketPresence(details) },
-    { subject: "Transparency", value: scoreTransparency(details) },
-  ];
-}
-
 export type FundamentalRadarProps = {
-  /** When set, loads the same 1–5 radar + F&amp;G as the beginner homepage. */
+  /** Symbol-backed radar using the same validated 40-row comparison scope as Market View. */
   symbol?: string;
   poolLimit?: number;
   compact?: boolean;
   showFearGreed?: boolean;
-  /** Fallback when `symbol` is omitted (profile-only heuristics). */
-  details?: any;
+  /**
+   * Kept for backward compatibility with older callers.
+   * DSA no longer fabricates a radar from profile metadata when symbol data is absent.
+   */
+  details?: unknown;
 };
 
 const FundamentalRadar = memo(
   ({
     symbol,
-    poolLimit = 100,
+    poolLimit = 40,
     compact = false,
     showFearGreed = true,
-    details,
   }: FundamentalRadarProps) => {
     const [formal, setFormal] = useState<BeginnerFormalRadarPayload | null>(null);
     const [dashboardRow, setDashboardRow] = useState<BeginnerBoardRow | null>(null);
@@ -172,11 +38,13 @@ const FundamentalRadar = memo(
     useEffect(() => {
       const sym = symbol?.trim().toUpperCase();
       let cancelled = false;
+
       const timer = window.setTimeout(() => {
         if (cancelled) return;
         if (!sym) {
           setFormal(null);
           setDashboardRow(null);
+          setLoading(false);
           return;
         }
         setDashboardRow(readCachedDashboardRadarRow(sym));
@@ -190,91 +58,120 @@ const FundamentalRadar = memo(
         };
       }
 
-      BeginnerService.getDashboardDaily({ maxAgeMs: 30_000, staleWhileRevalidateMs: 10 * 60_000 })
+      BeginnerService.getDashboardDaily({
+        maxAgeMs: 30_000,
+        staleWhileRevalidateMs: 10 * 60_000,
+      })
         .then((payload) => {
           if (cancelled) return;
           const rows =
             Array.isArray(payload?.rows) && payload.rows.length > 0
               ? payload.rows
-              : (payload as (typeof payload & { ranking_board?: BeginnerBoardRow[] }) | null)?.ranking_board ?? [];
-          const row = rows.find((r) => String(r.symbol || "").trim().toUpperCase() === sym);
-          if (row?.radar?.length) setDashboardRow(row);
+              : (payload as (typeof payload & { ranking_board?: BeginnerBoardRow[] }) | null)
+                  ?.ranking_board ?? [];
+          const row = rows.find(
+            (candidate) => String(candidate.symbol || "").trim().toUpperCase() === sym,
+          );
+          if (row) setDashboardRow(row);
         })
         .catch(() => {
-          /* keep cached/formal fallback */
+          /* Keep cached/formal fallback. */
         });
 
-      BeginnerService.getFormalRadar(sym.toUpperCase(), poolLimit)
-        .then((d) => {
-          if (!cancelled) setFormal(d);
+      BeginnerService.getFormalRadar(sym, poolLimit)
+        .then((data) => {
+          if (!cancelled) setFormal(data);
+        })
+        .catch(() => {
+          if (!cancelled) setFormal(null);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
+
       return () => {
         cancelled = true;
         window.clearTimeout(timer);
       };
     }, [symbol, poolLimit]);
 
-    const legacyData = useMemo(() => {
-      if (!details || typeof details !== "object") return null;
-      return legacyFundamentalChartData(details);
-    }, [details]);
+    const sym = symbol?.trim().toUpperCase();
 
-    if (symbol?.trim()) {
-      if (dashboardRow?.radar?.length) {
-        return (
-          <BeginnerRadarChart
-            data={dashboardRow.radar}
-            fearGreed={showFearGreed ? fearGreedFromChangePct(dashboardRow.change_pct_snapshot) : null}
-            variant={compact ? "compact" : "default"}
-          />
-        );
-      }
-
-      if (loading) {
-        return (
-          <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
-            Loading radar…
-          </p>
-        );
-      }
-      if (formal?.radar?.length) {
-        return (
-          <BeginnerRadarChart
-            data={formal.radar}
-            fearGreed={showFearGreed ? fearGreedFromChangePct(formal.change_pct_snapshot) : null}
-            variant={compact ? "compact" : "default"}
-          />
-        );
-      }
+    if (!sym) {
       return (
-        <p className={`text-center text-gray-500 ${compact ? "py-6 text-[10px]" : "py-10 text-sm"}`}>
-          Radar unavailable for this symbol yet.
+        <p
+          className={`text-center text-[var(--dsa-text-muted)] ${
+            compact ? "py-5 text-[10px]" : "py-8 text-sm"
+          }`}
+        >
+          Symbol-backed radar unavailable. No heuristic score is generated from profile metadata.
         </p>
       );
     }
 
-    if (legacyData) {
+    const rowEligible =
+      dashboardRow &&
+      dashboardRow.analysis_eligible !== false &&
+      dashboardRow.data_state !== "missing" &&
+      dashboardRow.data_state !== "partial" &&
+      dashboardRow.data_state !== "synthetic" &&
+      Array.isArray(dashboardRow.radar) &&
+      dashboardRow.radar.length > 0;
+
+    if (rowEligible) {
       return (
-        <div className="w-full">
-          {!compact ? (
-            <p className="mb-2 text-[10px] leading-snug text-gray-500">
-              Snapshot view without live symbol data. Open any company profile for the full radar.
-            </p>
-          ) : null}
-          <div className={compact ? "h-[200px] w-full" : "h-[280px] w-full"}>
-            <LegacyRadarChartClient data={legacyData} />
-          </div>
-        </div>
+        <BeginnerRadarChart
+          data={dashboardRow.radar!}
+          fearGreed={
+            showFearGreed && !dashboardRow.missing_fields?.includes("change_pct")
+              ? fearGreedFromChangePct(dashboardRow.change_pct_snapshot)
+              : null
+          }
+          variant={compact ? "compact" : "default"}
+        />
+      );
+    }
+
+    const formalEligible =
+      formal &&
+      formal.analysis_eligible !== false &&
+      Array.isArray(formal.radar) &&
+      formal.radar.length > 0;
+
+    if (formalEligible) {
+      return (
+        <BeginnerRadarChart
+          data={formal.radar}
+          fearGreed={
+            showFearGreed && !formal.missing_fields?.includes("change_pct")
+              ? fearGreedFromChangePct(formal.change_pct_snapshot)
+              : null
+          }
+          variant={compact ? "compact" : "default"}
+        />
+      );
+    }
+
+    if (loading) {
+      return (
+        <p
+          className={`text-center text-[var(--dsa-text-muted)] ${
+            compact ? "py-5 text-[10px]" : "py-8 text-sm"
+          }`}
+        >
+          Loading validated radar…
+        </p>
       );
     }
 
     return (
-      <p className={`text-center text-gray-500 ${compact ? "text-[10px]" : "text-sm"}`}>No data for radar yet.</p>
+      <div className={`text-center ${compact ? "py-5" : "py-8"}`}>
+        <p className={compact ? "text-[10px]" : "text-sm"} style={{ color: "var(--dsa-text-muted)" }}>
+          Not Rated — validated radar inputs are unavailable or incomplete.
+        </p>
+      </div>
     );
-  }
+  },
 );
 
 FundamentalRadar.displayName = "FundamentalRadar";

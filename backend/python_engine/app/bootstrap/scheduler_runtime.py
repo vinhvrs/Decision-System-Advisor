@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from apscheduler.events import EVENT_JOB_ERROR
+from apscheduler.executors.pool import ThreadPoolExecutor as APSchedulerThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 
@@ -23,6 +24,7 @@ from app.bootstrap.scheduler_config import (
     NEWS_EMBED_INTERVAL_HOURS,
     NEWS_INTERVAL_HOURS,
     NEWS_INTERVAL_RAW,
+    NEWS_STARTUP_DELAY_SEC,
     FUNDAMENTAL_BOOTSTRAP_DELAY_SEC,
     FUNDAMENTAL_BOOTSTRAP_ON_START,
     FUNDAMENTAL_INGEST_ENABLED,
@@ -34,6 +36,13 @@ from app.bootstrap.scheduler_config import (
     RANKING_SYNC_INTERVAL_HOURS,
     SCHEDULE_INTERVAL_HOURS,
     SCHEDULER_MISFIRE_GRACE_SEC,
+    SCHEDULER_MAX_WORKERS,
+    ENGINE_RESOURCE_PROFILE,
+    RANKING_FIRST_DELAY_SEC,
+    STOCK_SYNC_FIRST_DELAY_SEC,
+    AUTO_ANALYZE_FIRST_DELAY_SEC,
+    AUTO_ANALYZE_STARTUP_DELAY_SEC,
+    AUTO_ANALYZE_STARTUP_WARMUP_ENABLED,
 )
 from app.jobs.analysis_job import run_auto_analyze_refresh, warmup_top_stocks
 from app.jobs.fundamental_job import run_fundamental_ingest_job
@@ -45,6 +54,19 @@ from app.jobs.stock_job import run_stock_sync
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+async def _delayed_startup_analysis_warmup() -> None:
+    if not AUTO_ANALYZE_STARTUP_WARMUP_ENABLED:
+        logger.info("[Schedule] startup analysis warm-up disabled")
+        return
+    if AUTO_ANALYZE_STARTUP_DELAY_SEC > 0:
+        await asyncio.sleep(float(AUTO_ANALYZE_STARTUP_DELAY_SEC))
+    logger.info(
+        "[Schedule] startup analysis warm-up starting after %ss delay",
+        AUTO_ANALYZE_STARTUP_DELAY_SEC,
+    )
+    await warmup_top_stocks()
 
 
 async def _dashboard_redis_keepalive_runner(stop: asyncio.Event) -> None:
@@ -114,20 +136,23 @@ def _scheduler_error_listener(event):
 async def lifespan(app: FastAPI):
     setup_engine_file_log()
     scheduler = BackgroundScheduler(
+        executors={
+            "default": APSchedulerThreadPoolExecutor(max_workers=SCHEDULER_MAX_WORKERS),
+        },
         job_defaults={
             "coalesce": True,
             "max_instances": 1,
             "misfire_grace_time": SCHEDULER_MISFIRE_GRACE_SEC,
-        }
+        },
     )
     scheduler.add_listener(_scheduler_error_listener, EVENT_JOB_ERROR)
 
     interval_h = SCHEDULE_INTERVAL_HOURS
     base = datetime.now()
     stagger = [
-        ("ranking_sync", timedelta(minutes=0)),
-        ("stock_sync", timedelta(minutes=4)),
-        ("auto_analyze_refresh", timedelta(minutes=6)),
+        ("ranking_sync", timedelta(seconds=RANKING_FIRST_DELAY_SEC)),
+        ("stock_sync", timedelta(seconds=STOCK_SYNC_FIRST_DELAY_SEC)),
+        ("auto_analyze_refresh", timedelta(seconds=AUTO_ANALYZE_FIRST_DELAY_SEC)),
     ]
 
     scheduler.add_job(
@@ -156,7 +181,7 @@ async def lifespan(app: FastAPI):
         coalesce=True,
         replace_existing=True,
     )
-    news_first_run_at = datetime.now()
+    news_first_run_at = datetime.now() + timedelta(seconds=NEWS_STARTUP_DELAY_SEC)
     scheduler.add_job(
         run_news_daily_update,
         trigger="interval",
@@ -265,7 +290,9 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
 
-    asyncio.create_task(warmup_top_stocks())
+    app.state.analysis_startup_warmup_task = asyncio.create_task(
+        _delayed_startup_analysis_warmup()
+    )
 
     yield
 
@@ -275,6 +302,14 @@ async def lifespan(app: FastAPI):
         kt.cancel()
         try:
             await kt
+        except asyncio.CancelledError:
+            pass
+
+    analysis_task = getattr(app.state, "analysis_startup_warmup_task", None)
+    if analysis_task:
+        analysis_task.cancel()
+        try:
+            await analysis_task
         except asyncio.CancelledError:
             pass
 
@@ -294,6 +329,16 @@ def build_scheduler_health_payload(scheduler) -> dict:
     return {
         "ok": True,
         "running": scheduler.running,
+        "resource_profile": ENGINE_RESOURCE_PROFILE,
+        "scheduler_max_workers": SCHEDULER_MAX_WORKERS,
+        "startup_delays_sec": {
+            "ranking_sync": RANKING_FIRST_DELAY_SEC,
+            "stock_sync": STOCK_SYNC_FIRST_DELAY_SEC,
+            "auto_analyze_refresh": AUTO_ANALYZE_FIRST_DELAY_SEC,
+            "news_daily_update": NEWS_STARTUP_DELAY_SEC,
+            "analysis_startup_warmup": AUTO_ANALYZE_STARTUP_DELAY_SEC,
+        },
+        "analysis_startup_warmup_enabled": AUTO_ANALYZE_STARTUP_WARMUP_ENABLED,
         "news_lookback_days": NEWS_SCHEDULE_LOOKBACK_DAYS,
         "news_interval_hours": NEWS_INTERVAL_HOURS,
         "news_interval_hours_env": NEWS_INTERVAL_RAW or None,

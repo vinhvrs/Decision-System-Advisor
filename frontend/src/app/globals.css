@@ -36,13 +36,6 @@
   --dsa-header-height: 54px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
 * {
   box-sizing: border-box;
 }
@@ -244,4 +237,183 @@ body {
   select.dsa-select:focus {
     border-color: rgba(76, 141, 255, 0.7);
   }
+}
+
+
+/* DSA terminal chrome — Koyfin-density shell with Finviz-style scan surfaces. */
+:root {
+  --dsa-terminal-modulebar-height: 37px;
+  --dsa-terminal-rail-width: 52px;
+}
+
+.dsa-terminal-shell {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(76, 141, 255, 0.025), transparent 180px),
+    var(--dsa-bg);
+}
+
+.dsa-terminal-modulebar {
+  border-bottom: 1px solid var(--dsa-border);
+  background: #0b1118;
+}
+
+.dsa-terminal-tab {
+  display: inline-flex;
+  min-height: var(--dsa-terminal-modulebar-height);
+  align-items: center;
+  border-right: 1px solid rgba(32, 43, 55, 0.72);
+  padding: 0 12px;
+  color: var(--dsa-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dsa-terminal-tab:first-child {
+  border-left: 1px solid rgba(32, 43, 55, 0.72);
+}
+
+.dsa-terminal-tab:hover {
+  background: var(--dsa-surface-2);
+  color: var(--dsa-text);
+}
+
+.dsa-terminal-tab-active {
+  box-shadow: inset 0 -2px 0 var(--dsa-accent);
+  background: rgba(76, 141, 255, 0.075);
+  color: #dbe8ff;
+}
+
+.dsa-terminal-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dsa-terminal-rail {
+  display: none;
+}
+
+.dsa-terminal-rail-inner {
+  position: sticky;
+  top: calc(var(--dsa-header-height) + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 5px;
+}
+
+.dsa-terminal-rail-link {
+  display: flex;
+  min-height: 47px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--dsa-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.dsa-terminal-rail-link:hover {
+  border-color: var(--dsa-border);
+  background: var(--dsa-surface-2);
+  color: var(--dsa-text);
+}
+
+.dsa-terminal-rail-link-active {
+  border-color: rgba(76, 141, 255, 0.25);
+  background: var(--dsa-accent-soft);
+  color: #bcd4ff;
+}
+
+.dsa-terminal-page-head {
+  display: flex;
+  min-height: 44px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--dsa-border);
+  border-radius: var(--dsa-radius-sm);
+  background: var(--dsa-surface-1);
+  padding: 7px 10px;
+}
+
+.dsa-terminal-panel {
+  border: 1px solid var(--dsa-border);
+  border-radius: var(--dsa-radius-sm);
+  background: var(--dsa-surface-1);
+}
+
+.dsa-terminal-panel-head {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--dsa-border);
+  background: #0b1118;
+  padding: 6px 9px;
+}
+
+.dsa-terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dsa-terminal-table thead {
+  background: var(--dsa-surface-2);
+  color: var(--dsa-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dsa-terminal-table th,
+.dsa-terminal-table td {
+  border-bottom: 1px solid rgba(32, 43, 55, 0.86);
+  padding: 7px 9px;
+}
+
+.dsa-terminal-table tbody tr:hover {
+  background: var(--dsa-surface-2);
+}
+
+.dsa-terminal-kpi {
+  min-width: 0;
+  border-right: 1px solid var(--dsa-border);
+  background: var(--dsa-surface-1);
+  padding: 8px 10px;
+}
+
+.dsa-terminal-kpi:last-child {
+  border-right: 0;
+}
+
+@media (min-width: 1280px) {
+  .dsa-terminal-grid {
+    grid-template-columns: var(--dsa-terminal-rail-width) minmax(0, 1fr);
+  }
+
+  .dsa-terminal-rail {
+    display: block;
+    border-right: 1px solid var(--dsa-border);
+    background: #0b1118;
+  }
+}
+
+/* Remove legacy marketing-card softness inside the terminal workspace. */
+.dsa-terminal-shell .rounded-3xl,
+.dsa-terminal-shell .rounded-2xl {
+  border-radius: var(--dsa-radius-md);
 }

@@ -27,7 +27,7 @@ const WatchlistCard = dynamic(() => import("@/src/components/watchlist/Watchlist
 
 const HotNews = dynamic(() => import("@/src/components/news/HotNews"), {
   ssr: false,
-  loading: skeleton("min-h-[240px] w-full"),
+  loading: skeleton("min-h-[200px] w-full"),
 });
 
 const GainLoss = dynamic(() => import("@/src/components/gainloss/GainLoss"), {
@@ -37,7 +37,7 @@ const GainLoss = dynamic(() => import("@/src/components/gainloss/GainLoss"), {
 
 const Heatmap = dynamic(() => import("@/src/components/analyze/heatmap/page"), {
   ssr: false,
-  loading: skeleton("min-h-[400px] w-full"),
+  loading: skeleton("min-h-[320px] w-full"),
 });
 
 /** Below-the-fold / heavy client sections for the home page (loaded after first paint). */
@@ -59,7 +59,7 @@ export function HomeGainLoss() {
 
 export function HomeHeatmapCard() {
   return (
-    <Card bodyClassName="px-2 tablet:px-3 pb-3 tablet:pb-4 pt-1 tablet:pt-2">
+    <Card bodyClassName="p-1.5 tablet:p-2">
       <Heatmap />
     </Card>
   );

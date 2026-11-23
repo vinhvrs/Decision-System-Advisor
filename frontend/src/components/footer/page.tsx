@@ -1,90 +1,59 @@
 import Link from "next/link";
 import { Mail } from "lucide-react";
 
-const PLATFORM_LINKS = [
-  { name: "Market overview", href: "/" },
+const TERMINAL_LINKS = [
+  { name: "Markets", href: "/" },
   { name: "Screener", href: "/screener" },
-  { name: "Market research", href: "/investing" },
+  { name: "Companies", href: "/companies" },
+  { name: "Research", href: "/investing" },
   { name: "Indicators", href: "/indicators" },
-] as const;
-
-const RESOURCE_LINKS = [
-  { name: "Market news", href: "/news" },
+  { name: "News", href: "/news" },
   { name: "Documents", href: "/documents" },
-  { name: "Contact", href: "/contact" },
 ] as const;
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-[var(--dsa-border)] bg-[var(--dsa-surface-1)] px-3 py-6 phone:px-4 tablet:px-5 laptop:px-6">
-      <div className="dsa-page">
-        <div className="grid gap-6 tablet:grid-cols-[minmax(0,1.5fr)_1fr_1fr]">
-          <div className="max-w-xl">
-            <Link href="/" className="inline-flex items-baseline gap-2 text-sm font-semibold text-white">
-              <span className="tracking-[0.05em]">DSA</span>
-              <span className="text-xs font-medium text-[var(--dsa-text-muted)]">
-                Decision Support Advisor
-              </span>
+    <footer className="border-t border-[var(--dsa-border)] bg-[#0b1118] px-2 py-2 phone:px-3 tablet:px-4 laptop:px-5">
+      <div className="dsa-page space-y-2">
+        <div className="flex min-w-0 flex-col gap-2 laptop:flex-row laptop:items-center laptop:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/" className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.06em] text-white">
+              DSA
             </Link>
-            <p className="mt-2 text-xs leading-relaxed text-[var(--dsa-text-muted)]">
-              Research interface for market data, rankings, indicators, news, and decision-support context.
-              Data availability, freshness, and source coverage can vary by instrument and module.
+            <span className="hidden h-3 w-px bg-[var(--dsa-border)] phone:block" />
+            <p className="min-w-0 truncate text-[10px] text-[var(--dsa-text-muted)]">
+              Decision Support Advisor · research terminal
             </p>
+          </div>
+
+          <nav className="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto" aria-label="Footer research modules">
+            {TERMINAL_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="shrink-0 rounded-[var(--dsa-radius-sm)] px-2 py-1 text-[10px] font-medium text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-white"
+              >
+                {link.name}
+              </Link>
+            ))}
             <a
               href="mailto:ITITIU21345@hcmiu.edu.vn"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--dsa-text-secondary)] hover:text-white"
+              className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-[var(--dsa-radius-sm)] px-2 py-1 text-[10px] text-[var(--dsa-text-muted)] transition-colors hover:bg-[var(--dsa-surface-2)] hover:text-white"
             >
-              <Mail size={13} />
+              <Mail size={11} />
               Contact
             </a>
-          </div>
-
-          <div>
-            <p className="dsa-section-label">Platform</p>
-            <ul className="mt-2 space-y-1.5">
-              {PLATFORM_LINKS.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-xs text-[var(--dsa-text-secondary)] transition-colors hover:text-white"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <p className="dsa-section-label">Resources</p>
-            <ul className="mt-2 space-y-1.5">
-              {RESOURCE_LINKS.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-xs text-[var(--dsa-text-secondary)] transition-colors hover:text-white"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          </nav>
         </div>
 
-        <div className="mt-6 border-t border-[var(--dsa-border)] pt-4">
-          <p className="max-w-5xl text-[10px] leading-relaxed text-[var(--dsa-text-muted)]">
-            <span className="font-semibold text-[var(--dsa-warning)]">Risk disclosure:</span>{" "}
-            Market data, scores, and directional labels on DSA are provided for research and educational use.
-            They do not constitute investment advice, an offer, or a recommendation to transact in any security.
-            Check the source and as-of information shown by each module before relying on a value.
+        <div className="flex flex-col gap-1 border-t border-[var(--dsa-border)] pt-2 text-[9px] leading-relaxed text-[var(--dsa-text-muted)] tablet:flex-row tablet:items-center tablet:justify-between">
+          <p className="max-w-5xl">
+            <span className="font-semibold text-[var(--dsa-warning)]">Research use only.</span>{" "}
+            Market data, scores, and directional labels are not investment advice. Verify source and as-of state before relying on a value.
           </p>
-          <div className="mt-3 flex flex-col gap-1 text-[10px] text-[var(--dsa-text-muted)] phone:flex-row phone:items-center phone:justify-between">
-            <p>© {currentYear} DSA.</p>
-            <p>No hard-coded service-status claim. Data health should be verified from live module state.</p>
-          </div>
+          <p className="shrink-0 font-mono">© {currentYear} DSA</p>
         </div>
       </div>
     </footer>
