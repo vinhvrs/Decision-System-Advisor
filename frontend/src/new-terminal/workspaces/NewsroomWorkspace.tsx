@@ -35,14 +35,13 @@ export default function NewsroomWorkspace({
   initialTotal?: number;
 }) {
   const [page, setPage] = useState(1);
-  const feed = useFeed<NewsPayload>(`/api/news?per_page=60&page=${page}`);
+  const feed = useFeed<NewsPayload>(`/api/news?per_page=100&page=${page}`);
   const pool = (feed.data?.data ?? initialNews).filter(item => item.title?.trim());
   const visualRows = pool.filter(item => Boolean(sourceLink(item.image ?? undefined)));
   const textRows = pool.filter(item => !sourceLink(item.image ?? undefined));
-  const rows = [
-    ...visualRows.slice(0, 18),
-    ...textRows.slice(0, Math.max(0, 12 - visualRows.length)),
-  ].slice(0, 18);
+  const rows = visualRows.length
+    ? visualRows.slice(0, 18)
+    : textRows.slice(0, 6);
   const lastPage = feed.data?.last_page ?? initialLastPage;
   const total = feed.data?.total ?? initialTotal;
 
@@ -76,8 +75,8 @@ export default function NewsroomWorkspace({
                     loading={index < 3 ? "eager" : "lazy"}
                     referrerPolicy="no-referrer"
                     onError={event => {
-                      const media = event.currentTarget.closest<HTMLElement>(".nt-news-media");
-                      if (media) media.style.display = "none";
+                      const article = event.currentTarget.closest<HTMLElement>(".nt-news-article");
+                      if (article) article.style.display = "none";
                     }}
                   />
                 </Link>
