@@ -5291,3 +5291,74 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   background: #2d5670 !important;
   border-bottom-color: #7ba0ba !important;
 }
+/* 2026-11-24 explicit global card-header grips */
+:root {
+  --nt-card-header: #294a62;
+  --nt-card-header-soft: #1d3749;
+  --nt-card-header-border: #5c819b;
+}
+
+.nt-panel-title,
+.nt-subsection-title {
+  position: relative !important;
+  min-height: 32px !important;
+  padding: 0 38px 0 10px !important;
+  background: var(--nt-card-header) !important;
+  border-bottom: 1px solid var(--nt-card-header-border) !important;
+}
+
+.nt-secondary-table .nt-panel-title,
+.nt-market-rail .nt-subsection-title,
+.nt-chart-rail .nt-subsection-title,
+.nt-company-dashboard-column:nth-child(1) .nt-subsection-title,
+.nt-company-dashboard-column:nth-child(3) .nt-subsection-title {
+  background: var(--nt-card-header-soft) !important;
+}
+
+.nt-table thead th,
+.nt-microtable thead th {
+  background: #071018 !important;
+  border-bottom-color: #20313f !important;
+  color: #788b9a !important;
+}
+
+.dsa-layout-drag-enabled .dsa-layout-drag-handle {
+  cursor: grab !important;
+}
+
+.dsa-layout-drag-enabled .dsa-layout-drag-handle:hover {
+  cursor: grab !important;
+  background: #315a74 !important;
+  border-bottom-color: #7ba2bc !important;
+}
+
+.dsa-layout-grip {
+  position: absolute !important;
+  z-index: 20;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #d2e0e9 !important;
+  font: 800 13px/1 var(--nt-font-data) !important;
+  letter-spacing: -3px;
+  opacity: .82;
+  pointer-events: none !important;
+}
+
+.dsa-layout-drag-handle:hover > .dsa-layout-grip {
+  opacity: 1;
+  color: #ffffff !important;
+}
+
+/* Actual DOM grip replaces older pseudo-element affordances. */
+.dsa-layout-drag-enabled .nt-panel-title.dsa-layout-drag-handle::after,
+.dsa-layout-drag-enabled .nt-subsection-title.dsa-layout-drag-handle::after,
+.dsa-layout-drag-enabled .nt-news-kicker.dsa-layout-drag-handle::after,
+.dsa-layout-drag-enabled .dsa-layout-top-handle::after {
+  content: none !important;
+}
