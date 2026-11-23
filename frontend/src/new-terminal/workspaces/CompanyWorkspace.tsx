@@ -183,9 +183,13 @@ export default function CompanyWorkspace({
   const overviewFinancialRows = overviewFinancials.data?.data ?? initialOverviewFinancials;
   const filingRows = filings.data?.data ?? initialFilings;
   const newsRows = news.data ?? initialNews;
+  const usableNewsRows = newsRows.filter(item => item.title?.trim());
   const historyRows = history.data?.data ?? initialHistory;
   const profile = overviewData?.profile;
   const quote = storedRows.find(row => row.symbol === normalized);
+  const sharesOutstanding = fundData?.metrics.shares_outstanding?.value ?? null;
+  const trustedMarketCap = fundData?.metrics.market_cap?.value ??
+    (quote?.price != null && sharesOutstanding != null && sharesOutstanding > 0 ? quote.price * sharesOutstanding : null);
   const profileUrl = sourceLink(profile?.website);
   const tabBase = `/companies/profile/${id}`;
 
@@ -199,11 +203,11 @@ export default function CompanyWorkspace({
   const peerRows=[{symbol:normalized,name:profile?.company_name,metrics:fundData,quote},...initialPeers.filter(peer=>peer.symbol!==normalized)].slice(0,7);
   const events=[
     ...filingRows.slice(0,4).map(item=>({date:item.filing_date,type:item.form,title:`${item.form} filed`,detail:item.report_date?.slice(0,10) ?? ""})),
-    ...newsRows.slice(0,5).map(item=>({date:item.published_at ?? "",type:"NEWS",title:item.title,detail:item.author ?? ""})),
+    ...usableNewsRows.slice(0,5).map(item=>({date:item.published_at ?? "",type:"NEWS",title:item.title,detail:item.author ?? ""})),
   ].filter(item=>item.date).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,7);
 
   const metricStrip=[
-    ["Mkt cap",fundData?.metrics.market_cap?.value,fundData?.metrics.market_cap?.unit],
+    ["Mkt cap",trustedMarketCap,fundData?.metrics.market_cap?.unit ?? "USD"],
     ["P/E TTM",fundData?.metrics.pe_ttm?.value,fundData?.metrics.pe_ttm?.unit],
     ["Gross margin",latestGross,"percent"],
     ["Op margin",latestOperating,"percent"],
@@ -231,7 +235,7 @@ export default function CompanyWorkspace({
       <div className="nt-company-head-metrics">
         {metricStrip.map(([label,value,unit])=><div key={label}><span>{label}</span><b>{value==null?"—":unit==="percent"?`${Number(value).toFixed(1)}%`:valueText(value)}{unit && !["percent","fraction"].includes(unit)?` ${unit}`:""}</b></div>)}
         <div><span>Latest filing</span><b>{filingRows[0]?`${filingRows[0].form} · ${filingRows[0].filing_date?.slice(0,10)}`:"—"}</b></div>
-        <div><span>Latest news</span><b>{newsRows[0]?.published_at?.slice(0,16).replace("T"," ") ?? "—"}</b></div>
+        <div><span>Latest news</span><b>{usableNewsRows[0]?.published_at?.slice(0,16).replace("T"," ") ?? "No classified headline"}</b></div>
       </div>
     </section>
 
@@ -248,10 +252,10 @@ export default function CompanyWorkspace({
           </div>
 
           <div className="nt-flat-surface">
-            <div className="nt-subsection-title"><strong>Latest news</strong><span>{newsRows[0]?.published_at?.slice(11,16) ?? ""}</span></div>
+            <div className="nt-subsection-title"><strong>Latest news</strong><span>{usableNewsRows[0]?.published_at?.slice(11,16) ?? ""}</span></div>
             <table className="nt-microtable nt-company-news-table"><thead><tr><th>Time</th><th>Headline</th><th>Publisher</th></tr></thead><tbody>
-              {newsRows.slice(0,7).map(item=><tr key={item.id}><td>{item.published_at?.slice(5,16).replace("T"," ") ?? "—"}</td><td><a href={sourceLink(item.source)} rel="noreferrer">{item.title}</a></td><td>{item.author ?? "—"}</td></tr>)}
-              {!newsRows.length && <tr><td colSpan={3}>No recent company headlines</td></tr>}
+              {usableNewsRows.slice(0,7).map(item=><tr key={item.id}><td>{item.published_at?.slice(5,16).replace("T"," ") ?? "—"}</td><td><a href={sourceLink(item.source)} rel="noreferrer">{item.title}</a></td><td>{item.author ?? "—"}</td></tr>)}
+              {!usableNewsRows.length && <tr><td colSpan={3}>No recent company headlines</td></tr>}
             </tbody></table>
           </div>
         </div>
@@ -328,7 +332,7 @@ export default function CompanyWorkspace({
     {activeTab === "Valuation" && <DataTable title="Valuation" columns={["Metric","Value","Unit","Basis"]} rows={Object.entries(fundData?.metrics ?? {}).filter(([key])=>valuation.has(key)).map(([key,metric])=>({key,cells:[labelText(key),valueText(metric.value),metric.unit,metric.metadata?.basis]}))} empty="No valuation observations for this company." />}
     {activeTab === "Financials" && <><div className="nt-inline-controls"><label>Reporting period <select value={period} onChange={event=>setPeriod(event.target.value)}><option value="annual">Annual</option><option value="quarterly">Quarterly</option></select></label></div><DataTable title="Financial statements" columns={["Fiscal period","Period end","Revenue","Gross profit","Operating income","Net income","Diluted EPS","FCF"]} rows={financialRows.map(row=>({key:String(row.id),cells:[`FY${row.fiscal_year}${row.fiscal_quarter?` Q${row.fiscal_quarter}`:""}`,row.period_end?.slice(0,10),...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value=>valueText(value==null?null:Number(value)))]}))} empty="No statements for this reporting period." /></>}
     {activeTab === "Filings" && <DataTable title="SEC filings" columns={["Form","Filed","Reporting period","Document"]} rows={filingRows.map(filing=>({key:filing.accession_number,cells:[filing.form,filing.filing_date?.slice(0,10),filing.report_date?.slice(0,10),<a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>]}))} empty="No SEC filings for this symbol." />}
-    {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={newsRows.map(item=>({key:item.id,cells:[item.published_at,<SymbolContext key="context" symbol={item.symbol ?? normalized}/>,<a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,<SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>]}))} empty="No recent company news." />}
+    {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={usableNewsRows.map(item=>({key:item.id,cells:[item.published_at,<SymbolContext key="context" symbol={item.symbol ?? normalized}/>,<a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,<SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>]}))} empty="No recent company news." />}
     {activeTab === "Earnings" && <DataTable title="Macro events around the company context" columns={["Time","Country / Currency","Event","Importance","Actual","Forecast","Previous"]} rows={(calendar.data?.events ?? []).map(item=>({key:item.id,cells:[item.scheduled_at,<CurrencyContext key="currency" currency={item.currency}/>,item.title,<ImpactBadge key="impact" impact={item.impact}/>,item.actual,item.forecast,item.previous]}))} empty="No scheduled macro events for this context." />}
     {activeTab === "Ownership" && <DataTable title="Ownership & positioning" columns={["Metric","Value"]} rows={(position.data?.data ?? []).map((item,index)=>({key:String(index),cells:[item.metric_code ?? item.series_code,valueText(item.value)]}))} empty="No ownership or positioning observations." />}
     {activeTab === "Estimates" && <section className="nt-flat-surface"><div className="nt-subsection-title"><strong>Consensus estimates</strong><span>{normalized}</span></div><div className="nt-empty nt-empty-compact">Consensus estimates are not available for this symbol yet.</div></section>}
