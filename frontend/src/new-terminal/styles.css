@@ -4907,3 +4907,42 @@ body,
     height: 260px !important;
   }
 }
+/* 2026-11-24 layout editor header drag handles */
+.dsa-layout-editing .dsa-layout-card {
+  cursor: default;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle {
+  position: relative;
+  cursor: grab !important;
+  user-select: none;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle:hover {
+  background: #16222d !important;
+  border-color: var(--nt-border-strong) !important;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle::before {
+  content: "";
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  top: 2px;
+  width: 34px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(120, 164, 199, .58);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle:hover::before {
+  opacity: 1;
+}
+
+.dsa-layout-editing .dsa-layout-dragging .dsa-layout-drag-handle {
+  cursor: grabbing !important;
+}
