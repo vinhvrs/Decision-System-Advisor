@@ -21,7 +21,22 @@ export type Calendar = {
   stale: boolean;
   provider_error: boolean;
 };
-export type News = { id: string; title: string; symbol?: string; published_at?: string; source?: string; author?: string };
+export type News = {
+  id: string;
+  title: string;
+  symbol?: string;
+  published_at?: string;
+  source?: string;
+  author?: string;
+  image?: string | null;
+  content?: string | null;
+  category?: string | null;
+  language?: string | null;
+  content_status?: string | null;
+  word_count?: number | null;
+  publisher?: string | null;
+  tags?: { slug: string; label: string }[];
+};
 export type Filing = { accession_number: string; form: string; filing_date: string; report_date: string; filing_url: string };
 export type Crypto = { symbol: string; data: { metric_code: string; value: number | null; source: string; quality: string; observed_at: string; metadata?: { unit?: string } }[] };
 export type Positioning = { quality: string; reason?: string; data: { metric_code?: string; series_code?: string; value?: number; source?: string; quality?: string; observed_at?: string }[] };
