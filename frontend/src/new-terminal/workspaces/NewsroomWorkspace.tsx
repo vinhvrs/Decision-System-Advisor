@@ -35,7 +35,7 @@ export default function NewsroomWorkspace({
   initialTotal?: number;
 }) {
   const [page, setPage] = useState(1);
-  const feed = useFeed<NewsPayload>(`/api/news?per_page=100&page=${page}`);
+  const feed = useFeed<NewsPayload>(`/api/news?per_page=60&page=${page}`);
   const pool = (feed.data?.data ?? initialNews).filter(item => item.title?.trim());
   const visualRows = pool.filter(item => Boolean(sourceLink(item.image ?? undefined)));
   const textRows = pool.filter(item => !sourceLink(item.image ?? undefined));
