@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import DataTable from "../DataTable";
-import { labelText, sourceLink, valueText, type Calendar, type DailyAnalytics, type Filing, type Metrics, type News, type Technical, type Universe } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, sourceLink, valueText, type Calendar, type DailyAnalytics, type Filing, type Metrics, type News, type Technical, type Universe } from "../feeds";
 import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
@@ -16,11 +16,13 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
   const newsRows = news.data?.data ?? initialNews;
   const calendarData = calendar.data ?? initialCalendar;
   const marketRows = market.data?.data ?? initialRows;
+  const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
+  const calendarState = calendarCoverageState(calendarData);
   const marketMovers = [...marketRows]
     .filter(row => row.market === "stock" && row.change_pct != null)
     .sort((a,b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
     .slice(0,8);
-  const eventCounts = (calendarData?.events ?? []).reduce((acc, item) => {
+  const eventCounts = calendarEvents.reduce((acc, item) => {
     const key = item.impact?.toLowerCase().includes("high") ? "high" : item.impact?.toLowerCase().includes("med") ? "medium" : "low";
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
@@ -30,7 +32,7 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
     <section className="nt-context-strip">
       <div className="nt-context-title"><div className="nt-label nt-info">News / Events</div><h1>Market Information Feed</h1></div>
       <div className="nt-news-stat"><span>HEADLINES</span><b>{newsRows.length || "—"}</b></div>
-      <div className="nt-news-stat"><span>EVENTS</span><b>{calendarData?.events?.length ?? "—"}</b></div>
+      <div className="nt-news-stat"><span>EVENTS</span><b className={calendarState.valid ? "" : "nt-warning"}>{calendarData ? calendarEvents.length : "—"}</b></div>
       <div className="nt-news-stat"><span>HIGH</span><b className="nt-negative">{eventCounts.high ?? 0}</b></div>
       <div className="nt-news-stat"><span>MED</span><b className="nt-warning">{eventCounts.medium ?? 0}</b></div>
       <div className="nt-news-stat"><span>LOW</span><b className="nt-info">{eventCounts.low ?? 0}</b></div>
@@ -74,10 +76,10 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
 
       <DataTable
         title="Economic calendar"
-        meta="scheduled macro context"
-        className="nt-secondary-table"
+        meta={calendarState.valid ? "declared provider coverage" : calendarState.label}
+        className={`nt-secondary-table ${calendarState.valid ? "" : "nt-data-source-gap"}`.trim()}
         columns={["Scheduled", "Country / Currency", "Event", "Importance", "Actual", "Forecast", "Previous"]}
-        rows={(calendarData?.events ?? []).map(item => ({
+        rows={calendarEvents.map(item => ({
           key: item.id,
           cells: [
             item.scheduled_at,
@@ -89,7 +91,7 @@ export function NewsWorkspace({ initialNews = [], initialCalendar, initialRows =
             item.previous,
           ],
         }))}
-        empty="No scheduled economic events."
+        empty={calendarData && !calendarState.valid ? calendarState.label : "No scheduled economic events in declared coverage."}
       />
     </div>
   </div>;
