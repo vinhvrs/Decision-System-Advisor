@@ -7,6 +7,12 @@ export type MarketRow = {
   market_cap?: number | null;
   sector?: string | null;
   as_of: string | null;
+  session_date?: string | null;
+  previous_session_date?: string | null;
+  last_sync_at?: string | null;
+  coverage_partial?: boolean;
+  session_final?: boolean;
+  provider_error?: boolean;
 };
 
 export async function readMarketSnapshot(): Promise<MarketRow[]> {
