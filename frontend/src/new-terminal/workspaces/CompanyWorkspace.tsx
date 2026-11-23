@@ -233,7 +233,17 @@ export default function CompanyWorkspace({
         </div>
       </div>
       <div className="nt-company-head-metrics">
-        {metricStrip.map(([label,value,unit])=><div key={label}><span>{label}</span><b>{value==null?"—":unit==="percent"?`${Number(value).toFixed(1)}%`:valueText(value)}{unit && !["percent","fraction"].includes(unit)?` ${unit}`:""}</b></div>)}
+        {metricStrip.map(([label,value,unit]) => {
+          const rendered = value == null
+            ? "N/A"
+            : label === "Mkt cap"
+              ? compact(Number(value))
+              : unit === "percent"
+                ? `${Number(value).toFixed(1)}%`
+                : valueText(value);
+          const suffix = value != null && unit && !["percent","fraction"].includes(unit) ? ` ${unit}` : "";
+          return <div key={label}><span>{label}</span><b>{rendered}{suffix}</b></div>;
+        })}
         <div><span>Latest filing</span><b>{filingRows[0]?`${filingRows[0].form} · ${filingRows[0].filing_date?.slice(0,10)}`:"—"}</b></div>
         <div><span>Latest news</span><b>{usableNewsRows[0]?.published_at?.slice(0,16).replace("T"," ") ?? "No classified headline"}</b></div>
       </div>
