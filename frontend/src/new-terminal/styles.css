@@ -4946,3 +4946,33 @@ body,
 .dsa-layout-editing .dsa-layout-dragging .dsa-layout-drag-handle {
   cursor: grabbing !important;
 }
+/* 2026-11-24 visible panel drag affordance */
+.dsa-layout-editing .dsa-layout-drag-handle {
+  padding-right: 28px !important;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle::after {
+  content: "⋮⋮";
+  position: absolute;
+  z-index: 8;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+  color: #8fb0c8;
+  font: 700 12px/1 var(--nt-font-data);
+  letter-spacing: -3px;
+  opacity: .72;
+  pointer-events: none;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle:hover::after {
+  color: #c7d9e6;
+  opacity: 1;
+}
+
+.dsa-layout-editing .nt-news-kicker.dsa-layout-drag-handle {
+  min-height: 24px;
+  padding: 4px 28px 4px 6px;
+  background: #0d151c;
+  border-bottom: 1px solid var(--nt-border);
+}
