@@ -5216,3 +5216,45 @@ body.dsa-layout-pointer-armed .dsa-layout-drag-handle,
 body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   cursor: grabbing !important;
 }
+/* 2026-11-24 unmistakable card header hierarchy */
+.nt-panel-title,
+.nt-subsection-title {
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px;
+  padding: 0 10px !important;
+  background: #173047 !important;
+  border-bottom: 1px solid #456680 !important;
+}
+
+.nt-panel-title strong,
+.nt-subsection-title strong {
+  color: #eef5fa !important;
+  font-weight: 650;
+}
+
+.nt-panel-title .nt-panel-meta,
+.nt-subsection-title > span {
+  margin-left: auto;
+  color: #9fb4c4 !important;
+}
+
+/* Table column headings are deliberately darker than the card's own draggable header. */
+.nt-table thead th,
+.nt-microtable thead th {
+  background: #0b141c !important;
+  border-bottom-color: #243746 !important;
+  color: #8193a2 !important;
+}
+
+.dsa-layout-drag-enabled .nt-panel-title.dsa-layout-drag-handle,
+.dsa-layout-drag-enabled .nt-subsection-title.dsa-layout-drag-handle {
+  cursor: grab !important;
+}
+
+.dsa-layout-drag-enabled .nt-panel-title.dsa-layout-drag-handle:hover,
+.dsa-layout-drag-enabled .nt-subsection-title.dsa-layout-drag-handle:hover {
+  background: #1d3a52 !important;
+  border-bottom-color: #6b91ac !important;
+}
