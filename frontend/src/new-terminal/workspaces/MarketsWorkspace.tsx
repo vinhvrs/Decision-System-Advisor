@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "../DataTable";
-import { calendarCoverageState, calendarEventsInDeclaredCoverage, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
@@ -47,6 +47,17 @@ const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100":
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
 const sectorNames: Record<string, string> = { "Consumer Cyclical": "Consumer Discr.", "Financial Services": "Financials", Healthcare: "Health Care" };
 const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const displayUnit = (unit: string | undefined) => {
+  if (!unit) return "";
+  const mapped: Record<string, string> = {
+    percent_annual: "%",
+    percentage_points: "pp",
+    currency_per_EUR: "/ EUR",
+    fraction_per_funding_interval: "/ interval",
+    base_asset_units: "base units",
+  };
+  return mapped[unit] ?? unit.replace(/_/g, " ");
+};
 
 const internalFields = [
   ["> 20D MA","Trend"],["> 50D MA","Trend"],["> 200D MA","Trend"],["RSP / SPY","Equal wt"],
@@ -310,7 +321,7 @@ export default function MarketsWorkspace({
               <div className="nt-subsection-title"><strong>Most active</strong><span>traded value</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
-                <tbody>{mostActive.map(row => <tr key={row.symbol}><td>{row.symbol}</td><td>{valueText(row.traded_value)}</td><td className={(row.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(row.change_pct)}</td></tr>)}</tbody>
+                <tbody>{mostActive.map(row => <tr key={row.symbol}><td>{row.symbol}</td><td>{row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`}</td><td className={(row.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(row.change_pct)}</td></tr>)}</tbody>
               </table>
             </div>
           </section>
@@ -350,8 +361,8 @@ export default function MarketsWorkspace({
             <div className="nt-summary-column">
               <div className="nt-subsection-title"><strong>Participation detail</strong><span>{breadthSession ?? "latest"}</span></div>
               <table className="nt-microtable"><tbody>
-                <tr><td>Declining</td><td>{down || "—"}</td><td>{equities.length ? `${((down/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
-                <tr><td>Unchanged</td><td>{unchanged || "—"}</td><td>{equities.length ? `${((unchanged/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
+                <tr><td>Declining</td><td>{equities.length ? down : "—"}</td><td>{equities.length ? `${((down/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
+                <tr><td>Unchanged</td><td>{equities.length ? unchanged : "—"}</td><td>{equities.length ? `${((unchanged/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
                 <tr><td>Adv / Decl ratio</td><td>{down ? (up/down).toFixed(2) : "—"}</td><td></td></tr>
                 <tr><td>Up value</td><td>{valueTotal(upValue)}</td><td></td></tr>
                 <tr><td>Down value</td><td>{valueTotal(downValue)}</td><td></td></tr>
@@ -377,16 +388,28 @@ export default function MarketsWorkspace({
               title="Macro observations & spreads"
               meta="supporting context"
               className="nt-secondary-table"
-              columns={["Series","Value","Unit","Observed"]}
-              rows={[...(macroData?.data ?? []), ...(macroData?.spreads ?? [])].map(row => ({ key: row.series_code, cells: [row.series_code, valueText(row.value), row.unit, row.observed_at] }))}
+              columns={["Series","Value","Unit","Quality","Observed"]}
+              rows={[...(macroData?.data ?? []), ...(macroData?.spreads ?? [])].map(row => ({
+                key: row.series_code,
+                cells: [
+                  labelText(row.series_code),
+                  valueText(row.value),
+                  displayUnit(row.unit),
+                  row.quality,
+                  row.observed_at ?? (row.metadata?.source === "CALCULATED" ? "Derived" : "—"),
+                ],
+              }))}
               empty="No macro observations."
             />
             <DataTable
               title="Crypto derivatives"
               meta="supporting context"
               className="nt-secondary-table"
-              columns={["Metric","Value","Unit","Venue","Observed"]}
-              rows={(cryptoData?.data ?? []).map(row => ({ key: row.metric_code, cells: [row.metric_code, valueText(row.value), row.metadata?.unit, row.source, row.observed_at] }))}
+              columns={["Metric","Value","Unit","Venue","Quality","Observed"]}
+              rows={(cryptoData?.data ?? []).map(row => ({
+                key: row.metric_code,
+                cells: [labelText(row.metric_code), valueText(row.value), displayUnit(row.metadata?.unit), row.source, row.quality, row.observed_at],
+              }))}
               empty="No crypto derivatives observations."
             />
           </div>
@@ -419,7 +442,7 @@ export default function MarketsWorkspace({
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Macro pulse</strong><span>latest observations</span></div>
               <table className="nt-microtable"><thead><tr><th>Series</th><th>Value</th><th>Unit</th></tr></thead><tbody>
-                {(macroData?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{row.series_code}</td><td>{valueText(row.value)}</td><td>{row.unit ?? ""}</td></tr>)}
+                {(macroData?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{labelText(row.series_code)}</td><td>{valueText(row.value)}</td><td>{displayUnit(row.unit)}</td></tr>)}
                 {!macroData?.data?.length && <tr><td colSpan={3}>No macro observations</td></tr>}
               </tbody></table>
             </div>
