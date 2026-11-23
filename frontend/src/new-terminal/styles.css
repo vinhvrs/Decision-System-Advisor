@@ -4976,3 +4976,53 @@ body,
   background: #0d151c;
   border-bottom: 1px solid var(--nt-border);
 }
+/* 2026-11-24 pointer layout dragging */
+.dsa-layout-editing .dsa-layout-card {
+  position: relative;
+}
+
+.dsa-layout-editing [data-dsa-drag-handle="true"] {
+  cursor: grab !important;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.dsa-layout-pointer-armed [data-dsa-drag-handle="true"],
+body.dsa-layout-pointer-dragging,
+body.dsa-layout-pointer-dragging * {
+  cursor: grabbing !important;
+}
+
+.dsa-layout-top-handle {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  border-bottom: 1px dashed rgba(120,164,199,.35);
+  background: linear-gradient(to bottom, rgba(120,164,199,.06), transparent);
+}
+
+.dsa-layout-top-handle::after {
+  content: "⋮⋮";
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+  color: #8fb0c8;
+  font: 700 12px/1 var(--nt-font-data);
+  letter-spacing: -3px;
+  opacity: .8;
+}
+
+.dsa-layout-drop-target {
+  outline: 2px solid rgba(120,164,199,.88) !important;
+  outline-offset: -2px;
+}
+
+.dsa-layout-dragging {
+  opacity: .86;
+  box-shadow: 0 16px 32px rgba(0,0,0,.45) !important;
+}
