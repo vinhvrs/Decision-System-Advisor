@@ -477,7 +477,7 @@ export default function MarketsWorkspace({
             <DataTable
               title="Macro observations & spreads"
               meta="supporting context"
-              className="nt-secondary-table"
+              className="nt-secondary-table nt-market-macro-table"
               columns={["Series","Value","Unit","Quality","Observed"]}
               rows={[...(macroData?.data ?? []), ...(macroData?.spreads ?? [])].map(row => ({
                 key: row.series_code,
@@ -491,17 +491,34 @@ export default function MarketsWorkspace({
               }))}
               empty="No macro observations."
             />
-            <DataTable
-              title="Crypto derivatives"
-              meta="supporting context"
-              className="nt-secondary-table"
-              columns={["Metric","Value","Unit","Venue","Quality","Observed"]}
-              rows={(cryptoData?.data ?? []).map(row => ({
-                key: row.metric_code,
-                cells: [labelText(row.metric_code), valueText(row.value), displayUnit(row.metadata?.unit), row.source, row.quality, row.observed_at],
-              }))}
-              empty="No crypto derivatives observations."
-            />
+            <div className="nt-market-support-stack">
+              <DataTable
+                title="Crypto derivatives"
+                meta="supporting context"
+                className="nt-secondary-table"
+                columns={["Metric","Value","Unit","Venue","Quality","Observed"]}
+                rows={(cryptoData?.data ?? []).map(row => ({
+                  key: row.metric_code,
+                  cells: [labelText(row.metric_code), valueText(row.value), displayUnit(row.metadata?.unit), row.source, row.quality, row.observed_at],
+                }))}
+                empty="No crypto derivatives observations."
+              />
+              <DataTable
+                title="Latest headlines"
+                meta={`${recentHeadlines.length} observations`}
+                className="nt-secondary-table nt-market-headlines-table"
+                columns={["Time","Symbol","Headline"]}
+                rows={recentHeadlines.map(item => ({
+                  key: item.id,
+                  cells: [
+                    item.published_at?.slice(11,16) ?? "—",
+                    item.symbol ?? "—",
+                    <span className="nt-cell-wrap" key={`${item.id}-headline`}>{item.title}</span>,
+                  ],
+                }))}
+                empty="No recent headlines."
+              />
+            </div>
           </div>
         </section>
 
@@ -537,13 +554,6 @@ export default function MarketsWorkspace({
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Latest headlines</strong><span>{recentHeadlines.length}</span></div>
-              <table className="nt-microtable"><thead><tr><th>Time</th><th>Symbol</th><th>Headline</th></tr></thead><tbody>
-                {recentHeadlines.map(item => <tr key={item.id}><td>{item.published_at?.slice(11,16) ?? "—"}</td><td>{item.symbol ?? "—"}</td><td className="nt-cell-wrap">{item.title}</td></tr>)}
-                {!recentHeadlines.length && <tr><td colSpan={3}>No recent headlines</td></tr>}
-              </tbody></table>
-            </div>
           </section>
         </aside>
       </div>
