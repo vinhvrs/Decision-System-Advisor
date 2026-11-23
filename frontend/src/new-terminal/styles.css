@@ -4483,3 +4483,23 @@ body,
 .nt-company-head-metrics span {
   color: var(--nt-muted);
 }
+/* 2026-11-23 heatmap universe cleanup */
+.nt-heat-cell .nt-sector-name {
+  display: inline;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--nt-muted) !important;
+  box-shadow: none !important;
+}
+
+.nt-heat-cell .nt-sector-dot {
+  width: 4px;
+  height: 4px;
+  flex-basis: 4px;
+  border-radius: 50%;
+}
+
+.nt-market-heatmap-panel .nt-panel-meta {
+  font-variant-numeric: tabular-nums;
+}
