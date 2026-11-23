@@ -96,7 +96,7 @@ function collectCards(pathname: string) {
     });
 
     const handle = element.querySelector<HTMLElement>(
-      ":scope > .nt-panel-title, :scope > .nt-subsection-title, :scope > .nt-context-strip, :scope > .nt-toolbar, :scope > header"
+      ":scope > .nt-panel-title, :scope > .nt-subsection-title, :scope > .nt-context-strip, :scope > .nt-toolbar, :scope > header, :scope > .nt-news-article-body > .nt-news-kicker"
     );
     if (handle) {
       handle.dataset.dsaDragHandle = "true";
