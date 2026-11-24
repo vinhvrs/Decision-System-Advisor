@@ -336,25 +336,23 @@ export default function SiteLayoutEditor() {
     const canvas = main?.querySelector<HTMLElement>(":scope > .dsa-grid-canvas");
     if (!canvas) return;
 
+    const cards = Array.from(canvas.querySelectorAll<HTMLElement>(":scope > .dsa-layout-card"));
+    const cleanups: Array<() => void> = [];
+
     function allItems(except?: HTMLElement) {
       return Array.from(canvas!.querySelectorAll<HTMLElement>(":scope > .dsa-layout-card"))
         .filter(card => card !== except)
         .map(itemFromCard);
     }
 
-    function onPointerDown(event: PointerEvent) {
+    function begin(card: HTMLElement, mode: "drag" | "resize", event: PointerEvent, capture: HTMLElement) {
       if (event.button !== 0) return;
-      const target = event.target as HTMLElement | null;
-      const resize = target?.closest<HTMLElement>("[data-dsa-resize-handle='true']");
-      const handle = target?.closest<HTMLElement>("[data-dsa-drag-handle='true']");
-      const card = (resize || handle)?.closest<HTMLElement>(".dsa-layout-card");
-      if (!card) return;
-
       event.preventDefault();
       event.stopPropagation();
+
       const origin = itemFromCard(card);
       drag.current = {
-        mode: resize ? "resize" : "drag",
+        mode,
         card,
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -362,32 +360,40 @@ export default function SiteLayoutEditor() {
         origin,
         lastValid: origin,
       };
+
       card.classList.add("dsa-layout-dragging");
-      try { (resize || handle)?.setPointerCapture(event.pointerId); } catch {}
+      document.body.classList.add("dsa-grid-pointer-active");
+      try { capture.setPointerCapture(event.pointerId); } catch {}
     }
 
-    function onPointerMove(event: PointerEvent) {
+    function move(event: PointerEvent) {
       const state = drag.current;
       if (!state || state.pointerId !== event.pointerId) return;
-      event.preventDefault();
 
+      event.preventDefault();
       const cw = cellWidth(canvas!);
       const dx = Math.round((event.clientX - state.startX) / cw);
       const dy = Math.round((event.clientY - state.startY) / ROW_PX);
       const others = allItems(state.card);
 
-      let candidate: GridItem;
       if (state.mode === "drag") {
-        candidate = { ...state.origin, x: state.origin.x + dx, y: Math.max(0, state.origin.y + dy) };
-        const valid = nearestValid(candidate, others);
-        state.lastValid = valid;
+        const candidate: GridItem = {
+          ...state.origin,
+          x: Math.max(0, Math.min(GRID_COLS - state.origin.w, state.origin.x + dx)),
+          y: Math.max(0, state.origin.y + dy),
+        };
+        if (!others.some(item => overlaps(candidate, item))) {
+          state.lastValid = candidate;
+        }
       } else {
-        candidate = {
+        const candidate: GridItem = {
           ...state.origin,
           w: Math.max(MIN_W, Math.min(GRID_COLS - state.origin.x, state.origin.w + dx)),
           h: Math.max(MIN_H, state.origin.h + dy),
         };
-        if (!others.some(item => overlaps(candidate, item))) state.lastValid = candidate;
+        if (!others.some(item => overlaps(candidate, item))) {
+          state.lastValid = candidate;
+        }
       }
 
       applyItem(state.card, state.lastValid, canvas!);
@@ -397,24 +403,52 @@ export default function SiteLayoutEditor() {
     function finish(event: PointerEvent) {
       const state = drag.current;
       if (!state || state.pointerId !== event.pointerId) return;
+
+      event.preventDefault();
       const others = allItems(state.card);
-      const fitted = state.mode === "drag" ? fitIntoFreeSpace(state.lastValid, others) : state.lastValid;
+      const fitted =
+        state.mode === "drag"
+          ? fitIntoFreeSpace(state.lastValid, others)
+          : state.lastValid;
+
       applyItem(state.card, fitted, canvas!);
       state.card.classList.remove("dsa-layout-dragging");
+      document.body.classList.remove("dsa-grid-pointer-active");
       canvas!.style.height = `${layoutBottom([...others, fitted]) * ROW_PX}px`;
       drag.current = null;
       persist();
     }
 
-    canvas.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("pointermove", onPointerMove, true);
-    document.addEventListener("pointerup", finish, true);
-    document.addEventListener("pointercancel", finish, true);
+    for (const card of cards) {
+      const handle = card.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
+      const resize = card.querySelector<HTMLElement>("[data-dsa-resize-handle='true']");
+
+      if (handle) {
+        handle.style.touchAction = "none";
+        handle.style.cursor = "grab";
+        const down = (event: PointerEvent) => begin(card, "drag", event, handle);
+        handle.addEventListener("pointerdown", down, true);
+        cleanups.push(() => handle.removeEventListener("pointerdown", down, true));
+      }
+
+      if (resize) {
+        resize.style.touchAction = "none";
+        const down = (event: PointerEvent) => begin(card, "resize", event, resize);
+        resize.addEventListener("pointerdown", down, true);
+        cleanups.push(() => resize.removeEventListener("pointerdown", down, true));
+      }
+    }
+
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", finish, true);
+    window.addEventListener("pointercancel", finish, true);
+
     return () => {
-      canvas.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("pointermove", onPointerMove, true);
-      document.removeEventListener("pointerup", finish, true);
-      document.removeEventListener("pointercancel", finish, true);
+      cleanups.forEach(fn => fn());
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", finish, true);
+      window.removeEventListener("pointercancel", finish, true);
+      document.body.classList.remove("dsa-grid-pointer-active");
       drag.current = null;
     };
   }, [active, persist]);
