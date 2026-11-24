@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "dsa.site-layout.v1";
+const STORAGE_KEY = "dsa.site-layout.v2";
 const CARD_SELECTOR = [
   ".nt-main [data-layout-key]",
   ".nt-main .nt-panel",
@@ -35,20 +35,20 @@ type RouteLayout = {
 };
 
 type LayoutStore = {
-  version: 1;
+  version: 2;
   routes: Record<string, RouteLayout>;
 };
 
 type EditorAction = "toggle" | "enable" | "disable" | "export" | "reset" | "test";
 
 function emptyStore(): LayoutStore {
-  return { version: 1, routes: {} };
+  return { version: 2, routes: {} };
 }
 
 function readStore(): LayoutStore {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "");
-    if (parsed?.version === 1 && parsed.routes && typeof parsed.routes === "object") return parsed;
+    if (parsed?.version === 2 && parsed.routes && typeof parsed.routes === "object") return parsed;
   } catch {
     // Ignore malformed browser-local layout state.
   }
