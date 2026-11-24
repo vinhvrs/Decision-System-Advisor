@@ -265,7 +265,7 @@ body {
   border-right: 1px solid rgba(32, 43, 55, 0.72);
   padding: 0 12px;
   color: var(--dsa-text-muted);
-  font-size: 11px;
+  font-size: 13.75px;
   font-weight: 650;
   letter-spacing: 0.045em;
   text-transform: uppercase;
@@ -316,7 +316,7 @@ body {
   border: 1px solid transparent;
   border-radius: 3px;
   color: var(--dsa-text-muted);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
@@ -367,13 +367,13 @@ body {
 .dsa-terminal-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .dsa-terminal-table thead {
   background: var(--dsa-surface-2);
   color: var(--dsa-text-muted);
-  font-size: 10px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
