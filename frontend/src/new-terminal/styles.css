@@ -5649,3 +5649,95 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-market-rail > .nt-flat-surface {
   flex-grow: 1 !important;
 }
+
+
+/* 2026-11-24 free dashboard grid editor */
+.dsa-grid-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  isolation: isolate;
+}
+
+.dsa-grid-canvas.dsa-grid-editing {
+  background-image:
+    linear-gradient(to right, rgba(112,145,171,.10) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(112,145,171,.10) 1px, transparent 1px);
+  background-size: calc(100% / 24) 24px;
+}
+
+.dsa-grid-canvas > .dsa-layout-card {
+  transition:
+    left .08s linear,
+    top .08s linear,
+    width .08s linear,
+    height .08s linear;
+  overflow: hidden;
+}
+
+.dsa-grid-canvas.dsa-grid-editing > .dsa-layout-card {
+  outline: 1px solid rgba(117, 178, 222, .22);
+  outline-offset: -1px;
+}
+
+.dsa-grid-canvas > .dsa-layout-card.dsa-layout-dragging {
+  z-index: 500 !important;
+  transition: none !important;
+  box-shadow: 0 0 0 1px rgba(117,178,222,.55), 0 8px 24px rgba(0,0,0,.28) !important;
+}
+
+.dsa-grid-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  width: 15px;
+  height: 15px;
+  cursor: nwse-resize;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dsa-layout-editing .dsa-grid-resize-handle {
+  opacity: .85;
+  pointer-events: auto;
+}
+
+.dsa-grid-resize-handle::before,
+.dsa-grid-resize-handle::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  border-right: 1px solid rgba(177,205,225,.8);
+  border-bottom: 1px solid rgba(177,205,225,.8);
+}
+
+.dsa-grid-resize-handle::before {
+  width: 9px;
+  height: 9px;
+}
+
+.dsa-grid-resize-handle::after {
+  width: 5px;
+  height: 5px;
+  right: 5px;
+  bottom: 5px;
+}
+
+.dsa-layout-editing .dsa-layout-drag-handle {
+  cursor: grab !important;
+  user-select: none;
+}
+
+.dsa-layout-editing .dsa-layout-dragging .dsa-layout-drag-handle {
+  cursor: grabbing !important;
+}
+
+.dsa-layout-editor-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
