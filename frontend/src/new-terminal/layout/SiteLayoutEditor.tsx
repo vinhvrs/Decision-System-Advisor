@@ -134,7 +134,7 @@ function ensureCanvas(main: HTMLElement) {
   if (!canvas) {
     canvas = document.createElement("div");
     canvas.className = "dsa-grid-canvas";
-    main.appendChild(canvas);
+    main.prepend(canvas);
   }
   return canvas;
 }
@@ -254,20 +254,34 @@ export default function SiteLayoutEditor() {
     const saved = readStore().routes[pathname];
     if (!saved && !active) return;
 
+    const mainRect = main.getBoundingClientRect();
     const canvas = ensureCanvas(main);
     canvas.classList.toggle("dsa-grid-editing", active);
-    const canvasRect = canvas.getBoundingClientRect();
     const initial = new Map<string, GridItem>();
 
+    // Capture the card's real visual coordinates relative to .nt-main BEFORE
+    // moving it into the free-grid canvas. Using the empty canvas rect here
+    // used to add the entire old-layout height to y, producing values like y=228.
     for (const card of cards) {
       const id = card.dataset.dsaLayoutId || "";
       const rect = card.getBoundingClientRect();
-      initial.set(id, { id, label: card.dataset.dsaLayoutLabel || labelFor(card), ...rectToGrid(rect, canvasRect) });
+      initial.set(id, { id, label: card.dataset.dsaLayoutLabel || labelFor(card), ...rectToGrid(rect, mainRect) });
     }
 
+    const sourceRoots = new Set<HTMLElement>();
     for (const card of cards) {
+      let root = card.parentElement;
+      while (root?.parentElement && root.parentElement !== main) root = root.parentElement;
+      if (root && root !== canvas && root.parentElement === main) sourceRoots.add(root);
       if (card.parentElement !== canvas) canvas.appendChild(card);
     }
+
+    // Old semantic wrappers must not keep consuming vertical space after their
+    // cards become absolutely-positioned grid items.
+    sourceRoots.forEach(root => {
+      root.dataset.dsaGridSourceRoot = "true";
+      root.style.setProperty("display", "none", "important");
+    });
 
     const placed: GridItem[] = [];
     for (const card of cards) {
