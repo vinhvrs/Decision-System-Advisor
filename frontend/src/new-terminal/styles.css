@@ -5604,3 +5604,48 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-market-workspace .nt-financial-strip {
   min-height: 0 !important;
 }
+
+
+/* 2026-11-24 dead-space pass 4: keep Markets summary to one desktop row */
+@media (min-width: 1060px) {
+  .nt-market-workspace .nt-financial-strip {
+    grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
+  }
+}
+
+.nt-market-workspace .nt-financial-strip {
+  min-height: 24px !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell {
+  min-height: 24px !important;
+  padding: 2px 4px !important;
+  display: grid !important;
+  grid-template-columns: auto 1fr !important;
+  align-items: center !important;
+  column-gap: 4px !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell .k {
+  white-space: nowrap !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell .v {
+  margin: 0 !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell .s {
+  display: none !important;
+}
+
+.nt-market-workspace .nt-context-strip + .nt-financial-strip,
+.nt-market-workspace .nt-financial-strip + .nt-market-main-grid {
+  margin-top: 0 !important;
+}
+
+.nt-market-center > :last-child,
+.nt-market-rail > .nt-flat-surface {
+  flex-grow: 1 !important;
+}
