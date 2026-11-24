@@ -445,7 +445,7 @@ export default function SiteLayoutEditor() {
         cleanups.push(() => handle.removeEventListener("pointerdown", down, true));
       }
 
-      if (resize) {
+      if (resize && active) {
         resize.style.touchAction = "none";
         const down = (event: PointerEvent) => begin(card, "resize", event, resize);
         resize.addEventListener("pointerdown", down, true);
@@ -463,6 +463,7 @@ export default function SiteLayoutEditor() {
       window.removeEventListener("pointerup", finish, true);
       window.removeEventListener("pointercancel", finish, true);
       document.body.classList.remove("dsa-grid-pointer-active");
+      document.body.classList.remove("dsa-layout-drag-enabled");
       drag.current = null;
     };
   }, [active, persist]);
