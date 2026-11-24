@@ -5397,3 +5397,122 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-shell .nt-kpi-note {
   color: var(--nt-muted);
 }
+
+
+/* 2026-11-24 Markets compact-density pass: target <5% visible dead space */
+.nt-market-workspace {
+  gap: 2px !important;
+}
+
+.nt-market-workspace .nt-context-strip {
+  min-height: 38px !important;
+  gap: 10px !important;
+  padding: 3px 6px !important;
+}
+
+.nt-market-workspace .nt-context-title {
+  min-width: 145px !important;
+}
+
+.nt-market-workspace .nt-index {
+  min-width: 92px !important;
+}
+
+.nt-market-workspace .nt-index-values {
+  gap: 5px !important;
+  margin-top: 0 !important;
+}
+
+.nt-market-workspace .nt-financial-strip {
+  grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell {
+  min-height: 34px !important;
+  padding: 3px 5px !important;
+}
+
+.nt-market-workspace .nt-financial-strip .nt-data-cell .v {
+  margin-top: 1px !important;
+}
+
+.nt-market-main-grid {
+  gap: 2px !important;
+  grid-template-columns: 255px minmax(0, 1fr) 265px !important;
+}
+
+.nt-market-center {
+  gap: 2px !important;
+}
+
+.nt-market-supporting-grid,
+.nt-market-support-stack {
+  gap: 2px !important;
+}
+
+.nt-market-heatmap-panel .nt-panel-body {
+  padding: 2px !important;
+}
+
+.nt-market-workspace .nt-heatmap {
+  gap: 2px !important;
+}
+
+.nt-market-workspace .nt-heat-cell {
+  min-height: 52px !important;
+  padding: 4px 5px !important;
+}
+
+.nt-market-workspace .nt-heat-price {
+  margin-top: 4px !important;
+}
+
+.nt-market-workspace .nt-heat-cell small {
+  margin-top: 2px !important;
+}
+
+.nt-market-rail .nt-subsection-title,
+.nt-market-center .nt-subsection-title,
+.nt-market-workspace .nt-panel-title {
+  min-height: 25px !important;
+  padding: 3px 5px !important;
+}
+
+.nt-market-rail .nt-microtable th,
+.nt-market-rail .nt-microtable td,
+.nt-market-center .nt-microtable th,
+.nt-market-center .nt-microtable td {
+  padding-block: 2px !important;
+}
+
+.nt-market-rail .nt-subsection {
+  margin: 0 !important;
+}
+
+.nt-market-workspace .nt-data-gap {
+  padding: 2px 4px !important;
+  line-height: 1.1 !important;
+}
+
+.nt-market-workspace .nt-data-gap:only-child {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.nt-market-workspace .nt-table th,
+.nt-market-workspace .nt-table td {
+  padding-block: 2px !important;
+}
+
+.nt-market-workspace .nt-primary-table,
+.nt-market-workspace .nt-secondary-table,
+.nt-market-workspace .nt-flat-surface,
+.nt-market-workspace .nt-panel {
+  margin-block: 0 !important;
+}
+
+@media (max-width: 1450px) {
+  .nt-market-workspace .nt-financial-strip {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
