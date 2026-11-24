@@ -23,6 +23,8 @@ type CardLayout = {
   heightRatioViewport: number;
   xRatioViewport: number;
   yRatioViewport: number;
+  parentZone?: string;
+  sizeMode?: "auto" | "manual";
 };
 
 type RouteLayout = {
@@ -75,6 +77,49 @@ function labelFor(element: HTMLElement) {
   return heading?.textContent?.trim() || element.getAttribute("aria-label") || element.className || element.tagName;
 }
 
+function parentZoneId(parent: HTMLElement, pathname: string) {
+  if (parent.dataset.dsaLayoutZoneId) return parent.dataset.dsaLayoutZoneId;
+
+  const main = parent.closest<HTMLElement>(".nt-main");
+  const parts: string[] = [];
+  let node: HTMLElement | null = parent;
+  while (node && node !== main) {
+    const parentNode: HTMLElement | null = node.parentElement;
+    const classKey = Array.from(node.classList)
+      .filter(name => name.startsWith("nt-"))
+      .slice(0, 3)
+      .join(".");
+    const same = parentNode
+      ? Array.from(parentNode.children).filter(item =>
+          item instanceof HTMLElement &&
+          item.tagName === node!.tagName &&
+          Array.from(item.classList).filter(name => name.startsWith("nt-")).slice(0, 3).join(".") === classKey
+        )
+      : [];
+    const index = Math.max(0, same.indexOf(node));
+    parts.unshift(`${node.tagName.toLowerCase()}:${clean(classKey || node.tagName)}:${index}`);
+    node = parentNode;
+  }
+
+  const id = `${pathname}::zone::${parts.join("/") || "main"}`;
+  parent.dataset.dsaLayoutZoneId = id;
+  return id;
+}
+
+function autoFitCard(card: HTMLElement) {
+  card.dataset.dsaSizeMode = "auto";
+  [
+    "width", "height", "min-width", "max-width", "min-height", "max-height",
+    "flex", "flex-basis", "grid-column", "grid-row", "grid-area",
+    "align-self", "justify-self"
+  ].forEach(property => card.style.removeProperty(property));
+  card.style.setProperty("width", "100%");
+  card.style.setProperty("max-width", "100%");
+  card.style.setProperty("height", "auto");
+  card.style.setProperty("min-width", "0");
+  card.style.setProperty("box-sizing", "border-box");
+}
+
 function collectCards(pathname: string) {
   const candidates = Array.from(document.querySelectorAll<HTMLElement>(CARD_SELECTOR))
     .filter(element => element.closest(".nt-main"))
@@ -97,6 +142,8 @@ function collectCards(pathname: string) {
     }
     element.classList.add("dsa-layout-card");
     element.draggable = false;
+    if (element.parentElement) parentZoneId(element.parentElement, pathname);
+    if (!element.dataset.dsaSizeMode) element.dataset.dsaSizeMode = "auto";
 
     // Prefer the panel's real visible header. The entire header row becomes the
     // drag surface. A synthetic strip is only used for cards that truly have no header.
@@ -180,6 +227,8 @@ function measure(element: HTMLElement): CardLayout {
     heightRatioViewport: Number((rect.height / vh).toFixed(5)),
     xRatioViewport: Number((rect.left / vw).toFixed(5)),
     yRatioViewport: Number((rect.top / vh).toFixed(5)),
+    parentZone: element.parentElement ? parentZoneId(element.parentElement, location.pathname) : undefined,
+    sizeMode: element.dataset.dsaSizeMode === "manual" ? "manual" : "auto",
   };
 }
 
@@ -227,8 +276,19 @@ export default function SiteLayoutEditor() {
       const state = saved?.cards?.[card.dataset.dsaLayoutId || ""];
       if (state) {
         card.style.order = String(state.order);
-        if (state.widthPx > 0) card.style.width = `${state.widthPx}px`;
-        if (state.heightPx > 0) card.style.height = `${state.heightPx}px`;
+        if (state.sizeMode === "manual") {
+          card.dataset.dsaSizeMode = "manual";
+          if (state.widthPx > 0) card.style.width = `${state.widthPx}px`;
+          if (state.heightPx > 0) card.style.height = `${state.heightPx}px`;
+        } else {
+          autoFitCard(card);
+        }
+
+        if (state.parentZone && card.parentElement?.dataset.dsaLayoutZoneId !== state.parentZone) {
+          const destination = Array.from(document.querySelectorAll<HTMLElement>("[data-dsa-layout-zone-id]"))
+            .find(node => node.dataset.dsaLayoutZoneId === state.parentZone);
+          if (destination && !card.contains(destination)) destination.appendChild(card);
+        }
       }
       if (card.parentElement) {
         const group = groups.get(card.parentElement) ?? [];
@@ -339,24 +399,19 @@ export default function SiteLayoutEditor() {
       }
     });
 
-    function orderedSiblings(source: HTMLElement) {
-      if (!source.parentElement) return [];
-      return Array.from(source.parentElement.children)
+    function orderedChildren(parent: HTMLElement) {
+      return Array.from(parent.children)
         .filter((item): item is HTMLElement => item instanceof HTMLElement && item.classList.contains("dsa-layout-card"))
         .sort((a, b) => currentOrder(a) - currentOrder(b));
     }
 
     function commitReorder(source: HTMLElement, target: HTMLElement, event: PointerEvent) {
-      if (!source.parentElement || source.parentElement !== target.parentElement) return;
+      const sourceParent = source.parentElement;
+      const targetParent = target.parentElement;
+      if (!sourceParent || !targetParent || source === target || source.contains(targetParent)) return;
 
-      const ordered = orderedSiblings(source);
-      const sourceIndex = ordered.indexOf(source);
-      const targetIndex = ordered.indexOf(target);
-      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
-
-      const next = ordered.filter(item => item !== source);
       const targetRect = target.getBoundingClientRect();
-      const parentStyle = getComputedStyle(source.parentElement);
+      const parentStyle = getComputedStyle(targetParent);
       const horizontal =
         parentStyle.display.includes("grid") ||
         parentStyle.flexDirection === "row" ||
@@ -365,15 +420,38 @@ export default function SiteLayoutEditor() {
         ? event.clientX > targetRect.left + targetRect.width / 2
         : event.clientY > targetRect.top + targetRect.height / 2;
 
-      const baseIndex = next.indexOf(target);
-      next.splice(Math.max(0, baseIndex + (after ? 1 : 0)), 0, source);
-      next.forEach((item, index) => {
-        item.style.order = String(index);
-      });
+      if (sourceParent === targetParent) {
+        const ordered = orderedChildren(sourceParent);
+        const sourceIndex = ordered.indexOf(source);
+        const targetIndex = ordered.indexOf(target);
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
 
-      // Move the real DOM nodes as well as setting CSS order. This makes the
-      // interaction work consistently for flex, grid, and ordinary block parents.
-      reorderDomCards(source.parentElement, next);
+        const next = ordered.filter(item => item !== source);
+        const baseIndex = next.indexOf(target);
+        next.splice(Math.max(0, baseIndex + (after ? 1 : 0)), 0, source);
+        next.forEach((item, index) => item.style.order = String(index));
+        reorderDomCards(sourceParent, next);
+      } else {
+        const oldGroup = orderedChildren(sourceParent).filter(item => item !== source);
+        oldGroup.forEach((item, index) => item.style.order = String(index));
+
+        const destinationGroup = orderedChildren(targetParent).filter(item => item !== source);
+        const baseIndex = destinationGroup.indexOf(target);
+        const insertIndex = Math.max(0, baseIndex + (after ? 1 : 0));
+        const next = [...destinationGroup];
+        next.splice(insertIndex, 0, source);
+
+        const anchor = after ? target.nextSibling : target;
+        targetParent.insertBefore(source, anchor);
+        next.forEach((item, index) => item.style.order = String(index));
+        reorderDomCards(targetParent, next);
+      }
+
+      autoFitCard(source);
+      requestAnimationFrame(() => {
+        autoFitCard(source);
+        source.getBoundingClientRect();
+      });
     }
 
     function onPointerDown(event: PointerEvent) {
@@ -403,7 +481,14 @@ export default function SiteLayoutEditor() {
     }
 
     function findDropTarget(source: HTMLElement, x: number, y: number) {
-      const siblings = orderedSiblings(source).filter(item => item !== source);
+      const siblings = Array.from(document.querySelectorAll<HTMLElement>(".nt-main .dsa-layout-card"))
+        .filter(item => item !== source)
+        .filter(item => !source.contains(item))
+        .filter(item => !item.contains(source))
+        .filter(item => {
+          const rect = item.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
       if (!siblings.length) return null;
 
       const containing = siblings.find(item => {
@@ -483,6 +568,7 @@ export default function SiteLayoutEditor() {
       const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dsa-layout-card");
       if (target) {
         const rect = target.getBoundingClientRect();
+        target.dataset.dsaSizeMode = "manual";
         target.style.width = `${snap4(rect.width)}px`;
         target.style.height = `${snap4(rect.height)}px`;
         persistCurrent();
