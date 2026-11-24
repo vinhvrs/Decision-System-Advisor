@@ -432,24 +432,27 @@ export default function SiteLayoutEditor() {
         next.forEach((item, index) => item.style.order = String(index));
         reorderDomCards(sourceParent, next);
       } else {
-        const oldGroup = orderedChildren(sourceParent).filter(item => item !== source);
-        oldGroup.forEach((item, index) => item.style.order = String(index));
+        // Cross-container moves must preserve each layout wrapper's slot count.
+        // Swapping the two cards keeps rails/grids structurally intact and makes
+        // the operation naturally reversible instead of leaving an empty source
+        // wrapper and an overfilled destination wrapper.
+        const sourceSlot = document.createComment("dsa-source-slot");
+        const targetSlot = document.createComment("dsa-target-slot");
+        sourceParent.replaceChild(sourceSlot, source);
+        targetParent.replaceChild(targetSlot, target);
+        sourceSlot.parentNode?.replaceChild(target, sourceSlot);
+        targetSlot.parentNode?.replaceChild(source, targetSlot);
 
-        const destinationGroup = orderedChildren(targetParent).filter(item => item !== source);
-        const baseIndex = destinationGroup.indexOf(target);
-        const insertIndex = Math.max(0, baseIndex + (after ? 1 : 0));
-        const next = [...destinationGroup];
-        next.splice(insertIndex, 0, source);
+        orderedChildren(sourceParent).forEach((item, index) => item.style.order = String(index));
+        orderedChildren(targetParent).forEach((item, index) => item.style.order = String(index));
 
-        const anchor = after ? target.nextSibling : target;
-        targetParent.insertBefore(source, anchor);
-        next.forEach((item, index) => item.style.order = String(index));
-        reorderDomCards(targetParent, next);
+        autoFitCard(target);
       }
 
       autoFitCard(source);
       requestAnimationFrame(() => {
         autoFitCard(source);
+        if (sourceParent !== targetParent) autoFitCard(target);
         source.getBoundingClientRect();
       });
     }
