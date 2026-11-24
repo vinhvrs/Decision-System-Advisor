@@ -5568,3 +5568,39 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-market-workspace .nt-microtable {
   border-spacing: 0 !important;
 }
+
+
+/* 2026-11-24 dead-space pass 3: equal-height Markets columns */
+.nt-market-main-grid {
+  align-items: stretch !important;
+  grid-auto-rows: 1fr !important;
+  min-height: calc(100dvh - var(--nt-top) - var(--nt-workspace-nav) - 116px) !important;
+}
+
+.nt-market-rail,
+.nt-market-center {
+  align-self: stretch !important;
+  min-height: 100% !important;
+}
+
+.nt-market-rail > .nt-flat-surface {
+  min-height: 100% !important;
+  height: 100% !important;
+}
+
+.nt-market-center {
+  height: 100% !important;
+}
+
+.nt-market-supporting-grid {
+  flex: 1 1 auto !important;
+}
+
+.nt-market-supporting-grid > .nt-panel,
+.nt-market-support-stack {
+  min-height: 100% !important;
+}
+
+.nt-market-workspace .nt-financial-strip {
+  min-height: 0 !important;
+}
