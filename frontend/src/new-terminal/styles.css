@@ -5516,3 +5516,55 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
   }
 }
+
+
+/* 2026-11-24 dead-space pass 2: overlay utility dock, reclaim viewport edge */
+.nt-main {
+  padding: 1px !important;
+}
+
+.nt-market-workspace,
+.nt-market-main-grid,
+.nt-market-center,
+.nt-market-supporting-grid,
+.nt-market-support-stack {
+  gap: 1px !important;
+}
+
+.nt-utility-dock {
+  right: 0 !important;
+  width: 30px !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  border-right: 0 !important;
+  border-radius: 0 !important;
+}
+
+.nt-utility-button {
+  width: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+}
+
+.nt-utility-button span {
+  display: none !important;
+}
+
+.nt-utility-drawer {
+  right: 30px !important;
+}
+
+.nt-market-main-grid {
+  width: 100% !important;
+}
+
+.nt-market-workspace .nt-context-strip,
+.nt-market-workspace .nt-financial-strip,
+.nt-market-main-grid {
+  margin-inline: 0 !important;
+}
+
+.nt-market-workspace .nt-table,
+.nt-market-workspace .nt-microtable {
+  border-spacing: 0 !important;
+}
