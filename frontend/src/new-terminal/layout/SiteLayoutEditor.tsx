@@ -481,10 +481,12 @@ export default function SiteLayoutEditor() {
     }
 
     function findDropTarget(source: HTMLElement, x: number, y: number) {
+      const sourceDepth = source.parentElement?.closest(".dsa-layout-card") ? 1 : 0;
       const siblings = Array.from(document.querySelectorAll<HTMLElement>(".nt-main .dsa-layout-card"))
         .filter(item => item !== source)
         .filter(item => !source.contains(item))
         .filter(item => !item.contains(source))
+        .filter(item => (item.parentElement?.closest(".dsa-layout-card") ? 1 : 0) === sourceDepth)
         .filter(item => {
           const rect = item.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
