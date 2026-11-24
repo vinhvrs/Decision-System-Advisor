@@ -58,7 +58,7 @@ const sectors = [
   "Staples","Energy","Utilities","Real Estate","Materials",
 ];
 
-const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","COPPER","BTC","ETH","SPY","QQQ","RSP","HYG","TLT","VIX","MOVE"];
+const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","BTC","SPY","VIX"];
 const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100": "^NDX", DOW: "^DJI", "RUSSELL (IWM proxy)": "IWM", VIX: "^VIX" };
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
 const sectorNames: Record<string, string> = { "Consumer Cyclical": "Consumer Discr.", "Financial Services": "Financials", Healthcare: "Health Care" };
@@ -328,7 +328,7 @@ export default function MarketsWorkspace({
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 18);
-  const recentHeadlines = (newsData?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 18);
+  const recentHeadlines = (newsData?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 10);
   const marketTape = [...rows]
     .filter(row => row.market === "stock")
     .sort((a, b) => ((b.traded_value ?? 0) - (a.traded_value ?? 0)))
@@ -364,8 +364,7 @@ export default function MarketsWorkspace({
       <div className="nt-dense-grid nt-financial-strip">
         {[
           ["Equity session", equitySession ?? "—", equities.some(row => row.session_final) ? "Final" : "Latest"],
-          ["Feed", connected ? "LIVE + SNAPSHOT" : "SNAPSHOT", `${equities.length}/${EQUITY_HEATMAP_SIZE} observed · ${liveQuoteCount} live`],
-          ["Adv / Decl", equities.length ? `${up} / ${down}` : "—", equities.length ? `${unchanged} unchanged` : ""],
+          ["Feed / A-D", connected ? `${liveQuoteCount} live · ${up}/${down}` : `${equities.length}/${EQUITY_HEATMAP_SIZE} snapshot`, equities.length ? `${unchanged} unchanged` : ""],
           ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Breadth"],
           ["Traded value", traded.length ? `${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", `${persistedEquities.length} persisted equities`],
           ["> 20D MA", breadthValue(trend[0]), breadthSession ?? ""],
@@ -528,14 +527,14 @@ export default function MarketsWorkspace({
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-                <tbody>{calendarEvents.length ? calendarEvents.slice(0,10).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
+                <tbody>{calendarEvents.length ? calendarEvents.slice(0,5).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
               </table>
             </div>
 
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
               <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-                {Array.from({ length: Math.min(22, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+                {Array.from({ length: Math.min(10, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
               </tbody></table>
             </div>
 
