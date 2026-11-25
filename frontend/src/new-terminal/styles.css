@@ -6125,7 +6125,8 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-market-preset {
   display: grid !important;
   grid-template-columns: repeat(var(--nt-market-cols), minmax(0, 1fr)) !important;
-  grid-template-rows: repeat(var(--nt-market-rows), var(--nt-market-row-px)) !important;
+  /* Divide the fixed canvas height so zoom rounding cannot accumulate per row. */
+  grid-template-rows: repeat(var(--nt-market-rows), minmax(0, 1fr)) !important;
   grid-auto-rows: var(--nt-market-row-px);
   gap: 0 !important;
   width: 100%;
