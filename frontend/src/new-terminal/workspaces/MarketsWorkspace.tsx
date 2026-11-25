@@ -67,8 +67,6 @@ const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100":
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
 const eventDate = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
 const eventClock = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
-const MARKET_TAPE_PAGE_SIZE = 18;
-const CALENDAR_PAGE_SIZE = 4;
 const ecbCurrencies = ["USD", "GBP", "JPY", "CHF", "AUD"];
 const ecbReferencePage = "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html";
 const referenceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 });
@@ -107,7 +105,7 @@ export default function MarketsWorkspace({
   const macro = useFeed<Macro>("/api/v1/macro/dashboard", 300000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
   const calendar = useFeed<Calendar>(ECONOMIC_CALENDAR_PATH, 60000);
-  const news = useFeed<{ data: News[] }>("/api/news", 60000);
+  const news = useFeed<{ data: News[] }>("/api/news?per_page=40&page=1", 60000);
   const dailyData = daily.data ?? initialDaily;
   const macroData = macro.data ?? initialMacro;
   const cryptoData = crypto.data ?? initialCrypto;
@@ -115,8 +113,6 @@ export default function MarketsWorkspace({
   const newsData = news.data ?? initialNews;
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [connected, setConnected] = useState(false);
-  const [marketTapePage, setMarketTapePage] = useState(0);
-  const [calendarPage, setCalendarPage] = useState(0);
   const subscriptionSymbols = useMemo(
     () => EQUITY_HEATMAP_UNIVERSE.map(item => item.symbol),
     [],
@@ -294,9 +290,6 @@ export default function MarketsWorkspace({
   const heatRows = equities;
   const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
   const calendarState = calendarCoverageState(calendarData);
-  const calendarPageCount = Math.max(1, Math.ceil(calendarEvents.length / CALENDAR_PAGE_SIZE));
-  const currentCalendarPage = Math.min(calendarPage, calendarPageCount - 1);
-  const visibleCalendarEvents = calendarEvents.slice(currentCalendarPage * CALENDAR_PAGE_SIZE, (currentCalendarPage + 1) * CALENDAR_PAGE_SIZE);
 
   const dailyRows = dailyData?.data;
   const breadthEquities = sessionRows;
@@ -336,14 +329,11 @@ export default function MarketsWorkspace({
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 18);
-  const recentHeadlines = (newsData?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 14);
+  const recentHeadlines = (newsData?.data ?? []).filter(item => item.published_at && item.title?.trim());
   const marketTape = [...sessionRows]
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0));
   const showMarketCap = marketTape.some(row => row.market_cap != null);
   const showTapeAsOf = !equitySession || !marketTape.length || !marketTape.every(row => row.session_date === equitySession);
-  const tapePageCount = Math.max(1, Math.ceil(marketTape.length / MARKET_TAPE_PAGE_SIZE));
-  const tapePage = Math.min(marketTapePage, tapePageCount - 1);
-  const visibleMarketTape = marketTape.slice(tapePage * MARKET_TAPE_PAGE_SIZE, (tapePage + 1) * MARKET_TAPE_PAGE_SIZE);
   const sectorPerformance = sectors.map(sector => {
     const sample = sessionRows.filter(row => normalizeSector(row.sector) === sector);
     return {
@@ -425,7 +415,7 @@ export default function MarketsWorkspace({
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <div className="nt-market-table-scroll"><table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time (ET)</th></tr></thead>
-                <tbody>{visibleCalendarEvents.length ? visibleCalendarEvents.map(event => {
+                <tbody>{calendarEvents.length ? calendarEvents.map(event => {
                   const scheduled = event.scheduled_at ? new Date(event.scheduled_at) : null;
                   return <tr key={event.id}>
                     <td>
@@ -439,15 +429,6 @@ export default function MarketsWorkspace({
                   </tr>;
                 }) : <tr><td colSpan={2} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
               </table></div>
-              {calendarEvents.length > CALENDAR_PAGE_SIZE && <div className="nt-database-note">
-                <nav className="nt-market-pagination" aria-label="Calendar event pages">
-                  <span aria-live="polite">{currentCalendarPage * CALENDAR_PAGE_SIZE + 1}–{Math.min((currentCalendarPage + 1) * CALENDAR_PAGE_SIZE, calendarEvents.length)} of {calendarEvents.length}</span>
-                  <div>
-                    <button type="button" aria-label="Previous calendar events page" disabled={currentCalendarPage === 0} onClick={() => setCalendarPage(currentCalendarPage - 1)}>Previous</button>
-                    <button type="button" aria-label="Next calendar events page" disabled={currentCalendarPage + 1 >= calendarPageCount} onClick={() => setCalendarPage(currentCalendarPage + 1)}>Next</button>
-                  </div>
-                </nav>
-              </div>}
             </div>
           </div>
           <div className="nt-market-fixed-middle">
@@ -466,7 +447,7 @@ export default function MarketsWorkspace({
                   meta={`final equity session ${equitySession ?? "—"} · n=${sampleSize}`}
                   className="nt-primary-table nt-market-tape-table"
                   columns={["Symbol", "Last", "Change", "Traded value", ...(showMarketCap ? ["Market cap"] : []), ...(showTapeAsOf ? ["As of"] : [])]}
-                  rows={visibleMarketTape.map(row => ({ key: row.symbol, cells: [
+                  rows={marketTape.map(row => ({ key: row.symbol, cells: [
                     row.symbol,
                     quoteText(row.price),
                     row.change_pct == null ? "—" : percent(row.change_pct),
@@ -474,13 +455,6 @@ export default function MarketsWorkspace({
                     ...(showMarketCap ? [row.market_cap == null || !Number.isFinite(row.market_cap) ? "—" : <span key={`${row.symbol}-market-cap`} title={row.market_cap.toLocaleString("en-US", { maximumFractionDigits: 20 })}>{marketCapFormat.format(row.market_cap)}</span>] : []),
                     ...(showTapeAsOf ? [row.session_date] : []),
                   ] }))}
-                  note={marketTape.length > MARKET_TAPE_PAGE_SIZE && <nav className="nt-market-pagination" aria-label="Market tape pages">
-                    <span aria-live="polite">{tapePage * MARKET_TAPE_PAGE_SIZE + 1}–{Math.min((tapePage + 1) * MARKET_TAPE_PAGE_SIZE, marketTape.length)} of {marketTape.length}</span>
-                    <div>
-                      <button type="button" aria-label="Previous market tape page" disabled={tapePage === 0} onClick={() => setMarketTapePage(tapePage - 1)}>Previous</button>
-                      <button type="button" aria-label="Next market tape page" disabled={tapePage + 1 >= tapePageCount} onClick={() => setMarketTapePage(tapePage + 1)}>Next</button>
-                    </div>
-                  </nav>}
                   empty="No market observations."
                 />
               </div>
@@ -556,7 +530,7 @@ export default function MarketsWorkspace({
           <div className="nt-subsection" {...marketPresetCardProps("markets:leadership")}>
             <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-              {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}>
+              {Array.from({ length: Math.max(leaders.length, laggards.length) }, (_, i) => <tr key={i}>
                 <td>{i+1}</td>
                 <td className="nt-positive"><span className="nt-market-rank-quote"><span>{leaders[i]?.symbol ?? "—"}</span><span>{percent(leaders[i]?.change_pct)}</span></span></td>
                 <td className="nt-negative"><span className="nt-market-rank-quote"><span>{laggards[i]?.symbol ?? "—"}</span><span>{percent(laggards[i]?.change_pct)}</span></span></td>
@@ -605,7 +579,7 @@ export default function MarketsWorkspace({
           <div className="nt-subsection" {...marketPresetCardProps("markets:relative-volume")}>
             <div className="nt-subsection-title"><strong>Relative volume</strong><span>20D leaders</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>Symbol</th><th>RVol</th></tr></thead><tbody>
-              {relativeVolumeLeaders.slice(0,6).map(item => <tr key={item.symbol}><td>{item.symbol}</td><td>{item.value.toFixed(2)}×</td></tr>)}
+              {relativeVolumeLeaders.map(item => <tr key={item.symbol}><td>{item.symbol}</td><td>{item.value.toFixed(2)}×</td></tr>)}
               {!relativeVolumeLeaders.length && <tr><td colSpan={2}>No relative-volume observations</td></tr>}
             </tbody></table></div>
           </div>

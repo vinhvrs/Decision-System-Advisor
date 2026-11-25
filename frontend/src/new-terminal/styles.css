@@ -6215,6 +6215,19 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   height: auto;
   padding: 2px 5px !important;
 }
+/* Real records fill their fixed card; longer tables keep their native scroll. */
+.nt-market-preset :is(.nt-table-wrap, .nt-market-table-scroll)
+  > :is(.nt-table, .nt-microtable):has(> tbody > tr > :is(th, td):not([colspan])) {
+  height: 100%;
+}
+.nt-market-preset :is(.nt-table, .nt-microtable) > thead,
+.nt-market-preset :is(.nt-table, .nt-microtable) > thead > tr,
+.nt-market-preset :is(.nt-table, .nt-microtable) > thead > tr > th {
+  height: 24px;
+}
+.nt-market-preset :is(.nt-table, .nt-microtable) > tbody > tr > :is(th, td) {
+  vertical-align: middle;
+}
 .nt-market-preset .nt-table thead th { position: static; }
 .nt-market-preset .nt-microtable { table-layout: auto; }
 .nt-market-preset .nt-microtable :is(th, td):not(:first-child) { white-space: nowrap; }
