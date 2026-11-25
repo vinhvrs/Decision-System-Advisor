@@ -1,15 +1,20 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
-export default function DataTable({ title, columns, rows, note, meta, className = "", empty = "No matching records from this source." }: {
+export default function DataTable({ title, columns, rows, note, meta, className = "", style, empty = "No matching records from this source.", ...layoutAttributes }: {
   title: string;
   columns: string[];
   rows: { key: string; cells: ReactNode[] }[];
   note?: ReactNode;
   meta?: string;
   className?: string;
+  style?: CSSProperties;
   empty?: string;
+  "data-layout-x"?: number;
+  "data-layout-y"?: number;
+  "data-layout-w"?: number;
+  "data-layout-h"?: number;
 }) {
-  return <section className={`nt-panel nt-data-table ${className}`.trim()} data-layout-key={`table:${title}`}>
+  return <section {...layoutAttributes} className={`nt-panel nt-data-table ${className}`.trim()} style={style} data-layout-key={`table:${title}`}>
     <div className="nt-panel-title">
       <strong>{title}</strong>
       {meta && <span className="nt-panel-meta">{meta}</span>}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "../DataTable";
+import { marketPresetCardProps, marketPresetRootProps } from "../layout/marketPreset";
 import { ECONOMIC_CALENDAR_PATH, calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, quoteText, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
 import { EQUITY_HEATMAP_SIZE, EQUITY_HEATMAP_UNIVERSE } from "../equityUniverse";
@@ -355,8 +356,8 @@ export default function MarketsWorkspace({
   }).sort((a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity));
 
   return (
-    <div className="nt-workspace nt-market-workspace nt-market-fixed">
-      <section className="nt-context-strip" data-layout-key="markets:summary">
+    <div className="nt-workspace nt-market-workspace nt-market-preset" {...marketPresetRootProps}>
+      <section className="nt-context-strip" {...marketPresetCardProps("markets:summary")}>
         <div className="nt-context-title">
           <div className="nt-label nt-info">Markets / US Equities</div>
           <h1>Market Overview</h1>
@@ -372,7 +373,7 @@ export default function MarketsWorkspace({
         ))}
       </section>
 
-      <div className="nt-dense-grid nt-financial-strip" data-layout-key="markets:metrics">
+      <div className="nt-dense-grid nt-financial-strip" {...marketPresetCardProps("markets:metrics")}>
         {[
           ["Equity session", equitySession ?? "—", equitySession ? "Final" : "Awaiting close"],
           ["Adv / Decl", sampleSize ? `${up} / ${down}` : "—", sampleSize ? `${unchanged} unchanged` : ""],
@@ -394,7 +395,7 @@ export default function MarketsWorkspace({
       <div className="nt-market-fixed-grid">
         <div className="nt-market-fixed-content nt-market-fixed-stack">
           <div className="nt-market-fixed-top">
-            <section className="nt-panel nt-market-heatmap-panel" data-layout-key="markets:heatmap">
+            <section className="nt-panel nt-market-heatmap-panel" {...marketPresetCardProps("markets:heatmap")}>
               <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {connected ? `${liveQuoteCount} live` : "stream offline"} · {snapshotQuoteCount} intraday snapshots</span></div>
               <div className="nt-panel-body">
                 <div className="nt-heatmap">
@@ -420,7 +421,7 @@ export default function MarketsWorkspace({
                 </div>
               </div>
             </section>
-            <div className="nt-subsection" data-layout-key="markets:calendar-events">
+            <div className="nt-subsection" {...marketPresetCardProps("markets:calendar-events")}>
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <div className="nt-market-table-scroll"><table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time (ET)</th></tr></thead>
@@ -452,7 +453,7 @@ export default function MarketsWorkspace({
           <div className="nt-market-fixed-middle">
             <div className="nt-market-fixed-stack">
               <div className="nt-market-fixed-tables">
-                <div className="nt-subsection" data-layout-key="markets:most-active">
+                <div className="nt-subsection" {...marketPresetCardProps("markets:most-active")}>
                   <div className="nt-subsection-title"><strong>Most active</strong><span>traded value · final</span></div>
                   <div className="nt-market-table-scroll"><table className="nt-microtable">
                     <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
@@ -460,6 +461,7 @@ export default function MarketsWorkspace({
                   </table></div>
                 </div>
                 <DataTable
+                  {...marketPresetCardProps("table:Market tape")}
                   title="Market tape"
                   meta={`final equity session ${equitySession ?? "—"} · n=${sampleSize}`}
                   className="nt-primary-table nt-market-tape-table"
@@ -483,6 +485,7 @@ export default function MarketsWorkspace({
                 />
               </div>
               <DataTable
+                {...marketPresetCardProps("table:Latest headlines")}
                 title="Latest headlines"
                 meta={`${recentHeadlines.length} observations`}
                 className="nt-secondary-table nt-market-headlines-table"
@@ -499,13 +502,13 @@ export default function MarketsWorkspace({
               />
             </div>
             <div className="nt-market-fixed-stack">
-              <div className="nt-subsection" data-layout-key="markets:sector-performance">
+              <div className="nt-subsection" {...marketPresetCardProps("markets:sector-performance")}>
                 <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
                 <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
                   {sectorPerformance.map(item => <tr key={item.sector}><td><span className="nt-market-sector-name">{item.sector}</span>{" "}<small className="nt-market-sample">n={item.count}</small></td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
                 </tbody></table></div>
               </div>
-              <div className="nt-subsection" data-layout-key="markets:sector-breadth">
+              <div className="nt-subsection" {...marketPresetCardProps("markets:sector-breadth")}>
                 <div className="nt-subsection-title"><strong>Sector breadth</strong><span>session · min. 3 observations</span></div>
                 <div className="nt-market-table-scroll"><table className="nt-microtable">
                   <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
@@ -519,6 +522,7 @@ export default function MarketsWorkspace({
             </div>
           </div>
           <DataTable
+            {...marketPresetCardProps("table:Macro observations & spreads")}
             title="Macro observations & spreads"
             meta="supporting context"
             className="nt-secondary-table nt-market-macro-table"
@@ -536,6 +540,7 @@ export default function MarketsWorkspace({
             empty="No macro observations."
           />
           <DataTable
+            {...marketPresetCardProps("table:Crypto derivatives")}
             title="Crypto derivatives"
             meta="supporting context"
             className="nt-secondary-table"
@@ -548,7 +553,7 @@ export default function MarketsWorkspace({
           />
         </div>
         <aside className="nt-market-fixed-rail nt-market-fixed-stack" aria-label="Market participation and reference data">
-          <div className="nt-subsection" data-layout-key="markets:leadership">
+          <div className="nt-subsection" {...marketPresetCardProps("markets:leadership")}>
             <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
               {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}>
@@ -558,7 +563,7 @@ export default function MarketsWorkspace({
               </tr>)}
             </tbody></table></div>
           </div>
-          <div className="nt-subsection" data-layout-key="markets:ecb-reference-rates">
+          <div className="nt-subsection" {...marketPresetCardProps("markets:ecb-reference-rates")}>
             <div className="nt-subsection-title">
               <strong>ECB reference rates</strong>
               <span><a href={ecbReferencePage} rel="noreferrer">ECB ↗</a></span>
@@ -585,7 +590,7 @@ export default function MarketsWorkspace({
               })}</tbody>
             </table></div>
           </div>
-          <div className="nt-subsection" data-layout-key="markets:participation">
+          <div className="nt-subsection" {...marketPresetCardProps("markets:participation")}>
             <div className="nt-subsection-title"><strong>Participation detail</strong><span>{equitySession ?? "Awaiting final session"} · n={sampleSize}</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable"><tbody>
               <tr><td>Advancing</td><td>{sampleSize ? up : "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
@@ -597,14 +602,14 @@ export default function MarketsWorkspace({
               <tr><td>Unchanged value</td><td>{valueTotal(participation?.flat_value)}</td><td></td></tr>
             </tbody></table></div>
           </div>
-          <div className="nt-subsection" data-layout-key="markets:relative-volume">
+          <div className="nt-subsection" {...marketPresetCardProps("markets:relative-volume")}>
             <div className="nt-subsection-title"><strong>Relative volume</strong><span>20D leaders</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>Symbol</th><th>RVol</th></tr></thead><tbody>
               {relativeVolumeLeaders.slice(0,6).map(item => <tr key={item.symbol}><td>{item.symbol}</td><td>{item.value.toFixed(2)}×</td></tr>)}
               {!relativeVolumeLeaders.length && <tr><td colSpan={2}>No relative-volume observations</td></tr>}
             </tbody></table></div>
           </div>
-          <div className="nt-subsection" data-layout-key="markets:cross-asset">
+          <div className="nt-subsection" {...marketPresetCardProps("markets:cross-asset")}>
             <div className="nt-subsection-title"><strong>Cross asset</strong><span>macro context</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable">
               <thead><tr><th>Asset</th><th>Last</th><th>Chg</th></tr></thead>

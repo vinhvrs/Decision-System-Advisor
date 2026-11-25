@@ -6104,93 +6104,73 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   .nt-layout-toggle { padding-inline: 6px; }
 }
 
-/* Markets is a fixed, content-sized dashboard. Other routes retain the grid editor. */
+/* Markets uses the exported rectangle contract as a read-only grid. */
 .nt-shell-markets-fixed .nt-topbar {
   grid-template-columns: 126px minmax(0, 560px) minmax(0, 1fr);
 }
-
 .nt-shell-markets-fixed .nt-topbar > .nt-top-context { grid-column: 3; }
-
 .nt-shell-markets-fixed .nt-layout,
 .nt-shell-markets-fixed .nt-main {
   height: auto !important;
   min-height: 0 !important;
   overflow: visible;
 }
-
-.nt-shell-markets-fixed .nt-main { padding: 3px 33px 0 3px !important; }
-
-.nt-market-fixed-grid,
-.nt-market-fixed-top,
-.nt-market-fixed-middle,
-.nt-market-fixed-tables {
-  display: grid;
-  align-items: start;
-  gap: 4px;
-  min-width: 0;
+.nt-shell-markets-fixed .nt-main {
+  padding: 3px 33px 0 3px !important;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior: auto;
 }
 
-/* Preserve the approved desktop columns while allowing each card to end at its content. */
-.nt-market-fixed-grid { grid-template-columns: minmax(240px, 7fr) minmax(0, 41fr); }
-.nt-market-fixed-rail { grid-column: 1; grid-row: 1; }
-.nt-market-fixed-content { grid-column: 2; grid-row: 1; container: markets-content / inline-size; }
-.nt-market-fixed-top { grid-template-columns: minmax(0, 33fr) minmax(260px, 8fr); }
-.nt-market-fixed-middle { grid-template-columns: minmax(0, 28fr) minmax(0, 13fr); }
-.nt-market-fixed-middle > .nt-market-fixed-stack:first-child { container: markets-tables / inline-size; }
-.nt-market-fixed-tables { grid-template-columns: minmax(0, 12fr) minmax(0, 16fr); }
-
-.nt-market-fixed-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+.nt-market-preset {
+  display: grid !important;
+  grid-template-columns: repeat(var(--nt-market-cols), minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(var(--nt-market-rows), var(--nt-market-row-px)) !important;
+  grid-auto-rows: var(--nt-market-row-px);
+  gap: 0 !important;
+  width: 100%;
+  height: calc(var(--nt-market-rows) * var(--nt-market-row-px)) !important;
+  min-width: 1280px;
+  min-height: 0;
+  padding: 0;
+  align-content: start;
+  isolation: isolate;
 }
 
-.nt-market-fixed [data-layout-key] {
-  min-width: 0;
-  height: auto !important;
+/* All sixteen cards belong to the same grid; wrappers cannot reflow the preset. */
+.nt-market-preset :is(.nt-market-fixed-grid, .nt-market-fixed-content,
+  .nt-market-fixed-top, .nt-market-fixed-middle, .nt-market-fixed-tables,
+  .nt-market-fixed-stack, .nt-market-fixed-rail) {
+  display: contents !important;
+  container-type: normal !important;
+  container-name: none !important;
+  contain: none !important;
+}
+
+.nt-market-preset [data-layout-key] {
+  box-sizing: border-box;
+  width: calc(100% - var(--nt-market-gutter)) !important;
+  height: calc(var(--nt-market-h) * var(--nt-market-row-px) - var(--nt-market-gutter)) !important;
+  min-width: 0 !important;
   min-height: 0 !important;
   max-height: none !important;
   margin: 0 !important;
-  overflow: visible;
+  overflow: hidden !important;
   overscroll-behavior: auto;
   touch-action: auto;
+  position: relative;
 }
 
-.nt-market-fixed > :is(.nt-context-strip, .nt-financial-strip) {
-  overflow: visible;
-}
-
-.nt-market-fixed .nt-context-strip {
+.nt-market-preset :is(.nt-panel, .nt-subsection)[data-layout-key] {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px !important;
+  flex-direction: column;
 }
-.nt-market-fixed .nt-context-title { flex: 0 0 155px; min-width: 0 !important; }
-.nt-market-fixed .nt-index { flex: 1 1 130px; min-width: 0 !important; }
-
-.nt-market-fixed .nt-financial-strip {
-  grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
-}
-.nt-market-fixed .nt-financial-strip .nt-data-cell {
-  grid-template-columns: minmax(0, 1fr) !important;
-  grid-template-rows: auto auto;
-  align-content: center;
-  row-gap: 3px;
-  min-height: 45px !important;
-  padding: 4px 6px !important;
-}
-.nt-market-fixed .nt-financial-strip .nt-data-cell .v {
-  text-align: left !important;
-  font-size: var(--nt-type-body);
-}
-
-.nt-market-fixed .nt-subsection {
+.nt-market-preset .nt-subsection {
   border: 1px solid var(--nt-border) !important;
   background: var(--nt-surface-support);
 }
-
-.nt-market-fixed :is(.nt-panel-title, .nt-subsection-title) {
+.nt-market-preset :is(.nt-panel-title, .nt-subsection-title) {
+  flex: 0 0 auto;
   min-height: 25px !important;
   height: auto !important;
   padding: 3px 5px !important;
@@ -6200,8 +6180,7 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   touch-action: auto;
   user-select: text;
 }
-
-.nt-market-fixed :is(.nt-panel-meta, .nt-subsection-title > span) {
+.nt-market-preset :is(.nt-panel-meta, .nt-subsection-title > span) {
   display: block;
   min-width: 0;
   max-width: 100%;
@@ -6210,8 +6189,7 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   white-space: normal;
   overflow-wrap: break-word;
 }
-
-.nt-market-fixed :is(.nt-panel-title, .nt-subsection-title) > strong {
+.nt-market-preset :is(.nt-panel-title, .nt-subsection-title) > strong {
   min-width: 0;
   max-width: 100%;
   white-space: normal;
@@ -6219,31 +6197,33 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   text-overflow: clip;
 }
 
-.nt-market-fixed :is(.nt-table-wrap, .nt-market-table-scroll) {
+/* Native body scrolling preserves every row inside the exported card bounds. */
+.nt-market-preset :is(.nt-table-wrap, .nt-market-table-scroll, .nt-panel-body) {
+  flex: 1 1 0;
   min-width: 0;
-  height: auto;
+  min-height: 0;
   max-height: none !important;
-  overflow-x: auto !important;
-  overflow-y: visible !important;
+  overflow: auto !important;
   overscroll-behavior: auto;
   touch-action: auto;
   scrollbar-width: thin;
 }
-
-.nt-market-fixed :is(.nt-table, .nt-microtable) :is(th, td) {
+.nt-market-preset .nt-database-note,
+.nt-market-preset .nt-market-reference-date { flex: 0 0 auto; }
+.nt-market-preset :is(.nt-table, .nt-microtable) :is(th, td) {
   height: auto;
   padding: 2px 5px !important;
 }
-
-.nt-market-fixed .nt-microtable { table-layout: auto; }
-.nt-market-fixed .nt-microtable :is(th, td):not(:first-child) { white-space: nowrap; }
-.nt-market-fixed .nt-microtable :is(th, td):first-child { white-space: normal; }
-.nt-market-fixed :is(.nt-market-tape-table, .nt-market-headlines-table) th { white-space: normal; }
-.nt-market-fixed [data-layout-key="markets:leadership"] .nt-microtable { table-layout: fixed; }
-.nt-market-fixed [data-layout-key="markets:leadership"] th:first-child { width: 22px; }
+.nt-market-preset .nt-table thead th { position: static; }
+.nt-market-preset .nt-microtable { table-layout: auto; }
+.nt-market-preset .nt-microtable :is(th, td):not(:first-child) { white-space: nowrap; }
+.nt-market-preset .nt-microtable :is(th, td):first-child { white-space: normal; }
+.nt-market-preset :is(.nt-market-tape-table, .nt-market-headlines-table) th { white-space: normal; }
+.nt-market-preset [data-layout-key="markets:leadership"] .nt-microtable { table-layout: fixed; }
+.nt-market-preset [data-layout-key="markets:leadership"] th:first-child { width: 22px; }
 .nt-market-rank-quote { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 5px; }
 .nt-market-rank-quote > span { white-space: nowrap; }
-.nt-market-fixed [data-layout-key="markets:sector-breadth"] th:first-child { width: 38%; }
+.nt-market-preset [data-layout-key="markets:sector-breadth"] th:first-child { width: 38%; }
 .nt-market-sample { display: inline-block; margin-left: 4px; color: var(--nt-muted); white-space: nowrap; }
 
 .nt-market-reference-date {
@@ -6253,52 +6233,70 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   font-size: var(--nt-type-meta);
 }
 .nt-market-row-meta { display: block; margin-top: 2px; font-weight: 400; font-size: var(--nt-type-meta); white-space: nowrap; }
-.nt-market-fixed [data-layout-key="markets:ecb-reference-rates"] tbody th { color: var(--nt-text-2) !important; }
-
-.nt-market-fixed [data-layout-key="markets:calendar-events"] .nt-microtable { table-layout: fixed; }
-.nt-market-fixed [data-layout-key="markets:calendar-events"] th:last-child { width: 84px; }
-.nt-market-fixed [data-layout-key="markets:calendar-events"] td { vertical-align: top; padding-block: 5px !important; }
+.nt-market-preset [data-layout-key="markets:ecb-reference-rates"] tbody th { color: var(--nt-text-2) !important; }
+.nt-market-preset [data-layout-key="markets:calendar-events"] .nt-microtable { table-layout: fixed; }
+.nt-market-preset [data-layout-key="markets:calendar-events"] th:last-child { width: 84px; }
+.nt-market-preset [data-layout-key="markets:calendar-events"] td { vertical-align: top; padding-block: 5px !important; }
 .nt-market-event-title { display: block; white-space: normal; overflow-wrap: break-word; }
 .nt-market-event-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 3px; color: var(--nt-muted); font-size: var(--nt-type-meta); }
 .nt-market-event-time { display: block; white-space: nowrap; line-height: 1.4; }
 .nt-market-event-date, .nt-market-event-clock { display: block; }
 
-.nt-market-fixed .nt-table thead th { position: static; }
-.nt-market-fixed .nt-market-heatmap-panel { container: markets-heatmap / inline-size; }
-.nt-market-fixed .nt-heatmap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.nt-market-fixed .nt-heat-cell { min-width: 0; }
-.nt-market-fixed :is(.nt-heat-price, .nt-heat-change) { display: block; margin-left: 0; }
-.nt-market-fixed .nt-heat-cell small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The summary and metrics retain their exported four-row and two-row slots. */
+.nt-market-preset .nt-context-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+}
+.nt-market-preset .nt-context-title { flex: 0 0 155px; min-width: 155px !important; }
+.nt-market-preset .nt-index { flex: 1 0 125px; min-width: 125px !important; }
+.nt-market-preset .nt-financial-strip {
+  grid-template-columns: repeat(10, minmax(100px, 1fr)) !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+}
+.nt-market-preset .nt-financial-strip .nt-data-cell {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 11px 13px;
+  align-content: center;
+  row-gap: 0;
+  min-height: 0 !important;
+  padding: 1px 4px !important;
+}
+.nt-market-preset .nt-financial-strip .nt-data-cell .k { font-size: 9px !important; line-height: 11px !important; }
+.nt-market-preset .nt-financial-strip .nt-data-cell .v {
+  margin: 0 !important;
+  text-align: left !important;
+  font-size: 11.25px !important;
+  line-height: 13px !important;
+}
 
+/* Only heatmap cells adapt inside their fixed card; its grid rectangle never changes. */
+.nt-market-preset .nt-market-heatmap-panel { container: markets-heatmap / inline-size; }
+.nt-market-preset .nt-heatmap {
+  height: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(80px, 1fr);
+}
+.nt-market-preset .nt-heat-cell { min-width: 0; }
+.nt-market-preset :is(.nt-heat-price, .nt-heat-change) { display: block; margin-left: 0; }
+.nt-market-preset .nt-heat-cell small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @container markets-heatmap (min-width: 340px) {
-  .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .nt-market-preset .nt-heatmap { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @container markets-heatmap (min-width: 520px) {
-  .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .nt-market-preset .nt-heatmap { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @container markets-heatmap (min-width: 640px) {
-  .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .nt-market-preset .nt-heatmap { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }
 @container markets-heatmap (min-width: 1000px) {
-  .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(10, minmax(0, 1fr)); }
-}
-
-@container markets-content (max-width: 980px) {
-  .nt-market-fixed-middle { grid-template-columns: minmax(0, 1fr); }
-  .nt-market-fixed-middle > .nt-market-fixed-stack:last-child {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-}
-@container markets-content (max-width: 900px) {
-  .nt-market-fixed-top { grid-template-columns: minmax(0, 1fr); }
-}
-@container markets-tables (max-width: 650px) {
-  .nt-market-fixed-tables { grid-template-columns: minmax(0, 1fr); }
-}
-@container markets-content (max-width: 650px) {
-  .nt-market-fixed-middle > .nt-market-fixed-stack:last-child { grid-template-columns: minmax(0, 1fr); }
+  .nt-market-preset .nt-heatmap { grid-template-columns: repeat(10, minmax(0, 1fr)); }
 }
 
 .nt-market-pagination,
@@ -6309,7 +6307,6 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   flex-wrap: wrap;
   gap: 6px;
 }
-
 .nt-market-pagination button {
   padding: 3px 7px;
   border: 1px solid var(--nt-border-strong);
@@ -6338,29 +6335,13 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-markets-footer-brand > a { font-weight: 700; color: var(--nt-text); }
 .nt-markets-footer a:hover { color: var(--nt-accent); }
 
-@media (max-width: 1200px) {
-  .nt-market-fixed .nt-financial-strip { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
-}
-
 @media (max-width: 1180px) {
   .nt-shell-markets-fixed .nt-main { padding-right: 3px !important; }
   .nt-markets-footer { margin-right: 3px; }
 }
-
-@media (max-width: 1000px) {
-  .nt-market-fixed-grid { grid-template-columns: minmax(0, 1fr); }
-  .nt-market-fixed-content { grid-column: 1; grid-row: 1; }
-  .nt-market-fixed-rail { grid-column: 1; grid-row: 2; }
-  .nt-market-fixed-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-}
-
 @media (max-width: 900px) {
   .nt-shell-markets-fixed .nt-topbar { grid-template-columns: 74px minmax(0, 1fr); }
 }
-
 @media (max-width: 600px) {
-  .nt-market-fixed .nt-financial-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .nt-market-fixed .nt-context-title { flex-basis: 100%; }
-  .nt-market-fixed-rail { grid-template-columns: minmax(0, 1fr); }
   .nt-markets-footer-brand { flex-wrap: wrap; gap: 6px; }
 }
