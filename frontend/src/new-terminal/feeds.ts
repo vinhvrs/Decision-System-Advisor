@@ -12,6 +12,9 @@ export type Universe = { symbol: string; name: string; asset_class: string; volu
 export type MacroRow = { series_code: string; value: number | null; quality: string; unit: string; source?: string; observed_at?: string; reason?: string; metadata?: { source?: string; inputs?: string[] } };
 export type Macro = { data: MacroRow[]; spreads: MacroRow[]; generated_at: string; quality: string };
 export type Health = { quality: string; generated_at: string; pipeline: { covered: number; total: number }; sources: { source_code: string; status: string; last_data_at: string | null; last_error: string | null }[] };
+export const ECONOMIC_CALENDAR_PATH = "/api/v1/economic-calendar?limit=1000";
+const calendarDay = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/New_York" });
+
 export type Calendar = {
   source: string;
   source_url?: string;
@@ -48,6 +51,12 @@ export const valueText = (value: number | string | null | undefined) =>
     ? value.toLocaleString("en-US", { maximumFractionDigits: 6 })
     : typeof value === "string" && value ? value : "—";
 
+export function quoteText(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const digits = Math.abs(value) >= 10 ? 2 : 6;
+  return value.toLocaleString("en-US", { maximumFractionDigits: digits });
+}
+
 export const labelText = (key: string) => key.replace(/_/g, " ");
 export function sourceLink(value?: string) {
   try {
@@ -70,7 +79,9 @@ export function calendarEventsInDeclaredCoverage(calendar?: Calendar) {
   if (!start && !end) return calendar.events ?? [];
   return (calendar.events ?? []).filter(event => {
     if (!event.scheduled_at) return false;
-    const date = event.scheduled_at.slice(0, 10);
+    const instant = new Date(event.scheduled_at);
+    if (!Number.isFinite(instant.getTime())) return false;
+    const date = calendarDay.format(instant);
     return (!start || date >= start) && (!end || date <= end);
   });
 }

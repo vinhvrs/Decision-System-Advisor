@@ -20,8 +20,8 @@ export const EQUITY_HEATMAP_UNIVERSE: EquityUniverseMember[] = [
 
   { symbol: "AMZN", sector: "Consumer Discr." },
   { symbol: "TSLA", sector: "Consumer Discr." },
-  { symbol: "COST", sector: "Consumer Discr." },
-  { symbol: "WMT", sector: "Consumer Discr." },
+  { symbol: "COST", sector: "Staples" },
+  { symbol: "WMT", sector: "Staples" },
   { symbol: "HD", sector: "Consumer Discr." },
   { symbol: "MCD", sector: "Consumer Discr." },
   { symbol: "NKE", sector: "Consumer Discr." },

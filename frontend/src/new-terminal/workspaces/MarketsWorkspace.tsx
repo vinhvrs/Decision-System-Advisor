@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "../DataTable";
-import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
+import { ECONOMIC_CALENDAR_PATH, calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, quoteText, valueText, type Calendar, type DailyAnalytics, type Crypto, type Macro, type News } from "../feeds";
 import { useFeed } from "../useFeed";
 import { EQUITY_HEATMAP_SIZE, EQUITY_HEATMAP_UNIVERSE } from "../equityUniverse";
-import type { MarketRow } from "../marketSnapshot";
+import type { MarketRow, MarketSnapshot } from "../marketSnapshot";
 
 type Quote = {
   price: number;
@@ -34,7 +34,9 @@ const directionClass = (value: number | null | undefined) =>
   value == null ? "nt-heat-awaiting" : value > 0 ? "nt-heat-up" : value < 0 ? "nt-heat-down" : "nt-heat-flat";
 
 const normalizeSector = (sector: string | null | undefined) => {
-  if (sector === "Consumer Cyclical") return "Consumer Discr.";
+  if (sector === "Consumer Cyclical" || sector === "Consumer Discretionary") return "Consumer Discr.";
+  if (sector === "Consumer Staples") return "Staples";
+  if (sector === "Communication Services") return "Communication";
   if (sector === "Financial Services") return "Financials";
   if (sector === "Healthcare") return "Health Care";
   return sector || "Unclassified";
@@ -61,7 +63,6 @@ const sectors = [
 const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","COPPER","BTC","ETH","SPY","QQQ","HYG","VIX"];
 const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100": "^NDX", DOW: "^DJI", "RUSSELL (IWM proxy)": "IWM", VIX: "^VIX" };
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
-const sectorNames: Record<string, string> = { "Consumer Cyclical": "Consumer Discr.", "Financial Services": "Financials", Healthcare: "Health Care" };
 const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const displayUnit = (unit: string | undefined) => {
   if (!unit) return "";
@@ -75,16 +76,8 @@ const displayUnit = (unit: string | undefined) => {
   return mapped[unit] ?? unit.replace(/_/g, " ");
 };
 
-const internalFields = [
-  ["> 20D MA","Trend"],["> 50D MA","Trend"],["> 200D MA","Trend"],["RSP / SPY","Equal wt"],
-  ["PUT / CALL","Options"],["VIX TERM","Volatility"],["SMALL / LARGE CAP","Breadth"],["HIGH BETA / LOW VOL","Factor"],
-  ["CYCLICAL / DEFENSIVE","Factor"],["SEMIS / SOFTWARE","Industry"],["BANKS / UTILITIES","Sector"],
-  ["CREDIT SPREAD","Credit"],["REAL YIELD PROXY","Rates"],["OIL / EQUITIES","Cross asset"],
-  ["GOLD / DXY","Cross asset"],
-];
-
 type MarketsWorkspaceProps = {
-  initialRows: MarketRow[];
+  initialSnapshot: MarketSnapshot;
   initialDaily?: DailyAnalytics;
   initialMacro?: Macro;
   initialCrypto?: Crypto;
@@ -93,18 +86,19 @@ type MarketsWorkspaceProps = {
 };
 
 export default function MarketsWorkspace({
-  initialRows,
+  initialSnapshot,
   initialDaily,
   initialMacro,
   initialCrypto,
   initialCalendar,
   initialNews,
 }: MarketsWorkspaceProps) {
-  const [rows, setRows] = useState(initialRows);
+  const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const rows = snapshot.data;
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
   const macro = useFeed<Macro>("/api/v1/macro/dashboard", 60000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
-  const calendar = useFeed<Calendar>("/api/v1/economic-calendar?limit=12", 60000);
+  const calendar = useFeed<Calendar>(ECONOMIC_CALENDAR_PATH, 60000);
   const news = useFeed<{ data: News[] }>("/api/news", 60000);
   const dailyData = daily.data ?? initialDaily;
   const macroData = macro.data ?? initialMacro;
@@ -112,7 +106,6 @@ export default function MarketsWorkspace({
   const calendarData = calendar.data ?? initialCalendar;
   const newsData = news.data ?? initialNews;
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
-  const [updated, setUpdated] = useState(0);
   const [connected, setConnected] = useState(false);
   const subscriptionSymbols = useMemo(
     () => EQUITY_HEATMAP_UNIVERSE.map(item => item.symbol),
@@ -127,11 +120,13 @@ export default function MarketsWorkspace({
     async function refresh() {
       try {
         const response = await fetch("/api/v1/market-heatmap", { cache: "no-store", signal: controller.signal });
-        if (response.ok) setRows((await response.json()).data ?? []);
+        if (response.ok) {
+          const next: MarketSnapshot = await response.json();
+          if (Array.isArray(next.data)) setSnapshot(next);
+        }
       } catch {
         // Keep last successful snapshot.
       }
-      setUpdated(Date.now());
     }
 
     function connect() {
@@ -163,7 +158,6 @@ export default function MarketsWorkspace({
               source: "live",
             },
           });
-          setUpdated(Date.now());
         } catch {
           // Ignore non-quote frames.
         }
@@ -242,7 +236,10 @@ export default function MarketsWorkspace({
   }, []);
 
   const bySymbol = useMemo(() => new Map(rows.map(row => [row.symbol, row])), [rows]);
-  const persistedEquities = rows.filter(row => row.market === "stock" && row.change_pct != null);
+  const participation = snapshot.meta?.equity_participation;
+  const equitySession = participation?.session_date ?? null;
+  const eligible = new Set(participation?.symbols);
+  const sessionRows = (snapshot.equity_session_rows ?? rows).filter(row => eligible.has(row.symbol) && row.session_date === equitySession);
   const liveQuoteCount = EQUITY_HEATMAP_UNIVERSE.filter(member => quotes[member.symbol]?.source === "live").length;
   const snapshotQuoteCount = EQUITY_HEATMAP_UNIVERSE.filter(member => quotes[member.symbol]?.source === "snapshot").length;
   const equities = EQUITY_HEATMAP_UNIVERSE.flatMap(member => {
@@ -256,7 +253,7 @@ export default function MarketsWorkspace({
     return [{
       symbol: member.symbol,
       market: "stock",
-      sector: member.sector,
+      sector: stored?.sector ?? member.sector,
       price,
       change_pct: change,
       traded_value: stored?.traded_value ?? null,
@@ -270,29 +267,24 @@ export default function MarketsWorkspace({
       provider_error: stored?.provider_error ?? false,
     } satisfies MarketRow];
   });
-  const leaders = [...equities].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
-  const laggards = [...leaders].reverse();
+  const leaders = sessionRows.filter(row => (row.change_pct ?? 0) > 0)
+    .sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
+  const laggards = sessionRows.filter(row => (row.change_pct ?? 0) < 0)
+    .sort((a, b) => (a.change_pct ?? 0) - (b.change_pct ?? 0));
   const macroByCode = new Map(macroData?.data.map(row => [row.series_code, row]));
-  const upValue = persistedEquities.filter(row => (row.change_pct ?? 0) > 0 && row.traded_value != null);
-  const downValue = persistedEquities.filter(row => (row.change_pct ?? 0) < 0 && row.traded_value != null);
-  const valueTotal = (items: MarketRow[]) => items.length ? `${(items.reduce((sum, row) => sum + (row.traded_value ?? 0), 0) / 1e9).toFixed(2)}B` : "—";
-  const up = equities.filter(row => (row.change_pct ?? 0) > 0).length;
-  const down = equities.filter(row => (row.change_pct ?? 0) < 0).length;
-  const unchanged = Math.max(0, equities.length - up - down);
-  const traded = persistedEquities.flatMap(row => row.traded_value == null ? [] : [row.traded_value]);
-  const equitySession = persistedEquities.map(row => row.session_date ?? row.as_of?.slice(0,10) ?? null)
-    .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
-  const breadthPct = equities.length ? (up / equities.length) * 100 : null;
+  const valueTotal = (value: number | null | undefined) => value == null ? "—" : `${(value / 1e9).toFixed(2)}B`;
+  const sampleSize = participation?.breadth_count ?? 0;
+  const up = participation?.advancing ?? 0;
+  const down = participation?.declining ?? 0;
+  const unchanged = participation?.unchanged ?? 0;
+  const breadthPct = sampleSize ? (up / sampleSize) * 100 : null;
   const heatRows = equities;
   const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
   const calendarState = calendarCoverageState(calendarData);
 
   const dailyRows = dailyData?.data;
-  // Market snapshot already classifies rows by market. Do not block breadth on a second
-  // universe request: daily analytics + stock rows are sufficient and avoid hydration gaps.
-  const breadthEquities = persistedEquities;
-  const breadthSession = breadthEquities.map(row => dailyRows?.[row.symbol]?.as_of)
-    .reduce<string | null>((latest, session) => session && (!latest || session > latest) ? session : latest, null);
+  const breadthEquities = sessionRows;
+  const breadthSession = equitySession;
   const dailyGroup = (sample: MarketRow[], code: string) => {
     const current = sample.flatMap(row => {
       const metric = dailyRows?.[row.symbol]?.metrics[code];
@@ -324,22 +316,22 @@ export default function MarketsWorkspace({
     return metric?.quality === "OK" && metric.as_of === breadthSession && metric.value != null && Number.isFinite(metric.value)
       ? [{ symbol: row.symbol, value: metric.value }] : [];
   }).sort((a, b) => b.value - a.value);
-  const mostActive = [...persistedEquities]
+  const mostActive = [...sessionRows]
     .filter(row => row.traded_value != null)
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0))
     .slice(0, 18);
   const recentHeadlines = (newsData?.data ?? []).filter(item => item.published_at && item.title?.trim()).slice(0, 14);
-  const marketTape = [...rows]
-    .filter(row => row.market === "stock")
-    .sort((a, b) => ((b.traded_value ?? 0) - (a.traded_value ?? 0)))
-    .slice(0, 30);
+  const marketTape = [...sessionRows]
+    .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0));
+  const showMarketCap = marketTape.some(row => row.market_cap != null);
   const sectorPerformance = sectors.map(sector => {
-    const sample = equities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
+    const sample = sessionRows.filter(row => normalizeSector(row.sector) === sector);
     return {
       sector,
+      sample,
       count: sample.length,
-      change: sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null,
-      advance: sample.length ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null,
+      change: sample.length >= 3 ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null,
+      advance: sample.length >= 3 ? sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100 : null,
     };
   }).sort((a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity));
 
@@ -354,7 +346,7 @@ export default function MarketsWorkspace({
           <div className="nt-index" key={name}>
             <div className="nt-index-name">{name}</div>
             <div className="nt-index-values">
-              <span>{name === "US10Y" ? valueText(macroByCode.get("UST10Y")?.value) : valueText(bySymbol.get(indexSymbols[name])?.price)}</span>
+              <span>{name === "US10Y" ? valueText(macroByCode.get("UST10Y")?.value) : quoteText(bySymbol.get(indexSymbols[name])?.price)}</span>
               {name !== "US10Y" && <span className={(bySymbol.get(indexSymbols[name])?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(bySymbol.get(indexSymbols[name])?.change_pct)}</span>}
             </div>
           </div>
@@ -363,10 +355,10 @@ export default function MarketsWorkspace({
 
       <div className="nt-dense-grid nt-financial-strip">
         {[
-          ["Equity session", equitySession ?? "—", equities.some(row => row.session_final) ? "Final" : "Latest"],
-          ["Feed / A-D", connected ? `${liveQuoteCount} live · ${up}/${down}` : `${equities.length}/${EQUITY_HEATMAP_SIZE} snapshot`, equities.length ? `${unchanged} unchanged` : ""],
-          ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, "Breadth"],
-          ["Traded value", traded.length ? `${(traded.reduce((a,b) => a+b, 0)/1e9).toFixed(2)}B` : "—", `${persistedEquities.length} persisted equities`],
+          ["Equity session", equitySession ?? "—", equitySession ? "Final" : "Awaiting close"],
+          ["Adv / Decl", sampleSize ? `${up} / ${down}` : "—", sampleSize ? `${unchanged} unchanged` : ""],
+          ["Advancing", breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`, `${sampleSize}/${participation?.universe_count ?? EQUITY_HEATMAP_SIZE} tracked equities`],
+          ["Traded value", valueTotal(participation?.traded_value), `n=${participation?.traded_value_count ?? 0}`],
           ["> 20D MA", breadthValue(trend[0]), breadthSession ?? ""],
           ["> 50D MA", breadthValue(trend[1]), breadthSession ?? ""],
           ["> 200D MA", breadthValue(trend[2]), breadthSession ?? ""],
@@ -384,15 +376,13 @@ export default function MarketsWorkspace({
         <aside className="nt-market-rail nt-flat-rail">
           <section className="nt-flat-surface">
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Sector breadth</strong><span>session + trend</span></div>
+              <div className="nt-subsection-title"><strong>Sector breadth</strong><span>session · min. 3 observations</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
-                <tbody>{sectors.map(sector => {
-                  const sample = equities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
-                  const sectorEquities = breadthEquities.filter(row => (sectorNames[row.sector ?? ""] ?? row.sector) === sector);
-                  const ma = dailyGroup(sectorEquities, "above_sma50");
-                  const rvol = dailyGroup(sectorEquities, "rvol20");
-                  return <tr key={sector}><td>{sector}</td><td>{percent(sample.length ? sample.reduce((sum, row) => sum + (row.change_pct ?? 0), 0) / sample.length : null)}</td><td>{sample.length ? `${(sample.filter(row => (row.change_pct ?? 0) > 0).length / sample.length * 100).toFixed(0)}%` : "—"}</td><td>{breadthValue(ma)}</td><td>{rvol.value === null ? "—" : `${rvol.value.toFixed(2)}×`}</td></tr>;
+                <tbody>{sectorPerformance.map(({ sector, sample, count, change, advance }) => {
+                  const ma = dailyGroup(sample, "above_sma50");
+                  const rvol = dailyGroup(sample, "rvol20");
+                  return <tr key={sector}><td>{sector} · n={count}</td><td>{percent(change)}</td><td>{advance == null ? "—" : `${advance.toFixed(0)}%`}</td><td>{ma.count < 3 ? "—" : breadthValue(ma)}</td><td>{rvol.count < 3 || rvol.value === null ? "—" : `${rvol.value.toFixed(2)}×`}</td></tr>;
                 })}</tbody>
               </table>
             </div>
@@ -403,13 +393,13 @@ export default function MarketsWorkspace({
                 <tbody>{crossAsset.map(x => {
                   const row = bySymbol.get(assetSymbols[x] ?? x);
                   const rate = x === "US02Y" ? macroByCode.get("UST2Y") : x === "US10Y" ? macroByCode.get("UST10Y") : undefined;
-                  return <tr key={x}><td>{x}</td><td title={rate?.observed_at ?? row?.as_of ?? undefined}>{valueText(rate?.value ?? row?.price)}</td><td>{percent(row?.change_pct)}</td></tr>;
+                  return <tr key={x}><td>{x}</td><td title={rate?.observed_at ?? row?.as_of ?? undefined}>{quoteText(rate?.value ?? row?.price)}</td><td>{percent(row?.change_pct)}</td></tr>;
                 })}</tbody>
               </table>
             </div>
 
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Most active</strong><span>traded value</span></div>
+              <div className="nt-subsection-title"><strong>Most active</strong><span>traded value · final</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
                 <tbody>{mostActive.map(row => <tr key={row.symbol}><td>{row.symbol}</td><td>{row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`}</td><td className={(row.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(row.change_pct)}</td></tr>)}</tbody>
@@ -420,7 +410,7 @@ export default function MarketsWorkspace({
 
         <section className="nt-market-center">
           <section className="nt-panel nt-market-heatmap-panel">
-            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {liveQuoteCount} live · {snapshotQuoteCount} snapshot</span></div>
+            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {connected ? `${liveQuoteCount} live` : "stream offline"} · {snapshotQuoteCount} intraday snapshots</span></div>
             <div className="nt-panel-body">
               <div className="nt-heatmap">
                 {heatRows.length ? heatRows.map(row => {
@@ -448,27 +438,29 @@ export default function MarketsWorkspace({
 
           <section className="nt-flat-surface nt-market-summary-surface nt-market-breadth-only">
             <div className="nt-summary-column">
-              <div className="nt-subsection-title"><strong>Participation detail</strong><span>{breadthSession ?? "latest"}</span></div>
+              <div className="nt-subsection-title"><strong>Participation detail</strong><span>{equitySession ?? "Awaiting final session"} · n={sampleSize}</span></div>
               <table className="nt-microtable"><tbody>
-                <tr><td>Declining</td><td>{equities.length ? down : "—"}</td><td>{equities.length ? `${((down/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
-                <tr><td>Unchanged</td><td>{equities.length ? unchanged : "—"}</td><td>{equities.length ? `${((unchanged/equities.length)*100).toFixed(1)}%` : "—"}</td></tr>
+                <tr><td>Advancing</td><td>{sampleSize ? up : "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
+                <tr><td>Declining</td><td>{sampleSize ? down : "—"}</td><td>{sampleSize ? `${(down / sampleSize * 100).toFixed(1)}%` : "—"}</td></tr>
+                <tr><td>Unchanged</td><td>{sampleSize ? unchanged : "—"}</td><td>{sampleSize ? `${(unchanged / sampleSize * 100).toFixed(1)}%` : "—"}</td></tr>
                 <tr><td>Adv / Decl ratio</td><td>{down ? (up/down).toFixed(2) : "—"}</td><td></td></tr>
-                <tr><td>Up value</td><td>{valueTotal(upValue)}</td><td></td></tr>
-                <tr><td>Down value</td><td>{valueTotal(downValue)}</td><td></td></tr>
+                <tr><td>Up value</td><td>{valueTotal(participation?.up_value)}</td><td></td></tr>
+                <tr><td>Down value</td><td>{valueTotal(participation?.down_value)}</td><td></td></tr>
+                <tr><td>Unchanged value</td><td>{valueTotal(participation?.flat_value)}</td><td></td></tr>
               </tbody></table>
             </div>
           </section>
 
           <DataTable
             title="Market tape"
-            meta={`tracked universe · equity session ${equitySession ?? "—"}`}
+            meta={`final equity session ${equitySession ?? "—"} · n=${sampleSize}`}
             className="nt-primary-table nt-market-tape-table"
-            columns={marketTape.some(row => row.market_cap != null)
+            columns={showMarketCap
               ? ["Symbol","Last","Change %","Traded value","Market cap","As of"]
               : ["Symbol","Last","Change %","Traded value","As of"]}
-            rows={marketTape.map(row => ({ key: row.symbol, cells: marketTape.some(item => item.market_cap != null)
-              ? [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, valueText(row.market_cap), row.as_of?.slice(0,10)]
-              : [row.symbol, valueText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, row.as_of?.slice(0,10)] }))}
+            rows={marketTape.map(row => ({ key: row.symbol, cells: showMarketCap
+              ? [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, valueText(row.market_cap), row.session_date]
+              : [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, row.session_date] }))}
             empty="No market observations."
           />
 
@@ -506,7 +498,7 @@ export default function MarketsWorkspace({
                 title="Latest headlines"
                 meta={`${recentHeadlines.length} observations`}
                 className="nt-secondary-table nt-market-headlines-table"
-                columns={["Time","Symbol","Headline"]}
+                columns={["Time","Feed symbol","Headline"]}
                 rows={recentHeadlines.map(item => ({
                   key: item.id,
                   cells: [
@@ -532,9 +524,9 @@ export default function MarketsWorkspace({
             </div>
 
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>session</span></div>
+              <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
               <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-                {Array.from({ length: Math.min(16, equities.length) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+                {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
               </tbody></table>
             </div>
 
@@ -549,14 +541,14 @@ export default function MarketsWorkspace({
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
               <table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
-                {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
+                {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector} · n={item.count}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
               </tbody></table>
             </div>
 
             <div className="nt-subsection">
               <div className="nt-subsection-title"><strong>Macro pulse</strong><span>latest observations</span></div>
-              <table className="nt-microtable"><thead><tr><th>Series</th><th>Value</th><th>Unit</th></tr></thead><tbody>
-                {(macroData?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{labelText(row.series_code)}</td><td>{valueText(row.value)}</td><td>{displayUnit(row.unit)}</td></tr>)}
+              <table className="nt-microtable"><thead><tr><th>Series</th><th>Value</th><th>As of</th></tr></thead><tbody>
+                {(macroData?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{labelText(row.series_code)}</td><td>{valueText(row.value)} {displayUnit(row.unit)}</td><td className={row.quality === "STALE" ? "nt-warning" : ""}>{row.observed_at?.slice(0, 10) ?? "—"}{row.quality === "STALE" ? " · Stale" : ""}</td></tr>)}
                 {!macroData?.data?.length && <tr><td colSpan={3}>No macro observations</td></tr>}
               </tbody></table>
             </div>

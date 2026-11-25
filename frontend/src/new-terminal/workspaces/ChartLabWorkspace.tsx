@@ -42,7 +42,7 @@ import { CurrencyContext, ImpactBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
 
-const ohlcFields = ["Open","High","Low","Close","Volume","VWAP","ATR","Gap","52W Pos","Beta","IV / Vol","Rel Vol"];
+const ohlcFields = ["Open","High","Low","Adj. close","Volume","VWAP","ATR","Gap","52W Pos","Beta","IV / Vol","Rel Vol"];
 
 function sma(values: number[], period: number) {
   return values.map((_, index) => {
@@ -474,11 +474,11 @@ export default function ChartLabWorkspace({
         <aside className="nt-chart-rail nt-flat-rail">
           <section className="nt-flat-surface">
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Linked series</strong><span>{latestDay || range}</span></div>
-              <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg%</th></tr></thead><tbody>
+              <div className="nt-subsection-title"><strong>Linked series</strong><span>Stored quotes</span></div>
+              <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg%</th><th>As of</th></tr></thead><tbody>
                 {series.map(item => {
                   const row = storedRows.find(entry => entry.symbol === item);
-                  return <tr key={item}><td>{item}</td><td>{format(row?.price)}</td><td className={(row?.change_pct ?? 0) > 0 ? "nt-positive" : (row?.change_pct ?? 0) < 0 ? "nt-negative" : ""}>{pct(row?.change_pct)}</td></tr>;
+                  return <tr key={item}><td>{item}</td><td>{format(row?.price)}</td><td className={(row?.change_pct ?? 0) > 0 ? "nt-positive" : (row?.change_pct ?? 0) < 0 ? "nt-negative" : ""}>{pct(row?.change_pct)}</td><td>{row?.session_date ?? "—"}</td></tr>;
                 })}
               </tbody></table>
             </div>

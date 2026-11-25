@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import DataTable from "../DataTable";
-import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, sourceLink, valueText, type Calendar, type DailyAnalytics, type Filing, type Metrics, type News, type Technical, type Universe } from "../feeds";
-import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
+import { ECONOMIC_CALENDAR_PATH, calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, sourceLink, valueText, type Calendar, type DailyAnalytics, type Filing, type Metrics, type Technical, type Universe } from "../feeds";
+import { CurrencyContext, ImpactBadge, SymbolContext } from "../ContextBadges";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
 export function NewsWorkspace({ initialCalendar, initialRows = [] }: { initialCalendar?: Calendar; initialRows?: MarketRow[] }) {
-  const calendar = useFeed<Calendar>("/api/v1/forexfactory-calendar", 300000);
+  const calendar = useFeed<Calendar>(ECONOMIC_CALENDAR_PATH, 300000);
   const market = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const calendarData = calendar.data ?? initialCalendar;
   const marketRows = market.data?.data ?? initialRows;
@@ -66,7 +66,7 @@ export function NewsWorkspace({ initialCalendar, initialRows = [] }: { initialCa
         ],
       }))}
       empty={calendarData && !calendarState.valid ? calendarState.label : "No ForexFactory events in current coverage."}
-      note={<span>Source: <a href={calendarData?.source_url || "https://www.forexfactory.com/calendar"} rel="noreferrer">ForexFactory calendar ↗</a>. Current-week feed is preferred; stale backend batches are not used as the primary display.</span>}
+      note={<span>Source: <a href={calendarData?.source_url || "https://www.forexfactory.com/calendar"} rel="noreferrer">ForexFactory calendar ↗</a>. Dates follow New York time.</span>}
     />
 
     <DataTable
@@ -93,13 +93,15 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
   const [period, setPeriod] = useState("daily");
   const id = encodeURIComponent(symbol);
   const metrics = useFeed<Metrics>(`/api/v1/metrics/${id}?timeframe=${period}`);
-  const technical = useFeed<Technical>((metrics.data ?? initialMetrics)?.quality !== "LICENSE_RESTRICTED" ? `/api/v1/technical/${id}?period=${period}` : null);
+  const activeMetrics = metrics.data ?? (symbol === "AAPL" && period === "daily" ? initialMetrics : undefined);
+  const restricted = activeMetrics?.quality === "LICENSE_RESTRICTED";
+  const technical = useFeed<Technical>(activeMetrics && !restricted ? `/api/v1/technical/${id}?period=${period}` : null);
   const universeRows = universe.data?.data ?? initialUniverse;
   const snapshotRows = snapshot.data?.data ?? initialRows;
   const dailyData = daily.data ?? initialDaily;
-  const metricData = metrics.data ?? initialMetrics;
-  const technicalData = technical.data ?? initialTechnical;
-  const metricEntries = Object.entries(metricData?.metrics ?? {});
+  const technicalData = restricted
+    ? undefined : technical.data ?? (symbol === "AAPL" && period === "daily" ? initialTechnical : undefined);
+  const metricEntries = Object.entries(activeMetrics?.metrics ?? {}).filter(([, item]) => item.value != null);
   const technicalEntries = Object.entries(technicalData?.indicators ?? {});
   const metricKeys = new Set(metricEntries.map(([key]) => key));
   const technicalOnlyEntries = technicalEntries.filter(([key]) => !metricKeys.has(key));
@@ -116,7 +118,7 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
       className="nt-primary-table"
       columns={["Indicator", "Value", "Unit"]}
       rows={metricEntries.map(([key, item]) => ({ key, cells: [labelText(key), valueText(item.value), item.unit] }))}
-      empty="No indicator values for this symbol and period."
+      empty={restricted ? "Unavailable for public display under the source policy." : "No indicator values for this symbol and period."}
     />
 
     <div className="nt-supporting-grid nt-indicators-supporting-grid">
@@ -169,9 +171,13 @@ export function DocumentsWorkspace({ initialFilings = [] }: { initialFilings?: F
   </div>;
 }
 
+function subscribeToWatchlistAuth(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export function WatchlistsWorkspace({ initialUniverse = [], initialRows = [] }: { initialUniverse?: Universe[]; initialRows?: MarketRow[] }) {
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => { setToken(localStorage.getItem("accessToken")); }, []);
+  const token = useSyncExternalStore(subscribeToWatchlistAuth, () => localStorage.getItem("accessToken"), () => null);
   return <WatchlistEditor token={token} initialUniverse={initialUniverse} initialRows={initialRows} />;
 }
 

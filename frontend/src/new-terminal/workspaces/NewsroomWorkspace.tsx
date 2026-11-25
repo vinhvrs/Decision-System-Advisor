@@ -14,7 +14,9 @@ type NewsPayload = {
 };
 
 function excerpt(item: News) {
-  const raw = (item.content ?? "").replace(/\s+/g, " ").trim();
+  const raw = (item.content ?? "").split(/\n+/)
+    .filter(paragraph => !/may earn (?:a )?commission|may earn revenue/i.test(paragraph))
+    .join(" ").replace(/\s+/g, " ").trim();
   if (!raw) return "Full article text is not available from this source.";
   const withoutTitle = raw.startsWith(item.title) ? raw.slice(item.title.length).trim() : raw;
   const withoutReadMore = withoutTitle.replace(/Read more:\s*https?:\/\/\S+\s*$/i, "").trim();
@@ -95,7 +97,7 @@ export default function NewsroomWorkspace({
               )}
               <div className="nt-news-article-body">
                 <div className="nt-news-kicker">
-                  <SymbolContext symbol={item.symbol} />
+                  {item.symbol && <span title="Upstream feed symbol">Via <SymbolContext symbol={item.symbol} /></span>}
                   <span>{articleMeta(item)}</span>
                 </div>
                 <h2><Link href={`/news/${encodeURIComponent(item.id)}`}>{item.title}</Link></h2>
@@ -145,7 +147,7 @@ export function NewsArticleWorkspace({ article }: { article: News }) {
       <article className="nt-news-reader nt-panel" data-layout-key={`news-reader:${article.id}`}>
         {image && <img className="nt-news-reader-image" src={image} alt="" referrerPolicy="no-referrer" onError={event => { event.currentTarget.style.display = "none"; }} />}
         <div className="nt-news-reader-body">
-          <div className="nt-news-kicker"><SymbolContext symbol={article.symbol} /><span>{articleMeta(article)}</span></div>
+          <div className="nt-news-kicker">{article.symbol && <span title="Upstream feed symbol">Via <SymbolContext symbol={article.symbol} /></span>}<span>{articleMeta(article)}</span></div>
           <h1>{article.title}</h1>
           <div className="nt-news-reader-copy">
             {paragraphs.length ? paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>) : <p>Article text is unavailable from this source.</p>}

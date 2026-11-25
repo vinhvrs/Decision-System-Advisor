@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import DataTable from "../DataTable";
-import { type Universe, type Metrics, type DailyAnalytics, valueText } from "../feeds";
+import { type Universe, type Metrics, type DailyAnalytics, quoteText, valueText } from "../feeds";
 import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -50,7 +50,6 @@ export default function ScreenerWorkspace({
   const dailyData = daily.data ?? initialDaily;
   const dailyMetrics = selected ? dailyData?.data[selected]?.metrics : undefined;
   const technicalMetrics = { ...techData?.metrics, ...dailyMetrics };
-  const selectedRow = bySymbol.get(selected ?? "");
   const fundRows = Object.entries(fundData?.metrics ?? {});
   const technicalRows = Object.entries(technicalMetrics).filter(([key]) => !(key in (fundData?.metrics ?? {})));
   const changeRank = selected ? [...shown].sort((a,b) => (bySymbol.get(b.symbol)?.change_pct ?? -Infinity) - (bySymbol.get(a.symbol)?.change_pct ?? -Infinity)).findIndex(row => row.symbol === selected) + 1 : 0;
@@ -78,8 +77,8 @@ export default function ScreenerWorkspace({
             return { key: row.symbol, cells: [
               <button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>,
               <SymbolContext key="context" symbol={row.symbol} />,
-              row.name, row.asset_class, row.quote_currency, valueText(stored?.price), valueText(stored?.change_pct),
-              valueText(stored?.traded_value), valueText(stored?.market_cap)
+              row.name, row.asset_class, row.quote_currency, quoteText(stored?.price), stored?.change_pct == null ? "—" : `${stored.change_pct > 0 ? "+" : ""}${stored.change_pct.toFixed(2)}%`,
+              quoteText(stored?.traded_value), quoteText(stored?.market_cap)
             ] };
           })}
           note="Traded value is shown separately from share volume." />
