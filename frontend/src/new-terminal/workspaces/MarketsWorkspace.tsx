@@ -27,6 +27,7 @@ type SnapshotQuoteResponse = {
 };
 
 const priceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+const marketCapFormat = new Intl.NumberFormat("en-US", { notation: "compact", compactDisplay: "short", maximumFractionDigits: 2 });
 const percent = (value: number | null | undefined) =>
   value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 
@@ -63,7 +64,8 @@ const sectors = [
 const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","COPPER","BTC","ETH","SPY","QQQ","HYG","VIX"];
 const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100": "^NDX", DOW: "^DJI", "RUSSELL (IWM proxy)": "IWM", VIX: "^VIX" };
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
-const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const eventDate = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
+const eventClock = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
 const MARKET_TAPE_PAGE_SIZE = 18;
 const CALENDAR_PAGE_SIZE = 4;
 const ecbCurrencies = ["USD", "GBP", "JPY", "CHF", "AUD"];
@@ -279,6 +281,9 @@ export default function MarketsWorkspace({
   const laggards = sessionRows.filter(row => (row.change_pct ?? 0) < 0)
     .sort((a, b) => (a.change_pct ?? 0) - (b.change_pct ?? 0));
   const macroByCode = new Map(macroData?.data.map(row => [row.series_code, row]));
+  const ecbDates = ecbCurrencies.map(currency => macroByCode.get(`ECB_${currency}_EUR`)?.observed_at?.slice(0, 10));
+  const commonEcbDate = ecbDates[0] && /^\d{4}-\d{2}-\d{2}$/.test(ecbDates[0]) && ecbDates.every(date => date === ecbDates[0])
+    ? ecbDates[0] : null;
   const valueTotal = (value: number | null | undefined) => value == null ? "—" : `${(value / 1e9).toFixed(2)}B`;
   const sampleSize = participation?.breadth_count ?? 0;
   const up = participation?.advancing ?? 0;
@@ -334,6 +339,7 @@ export default function MarketsWorkspace({
   const marketTape = [...sessionRows]
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0));
   const showMarketCap = marketTape.some(row => row.market_cap != null);
+  const showTapeAsOf = !equitySession || !marketTape.length || !marketTape.every(row => row.session_date === equitySession);
   const tapePageCount = Math.max(1, Math.ceil(marketTape.length / MARKET_TAPE_PAGE_SIZE));
   const tapePage = Math.min(marketTapePage, tapePageCount - 1);
   const visibleMarketTape = marketTape.slice(tapePage * MARKET_TAPE_PAGE_SIZE, (tapePage + 1) * MARKET_TAPE_PAGE_SIZE);
@@ -417,8 +423,20 @@ export default function MarketsWorkspace({
             <div className="nt-subsection" data-layout-key="markets:calendar-events">
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <div className="nt-market-table-scroll"><table className="nt-microtable">
-                <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-                <tbody>{visibleCalendarEvents.length ? visibleCalendarEvents.map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
+                <thead><tr><th>Event</th><th>Time (ET)</th></tr></thead>
+                <tbody>{visibleCalendarEvents.length ? visibleCalendarEvents.map(event => {
+                  const scheduled = event.scheduled_at ? new Date(event.scheduled_at) : null;
+                  return <tr key={event.id}>
+                    <td>
+                      <span className="nt-market-event-title">{event.title}</span>
+                      <span className="nt-market-event-meta"><span>{event.currency}</span><span>{event.impact}</span></span>
+                    </td>
+                    <td>{scheduled && Number.isFinite(scheduled.getTime()) ? <time className="nt-market-event-time" dateTime={event.scheduled_at ?? undefined}>
+                      <span className="nt-market-event-date">{eventDate.format(scheduled)}</span>
+                      <span className="nt-market-event-clock">{eventClock.format(scheduled)}</span>
+                    </time> : "—"}</td>
+                  </tr>;
+                }) : <tr><td colSpan={2} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
               </table></div>
               {calendarEvents.length > CALENDAR_PAGE_SIZE && <div className="nt-database-note">
                 <nav className="nt-market-pagination" aria-label="Calendar event pages">
@@ -445,12 +463,15 @@ export default function MarketsWorkspace({
                   title="Market tape"
                   meta={`final equity session ${equitySession ?? "—"} · n=${sampleSize}`}
                   className="nt-primary-table nt-market-tape-table"
-                  columns={showMarketCap
-                    ? ["Symbol","Last","Change %","Traded value","Market cap","As of"]
-                    : ["Symbol","Last","Change %","Traded value","As of"]}
-                  rows={visibleMarketTape.map(row => ({ key: row.symbol, cells: showMarketCap
-                    ? [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, valueText(row.market_cap), row.session_date]
-                    : [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, row.session_date] }))}
+                  columns={["Symbol", "Last", "Change", "Traded value", ...(showMarketCap ? ["Market cap"] : []), ...(showTapeAsOf ? ["As of"] : [])]}
+                  rows={visibleMarketTape.map(row => ({ key: row.symbol, cells: [
+                    row.symbol,
+                    quoteText(row.price),
+                    row.change_pct == null ? "—" : percent(row.change_pct),
+                    row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`,
+                    ...(showMarketCap ? [row.market_cap == null || !Number.isFinite(row.market_cap) ? "—" : <span key={`${row.symbol}-market-cap`} title={row.market_cap.toLocaleString("en-US", { maximumFractionDigits: 20 })}>{marketCapFormat.format(row.market_cap)}</span>] : []),
+                    ...(showTapeAsOf ? [row.session_date] : []),
+                  ] }))}
                   note={marketTape.length > MARKET_TAPE_PAGE_SIZE && <nav className="nt-market-pagination" aria-label="Market tape pages">
                     <span aria-live="polite">{tapePage * MARKET_TAPE_PAGE_SIZE + 1}–{Math.min((tapePage + 1) * MARKET_TAPE_PAGE_SIZE, marketTape.length)} of {marketTape.length}</span>
                     <div>
@@ -481,7 +502,7 @@ export default function MarketsWorkspace({
               <div className="nt-subsection" data-layout-key="markets:sector-performance">
                 <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
                 <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
-                  {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector} · n={item.count}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
+                  {sectorPerformance.map(item => <tr key={item.sector}><td><span className="nt-market-sector-name">{item.sector}</span>{" "}<small className="nt-market-sample">n={item.count}</small></td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
                 </tbody></table></div>
               </div>
               <div className="nt-subsection" data-layout-key="markets:sector-breadth">
@@ -491,7 +512,7 @@ export default function MarketsWorkspace({
                   <tbody>{sectorPerformance.map(({ sector, sample, count, change, advance }) => {
                     const ma = dailyGroup(sample, "above_sma50");
                     const rvol = dailyGroup(sample, "rvol20");
-                    return <tr key={sector}><td>{sector} · n={count}</td><td>{percent(change)}</td><td>{advance == null ? "—" : `${advance.toFixed(0)}%`}</td><td>{ma.count < 3 ? "—" : breadthValue(ma)}</td><td>{rvol.count < 3 || rvol.value === null ? "—" : `${rvol.value.toFixed(2)}×`}</td></tr>;
+                    return <tr key={sector}><td><span className="nt-market-sector-name">{sector}</span>{" "}<small className="nt-market-sample">n={count}</small></td><td>{percent(change)}</td><td>{advance == null ? "—" : `${advance.toFixed(0)}%`}</td><td>{ma.count < 3 ? "—" : breadthValue(ma)}</td><td>{rvol.count < 3 || rvol.value === null ? "—" : `${rvol.value.toFixed(2)}×`}</td></tr>;
                   })}</tbody>
                 </table></div>
               </div>
@@ -530,7 +551,11 @@ export default function MarketsWorkspace({
           <div className="nt-subsection" data-layout-key="markets:leadership">
             <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
             <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-              {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+              {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}>
+                <td>{i+1}</td>
+                <td className="nt-positive"><span className="nt-market-rank-quote"><span>{leaders[i]?.symbol ?? "—"}</span><span>{percent(leaders[i]?.change_pct)}</span></span></td>
+                <td className="nt-negative"><span className="nt-market-rank-quote"><span>{laggards[i]?.symbol ?? "—"}</span><span>{percent(laggards[i]?.change_pct)}</span></span></td>
+              </tr>)}
             </tbody></table></div>
           </div>
           <div className="nt-subsection" data-layout-key="markets:ecb-reference-rates">
@@ -538,8 +563,9 @@ export default function MarketsWorkspace({
               <strong>ECB reference rates</strong>
               <span><a href={ecbReferencePage} rel="noreferrer">ECB ↗</a></span>
             </div>
+            {commonEcbDate && <div className="nt-market-reference-date">As of <time dateTime={commonEcbDate}>{commonEcbDate}</time></div>}
             <div className="nt-market-table-scroll"><table className="nt-microtable">
-              <thead><tr><th scope="col">Currency</th><th scope="col">Per EUR</th><th scope="col">Δ vs prior</th><th scope="col">As of</th></tr></thead>
+              <thead><tr><th scope="col">Currency</th><th scope="col">Per EUR</th><th scope="col">Δ vs prior</th></tr></thead>
               <tbody>{ecbCurrencies.map(currency => {
                 const row = macroByCode.get(`ECB_${currency}_EUR`);
                 const change = row?.change_pct;
@@ -547,12 +573,14 @@ export default function MarketsWorkspace({
                   ? `Previous ECB release (${row.previous_observed_at}): ${referenceFormat.format(row.previous_value)} ${currency} per EUR`
                   : undefined;
                 return <tr key={currency}>
-                  <th scope="row">{currency}</th>
-                  <td>{row?.value == null ? "—" : referenceFormat.format(row.value)}</td>
+                  <th scope="row">
+                    <span>{currency}</span>
+                    {(!commonEcbDate || row?.quality === "STALE") && <small className={`nt-market-row-meta${row?.quality === "STALE" ? " nt-warning" : ""}`}>
+                      {!commonEcbDate && (row?.observed_at?.slice(0, 10) ?? "—")}{row?.quality === "STALE" ? `${commonEcbDate ? "" : " · "}Stale` : ""}
+                    </small>}
+                  </th>
+                  <td title={`${currency} per EUR`}>{row?.value == null ? "—" : referenceFormat.format(row.value)}</td>
                   <td title={comparison} className={change == null || change === 0 ? "" : change > 0 ? "nt-positive" : "nt-negative"}>{percent(change)}</td>
-                  <td className={row?.quality === "STALE" ? "nt-warning" : ""}>
-                    {row?.observed_at?.slice(0, 10) ?? "—"}{row?.quality === "STALE" ? " · Stale" : ""}
-                  </td>
                 </tr>;
               })}</tbody>
             </table></div>

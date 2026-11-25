@@ -6131,11 +6131,12 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 }
 
 /* Preserve the approved desktop columns while allowing each card to end at its content. */
-.nt-market-fixed-grid { grid-template-columns: minmax(180px, 7fr) minmax(0, 41fr); }
+.nt-market-fixed-grid { grid-template-columns: minmax(240px, 7fr) minmax(0, 41fr); }
 .nt-market-fixed-rail { grid-column: 1; grid-row: 1; }
-.nt-market-fixed-content { grid-column: 2; grid-row: 1; }
-.nt-market-fixed-top { grid-template-columns: minmax(0, 33fr) minmax(180px, 8fr); }
+.nt-market-fixed-content { grid-column: 2; grid-row: 1; container: markets-content / inline-size; }
+.nt-market-fixed-top { grid-template-columns: minmax(0, 33fr) minmax(260px, 8fr); }
 .nt-market-fixed-middle { grid-template-columns: minmax(0, 28fr) minmax(0, 13fr); }
+.nt-market-fixed-middle > .nt-market-fixed-stack:first-child { container: markets-tables / inline-size; }
 .nt-market-fixed-tables { grid-template-columns: minmax(0, 12fr) minmax(0, 16fr); }
 
 .nt-market-fixed-stack {
@@ -6157,8 +6158,31 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 }
 
 .nt-market-fixed > :is(.nt-context-strip, .nt-financial-strip) {
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
+}
+
+.nt-market-fixed .nt-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px !important;
+}
+.nt-market-fixed .nt-context-title { flex: 0 0 155px; min-width: 0 !important; }
+.nt-market-fixed .nt-index { flex: 1 1 130px; min-width: 0 !important; }
+
+.nt-market-fixed .nt-financial-strip {
+  grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
+}
+.nt-market-fixed .nt-financial-strip .nt-data-cell {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto auto;
+  align-content: center;
+  row-gap: 3px;
+  min-height: 45px !important;
+  padding: 4px 6px !important;
+}
+.nt-market-fixed .nt-financial-strip .nt-data-cell .v {
+  text-align: left !important;
+  font-size: var(--nt-type-body);
 }
 
 .nt-market-fixed .nt-subsection {
@@ -6178,9 +6202,21 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 }
 
 .nt-market-fixed :is(.nt-panel-meta, .nt-subsection-title > span) {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.nt-market-fixed :is(.nt-panel-title, .nt-subsection-title) > strong {
+  min-width: 0;
   max-width: 100%;
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .nt-market-fixed :is(.nt-table-wrap, .nt-market-table-scroll) {
@@ -6200,10 +6236,32 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 }
 
 .nt-market-fixed .nt-microtable { table-layout: auto; }
-.nt-market-fixed .nt-microtable :is(th, td) { white-space: nowrap; }
-.nt-market-fixed [data-layout-key="markets:calendar-events"] td { white-space: normal; }
-.nt-market-fixed [data-layout-key="markets:calendar-events"] th:first-child { width: 52%; }
+.nt-market-fixed .nt-microtable :is(th, td):not(:first-child) { white-space: nowrap; }
+.nt-market-fixed .nt-microtable :is(th, td):first-child { white-space: normal; }
+.nt-market-fixed :is(.nt-market-tape-table, .nt-market-headlines-table) th { white-space: normal; }
+.nt-market-fixed [data-layout-key="markets:leadership"] .nt-microtable { table-layout: fixed; }
 .nt-market-fixed [data-layout-key="markets:leadership"] th:first-child { width: 22px; }
+.nt-market-rank-quote { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 5px; }
+.nt-market-rank-quote > span { white-space: nowrap; }
+.nt-market-fixed [data-layout-key="markets:sector-breadth"] th:first-child { width: 38%; }
+.nt-market-sample { display: inline-block; margin-left: 4px; color: var(--nt-muted); white-space: nowrap; }
+
+.nt-market-reference-date {
+  padding: 4px 5px;
+  border-bottom: 1px solid var(--nt-border);
+  color: var(--nt-muted);
+  font-size: var(--nt-type-meta);
+}
+.nt-market-row-meta { display: block; margin-top: 2px; font-weight: 400; font-size: var(--nt-type-meta); white-space: nowrap; }
+.nt-market-fixed [data-layout-key="markets:ecb-reference-rates"] tbody th { color: var(--nt-text-2) !important; }
+
+.nt-market-fixed [data-layout-key="markets:calendar-events"] .nt-microtable { table-layout: fixed; }
+.nt-market-fixed [data-layout-key="markets:calendar-events"] th:last-child { width: 84px; }
+.nt-market-fixed [data-layout-key="markets:calendar-events"] td { vertical-align: top; padding-block: 5px !important; }
+.nt-market-event-title { display: block; white-space: normal; overflow-wrap: break-word; }
+.nt-market-event-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 3px; color: var(--nt-muted); font-size: var(--nt-type-meta); }
+.nt-market-event-time { display: block; white-space: nowrap; line-height: 1.4; }
+.nt-market-event-date, .nt-market-event-clock { display: block; }
 
 .nt-market-fixed .nt-table thead th { position: static; }
 .nt-market-fixed .nt-market-heatmap-panel { container: markets-heatmap / inline-size; }
@@ -6218,11 +6276,29 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 @container markets-heatmap (min-width: 520px) {
   .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
-@container markets-heatmap (min-width: 800px) {
+@container markets-heatmap (min-width: 640px) {
   .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }
-@container markets-heatmap (min-width: 1100px) {
+@container markets-heatmap (min-width: 1000px) {
   .nt-market-fixed .nt-heatmap { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}
+
+@container markets-content (max-width: 980px) {
+  .nt-market-fixed-middle { grid-template-columns: minmax(0, 1fr); }
+  .nt-market-fixed-middle > .nt-market-fixed-stack:last-child {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+@container markets-content (max-width: 900px) {
+  .nt-market-fixed-top { grid-template-columns: minmax(0, 1fr); }
+}
+@container markets-tables (max-width: 650px) {
+  .nt-market-fixed-tables { grid-template-columns: minmax(0, 1fr); }
+}
+@container markets-content (max-width: 650px) {
+  .nt-market-fixed-middle > .nt-market-fixed-stack:last-child { grid-template-columns: minmax(0, 1fr); }
 }
 
 .nt-market-pagination,
@@ -6263,27 +6339,28 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-markets-footer a:hover { color: var(--nt-accent); }
 
 @media (max-width: 1200px) {
-  .nt-market-fixed-grid { grid-template-columns: minmax(180px, 1fr) minmax(0, 4fr); }
-  .nt-market-fixed-middle { grid-template-columns: minmax(0, 1fr); }
-  .nt-market-fixed-middle > .nt-market-fixed-stack:last-child {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
+  .nt-market-fixed .nt-financial-strip { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+}
+
+@media (max-width: 1180px) {
+  .nt-shell-markets-fixed .nt-main { padding-right: 3px !important; }
+  .nt-markets-footer { margin-right: 3px; }
+}
+
+@media (max-width: 1000px) {
+  .nt-market-fixed-grid { grid-template-columns: minmax(0, 1fr); }
+  .nt-market-fixed-content { grid-column: 1; grid-row: 1; }
+  .nt-market-fixed-rail { grid-column: 1; grid-row: 2; }
+  .nt-market-fixed-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 }
 
 @media (max-width: 900px) {
   .nt-shell-markets-fixed .nt-topbar { grid-template-columns: 74px minmax(0, 1fr); }
-  .nt-market-fixed-grid { grid-template-columns: minmax(0, 1fr); }
-  .nt-market-fixed-content { grid-column: 1; grid-row: 1; }
-  .nt-market-fixed-rail { grid-column: 1; grid-row: 2; }
-  .nt-market-fixed-top { grid-template-columns: minmax(0, 1fr); }
-  .nt-market-fixed-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 }
 
 @media (max-width: 600px) {
-  .nt-market-fixed-tables,
-  .nt-market-fixed-rail,
-  .nt-market-fixed-middle > .nt-market-fixed-stack:last-child { grid-template-columns: minmax(0, 1fr); }
+  .nt-market-fixed .nt-financial-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .nt-market-fixed .nt-context-title { flex-basis: 100%; }
+  .nt-market-fixed-rail { grid-template-columns: minmax(0, 1fr); }
   .nt-markets-footer-brand { flex-wrap: wrap; gap: 6px; }
 }
