@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { clampRect, fitAtAnchor, fitResize, fits, GRID_COLS, layoutBottom, MIN_H, MIN_W, placeWithoutOverlap, ROW_PX, type GridRect } from "./gridGeometry";
+import marketsPreset from "./presets/markets.json";
 
 // v3 coordinates came from the old, sometimes overlapping DOM layout. Keep
 // that storage intact, but never apply it to this different coordinate system.
@@ -12,13 +13,16 @@ const GAP = 4;
 const CARD_SELECTOR = ".nt-panel, .nt-subsection, .nt-flat-surface, .nt-summary-column, .nt-news-article, [data-layout-key]";
 const STRIP_SELECTOR = ".nt-context-strip, .nt-toolbar, .nt-financial-strip, .nt-company-view-tabs, .nt-company-tabs";
 const CONTROL_SELECTOR = "button, input, select, textarea, [contenteditable=true], [role=slider], [role=tab]";
-type SavedRoute = { cols: number; rowPx: number; updatedAt: string; items: Record<string, GridRect> };
+type SavedRoute = { cols: number; rowPx: number; updatedAt: string; presetRevision?: string; items: Record<string, GridRect> };
 type Store = { version: 4; routes: Record<string, SavedRoute> };
 type Descriptor = { element: HTMLElement; handle: HTMLElement | null; id: string; label: string };
 type Card = Descriptor & { rect: GridRect; seed: GridRect; minW: number; minH: number; undoHandle: () => void };
 type Control = { id: string; label: string; rect: GridRect };
 type EditorAction = "toggle" | "enable" | "disable" | "export" | "reset" | "undo";
 type Runtime = { persist: () => void; reset: () => void; export: () => void; undo: () => void };
+// The approved desktop export is also the Reset layout baseline. Compact
+// screens keep their independent, stacked layout and saved positions.
+const PRESETS: Partial<Record<string, SavedRoute>> = { "/::wide": marketsPreset };
 
 function readStore(): Store {
   try {
@@ -111,6 +115,7 @@ export default function SiteLayoutEditor() {
     if (!main) return;
     const compact = main.clientWidth < 760;
     const routeKey = `${pathname}::${compact ? "compact" : "wide"}`;
+    const preset = PRESETS[routeKey];
     const records = new Map<string, Card>();
     const knownPositions = new Map<string, GridRect>();
     const wrappers = new Set<HTMLElement>();
@@ -136,9 +141,10 @@ export default function SiteLayoutEditor() {
     function persist() {
       const store = readStore();
       // Retain cards temporarily absent during a tab/feed refresh.
-      const items = { ...(store.routes[routeKey]?.items ?? {}) };
+      const previous = store.routes[routeKey];
+      const items = { ...(preset && previous?.presetRevision !== preset.updatedAt ? preset.items : previous?.items ?? {}) };
       for (const [id, card] of records) { items[id] = { ...card.rect }; knownPositions.set(id, { ...card.rect }); }
-      store.routes[routeKey] = { cols: GRID_COLS, rowPx: ROW_PX, updatedAt: new Date().toISOString(), items };
+      store.routes[routeKey] = { cols: GRID_COLS, rowPx: ROW_PX, updatedAt: new Date().toISOString(), presetRevision: preset?.updatedAt, items };
       if (!writeStore(store)) setStatus("Layout changed. Browser storage is unavailable; keep this tab open to retain it.");
     }
     function remember(state: Map<string, GridRect>) {
@@ -201,9 +207,13 @@ export default function SiteLayoutEditor() {
         const cell = Math.max(1, bounds.width / GRID_COLS);
         const measured = result.cards.map(item => ({ item, bounds: item.element.getBoundingClientRect() }));
         measured.sort((a, b) => a.bounds.top - b.bounds.top || a.bounds.left - b.bounds.left);
-        const defaults: GridRect[] = [];
+        // Reserve the complete approved layout even if a feed card has not
+        // mounted yet, so an unknown/new card cannot take its default space.
+        const defaults: GridRect[] = Object.values(preset?.items ?? {}).map(rect => ({ ...rect }));
         const seeds = new Map<string, GridRect>();
         for (const { item, bounds: box } of measured) {
+          const approved = preset?.items[item.id];
+          if (approved) { seeds.set(item.id, { ...approved }); continue; }
           const seed = clampRect({
             x: compact ? 0 : Math.round((box.left - bounds.left) / cell), y: 0,
             w: compact ? GRID_COLS : Math.round(box.width / cell),
@@ -214,9 +224,12 @@ export default function SiteLayoutEditor() {
           defaults.push(seed); seeds.set(item.id, seed);
         }
         const saved = readStore().routes[routeKey];
-        const savedItems = saved?.cols === GRID_COLS && saved?.rowPx === ROW_PX && saved.items && typeof saved.items === "object" ? saved.items : {};
+        // Adopt a newly approved preset once. Later drags/resizes save the
+        // revision, so they continue to survive navigation and reloads.
+        const needsPresetMigration = Boolean(preset && saved?.presetRevision !== preset.updatedAt);
+        const savedItems = !needsPresetMigration && saved?.cols === GRID_COLS && saved?.rowPx === ROW_PX && saved.items && typeof saved.items === "object" ? saved.items : {};
         // Valid restored coordinates have priority over newly introduced cards.
-        added.sort((a, b) => Number(Boolean(knownPositions.get(b.id) || savedItems[b.id])) - Number(Boolean(knownPositions.get(a.id) || savedItems[a.id])));
+        added.sort((a, b) => Number(Boolean(knownPositions.get(b.id) || savedItems[b.id] || preset?.items[b.id])) - Number(Boolean(knownPositions.get(a.id) || savedItems[a.id] || preset?.items[a.id])));
         const pending = added.map(item => {
           const minW = item.handle ? MIN_W : 1;
           const minH = item.handle ? MIN_H : 1;
@@ -255,7 +268,8 @@ export default function SiteLayoutEditor() {
           records.set(card.id, card);
           apply(card, rect); changed = true;
         }
-        if (repaired) { setStatus("An invalid saved layout was repaired using the workspace defaults."); persist(); }
+        if (repaired) setStatus("An invalid saved layout was repaired using the workspace defaults.");
+        if (repaired || needsPresetMigration) persist();
       }
       for (const card of records.values()) {
         // React may replace className while updating the feed. Reapply only
@@ -366,7 +380,7 @@ export default function SiteLayoutEditor() {
       persist,
       reset() {
         finish(true); remember(snapshot()); knownPositions.clear();
-        const store = readStore(); delete store.routes[`${pathname}::wide`]; delete store.routes[`${pathname}::compact`]; writeStore(store);
+        const store = readStore(); delete store.routes[routeKey]; writeStore(store);
         const placed: GridRect[] = [];
         for (const card of [...records.values()].sort((a, b) => a.seed.y - b.seed.y || a.seed.x - b.seed.x)) { const rect = placeWithoutOverlap(card.seed, placed); apply(card, rect); placed.push(rect); }
         refreshControls(); setStatus("Default layout restored for this workspace.");

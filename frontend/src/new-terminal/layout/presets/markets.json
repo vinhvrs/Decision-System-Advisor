@@ -1,0 +1,103 @@
+{
+  "cols": 48,
+  "rowPx": 16,
+  "updatedAt": "2026-11-25T16:15:02.096Z",
+  "items": {
+    "/::markets:summary::0": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 4
+    },
+    "/::markets:metrics::0": {
+      "x": 0,
+      "y": 4,
+      "w": 48,
+      "h": 2
+    },
+    "/::markets:sector-breadth::0": {
+      "x": 35,
+      "y": 58,
+      "w": 13,
+      "h": 30
+    },
+    "/::markets:cross-asset::0": {
+      "x": 0,
+      "y": 98,
+      "w": 7,
+      "h": 24
+    },
+    "/::markets:most-active::0": {
+      "x": 7,
+      "y": 38,
+      "w": 12,
+      "h": 24
+    },
+    "/::markets:heatmap::0": {
+      "x": 7,
+      "y": 6,
+      "w": 33,
+      "h": 32
+    },
+    "/::markets:participation::0": {
+      "x": 0,
+      "y": 69,
+      "w": 7,
+      "h": 16
+    },
+    "/::table:Market tape::0": {
+      "x": 19,
+      "y": 38,
+      "w": 16,
+      "h": 24
+    },
+    "/::table:Macro observations & spreads::0": {
+      "x": 7,
+      "y": 88,
+      "w": 41,
+      "h": 26
+    },
+    "/::table:Crypto derivatives::0": {
+      "x": 7,
+      "y": 114,
+      "w": 41,
+      "h": 8
+    },
+    "/::table:Latest headlines::0": {
+      "x": 7,
+      "y": 62,
+      "w": 28,
+      "h": 26
+    },
+    "/::markets:calendar-events::0": {
+      "x": 40,
+      "y": 6,
+      "w": 8,
+      "h": 32
+    },
+    "/::markets:leadership::0": {
+      "x": 0,
+      "y": 6,
+      "w": 7,
+      "h": 45
+    },
+    "/::markets:relative-volume::0": {
+      "x": 0,
+      "y": 85,
+      "w": 7,
+      "h": 13
+    },
+    "/::markets:sector-performance::0": {
+      "x": 35,
+      "y": 38,
+      "w": 13,
+      "h": 20
+    },
+    "/::markets:ecb-reference-rates::0": {
+      "x": 0,
+      "y": 51,
+      "w": 7,
+      "h": 18
+    }
+  }
+}
