@@ -6196,8 +6196,14 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 
 .nt-market-fixed :is(.nt-table, .nt-microtable) :is(th, td) {
   height: auto;
-  padding: 3px 5px !important;
+  padding: 2px 5px !important;
 }
+
+.nt-market-fixed .nt-microtable { table-layout: auto; }
+.nt-market-fixed .nt-microtable :is(th, td) { white-space: nowrap; }
+.nt-market-fixed [data-layout-key="markets:calendar-events"] td { white-space: normal; }
+.nt-market-fixed [data-layout-key="markets:calendar-events"] th:first-child { width: 52%; }
+.nt-market-fixed [data-layout-key="markets:leadership"] th:first-child { width: 22px; }
 
 .nt-market-fixed .nt-table thead th { position: static; }
 .nt-market-fixed .nt-market-heatmap-panel { container: markets-heatmap / inline-size; }

@@ -65,6 +65,7 @@ const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100":
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
 const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const MARKET_TAPE_PAGE_SIZE = 18;
+const CALENDAR_PAGE_SIZE = 4;
 const ecbCurrencies = ["USD", "GBP", "JPY", "CHF", "AUD"];
 const ecbReferencePage = "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html";
 const referenceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 });
@@ -112,6 +113,7 @@ export default function MarketsWorkspace({
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [connected, setConnected] = useState(false);
   const [marketTapePage, setMarketTapePage] = useState(0);
+  const [calendarPage, setCalendarPage] = useState(0);
   const subscriptionSymbols = useMemo(
     () => EQUITY_HEATMAP_UNIVERSE.map(item => item.symbol),
     [],
@@ -286,6 +288,9 @@ export default function MarketsWorkspace({
   const heatRows = equities;
   const calendarEvents = calendarEventsInDeclaredCoverage(calendarData);
   const calendarState = calendarCoverageState(calendarData);
+  const calendarPageCount = Math.max(1, Math.ceil(calendarEvents.length / CALENDAR_PAGE_SIZE));
+  const currentCalendarPage = Math.min(calendarPage, calendarPageCount - 1);
+  const visibleCalendarEvents = calendarEvents.slice(currentCalendarPage * CALENDAR_PAGE_SIZE, (currentCalendarPage + 1) * CALENDAR_PAGE_SIZE);
 
   const dailyRows = dailyData?.data;
   const breadthEquities = sessionRows;
@@ -413,8 +418,17 @@ export default function MarketsWorkspace({
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <div className="nt-market-table-scroll"><table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-                <tbody>{calendarEvents.length ? calendarEvents.slice(0,8).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
+                <tbody>{visibleCalendarEvents.length ? visibleCalendarEvents.map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
               </table></div>
+              {calendarEvents.length > CALENDAR_PAGE_SIZE && <div className="nt-database-note">
+                <nav className="nt-market-pagination" aria-label="Calendar event pages">
+                  <span aria-live="polite">{currentCalendarPage * CALENDAR_PAGE_SIZE + 1}–{Math.min((currentCalendarPage + 1) * CALENDAR_PAGE_SIZE, calendarEvents.length)} of {calendarEvents.length}</span>
+                  <div>
+                    <button type="button" aria-label="Previous calendar events page" disabled={currentCalendarPage === 0} onClick={() => setCalendarPage(currentCalendarPage - 1)}>Previous</button>
+                    <button type="button" aria-label="Next calendar events page" disabled={currentCalendarPage + 1 >= calendarPageCount} onClick={() => setCalendarPage(currentCalendarPage + 1)}>Next</button>
+                  </div>
+                </nav>
+              </div>}
             </div>
           </div>
           <div className="nt-market-fixed-middle">
