@@ -340,7 +340,7 @@ export default function MarketsWorkspace({
 
   return (
     <div className="nt-workspace nt-market-workspace">
-      <section className="nt-context-strip">
+      <section className="nt-context-strip" data-layout-key="markets:summary">
         <div className="nt-context-title">
           <div className="nt-label nt-info">Markets / US Equities</div>
           <h1>Market Overview</h1>
@@ -356,7 +356,7 @@ export default function MarketsWorkspace({
         ))}
       </section>
 
-      <div className="nt-dense-grid nt-financial-strip">
+      <div className="nt-dense-grid nt-financial-strip" data-layout-key="markets:metrics">
         {[
           ["Equity session", equitySession ?? "—", equitySession ? "Final" : "Awaiting close"],
           ["Adv / Decl", sampleSize ? `${up} / ${down}` : "—", sampleSize ? `${unchanged} unchanged` : ""],
@@ -378,7 +378,7 @@ export default function MarketsWorkspace({
       <div className="nt-grid nt-grid-markets nt-market-main-grid">
         <aside className="nt-market-rail nt-flat-rail">
           <section className="nt-flat-surface">
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:sector-breadth">
               <div className="nt-subsection-title"><strong>Sector breadth</strong><span>session · min. 3 observations</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
@@ -389,7 +389,7 @@ export default function MarketsWorkspace({
                 })}</tbody>
               </table>
             </div>
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:cross-asset">
               <div className="nt-subsection-title"><strong>Cross asset</strong><span>macro context</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Asset</th><th>Last</th><th>Chg</th></tr></thead>
@@ -401,7 +401,7 @@ export default function MarketsWorkspace({
               </table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:most-active">
               <div className="nt-subsection-title"><strong>Most active</strong><span>traded value · final</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
@@ -412,7 +412,7 @@ export default function MarketsWorkspace({
         </aside>
 
         <section className="nt-market-center">
-          <section className="nt-panel nt-market-heatmap-panel">
+          <section className="nt-panel nt-market-heatmap-panel" data-layout-key="markets:heatmap">
             <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {connected ? `${liveQuoteCount} live` : "stream offline"} · {snapshotQuoteCount} intraday snapshots</span></div>
             <div className="nt-panel-body">
               <div className="nt-heatmap">
@@ -440,7 +440,7 @@ export default function MarketsWorkspace({
           </section>
 
           <section className="nt-flat-surface nt-market-summary-surface nt-market-breadth-only">
-            <div className="nt-summary-column">
+            <div className="nt-summary-column" data-layout-key="markets:participation">
               <div className="nt-subsection-title"><strong>Participation detail</strong><span>{equitySession ?? "Awaiting final session"} · n={sampleSize}</span></div>
               <table className="nt-microtable"><tbody>
                 <tr><td>Advancing</td><td>{sampleSize ? up : "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
@@ -518,7 +518,7 @@ export default function MarketsWorkspace({
 
         <aside className="nt-market-rail nt-flat-rail">
           <section className="nt-flat-surface">
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:calendar-events">
               <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
               <table className="nt-microtable">
                 <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
@@ -526,14 +526,14 @@ export default function MarketsWorkspace({
               </table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:leadership">
               <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
               <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
                 {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:relative-volume">
               <div className="nt-subsection-title"><strong>Relative volume</strong><span>20D leaders</span></div>
               <table className="nt-microtable"><thead><tr><th>Symbol</th><th>RVol</th></tr></thead><tbody>
                 {relativeVolumeLeaders.slice(0,6).map(item => <tr key={item.symbol}><td>{item.symbol}</td><td>{item.value.toFixed(2)}×</td></tr>)}
@@ -541,14 +541,14 @@ export default function MarketsWorkspace({
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:sector-performance">
               <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
               <table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
                 {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector} · n={item.count}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="markets:ecb-reference-rates">
               <div className="nt-subsection-title">
                 <strong>ECB reference rates</strong>
                 <span><a href={ecbReferencePage} rel="noreferrer">ECB ↗</a></span>

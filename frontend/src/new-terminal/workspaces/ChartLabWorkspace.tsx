@@ -13,6 +13,14 @@ import {
 
 export type ChartBar = { timestamps: string; open: number; high: number; low: number; close: number; volume: number | null };
 type Bar = ChartBar;
+type HistoryState = {
+  symbol: string;
+  range: string;
+  bars: Bar[];
+  visibleStart: string;
+  status: string;
+};
+const EMPTY_BARS: Bar[] = [];
 type IndicatorKey = "sma20" | "sma50" | "ema20" | "bb20";
 type AlertCondition = "above" | "below";
 type PriceAlert = {
@@ -37,7 +45,7 @@ const pct = (value: number | null | undefined) =>
 const series = ["AAPL", "MSFT", "SPY", "QQQ", "DXY", "US10Y"];
 
 import DataTable from "../DataTable";
-import { labelText, valueText, type Calendar, type Correlation, type Metrics, type DailyAnalytics, type Universe } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, sourceLink, valueText, type Calendar, type Correlation, type Metrics, type DailyAnalytics, type Universe } from "../feeds";
 import { CurrencyContext, ImpactBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -134,6 +142,7 @@ export default function ChartLabWorkspace({
   initialMetrics,
   initialDaily,
   initialCalendar,
+  initialCalendarTime = 0,
   initialCorrelation,
 }: {
   initialSymbol?: string;
@@ -143,14 +152,18 @@ export default function ChartLabWorkspace({
   initialMetrics?: Metrics;
   initialDaily?: DailyAnalytics;
   initialCalendar?: Calendar;
+  initialCalendarTime?: number;
   initialCorrelation?: Correlation;
 }) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [range, setRange] = useState("6M");
-  const [history, setHistory] = useState<{ bars: Bar[]; visibleStart: string }>(
-    initialHistory ?? { bars: [], visibleStart: "" }
-  );
-  const [state, setState] = useState(initialHistory?.bars.length ? "Stored daily bars" : "Loading stored bars");
+  const [history, setHistory] = useState<HistoryState>({
+    symbol: initialSymbol,
+    range: "6M",
+    bars: initialHistory?.bars ?? EMPTY_BARS,
+    visibleStart: initialHistory?.visibleStart ?? "",
+    status: initialHistory?.bars.length ? "Stored daily bars" : "Loading stored bars",
+  });
   const [activeIndicators, setActiveIndicators] = useState<Record<IndicatorKey, boolean>>({
     sma20: true,
     sma50: true,
@@ -159,6 +172,7 @@ export default function ChartLabWorkspace({
   });
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
+  const [calendarTime, setCalendarTime] = useState(initialCalendarTime);
   const [alertCondition, setAlertCondition] = useState<AlertCondition>("above");
   const [alertTarget, setAlertTarget] = useState("");
   const canvas = useRef<HTMLDivElement>(null);
@@ -167,7 +181,7 @@ export default function ChartLabWorkspace({
   const stored = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
   const metrics = useFeed<Metrics>(`/api/v1/metrics/${encodeURIComponent(symbol)}?timeframe=daily`);
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
-  const calendar = useFeed<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=8`);
+  const calendar = useFeed<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=1000`, 300000);
   const compared = [...new Set([symbol, "SPY", "QQQ", "BTC-USD"])];
   const correlation = useFeed<Correlation>(`/api/v1/correlation?symbols=${encodeURIComponent(compared.join(","))}&window=60`);
 
@@ -176,6 +190,18 @@ export default function ChartLabWorkspace({
   const metricData = metrics.data ?? (symbol === initialSymbol ? initialMetrics : undefined);
   const dailyData = daily.data ?? initialDaily;
   const calendarData = calendar.data ?? (symbol === initialSymbol ? initialCalendar : undefined);
+  const calendarState = calendar.error
+    ? { valid: false, label: "Calendar feed unavailable" }
+    : calendarCoverageState(calendarData);
+  const upcomingEvents = calendarState.valid
+    ? calendarEventsInDeclaredCoverage(calendarData)
+      .filter(event => event.scheduled_at && new Date(event.scheduled_at).getTime() >= calendarTime)
+      .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
+      .slice(0, 12)
+    : [];
+  const eventTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  });
   const correlationData = correlation.data ?? (symbol === initialSymbol ? initialCorrelation : undefined);
   const correlationSummary = useMemo(() => {
     const symbols = correlationData?.symbols ?? [...new Set([symbol, "SPY", "QQQ", "BTC-USD"])];
@@ -197,6 +223,11 @@ export default function ChartLabWorkspace({
       .flatMap(key => dailyMetrics?.[key] ? [[key, dailyMetrics[key]] as const] : []),
     ...Object.entries(metricData?.metrics ?? {}).filter(([key]) => !dailyMetrics?.[key]),
   ].slice(0, 14);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCalendarTime(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     try {
@@ -222,18 +253,22 @@ export default function ChartLabWorkspace({
     const warmupStart = new Date(rangeStart.getTime() - INDICATOR_LOOKBACK_DAYS * 86400000);
     const visibleStart = rangeStart.toISOString().slice(0, 10);
     const dates = new URLSearchParams({ from: warmupStart.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+    function finish(bars: Bar[], status: string) {
+      if (!controller.signal.aborted) setHistory({ symbol, range, bars, visibleStart, status });
+    }
     fetch(`/api/market/daily-history/${encodeURIComponent(symbol)}?${dates}`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error("History unavailable");
         const payload: { data?: Bar[]; quality?: string } = await response.json();
         if (payload.quality === "LICENSE_RESTRICTED") {
-          if (!controller.signal.aborted) setState("History source is restricted");
+          finish(EMPTY_BARS, "History source is restricted");
           return;
         }
         const data = payload.data ?? [];
         if (controller.signal.aborted) return;
         const dated = new Map<string, Bar>();
         for (const bar of data) {
+          if (typeof bar?.timestamps !== "string") continue;
           const day = bar.timestamps.slice(0, 10);
           const { open, high, low, close } = bar;
           if (![open, high, low, close].every(Number.isFinite) ||
@@ -241,15 +276,18 @@ export default function ChartLabWorkspace({
           dated.set(day, bar);
         }
         const clean = [...dated.values()].sort((a, b) => a.timestamps.localeCompare(b.timestamps));
-        setHistory({ bars: clean, visibleStart });
-        setState(clean.some(bar => bar.timestamps.slice(0, 10) >= visibleStart)
+        finish(clean, clean.some(bar => bar.timestamps.slice(0, 10) >= visibleStart)
           ? "Stored daily bars" : "No bars in this range");
       })
-      .catch(() => { if (!controller.signal.aborted) setState("History unavailable"); });
+      .catch(() => finish(EMPTY_BARS, "History unavailable"));
     return () => controller.abort();
   }, [symbol, range]);
 
-  const fullBars = history.bars;
+  // Identity checks also cover a response that resolves between a selection
+  // change and the previous effect's abort cleanup. Never relabel old bars.
+  const historyMatchesSelection = history.symbol === symbol && history.range === range;
+  const fullBars = historyMatchesSelection ? history.bars : EMPTY_BARS;
+  const state = historyMatchesSelection ? history.status : "Loading stored bars";
   const firstVisible = fullBars.findIndex(bar => bar.timestamps.slice(0, 10) >= history.visibleStart);
   const bars = useMemo(() => firstVisible < 0 ? [] : fullBars.slice(firstVisible), [firstVisible, fullBars]);
   const indicators = useMemo(() => {
@@ -421,15 +459,13 @@ export default function ChartLabWorkspace({
 
   return (
     <div className="nt-workspace nt-chart-workspace">
-      <section className="nt-toolbar nt-chart-toolbar">
+      <section className="nt-toolbar nt-chart-toolbar" data-layout-key="chart:toolbar">
         <strong className="nt-chart-title">Chart Lab</strong>
         <SymbolContext symbol={symbol} />
 
         <label className="nt-control-group">
           <span className="nt-control-caption">Symbol</span>
           <select className="nt-control nt-control-select" value={symbol} onChange={event => {
-            setHistory({ bars: [], visibleStart: "" });
-            setState("Loading stored bars");
             setSymbol(event.target.value);
             setAlertTarget("");
           }}>
@@ -442,8 +478,6 @@ export default function ChartLabWorkspace({
           <div className="nt-segmented">
             {Object.keys(chartRanges).map(item => <button type="button" className="nt-tab" data-active={item === range} key={item} onClick={() => {
               if (item !== range) {
-                setHistory({ bars: [], visibleStart: "" });
-                setState("Loading stored bars");
                 setRange(item);
               }
             }}>{item}</button>)}
@@ -462,7 +496,7 @@ export default function ChartLabWorkspace({
         }}>Alerts</button>
       </section>
 
-      <div className="nt-dense-grid nt-financial-strip">
+      <div className="nt-dense-grid nt-financial-strip" data-layout-key="chart:metrics">
         {ohlcFields.map((key, index) => <div className="nt-data-cell" key={key}>
           <div className="k">{key}</div>
           <div className="v">{index === 7 ? pct(values[index]) : index === 11 && values[index] != null ? `${format(values[index])}×` : format(values[index])}</div>
@@ -473,7 +507,7 @@ export default function ChartLabWorkspace({
       <div className="nt-grid nt-grid-chart nt-chart-main-grid">
         <aside className="nt-chart-rail nt-flat-rail">
           <section className="nt-flat-surface">
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="chart:linked-series">
               <div className="nt-subsection-title"><strong>Linked series</strong><span>Stored quotes</span></div>
               <table className="nt-microtable"><thead><tr><th>Series</th><th>Last</th><th>Chg%</th><th>As of</th></tr></thead><tbody>
                 {series.map(item => {
@@ -483,7 +517,7 @@ export default function ChartLabWorkspace({
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="chart:structural-context">
               <div className="nt-subsection-title"><strong>Structural context</strong><span>{symbol}</span></div>
               <table className="nt-microtable"><tbody>
                 <tr><td>SMA 200</td><td>{valueText(dailyMetrics?.sma200?.value)}</td></tr>
@@ -493,7 +527,7 @@ export default function ChartLabWorkspace({
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="chart:range-statistics">
               <div className="nt-subsection-title"><strong>Range statistics</strong><span>{range}</span></div>
               <table className="nt-microtable"><tbody>
                 <tr><td>Range return</td><td className={rangeReturn != null && rangeReturn >= 0 ? "nt-positive" : "nt-negative"}>{pct(rangeReturn)}</td></tr>
@@ -504,7 +538,7 @@ export default function ChartLabWorkspace({
               </tbody></table>
             </div>
 
-            <div className="nt-subsection">
+            <div className="nt-subsection" data-layout-key="chart:session-distribution">
               <div className="nt-subsection-title"><strong>Session distribution</strong><span>{bars.length} bars</span></div>
               <table className="nt-microtable"><tbody>
                 <tr><td>Up sessions</td><td className="nt-positive">{upSessions || "—"}</td><td>{bars.length ? pct((upSessions / bars.length) * 100) : "—"}</td></tr>
@@ -518,7 +552,7 @@ export default function ChartLabWorkspace({
         </aside>
 
         <section className="nt-chart-center">
-          <section className="nt-panel nt-chart-primary-panel">
+          <section className="nt-panel nt-chart-primary-panel" data-layout-key="chart:price-chart">
             <div className="nt-panel-title">
               <div>
                 <strong>{symbol} · Price / Volume</strong>
@@ -533,10 +567,10 @@ export default function ChartLabWorkspace({
               {activeIndicators.bb20 && <span style={{ color: "#a0b1c4" }}>BB 20,2 <b>{format(bb20Values.mid.at(-1))}</b></span>}
               {hasVolume && <span>Volume <b>{format(latest?.volume)}</b></span>}
             </div>
-            <div className="nt-panel-body"><div ref={canvas} aria-label={`${symbol} daily price and volume chart`} /></div>
+            <div className="nt-panel-body"><div ref={canvas} aria-label={`${symbol} daily price and volume chart`} aria-hidden={!bars.length} style={{ visibility: bars.length ? "visible" : "hidden" }} /></div>
           </section>
 
-          <section className="nt-panel">
+          <section className="nt-panel" data-layout-key="chart:ohlc">
             <div className="nt-panel-title"><strong>OHLC / indicators</strong><span className="nt-panel-meta">last 10 sessions</span></div>
             <div className="nt-table-wrap"><table className="nt-table">
               <thead><tr>{["Time","Open","High","Low","Close","Volume","SMA20","SMA50","RSI14","ATR14"].map(item => <th key={item}>{item}</th>)}</tr></thead>
@@ -558,7 +592,7 @@ export default function ChartLabWorkspace({
 
         <aside className="nt-chart-rail nt-flat-rail">
           <section className="nt-flat-surface">
-            <div className="nt-subsection" id="nt-indicator-panel">
+            <div className="nt-subsection" id="nt-indicator-panel" data-layout-key="chart:indicators">
               <div className="nt-subsection-title"><strong>Indicators</strong><span>overlay</span></div>
               <div className="nt-indicator-list">
                 {([
@@ -579,7 +613,7 @@ export default function ChartLabWorkspace({
               </div>
             </div>
 
-            <div className="nt-subsection" id="nt-alert-panel">
+            <div className="nt-subsection" id="nt-alert-panel" data-layout-key="chart:alerts">
               <div className="nt-subsection-title"><strong>Price alerts</strong><span>{currentAlerts.length}</span></div>
               <div className="nt-alert-form">
                 <select className="nt-control nt-control-select" aria-label="Alert condition" value={alertCondition} onChange={event => setAlertCondition(event.target.value as AlertCondition)}>
@@ -601,18 +635,19 @@ export default function ChartLabWorkspace({
               </table>
             </div>
 
-            <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Macro events</strong><span>next</span></div>
-              <table className="nt-microtable"><thead><tr><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
-                {(calendarData?.events ?? []).slice(0,12).map(event => <tr key={event.id}><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
-                {!calendarData?.events.length && <tr><td colSpan={3}>No scheduled macro events</td></tr>}
+            <div className="nt-subsection" data-layout-key="chart:macro-events">
+              <div className="nt-subsection-title"><strong>Macro events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "next · ET" : "SOURCE GAP"}</span></div>
+              <table className="nt-microtable"><thead><tr><th>Time (ET)</th><th>Context</th><th>Event</th><th>Impact</th></tr></thead><tbody>
+                {upcomingEvents.map(event => <tr key={event.id}><td>{eventTime.format(new Date(event.scheduled_at!))}</td><td><CurrencyContext currency={event.currency} /></td><td title={event.scheduled_at ?? undefined}>{event.title}</td><td><ImpactBadge impact={event.impact} /></td></tr>)}
+                {!upcomingEvents.length && <tr><td colSpan={4}>{calendarState.valid ? "No upcoming events in current coverage." : calendarState.label}</td></tr>}
               </tbody></table>
+              <div className="nt-database-note">Source: <a href={sourceLink(calendarData?.source_url) || "https://www.forexfactory.com/calendar"} rel="noreferrer">{calendarData?.source || "ForexFactory"}</a>{calendarData?.coverage?.start && calendarData.coverage.end ? ` · ${calendarData.coverage.start} → ${calendarData.coverage.end}` : ""}</div>
             </div>
           </section>
         </aside>
       </div>
 
-      <section className="nt-flat-surface nt-chart-correlation-matrix">
+      <section className="nt-flat-surface nt-chart-correlation-matrix" data-layout-key="chart:correlation">
         <div className="nt-subsection-title"><strong>Cross-asset correlation · 60D</strong><span>{correlationData?.symbols?.length ?? compared.length} series</span></div>
         <div className="nt-table-wrap"><table className="nt-table nt-correlation-matrix-table">
           <thead><tr><th>Series</th>{(correlationData?.symbols ?? compared).map(item => <th key={item}>{item}</th>)}</tr></thead>

@@ -1,507 +1,464 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { clampRect, fitAtAnchor, fitResize, fits, GRID_COLS, layoutBottom, MIN_H, MIN_W, placeWithoutOverlap, ROW_PX, type GridRect } from "./gridGeometry";
 
-const STORAGE_KEY = "dsa.site-layout.v3";
-const GRID_COLS = 24;
-const ROW_PX = 24;
-const MIN_W = 2;
-const MIN_H = 2;
+// v3 coordinates came from the old, sometimes overlapping DOM layout. Keep
+// that storage intact, but never apply it to this different coordinate system.
+const STORAGE_KEY = "dsa.site-layout.v4";
+const GAP = 4;
+const CARD_SELECTOR = ".nt-panel, .nt-subsection, .nt-flat-surface, .nt-summary-column, .nt-news-article, [data-layout-key]";
+const STRIP_SELECTOR = ".nt-context-strip, .nt-toolbar, .nt-financial-strip, .nt-company-view-tabs, .nt-company-tabs";
+const CONTROL_SELECTOR = "button, input, select, textarea, [contenteditable=true], [role=slider], [role=tab]";
+type SavedRoute = { cols: number; rowPx: number; updatedAt: string; items: Record<string, GridRect> };
+type Store = { version: 4; routes: Record<string, SavedRoute> };
+type Descriptor = { element: HTMLElement; handle: HTMLElement | null; id: string; label: string };
+type Card = Descriptor & { rect: GridRect; seed: GridRect; minW: number; minH: number; undoHandle: () => void };
+type Control = { id: string; label: string; rect: GridRect };
+type EditorAction = "toggle" | "enable" | "disable" | "export" | "reset" | "undo";
+type Runtime = { persist: () => void; reset: () => void; export: () => void; undo: () => void };
 
-const CARD_SELECTOR = [
-  ".nt-main [data-layout-key]",
-  ".nt-main .nt-panel",
-  ".nt-main .nt-flat-surface",
-  ".nt-main .nt-context-strip",
-  ".nt-main .nt-toolbar",
-  ".nt-main .nt-news-article",
-].join(",");
-
-type GridItem = {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-type RouteLayout = {
-  pathname: string;
-  updatedAt: string;
-  cols: number;
-  rowPx: number;
-  items: Record<string, GridItem>;
-};
-
-type LayoutStore = {
-  version: 3;
-  routes: Record<string, RouteLayout>;
-};
-
-type EditorAction = "toggle" | "enable" | "disable" | "export" | "reset";
-
-function clean(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 72);
-}
-
-function labelFor(element: HTMLElement) {
-  const explicit = element.dataset.layoutKey;
-  if (explicit) return explicit;
-  const heading = element.querySelector<HTMLElement>(
-    ":scope > .nt-panel-title strong, :scope > .nt-subsection-title strong, :scope > h1, :scope > h2, :scope > header h2"
-  );
-  return heading?.textContent?.trim() || element.getAttribute("aria-label") || element.className || element.tagName;
-}
-
-function readStore(): LayoutStore {
+function readStore(): Store {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "");
-    if (parsed?.version === 3 && parsed.routes && typeof parsed.routes === "object") return parsed;
-  } catch {}
-  return { version: 3, routes: {} };
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+    if (value?.version === 4 && value.routes && typeof value.routes === "object" && !Array.isArray(value.routes)) return value;
+  } catch { /* Storage denial must not disable dragging. */ }
+  return { version: 4, routes: {} };
 }
-
-function writeStore(store: LayoutStore) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+function writeStore(value: Store) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); return true; }
+  catch { return false; }
 }
-
-function collectCards(pathname: string) {
-  const all = Array.from(document.querySelectorAll<HTMLElement>(CARD_SELECTOR))
-    .filter(el => el.closest(".nt-main"))
-    .filter(el => !el.closest(".nt-utility-drawer"));
-
-  const unique = all.filter((el, i) => all.indexOf(el) === i);
-  const cards = unique.filter(el => !unique.some(other => other !== el && other.contains(el)));
-
+function slug(value: string) {
+  return value.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 100);
+}
+function headerFor(element: HTMLElement) {
+  if (element.matches(STRIP_SELECTOR)) return null;
+  return element.querySelector<HTMLElement>(
+    ":scope > .nt-panel-title, :scope > .nt-subsection-title, :scope > header, :scope > .nt-news-article-body > h2, :scope > .nt-news-reader-body > h1"
+  );
+}
+/** Select semantic cards, not their rail/grid containers. React retains every node. */
+function collect(main: HTMLElement, pathname: string) {
+  const cards: Descriptor[] = [];
+  const wrappers = new Set<HTMLElement>();
   const counts = new Map<string, number>();
-  for (const element of cards) {
-    const label = labelFor(element);
-    const base = clean(element.dataset.layoutKey || label || element.tagName) || "card";
-    const count = counts.get(base) ?? 0;
-    counts.set(base, count + 1);
-    const id = `${pathname}::${base}::${count}`;
-
-    element.dataset.dsaLayoutId = id;
-    element.dataset.dsaLayoutLabel = label;
-    element.classList.add("dsa-layout-card");
-    element.draggable = false;
-
-    let handle =
-      element.querySelector<HTMLElement>(":scope > .nt-panel-title") ??
-      element.querySelector<HTMLElement>(":scope > .nt-subsection-title") ??
-      element.querySelector<HTMLElement>(":scope > header") ??
-      element.querySelector<HTMLElement>(":scope > .nt-news-article-body > .nt-news-kicker");
-
-    if (!handle) {
-      let synthetic = element.querySelector<HTMLElement>(":scope > .dsa-layout-top-handle");
-      if (!synthetic) {
-        synthetic = document.createElement("div");
-        synthetic.className = "dsa-layout-top-handle";
-        synthetic.textContent = label;
-        element.prepend(synthetic);
+  function walk(parent: HTMLElement) {
+    for (const element of Array.from(parent.children)) {
+      if (!(element instanceof HTMLElement) || element.matches("script, style, link, .dsa-grid-overlay") || element.hidden || element.style.display === "none") continue;
+      const handle = headerFor(element);
+      const isCard = element.matches(STRIP_SELECTOR) || (element.matches(CARD_SELECTOR) && (handle || !element.querySelector(CARD_SELECTOR)));
+      if (!isCard && element.querySelector(`${CARD_SELECTOR}, ${STRIP_SELECTOR}`)) {
+        wrappers.add(element);
+        walk(element);
+        continue;
       }
-      handle = synthetic;
-    }
-
-    handle.classList.add("dsa-layout-drag-handle");
-    handle.dataset.dsaDragHandle = "true";
-    handle.dataset.dsaLayoutOwner = id;
-    handle.setAttribute("title", `Drag ${label}`);
-
-    if (!handle.querySelector(":scope > .dsa-layout-grip")) {
-      const grip = document.createElement("span");
-      grip.className = "dsa-layout-grip";
-      grip.textContent = "⋮⋮";
-      grip.setAttribute("aria-hidden", "true");
-      handle.appendChild(grip);
-    }
-
-    if (!element.querySelector(":scope > .dsa-grid-resize-handle")) {
-      const resize = document.createElement("div");
-      resize.className = "dsa-grid-resize-handle";
-      resize.dataset.dsaResizeHandle = "true";
-      resize.setAttribute("title", `Resize ${label}`);
-      element.appendChild(resize);
+      const bounds = element.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) continue;
+      const title = handle?.querySelector("strong, h1, h2")?.textContent?.trim()
+        || handle?.textContent?.trim() || element.querySelector("h1, h2")?.textContent?.trim();
+      const label = title || element.getAttribute("aria-label") || "Workspace controls";
+      const base = element.dataset.layoutKey || slug(title || element.className.replace(/dsa-grid-\S+/g, "")) || element.tagName;
+      const count = counts.get(base) ?? 0;
+      counts.set(base, count + 1);
+      cards.push({ element, handle, label, id: `${pathname}::${base}::${count}` });
     }
   }
-  return cards;
+  walk(main);
+  return { cards, wrappers };
 }
-
-function ensureCanvas(main: HTMLElement) {
-  let canvas = main.querySelector<HTMLElement>(":scope > .dsa-grid-canvas");
-  if (!canvas) {
-    canvas = document.createElement("div");
-    canvas.className = "dsa-grid-canvas";
-    main.prepend(canvas);
+function sameRect(a: GridRect, b: GridRect) {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+function apply(card: Card, rect: GridRect) {
+  card.rect = { ...rect };
+  for (const key of ["x", "y", "w", "h"] as const) {
+    card.element.style.setProperty(`--dsa-${key}`, String(rect[key]));
+    card.element.setAttribute(`data-dsa-grid-${key}`, String(rect[key]));
   }
-  return canvas;
 }
-
-function cellWidth(canvas: HTMLElement) {
-  return Math.max(canvas.clientWidth / GRID_COLS, 1);
-}
-
-function rectToGrid(rect: DOMRect, canvasRect: DOMRect) {
-  const cw = Math.max(canvasRect.width / GRID_COLS, 1);
-  return {
-    x: Math.max(0, Math.min(GRID_COLS - MIN_W, Math.round((rect.left - canvasRect.left) / cw))),
-    y: Math.max(0, Math.round((rect.top - canvasRect.top) / ROW_PX)),
-    w: Math.max(MIN_W, Math.min(GRID_COLS, Math.round(rect.width / cw))),
-    h: Math.max(MIN_H, Math.round(rect.height / ROW_PX)),
+function prepareHandle(handle: HTMLElement | null, label: string) {
+  if (!handle) return () => {};
+  const previous = new Map(["tabindex", "title", "aria-label", "aria-roledescription"].map(name => [name, handle.getAttribute(name)]));
+  handle.classList.add("dsa-grid-handle");
+  handle.dataset.dsaDragHandle = "true";
+  handle.tabIndex = 0;
+  handle.setAttribute("aria-label", `Move ${label}`);
+  handle.setAttribute("aria-roledescription", "draggable card header");
+  handle.title = `Drag ${label} · Arrow keys move · Shift + arrows resize`;
+  return () => {
+    handle.classList.remove("dsa-grid-handle");
+    delete handle.dataset.dsaDragHandle;
+    for (const [name, value] of previous) {
+      if (value === null) handle.removeAttribute(name); else handle.setAttribute(name, value);
+    }
   };
-}
-
-function overlaps(a: GridItem, b: GridItem) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function applyItem(card: HTMLElement, item: GridItem, canvas: HTMLElement) {
-  const cw = cellWidth(canvas);
-  card.dataset.dsaGridX = String(item.x);
-  card.dataset.dsaGridY = String(item.y);
-  card.dataset.dsaGridW = String(item.w);
-  card.dataset.dsaGridH = String(item.h);
-  card.style.position = "absolute";
-  card.style.left = `${item.x * cw}px`;
-  card.style.top = `${item.y * ROW_PX}px`;
-  card.style.width = `${item.w * cw}px`;
-  card.style.height = `${item.h * ROW_PX}px`;
-  card.style.maxWidth = "none";
-  card.style.minWidth = "0";
-  card.style.margin = "0";
-  card.style.boxSizing = "border-box";
-}
-
-function itemFromCard(card: HTMLElement): GridItem {
-  return {
-    id: card.dataset.dsaLayoutId || "",
-    label: card.dataset.dsaLayoutLabel || labelFor(card),
-    x: Number(card.dataset.dsaGridX || 0),
-    y: Number(card.dataset.dsaGridY || 0),
-    w: Number(card.dataset.dsaGridW || MIN_W),
-    h: Number(card.dataset.dsaGridH || MIN_H),
-  };
-}
-
-function nearestValid(candidate: GridItem, others: GridItem[]) {
-  const clamped = {
-    ...candidate,
-    x: Math.max(0, Math.min(GRID_COLS - candidate.w, candidate.x)),
-    y: Math.max(0, candidate.y),
-  };
-  if (!others.some(item => overlaps(clamped, item))) return clamped;
-
-  for (let radius = 1; radius <= GRID_COLS + 40; radius++) {
-    const tries: GridItem[] = [
-      { ...clamped, y: Math.max(0, clamped.y - radius) },
-      { ...clamped, x: Math.max(0, clamped.x - radius) },
-      { ...clamped, x: Math.min(GRID_COLS - clamped.w, clamped.x + radius) },
-      { ...clamped, y: clamped.y + radius },
-    ];
-    const valid = tries.find(item => !others.some(other => overlaps(item, other)));
-    if (valid) return valid;
-  }
-  return clamped;
-}
-
-function fitIntoFreeSpace(candidate: GridItem, others: GridItem[]) {
-  let best = nearestValid(candidate, others);
-  for (let dw = 0; dw <= 4; dw++) {
-    for (let dh = 0; dh <= 4; dh++) {
-      const grown = {
-        ...best,
-        w: Math.min(GRID_COLS - best.x, Math.max(MIN_W, candidate.w + dw)),
-        h: Math.max(MIN_H, candidate.h + dh),
-      };
-      if (!others.some(item => overlaps(grown, item)) && grown.w * grown.h > best.w * best.h) best = grown;
-    }
-  }
-
-  if (!others.some(item => overlaps(best, item))) return best;
-
-  for (let w = candidate.w; w >= MIN_W; w--) {
-    for (let h = candidate.h; h >= MIN_H; h--) {
-      const shrunk = { ...candidate, w, h, x: Math.min(candidate.x, GRID_COLS - w) };
-      if (!others.some(item => overlaps(shrunk, item))) return shrunk;
-    }
-  }
-  return nearestValid(candidate, others);
-}
-
-function layoutBottom(items: GridItem[]) {
-  return Math.max(1, ...items.map(item => item.y + item.h));
 }
 
 export default function SiteLayoutEditor() {
   const pathname = usePathname();
   const [active, setActive] = useState(false);
-  const drag = useRef<null | {
-    mode: "drag" | "resize";
-    card: HTMLElement;
-    pointerId: number;
-    startX: number;
-    startY: number;
-    origin: GridItem;
-    lastValid: GridItem;
-  }>(null);
+  const [generation, setGeneration] = useState(0);
+  const [view, setView] = useState<{ main: HTMLElement; controls: Control[] } | null>(null);
+  const [status, setStatus] = useState("Drag a card title; resize from its bottom-right corner.");
+  const [canUndo, setCanUndo] = useState(false);
+  const runtime = useRef<Runtime | null>(null);
 
-  const buildGrid = useCallback(() => {
+  useEffect(() => {
     const main = document.querySelector<HTMLElement>(".nt-main");
     if (!main) return;
-    const cards = collectCards(pathname);
-    const saved = readStore().routes[pathname];
-    if (!saved && !active) return;
-
-    const mainRect = main.getBoundingClientRect();
-    const canvas = ensureCanvas(main);
-    canvas.classList.toggle("dsa-grid-editing", active);
-    const initial = new Map<string, GridItem>();
-
-    // Capture the card's real visual coordinates relative to .nt-main BEFORE
-    // moving it into the free-grid canvas. Using the empty canvas rect here
-    // used to add the entire old-layout height to y, producing values like y=228.
-    for (const card of cards) {
-      const id = card.dataset.dsaLayoutId || "";
-      const rect = card.getBoundingClientRect();
-      initial.set(id, { id, label: card.dataset.dsaLayoutLabel || labelFor(card), ...rectToGrid(rect, mainRect) });
+    const compact = main.clientWidth < 760;
+    const routeKey = `${pathname}::${compact ? "compact" : "wide"}`;
+    const records = new Map<string, Card>();
+    const knownPositions = new Map<string, GridRect>();
+    const wrappers = new Set<HTMLElement>();
+    const history: Map<string, GridRect>[] = [];
+    let disposed = false;
+    let reconcileFrame = 0;
+    let motionFrame = 0;
+    let lastWidth = main.clientWidth;
+    let suppressClickUntil = 0;
+    let gesture: {
+      card: Card; mode: "move" | "resize"; pointerId: number;
+      startX: number; startY: number; clientX: number; clientY: number;
+      origin: GridRect; started: boolean; link: boolean; snapshot: Map<string, GridRect>;
+    } | null = null;
+    const resetFrame = requestAnimationFrame(() => { if (!disposed) setCanUndo(false); });
+    const rects = (except?: Card) => [...records.values()].filter(card => card !== except).map(card => card.rect);
+    const snapshot = () => new Map([...records].map(([id, card]) => [id, { ...card.rect }]));
+    function refreshControls() {
+      if (disposed) return;
+      main!.style.setProperty("--dsa-rows", String(layoutBottom(rects()) + 8));
+      setView({ main: main!, controls: [...records.values()].filter(card => card.handle).map(card => ({ id: card.id, label: card.label, rect: { ...card.rect } })) });
     }
-
-    const sourceRoots = new Set<HTMLElement>();
-    for (const card of cards) {
-      let root = card.parentElement;
-      while (root?.parentElement && root.parentElement !== main) root = root.parentElement;
-      if (root && root !== canvas && root.parentElement === main) sourceRoots.add(root);
-      if (card.parentElement !== canvas) canvas.appendChild(card);
+    function persist() {
+      const store = readStore();
+      // Retain cards temporarily absent during a tab/feed refresh.
+      const items = { ...(store.routes[routeKey]?.items ?? {}) };
+      for (const [id, card] of records) { items[id] = { ...card.rect }; knownPositions.set(id, { ...card.rect }); }
+      store.routes[routeKey] = { cols: GRID_COLS, rowPx: ROW_PX, updatedAt: new Date().toISOString(), items };
+      if (!writeStore(store)) setStatus("Layout changed. Browser storage is unavailable; keep this tab open to retain it.");
     }
-
-    // Old semantic wrappers must not keep consuming vertical space after their
-    // cards become absolutely-positioned grid items.
-    sourceRoots.forEach(root => {
-      root.dataset.dsaGridSourceRoot = "true";
-      root.style.setProperty("display", "none", "important");
-    });
-
-    const placed: GridItem[] = [];
-    for (const card of cards) {
-      const id = card.dataset.dsaLayoutId || "";
-      const seed = saved?.items[id] || initial.get(id)!;
-      const item = nearestValid(seed, placed);
-      placed.push(item);
-      applyItem(card, item, canvas);
+    function remember(state: Map<string, GridRect>) {
+      history.push(state);
+      if (history.length > 30) history.shift();
+      setCanUndo(true);
     }
-
-    canvas.style.height = `${layoutBottom(placed) * ROW_PX}px`;
-  }, [active, pathname]);
-
-  const persist = useCallback(() => {
-    const main = document.querySelector<HTMLElement>(".nt-main");
-    const canvas = main?.querySelector<HTMLElement>(":scope > .dsa-grid-canvas");
-    if (!canvas) return;
-    const cards = Array.from(canvas.querySelectorAll<HTMLElement>(":scope > .dsa-layout-card"));
-    const items = Object.fromEntries(cards.map(card => {
-      const item = itemFromCard(card);
-      return [item.id, item];
-    }));
-    const store = readStore();
-    store.routes[pathname] = {
-      pathname,
-      updatedAt: new Date().toISOString(),
-      cols: GRID_COLS,
-      rowPx: ROW_PX,
-      items,
-    };
-    writeStore(store);
-  }, [pathname]);
-
-  const reset = useCallback(() => {
-    const store = readStore();
-    delete store.routes[pathname];
-    writeStore(store);
-    location.reload();
-  }, [pathname]);
-
-  const exportContract = useCallback(() => {
-    persist();
-    const store = readStore();
-    const blob = new Blob([JSON.stringify(store.routes[pathname] ?? {}, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `dsa-grid-${clean(pathname || "root")}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }, [pathname, persist]);
-
-  useEffect(() => {
-    buildGrid();
-    const timer = window.setTimeout(buildGrid, 300);
-    return () => window.clearTimeout(timer);
-  }, [buildGrid]);
-
-  useEffect(() => {
-    document.body.classList.toggle("dsa-layout-editing", active);
-    if (!active) return;
-
-    const main = document.querySelector<HTMLElement>(".nt-main");
-    const canvas = main?.querySelector<HTMLElement>(":scope > .dsa-grid-canvas");
-    if (!canvas) return;
-
-    const cards = Array.from(canvas.querySelectorAll<HTMLElement>(":scope > .dsa-layout-card"));
-    const cleanups: Array<() => void> = [];
-
-    function allItems(except?: HTMLElement) {
-      return Array.from(canvas!.querySelectorAll<HTMLElement>(":scope > .dsa-layout-card"))
-        .filter(card => card !== except)
-        .map(itemFromCard);
+    function finish(cancelled: boolean) {
+      const current = gesture;
+      if (!current) return;
+      gesture = null;
+      cancelAnimationFrame(motionFrame);
+      if (current.started && current.link && !cancelled) suppressClickUntil = performance.now() + 300;
+      if (cancelled) apply(current.card, current.origin);
+      else if (current.started && !sameRect(current.origin, current.card.rect)) {
+        remember(current.snapshot);
+        setStatus(`${current.card.label}: position and size saved.`);
+        persist();
+      }
+      current.card.element.classList.remove("dsa-grid-dragging", "dsa-grid-blocked");
+      main!.classList.remove("dsa-grid-interacting");
+      document.body.classList.remove("dsa-grid-pointer-active");
+      if (main!.hasPointerCapture(current.pointerId)) main!.releasePointerCapture(current.pointerId);
+      refreshControls();
     }
-
-    function begin(card: HTMLElement, mode: "drag" | "resize", event: PointerEvent, capture: HTMLElement) {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-
-      const origin = itemFromCard(card);
-      drag.current = {
-        mode,
-        card,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        origin,
-        lastValid: origin,
+    function unregister(card: Card) {
+      card.undoHandle();
+      card.element.classList.remove("dsa-grid-item", "dsa-grid-dragging", "dsa-grid-blocked");
+      delete card.element.dataset.dsaLayoutId;
+      delete card.element.dataset.dsaLayoutLabel;
+      for (const key of ["x", "y", "w", "h"]) {
+        card.element.style.removeProperty(`--dsa-${key}`);
+        card.element.removeAttribute(`data-dsa-grid-${key}`);
+      }
+    }
+    function reconcile() {
+      if (disposed || !main!.isConnected) return;
+      const result = collect(main!, pathname);
+      const descriptors = new Map(result.cards.map(card => [card.id, card]));
+      const structuralChange = descriptors.size !== records.size
+        || [...records].some(([id, card]) => descriptors.get(id)?.element !== card.element);
+      // Cancel before reserving space for any new card. Otherwise an addition
+      // could occupy the dragged card's origin and collide on cancellation.
+      if (structuralChange && gesture) finish(true);
+      let changed = false;
+      for (const [id, card] of records) {
+        if (descriptors.get(id)?.element !== card.element) {
+          if (gesture?.card === card) finish(true);
+          knownPositions.set(id, { ...card.rect });
+          unregister(card); records.delete(id); changed = true;
+        }
+      }
+      const added = result.cards.filter(item => !records.has(item.id));
+      if (added.length) {
+        // Measure all cards in their natural layout in one synchronous pass.
+        // New feed cards would otherwise measure as CSS grid auto-placed cells.
+        main!.classList.remove("dsa-grid");
+        for (const wrapper of wrappers) wrapper.classList.remove("dsa-grid-wrapper");
+        const bounds = main!.getBoundingClientRect();
+        const cell = Math.max(1, bounds.width / GRID_COLS);
+        const measured = result.cards.map(item => ({ item, bounds: item.element.getBoundingClientRect() }));
+        measured.sort((a, b) => a.bounds.top - b.bounds.top || a.bounds.left - b.bounds.left);
+        const defaults: GridRect[] = [];
+        const seeds = new Map<string, GridRect>();
+        for (const { item, bounds: box } of measured) {
+          const seed = clampRect({
+            x: compact ? 0 : Math.round((box.left - bounds.left) / cell), y: 0,
+            w: compact ? GRID_COLS : Math.round(box.width / cell),
+            h: Math.ceil((Math.min(box.height, item.handle ? 720 : 1000) + GAP) / ROW_PX),
+          }, item.handle ? MIN_W : 1, item.handle ? MIN_H : 1);
+          // Initial defaults are compact. User edits never compact neighbors.
+          seed.y = Math.max(0, ...defaults.filter(other => seed.x < other.x + other.w && seed.x + seed.w > other.x).map(other => other.y + other.h));
+          defaults.push(seed); seeds.set(item.id, seed);
+        }
+        const saved = readStore().routes[routeKey];
+        const savedItems = saved?.cols === GRID_COLS && saved?.rowPx === ROW_PX && saved.items && typeof saved.items === "object" ? saved.items : {};
+        // Valid restored coordinates have priority over newly introduced cards.
+        added.sort((a, b) => Number(Boolean(knownPositions.get(b.id) || savedItems[b.id])) - Number(Boolean(knownPositions.get(a.id) || savedItems[a.id])));
+        const pending = added.map(item => {
+          const minW = item.handle ? MIN_W : 1;
+          const minH = item.handle ? MIN_H : 1;
+          const seed = seeds.get(item.id)!;
+          const stored = knownPositions.get(item.id) || savedItems[item.id];
+          const normalized = stored ? clampRect(stored, minW, minH) : seed;
+          const preferred = { ...normalized, h: Math.min(500, normalized.h) };
+          return { item, seed, minW, minH, preferred };
+        });
+        const planned = new Map<string, GridRect>();
+        let repaired = false;
+        try {
+          const occupied = rects();
+          for (const entry of pending) {
+            const rect = placeWithoutOverlap(entry.preferred, occupied);
+            planned.set(entry.item.id, rect); occupied.push(rect);
+          }
+        } catch {
+          // Damaged saved coordinates must never crash the editor or fall back
+          // to overlapping boxes. Rebuild this profile from measured defaults.
+          repaired = true; knownPositions.clear();
+          const defaults = [
+            ...[...records.values()].map(card => ({ id: card.id, seed: card.seed })),
+            ...pending.map(entry => ({ id: entry.item.id, seed: entry.seed })),
+          ].sort((a, b) => a.seed.y - b.seed.y || a.seed.x - b.seed.x);
+          const occupied: GridRect[] = [];
+          for (const entry of defaults) {
+            const rect = placeWithoutOverlap(entry.seed, occupied);
+            planned.set(entry.id, rect); occupied.push(rect);
+          }
+          for (const card of records.values()) apply(card, planned.get(card.id)!);
+        }
+        for (const { item, seed, minW, minH } of pending) {
+          const rect = planned.get(item.id)!;
+          const card: Card = { ...item, rect, seed, minW, minH, undoHandle: prepareHandle(item.handle, item.label) };
+          records.set(card.id, card);
+          apply(card, rect); changed = true;
+        }
+        if (repaired) { setStatus("An invalid saved layout was repaired using the workspace defaults."); persist(); }
+      }
+      for (const card of records.values()) {
+        // React may replace className while updating the feed. Reapply only
+        // editor-owned markers, retaining every application class and node.
+        card.element.classList.add("dsa-grid-item");
+        card.element.dataset.dsaLayoutId = card.id;
+        card.element.dataset.dsaLayoutLabel = card.label;
+        const handle = headerFor(card.element);
+        if (handle !== card.handle) {
+          card.undoHandle(); card.handle = handle;
+          card.undoHandle = prepareHandle(handle, card.label); changed = true;
+        }
+        handle?.classList.add("dsa-grid-handle");
+        if (handle) handle.dataset.dsaDragHandle = "true";
+      }
+      for (const wrapper of result.wrappers) { wrapper.classList.add("dsa-grid-wrapper"); wrappers.add(wrapper); }
+      main!.classList.add("dsa-grid");
+      if (changed) refreshControls();
+    }
+    function updateGesture(capture = true) {
+      const current = gesture;
+      if (!current || !current.card.element.isConnected) return;
+      const dx = current.clientX - current.startX;
+      const dy = current.clientY + window.scrollY - current.startY;
+      if (!current.started && Math.hypot(dx, dy) < 5) return;
+      if (!current.started) {
+        current.started = true; current.card.element.classList.add("dsa-grid-dragging");
+        main!.classList.add("dsa-grid-interacting"); document.body.classList.add("dsa-grid-pointer-active");
+        if (current.link && capture) main!.setPointerCapture(current.pointerId);
+      }
+      const cell = Math.max(1, main!.clientWidth / GRID_COLS);
+      const x = Math.round(dx / cell); const y = Math.round(dy / ROW_PX);
+      const { card, origin } = current;
+      const others = rects(card);
+      const requested = current.mode === "move" ? {
+        ...origin, x: Math.max(0, Math.min(GRID_COLS - card.minW, origin.x + x)), y: Math.max(0, Math.min(9500, origin.y + y)),
+      } : {
+        ...origin, w: Math.max(card.minW, Math.min(GRID_COLS - origin.x, origin.w + x)), h: Math.max(card.minH, Math.min(500, origin.h + y)),
       };
-
-      card.classList.add("dsa-layout-dragging");
-      document.body.classList.add("dsa-grid-pointer-active");
-      try { capture.setPointerCapture(event.pointerId); } catch {}
+      const next = current.mode === "move" ? fitAtAnchor(requested, others, card.minW, card.minH) : fitResize(origin, requested, others, card.minW, card.minH);
+      card.element.classList.toggle("dsa-grid-blocked", !next);
+      if (next && fits(next, others) && !sameRect(next, card.rect)) { apply(card, next); refreshControls(); }
     }
-
-    function move(event: PointerEvent) {
-      const state = drag.current;
-      if (!state || state.pointerId !== event.pointerId) return;
-
+    function tick() {
+      if (!gesture) return;
+      if (gesture.started) {
+        const navBottom = document.querySelector(".nt-primary-nav")?.getBoundingClientRect().bottom ?? 80;
+        const edge = 48;
+        const up = gesture.clientY < navBottom + edge ? -Math.min(22, Math.max(0, (navBottom + edge - gesture.clientY) / 3)) : 0;
+        const down = gesture.clientY > window.innerHeight - edge ? Math.min(22, (gesture.clientY - window.innerHeight + edge) / 3) : 0;
+        if (up || down) window.scrollBy(0, up || down);
+      }
+      updateGesture(); motionFrame = requestAnimationFrame(tick);
+    }
+    function onDown(event: PointerEvent) {
+      if (event.button !== 0 || gesture || !(event.target instanceof Element)) return;
+      const resize = event.target.closest<HTMLElement>(".dsa-grid-resize-control");
+      const handle = event.target.closest<HTMLElement>(".dsa-grid-handle");
+      if (!resize && (!handle || event.target.closest(CONTROL_SELECTOR))) return;
+      const id = resize?.dataset.dsaResizeOwner || handle?.closest<HTMLElement>(".dsa-grid-item")?.dataset.dsaLayoutId;
+      const card = id ? records.get(id) : undefined;
+      if (!card?.handle) return;
+      const link = !resize && Boolean(event.target.closest("a"));
+      if (!link) { event.preventDefault(); (resize || handle)?.focus({ preventScroll: true }); }
+      gesture = { card, mode: resize ? "resize" : "move", pointerId: event.pointerId, startX: event.clientX, startY: event.clientY + window.scrollY, clientX: event.clientX, clientY: event.clientY, origin: { ...card.rect }, started: false, link, snapshot: snapshot() };
+      // An ordinary title-link click must retain its native navigation target.
+      // Capture only once it becomes a drag; suppress the ensuing click then.
+      if (!link) main!.setPointerCapture(event.pointerId);
+      motionFrame = requestAnimationFrame(tick);
+    }
+    function onMove(event: PointerEvent) {
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      event.preventDefault(); gesture.clientX = event.clientX; gesture.clientY = event.clientY; updateGesture();
+    }
+    function onUp(event: PointerEvent) {
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      gesture.clientX = event.clientX; gesture.clientY = event.clientY; updateGesture(false); finish(false);
+    }
+    function onCancel(event: PointerEvent) { if (event.pointerId === gesture?.pointerId) finish(true); }
+    function onBlur() { finish(true); }
+    function onClick(event: MouseEvent) {
+      if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); suppressClickUntil = 0; }
+    }
+    function onNativeDrag(event: DragEvent) {
+      if (event.target instanceof Element && event.target.closest(".dsa-grid-handle")) event.preventDefault();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && gesture) { event.preventDefault(); finish(true); return; }
+      if (!(event.target instanceof HTMLElement) || gesture) return;
+      const resize = event.target.matches(".dsa-grid-resize-control");
+      const handle = event.target.matches(".dsa-grid-handle");
+      const delta: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      if ((!resize && !handle) || !delta[event.key]) return;
+      const id = resize ? event.target.dataset.dsaResizeOwner : event.target.closest<HTMLElement>(".dsa-grid-item")?.dataset.dsaLayoutId;
+      const card = id ? records.get(id) : undefined;
+      if (!card) return;
       event.preventDefault();
-      const cw = cellWidth(canvas!);
-      const dx = Math.round((event.clientX - state.startX) / cw);
-      const dy = Math.round((event.clientY - state.startY) / ROW_PX);
-      const others = allItems(state.card);
-
-      if (state.mode === "drag") {
-        const candidate: GridItem = {
-          ...state.origin,
-          x: Math.max(0, Math.min(GRID_COLS - state.origin.w, state.origin.x + dx)),
-          y: Math.max(0, state.origin.y + dy),
-        };
-        if (!others.some(item => overlaps(candidate, item))) {
-          state.lastValid = candidate;
-        }
-      } else {
-        const candidate: GridItem = {
-          ...state.origin,
-          w: Math.max(MIN_W, Math.min(GRID_COLS - state.origin.x, state.origin.w + dx)),
-          h: Math.max(MIN_H, state.origin.h + dy),
-        };
-        if (!others.some(item => overlaps(candidate, item))) {
-          state.lastValid = candidate;
-        }
-      }
-
-      applyItem(state.card, state.lastValid, canvas!);
-      canvas!.style.height = `${layoutBottom([...others, state.lastValid]) * ROW_PX}px`;
+      const [dx, dy] = delta[event.key]; const others = rects(card);
+      const next = resize || event.shiftKey
+        ? fitResize(card.rect, { ...card.rect, w: card.rect.w + dx, h: Math.min(500, card.rect.h + dy) }, others, card.minW, card.minH)
+        : { ...card.rect, x: card.rect.x + dx, y: card.rect.y + dy };
+      if (next && fits(next, others) && !sameRect(next, card.rect)) {
+        remember(snapshot()); apply(card, next); refreshControls();
+        setStatus(`${card.label}: column ${next.x + 1}, row ${next.y + 1}, ${next.w} by ${next.h} cells.`); persist();
+      } else setStatus("That space is occupied. Move or resize into empty cells.");
     }
-
-    function finish(event: PointerEvent) {
-      const state = drag.current;
-      if (!state || state.pointerId !== event.pointerId) return;
-
-      event.preventDefault();
-      const others = allItems(state.card);
-      const fitted =
-        state.mode === "drag"
-          ? fitIntoFreeSpace(state.lastValid, others)
-          : state.lastValid;
-
-      applyItem(state.card, fitted, canvas!);
-      state.card.classList.remove("dsa-layout-dragging");
-      document.body.classList.remove("dsa-grid-pointer-active");
-      canvas!.style.height = `${layoutBottom([...others, fitted]) * ROW_PX}px`;
-      drag.current = null;
-      persist();
-    }
-
-    for (const card of cards) {
-      const handle = card.querySelector<HTMLElement>("[data-dsa-drag-handle='true']");
-      const resize = card.querySelector<HTMLElement>("[data-dsa-resize-handle='true']");
-
-      if (handle) {
-        handle.style.touchAction = "none";
-        handle.style.cursor = "grab";
-        const down = (event: PointerEvent) => begin(card, "drag", event, handle);
-        handle.addEventListener("pointerdown", down, true);
-        cleanups.push(() => handle.removeEventListener("pointerdown", down, true));
-      }
-
-      if (resize && active) {
-        resize.style.touchAction = "none";
-        const down = (event: PointerEvent) => begin(card, "resize", event, resize);
-        resize.addEventListener("pointerdown", down, true);
-        cleanups.push(() => resize.removeEventListener("pointerdown", down, true));
-      }
-    }
-
-    window.addEventListener("pointermove", move, true);
-    window.addEventListener("pointerup", finish, true);
-    window.addEventListener("pointercancel", finish, true);
-
-    return () => {
-      cleanups.forEach(fn => fn());
-      window.removeEventListener("pointermove", move, true);
-      window.removeEventListener("pointerup", finish, true);
-      window.removeEventListener("pointercancel", finish, true);
-      document.body.classList.remove("dsa-grid-pointer-active");
-      document.body.classList.remove("dsa-layout-drag-enabled");
-      drag.current = null;
+    runtime.current = {
+      persist,
+      reset() {
+        finish(true); remember(snapshot()); knownPositions.clear();
+        const store = readStore(); delete store.routes[`${pathname}::wide`]; delete store.routes[`${pathname}::compact`]; writeStore(store);
+        const placed: GridRect[] = [];
+        for (const card of [...records.values()].sort((a, b) => a.seed.y - b.seed.y || a.seed.x - b.seed.x)) { const rect = placeWithoutOverlap(card.seed, placed); apply(card, rect); placed.push(rect); }
+        refreshControls(); setStatus("Default layout restored for this workspace.");
+      },
+      undo() {
+        finish(true); const previous = history.pop(); if (!previous) return;
+        const placed: GridRect[] = [];
+        for (const [id, card] of records) { const rect = placeWithoutOverlap(previous.get(id) ?? card.rect, placed); apply(card, rect); placed.push(rect); }
+        setCanUndo(history.length > 0); refreshControls(); setStatus("Last layout change undone."); persist();
+      },
+      export() {
+        persist();
+        const blob = new Blob([JSON.stringify(readStore().routes[routeKey], null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+        anchor.href = url; anchor.download = `dsa-grid-${slug(pathname) || "markets"}.json`; anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      },
     };
-  }, [active, persist]);
+    reconcile();
+    const observer = new MutationObserver(mutations => {
+      const relevant = mutations.some(mutation => {
+        const target = mutation.target;
+        if (target instanceof Element && target.closest(".dsa-grid-overlay")) return false;
+        if (mutation.type === "childList" || mutation.attributeName === "data-layout-key") return true;
+        if (!(target instanceof HTMLElement) || mutation.attributeName !== "class") return false;
+        if (wrappers.has(target) && !target.classList.contains("dsa-grid-wrapper")) return true;
+        return [...records.values()].some(card =>
+          (card.element === target && !target.classList.contains("dsa-grid-item"))
+          || (card.handle === target && !target.classList.contains("dsa-grid-handle")));
+      });
+      if (!relevant) return;
+      cancelAnimationFrame(reconcileFrame); reconcileFrame = requestAnimationFrame(reconcile);
+    });
+    observer.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "data-layout-key"] });
+    const resizeObserver = new ResizeObserver(() => {
+      if (Math.abs(main.clientWidth - lastWidth) < 1) return;
+      lastWidth = main.clientWidth; finish(true);
+      if ((main.clientWidth < 760) !== compact) setGeneration(value => value + 1);
+    });
+    resizeObserver.observe(main);
+    main.addEventListener("pointerdown", onDown);
+    main.addEventListener("lostpointercapture", onCancel);
+    main.addEventListener("click", onClick, true); main.addEventListener("dragstart", onNativeDrag);
+    window.addEventListener("pointermove", onMove, { passive: false }); window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel); window.addEventListener("blur", onBlur); window.addEventListener("keydown", onKey);
+    return () => {
+      disposed = true; observer.disconnect(); resizeObserver.disconnect();
+      cancelAnimationFrame(resetFrame); cancelAnimationFrame(reconcileFrame); cancelAnimationFrame(motionFrame); finish(true);
+      main.removeEventListener("pointerdown", onDown);
+      main.removeEventListener("lostpointercapture", onCancel);
+      main.removeEventListener("click", onClick, true); main.removeEventListener("dragstart", onNativeDrag);
+      window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel); window.removeEventListener("blur", onBlur); window.removeEventListener("keydown", onKey);
+      for (const card of records.values()) unregister(card);
+      for (const wrapper of wrappers) wrapper.classList.remove("dsa-grid-wrapper");
+      main.classList.remove("dsa-grid", "dsa-grid-interacting"); main.style.removeProperty("--dsa-rows");
+      document.body.classList.remove("dsa-grid-pointer-active"); runtime.current = null;
+    };
+  }, [pathname, generation]);
 
   useEffect(() => {
-    function handleAction(event: Event) {
-      const action = (event as CustomEvent<{ action?: EditorAction }>).detail?.action;
-      if (action === "toggle") setActive(value => !value);
-      if (action === "enable") setActive(true);
-      if (action === "disable") { persist(); setActive(false); }
-      if (action === "export") exportContract();
-      if (action === "reset") reset();
+    document.body.classList.toggle("dsa-grid-guides", active);
+    return () => document.body.classList.remove("dsa-grid-guides");
+  }, [active]);
+  useEffect(() => {
+    function action(event: Event) {
+      const value = (event as CustomEvent<{ action?: EditorAction }>).detail?.action;
+      if (value === "toggle") setActive(previous => !previous);
+      if (value === "enable") setActive(true);
+      if (value === "disable") { runtime.current?.persist(); setActive(false); }
+      if (value === "reset") runtime.current?.reset();
+      if (value === "export") runtime.current?.export();
+      if (value === "undo") runtime.current?.undo();
     }
-
     function shortcut(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "l") {
-        event.preventDefault();
-        setActive(value => !value);
-      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "l") { event.preventDefault(); setActive(previous => !previous); }
     }
+    window.addEventListener("dsa:layout-editor", action); window.addEventListener("keydown", shortcut);
+    return () => { window.removeEventListener("dsa:layout-editor", action); window.removeEventListener("keydown", shortcut); };
+  }, []);
 
-    window.addEventListener("dsa:layout-editor", handleAction as EventListener);
-    window.addEventListener("keydown", shortcut);
-    return () => {
-      window.removeEventListener("dsa:layout-editor", handleAction as EventListener);
-      window.removeEventListener("keydown", shortcut);
-    };
-  }, [exportContract, persist, reset]);
-
-  if (!active) return null;
-
-  return (
-    <div className="dsa-layout-editor-bar" role="toolbar" aria-label="DSA layout editor">
-      <strong>Grid layout</strong>
-      <span>24-column grid · drag by header · resize bottom-right · no swap / no replace</span>
-      <button type="button" onClick={exportContract}>Export JSON</button>
-      <button type="button" onClick={reset}>Reset route</button>
-      <button type="button" onClick={() => { persist(); setActive(false); }}>Done</button>
-    </div>
-  );
+  return <>
+    <span className="dsa-grid-status" role="status" aria-live="polite">{status}</span>
+    {view && createPortal(<div className="dsa-grid-overlay">
+      {view.controls.map(({ id, label, rect }) => <button key={id} type="button" className="dsa-grid-resize-control" data-dsa-resize-owner={id} aria-label={`Resize ${label}`} title={`Resize ${label} · drag corner or use arrow keys`} style={{ left: `calc(${(rect.x + rect.w) / GRID_COLS * 100}% - 20px)`, top: (rect.y + rect.h) * ROW_PX - 20 }} />)}
+    </div>, view.main)}
+    {active && <div className="dsa-grid-toolbar" role="toolbar" aria-label="Grid layout controls">
+      <div><strong>Grid layout</strong><span>Drag titles · Resize corners · Empty cells only</span></div>
+      <button type="button" disabled={!canUndo} onClick={() => runtime.current?.undo()}>Undo</button>
+      <button type="button" onClick={() => runtime.current?.export()}>Export</button>
+      <button type="button" onClick={() => runtime.current?.reset()}>Reset layout</button>
+      <button type="button" onClick={() => setActive(false)}>Done</button>
+    </div>}
+  </>;
 }

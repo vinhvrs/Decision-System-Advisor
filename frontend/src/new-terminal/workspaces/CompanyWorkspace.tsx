@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import DataTable from "../DataTable";
-import { labelText, sourceLink, valueText, type Calendar, type Filing, type Metrics, type News, type Positioning } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, sourceLink, valueText, type Calendar, type Filing, type Metrics, type News, type Positioning } from "../feeds";
 import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -30,6 +30,9 @@ type Props = {
 const tabs = ["Overview","Financials","KPIs","Estimates","Valuation","Earnings","Ownership","Filings","News","Chart"];
 const valuation = new Set(["pe_ttm", "ev_ebitda", "ps_ratio", "pb_ratio", "fcf_yield", "market_cap"]);
 const overviewMetrics = ["market_cap", "pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"];
+const eventTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+});
 
 const n = (value: string | number | null | undefined) => {
   const parsed = typeof value === "number" ? value : value == null ? NaN : Number(value);
@@ -174,7 +177,10 @@ export default function CompanyWorkspace({
   const news = useFeed<News[]>(activeTab === "News" || activeTab === "Overview" ? `/api/news/symbol/${id}` : null, 60000);
   const history = useFeed<{ data: CompanyPriceBar[] }>(activeTab === "Overview" ? `/api/market/daily-history/${id}?from=${new Date(Date.now()-140*86400000).toISOString().slice(0,10)}&to=${new Date().toISOString().slice(0,10)}` : null, 300000);
   const position = useFeed<Positioning>(activeTab === "Ownership" ? `/api/v1/positioning/${id}` : null, 300000);
-  const calendar = useFeed<Calendar>(activeTab === "Earnings" ? `/api/v1/economic-calendar?symbol=${id}&limit=15` : null, 120000);
+  const calendar = useFeed<Calendar>(activeTab === "Earnings" ? `/api/v1/economic-calendar?symbol=${id}&limit=1000` : null, 120000);
+  const calendarEvents = calendarEventsInDeclaredCoverage(calendar.data);
+  const calendarState = calendarCoverageState(calendar.data);
+  const calendarRange = [calendar.data?.coverage?.start, calendar.data?.coverage?.end].filter(Boolean).join(" → ");
 
   const overviewData = overview.data ?? initialOverview;
   const storedRows = stored.data?.data ?? initialRows;
@@ -216,7 +222,7 @@ export default function CompanyWorkspace({
   ] as const;
 
   return <div className="nt-workspace nt-full-workspace nt-company-workspace">
-    <section className="nt-company-research-head nt-flat-surface">
+    <section className="nt-company-research-head nt-flat-surface" data-layout-key="company:summary">
       <div className="nt-company-identity-row">
         <div className="nt-company-heading">
           <h1>{profile?.company_name ?? normalized}</h1>
@@ -249,19 +255,19 @@ export default function CompanyWorkspace({
       </div>
     </section>
 
-    <nav className="nt-tabs nt-company-tabs" aria-label="Company research views">
+    <nav className="nt-tabs nt-company-tabs" aria-label="Company research views" data-layout-key="company:views">
       {tabs.map(tab => <Link className="nt-tab" data-active={tab === activeTab} key={tab} href={`${tabBase}?view=${tab.toLowerCase()}`}>{tab}</Link>)}
     </nav>
 
     {activeTab === "Overview" && <>
       <section className="nt-company-dashboard-columns">
         <div className="nt-company-dashboard-column">
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:snapshot">
             <div className="nt-subsection-title"><strong>Company snapshot</strong><span>actuals · axis scaled</span></div>
             <RadarSnapshot rows={quarterly} metrics={fundData} history={historyRows}/>
           </div>
 
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:latest-news">
             <div className="nt-subsection-title"><strong>Latest news</strong><span>{usableNewsRows[0]?.published_at?.slice(11,16) ?? ""}</span></div>
             <table className="nt-microtable nt-company-news-table"><thead><tr><th>Time</th><th>Headline</th><th>Publisher</th></tr></thead><tbody>
               {usableNewsRows.slice(0,7).map(item=><tr key={item.id}><td>{item.published_at?.slice(5,16).replace("T"," ") ?? "—"}</td><td><a href={sourceLink(item.source)} rel="noreferrer">{item.title}</a></td><td>{item.author ?? "—"}</td></tr>)}
@@ -271,18 +277,18 @@ export default function CompanyWorkspace({
         </div>
 
         <div className="nt-company-dashboard-column">
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:financial-trend">
             <div className="nt-subsection-title"><strong>Financial trend</strong><span>quarterly</span></div>
             <div className="nt-company-chart-legend"><span>Revenue</span><span>Operating income</span><span>FCF</span><span>EPS</span></div>
             <FinancialTrend rows={quarterly}/>
           </div>
 
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:price-monitor">
             <div className="nt-subsection-title"><strong>Price monitor</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div>
             <PriceMonitor bars={historyRows} symbol={normalized}/>
           </div>
 
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:research-links">
             <div className="nt-subsection-title"><strong>Research links</strong><span>{normalized}</span></div>
             <div className="nt-company-research-links">
               {profileUrl && <a href={profileUrl} rel="noreferrer">Company website ↗</a>}
@@ -294,7 +300,7 @@ export default function CompanyWorkspace({
         </div>
 
         <div className="nt-company-dashboard-column">
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:peers">
             <div className="nt-subsection-title"><strong>Peer comparison</strong><span>{peerRows.length} companies</span></div>
             <table className="nt-microtable nt-peer-table"><thead><tr><th>Ticker</th><th>P/E</th><th>Gross</th><th>ROE</th><th>Chg%</th></tr></thead><tbody>
               {peerRows.map(peer=><tr key={peer.symbol} data-current={peer.symbol===normalized}>
@@ -307,7 +313,7 @@ export default function CompanyWorkspace({
             </tbody></table>
           </div>
 
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:signals">
             <div className="nt-subsection-title"><strong>Company signals & event reaction</strong><span>filings + news</span></div>
             <div className="nt-company-event-body">
               <div className="nt-event-timeline">{events.map((item,index)=><div className="nt-event-row" key={`${item.date}-${index}`}><span className="nt-event-dot"/><time>{item.date.slice(0,10)}</time><b>{item.type}</b><span>{item.title}</span></div>)}</div>
@@ -315,14 +321,14 @@ export default function CompanyWorkspace({
             </div>
           </div>
 
-          <div className="nt-flat-surface">
+          <div className="nt-flat-surface" data-layout-key="company:recent-filings">
             <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
             <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
           </div>
         </div>
       </section>
 
-      <section className="nt-flat-surface nt-company-financial-table">
+      <section className="nt-flat-surface nt-company-financial-table" data-layout-key="company:quarterly-financials">
         <div className="nt-subsection-title"><strong>Quarterly financials</strong><span>last 8 quarters</span></div>
         <div className="nt-table-wrap"><table className="nt-table"><thead><tr><th>Period</th><th>Revenue</th><th>Gross profit</th><th>GM</th><th>Operating income</th><th>OPM</th><th>Net income</th><th>EPS</th><th>FCF</th><th>Trend</th></tr></thead><tbody>
           {quarterly.slice(0,8).map(row=>{
@@ -332,7 +338,7 @@ export default function CompanyWorkspace({
         </tbody></table></div>
       </section>
 
-      {profile?.description && <section className="nt-flat-surface nt-company-description-panel">
+      {profile?.description && <section className="nt-flat-surface nt-company-description-panel" data-layout-key="company:description">
         <div className="nt-subsection-title"><strong>Business description</strong><span>company profile</span></div>
         <div className="nt-company-description">{profile.description}</div>
       </section>}
@@ -340,12 +346,31 @@ export default function CompanyWorkspace({
 
     {activeTab === "KPIs" && <DataTable title="Key performance indicators" columns={["Metric","Value","Unit","Basis"]} rows={Object.entries(fundData?.metrics ?? {}).filter(([key])=>!valuation.has(key)).map(([key,metric])=>({key,cells:[labelText(key),valueText(metric.value),metric.unit,metric.metadata?.basis]}))} empty="No KPI observations for this company." />}
     {activeTab === "Valuation" && <DataTable title="Valuation" columns={["Metric","Value","Unit","Basis"]} rows={Object.entries(fundData?.metrics ?? {}).filter(([key])=>valuation.has(key)).map(([key,metric])=>({key,cells:[labelText(key),valueText(metric.value),metric.unit,metric.metadata?.basis]}))} empty="No valuation observations for this company." />}
-    {activeTab === "Financials" && <><div className="nt-inline-controls"><label>Reporting period <select value={period} onChange={event=>setPeriod(event.target.value)}><option value="annual">Annual</option><option value="quarterly">Quarterly</option></select></label></div><DataTable title="Financial statements" columns={["Fiscal period","Period end","Revenue","Gross profit","Operating income","Net income","Diluted EPS","FCF"]} rows={financialRows.map(row=>({key:String(row.id),cells:[`FY${row.fiscal_year}${row.fiscal_quarter?` Q${row.fiscal_quarter}`:""}`,row.period_end?.slice(0,10),...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value=>valueText(value==null?null:Number(value)))]}))} empty="No statements for this reporting period." /></>}
+    {activeTab === "Financials" && <><div className="nt-inline-controls" data-layout-key="company:period-controls"><label>Reporting period <select value={period} onChange={event=>setPeriod(event.target.value)}><option value="annual">Annual</option><option value="quarterly">Quarterly</option></select></label></div><DataTable title="Financial statements" columns={["Fiscal period","Period end","Revenue","Gross profit","Operating income","Net income","Diluted EPS","FCF"]} rows={financialRows.map(row=>({key:String(row.id),cells:[`FY${row.fiscal_year}${row.fiscal_quarter?` Q${row.fiscal_quarter}`:""}`,row.period_end?.slice(0,10),...[row.revenue,row.gross_profit,row.operating_income,row.net_income,row.eps_diluted,row.fcf].map(value=>valueText(value==null?null:Number(value)))]}))} empty="No statements for this reporting period." /></>}
     {activeTab === "Filings" && <DataTable title="SEC filings" columns={["Form","Filed","Reporting period","Document"]} rows={filingRows.map(filing=>({key:filing.accession_number,cells:[filing.form,filing.filing_date?.slice(0,10),filing.report_date?.slice(0,10),<a key="sec" href={sourceLink(filing.filing_url)} rel="noreferrer">{filing.accession_number}</a>]}))} empty="No SEC filings for this symbol." />}
     {activeTab === "News" && <DataTable title="Company news" columns={["Published","Context","Headline","Publisher"]} rows={usableNewsRows.map(item=>({key:item.id,cells:[item.published_at,<SymbolContext key="context" symbol={item.symbol ?? normalized}/>,<a key="article" className="nt-headline-link" href={sourceLink(item.source)} rel="noreferrer">{item.title}</a>,<SourceBadge key="source">{item.author ?? "Unknown"}</SourceBadge>]}))} empty="No recent company news." />}
-    {activeTab === "Earnings" && <DataTable title="Macro events around the company context" columns={["Time","Country / Currency","Event","Importance","Actual","Forecast","Previous"]} rows={(calendar.data?.events ?? []).map(item=>({key:item.id,cells:[item.scheduled_at,<CurrencyContext key="currency" currency={item.currency}/>,item.title,<ImpactBadge key="impact" impact={item.impact}/>,item.actual,item.forecast,item.previous]}))} empty="No scheduled macro events for this context." />}
+    {activeTab === "Earnings" && <DataTable
+      title="Macro events around the company context"
+      meta={`${normalized} · ${calendarRange || "Declared coverage"} · ET`}
+      className={calendarState.valid ? "" : "nt-data-source-gap"}
+      columns={["Time (ET)","Country / Currency","Event","Importance","Actual","Forecast","Previous"]}
+      rows={calendarEvents.map(item => {
+        const instant = item.scheduled_at ? new Date(item.scheduled_at) : undefined;
+        return { key: item.id, cells: [
+          instant && Number.isFinite(instant.getTime()) ? eventTime.format(instant) : "—",
+          <CurrencyContext key="currency" currency={item.currency} />,
+          item.title, <ImpactBadge key="impact" impact={item.impact} />,
+          item.actual, item.forecast, item.previous,
+        ] };
+      })}
+      empty={calendar.error && !calendar.data ? "Calendar feed unavailable. Retrying automatically." : !calendarState.valid ? calendarState.label : "No macro events in the declared coverage for this company context."}
+      note={<span role="status">
+        {calendar.error ? "Calendar refresh failed; the last successful response is shown when available." : calendarState.label}
+        {" · Contextual macro events. Company earnings dates are not provided by this feed."}
+      </span>}
+    />}
     {activeTab === "Ownership" && <DataTable title="Ownership & positioning" columns={["Metric","Value"]} rows={(position.data?.data ?? []).map((item,index)=>({key:String(index),cells:[item.metric_code ?? item.series_code,valueText(item.value)]}))} empty="No ownership or positioning observations." />}
-    {activeTab === "Estimates" && <section className="nt-flat-surface"><div className="nt-subsection-title"><strong>Consensus estimates</strong><span>{normalized}</span></div><div className="nt-empty nt-empty-compact">Consensus estimates are not available for this symbol yet.</div></section>}
-    {activeTab === "Chart" && <section className="nt-flat-surface"><div className="nt-subsection-title"><strong>{normalized} chart</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div><div className="nt-chart-handoff"><div><span>Last</span><b className="nt-mono">{valueText(quote?.price)}</b></div><div><span>Change</span><b className={(quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{quote?.change_pct==null?"—":`${quote.change_pct>0?"+":""}${valueText(quote.change_pct)}%`}</b></div><div className="nt-inline-links"><Link href={`/investing?symbol=${id}`}>Open in Chart Lab ↗</Link><Link href={`/screener?q=${id}`}>Compare in Screener ↗</Link></div></div></section>}
+    {activeTab === "Estimates" && <section className="nt-flat-surface" data-layout-key="company:estimates"><div className="nt-subsection-title"><strong>Consensus estimates</strong><span>{normalized}</span></div><div className="nt-empty nt-empty-compact">Consensus estimates are not available for this symbol yet.</div></section>}
+    {activeTab === "Chart" && <section className="nt-flat-surface" data-layout-key="company:chart"><div className="nt-subsection-title"><strong>{normalized} chart</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div><div className="nt-chart-handoff"><div><span>Last</span><b className="nt-mono">{valueText(quote?.price)}</b></div><div><span>Change</span><b className={(quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{quote?.change_pct==null?"—":`${quote.change_pct>0?"+":""}${valueText(quote.change_pct)}%`}</b></div><div className="nt-inline-links"><Link href={`/investing?symbol=${id}`}>Open in Chart Lab ↗</Link><Link href={`/screener?q=${id}`}>Compare in Screener ↗</Link></div></div></section>}
   </div>;
 }

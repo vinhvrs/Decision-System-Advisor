@@ -5741,3 +5741,228 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   transform: translateX(-50%);
   z-index: 1000;
 }
+
+/* The v4 layout uses one CSS grid. Layout-only wrappers retain React ownership. */
+.nt-main.dsa-grid {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: repeat(48, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(var(--dsa-rows, 1), 16px) !important;
+  grid-auto-rows: 16px !important;
+  align-content: start !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+  isolation: isolate;
+  z-index: 0;
+}
+
+.nt-main.dsa-grid .dsa-grid-wrapper {
+  display: contents !important;
+  position: static !important;
+  transform: none !important;
+  contain: none !important;
+}
+
+.nt-main.dsa-grid .dsa-grid-item {
+  grid-column: calc(var(--dsa-x) + 1) / span var(--dsa-w) !important;
+  grid-row: calc(var(--dsa-y) + 1) / span var(--dsa-h) !important;
+  align-self: start !important;
+  justify-self: start !important;
+  position: relative !important;
+  inset: auto !important;
+  width: calc(100% - 4px) !important;
+  height: calc(100% - 4px) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  aspect-ratio: auto !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #416179 #0b141c;
+  border: 1px solid var(--nt-border) !important;
+  background-color: var(--nt-s0);
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+  contain: paint;
+  isolation: isolate;
+  z-index: 0 !important;
+}
+
+.nt-main.dsa-grid .dsa-grid-item::before,
+.nt-main.dsa-grid .dsa-grid-item::after {
+  pointer-events: none;
+}
+
+.nt-main.dsa-grid .dsa-grid-handle {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 4 !important;
+  min-height: 28px !important;
+  box-sizing: border-box;
+  padding: 4px 30px 4px 8px !important;
+  margin: 0 !important;
+  background: var(--nt-card-header) !important;
+  border-bottom: 1px solid var(--nt-card-header-border) !important;
+  cursor: grab !important;
+  touch-action: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.nt-main.dsa-grid .dsa-grid-handle::after {
+  content: "⠿";
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+  color: #d1e0ea;
+  font: 700 19px/1 var(--nt-font-data);
+  pointer-events: none;
+}
+
+.nt-main.dsa-grid .dsa-grid-handle > .nt-panel-meta,
+.nt-main.dsa-grid .dsa-grid-handle > span {
+  min-width: 0;
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-main.dsa-grid .dsa-grid-handle:hover {
+  background: #315a74 !important;
+}
+
+.nt-main.dsa-grid .dsa-grid-handle:focus-visible,
+.nt-main.dsa-grid .dsa-grid-resize-control:focus-visible {
+  outline: 2px solid #9fd3f4 !important;
+  outline-offset: -2px;
+}
+
+.nt-main.dsa-grid .dsa-grid-handle :is(a, button, select, input) {
+  cursor: pointer;
+  touch-action: auto;
+}
+
+.nt-main.dsa-grid .dsa-grid-item.dsa-grid-dragging {
+  outline: 2px solid #8ec2e4;
+  outline-offset: -2px;
+}
+
+.nt-main.dsa-grid .dsa-grid-item.dsa-grid-blocked {
+  outline-color: #dca56b;
+}
+
+.dsa-grid-pointer-active,
+.dsa-grid-pointer-active * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.dsa-grid-guides .nt-main.dsa-grid,
+.nt-main.dsa-grid.dsa-grid-interacting {
+  background-image: linear-gradient(to right, #78a4c71a 1px, transparent 1px), linear-gradient(to bottom, #78a4c71a 1px, transparent 1px);
+  background-size: calc(100% / 48) 16px;
+}
+
+.nt-main.dsa-grid > .dsa-grid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.nt-main.dsa-grid .dsa-grid-resize-control {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #0a1822cc;
+  cursor: nwse-resize;
+  touch-action: none;
+  pointer-events: auto;
+  opacity: .7;
+}
+
+.nt-main.dsa-grid .dsa-grid-resize-control::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #93b7d0;
+  border-bottom: 2px solid #93b7d0;
+}
+
+.nt-main.dsa-grid .dsa-grid-resize-control:hover,
+.dsa-grid-guides .nt-main.dsa-grid .dsa-grid-resize-control {
+  opacity: 1;
+  background: #1c3548;
+}
+
+.nt-layout-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid #3b5c74;
+  border-radius: 3px;
+  background: #142736;
+  color: #d4e2ec;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.nt-layout-toggle:hover { background: #23445a; }
+
+.dsa-grid-toolbar {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px;
+  border: 1px solid #547e9b;
+  border-radius: 6px;
+  background: #0d1b27f5;
+  box-shadow: 0 6px 24px #0008;
+  color: #e0ebf3;
+  font-size: 12px;
+}
+
+.dsa-grid-toolbar > div { display: flex; flex-direction: column; gap: 3px; margin-right: 8px; }
+.dsa-grid-toolbar span { color: #a9bfce; }
+.dsa-grid-toolbar button { padding: 5px 9px; border: 1px solid #36556b; border-radius: 3px; background: #172c3c; color: #e0ebf3; cursor: pointer; }
+.dsa-grid-toolbar button:disabled { opacity: .45; cursor: default; }
+.dsa-grid-toolbar button:hover:not(:disabled) { background: #2a4d65; }
+.dsa-grid-status { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; pointer-events: none; }
+
+@media (max-width: 760px) {
+  .dsa-grid-toolbar { flex-wrap: wrap; justify-content: center; }
+  .dsa-grid-toolbar > div { flex-basis: 100%; text-align: center; }
+  .nt-layout-toggle { padding-inline: 6px; }
+}

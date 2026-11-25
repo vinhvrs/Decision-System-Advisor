@@ -27,7 +27,7 @@ export default async function InvestingPage({ searchParams }: { searchParams: Pr
     readData<{ data: Universe[] }>("/api/v1/universe", 60),
     readData<Metrics>(`/api/v1/metrics/${encodeURIComponent(symbol)}?timeframe=daily`, 60),
     readData<DailyAnalytics>("/api/market/daily-analytics", 300),
-    readData<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=8`, 60),
+    readData<Calendar>(`/api/v1/economic-calendar?symbol=${encodeURIComponent(symbol)}&limit=1000`, 60),
     readData<Correlation>(`/api/v1/correlation?symbols=${encodeURIComponent(compared.join(","))}&window=60`, 120),
   ]);
   const bars = (historyPayload?.data ?? [])
@@ -42,6 +42,7 @@ export default async function InvestingPage({ searchParams }: { searchParams: Pr
     initialMetrics={initialMetrics}
     initialDaily={initialDaily}
     initialCalendar={initialCalendar}
+    initialCalendarTime={now.getTime()}
     initialCorrelation={initialCorrelation}
   />;
 }

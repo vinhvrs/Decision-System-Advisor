@@ -37,27 +37,15 @@ export default function NewsroomWorkspace({
   initialTotal?: number;
 }) {
   const [page, setPage] = useState(1);
-  const feed = useFeed<NewsPayload>(`/api/news?per_page=60&page=${page}`);
-  const pool = (feed.data?.data ?? initialNews)
-    .filter(item => item.title?.trim())
-    .filter(item => {
-      const publisher = (item.publisher ?? "").toLowerCase();
-      const source = (item.source ?? "").toLowerCase();
-
-      const isYahoo =
-        publisher === "finance.yahoo.com" ||
-        source.includes("finance.yahoo.com/");
-
-      const isForexFactory =
-        publisher.includes("forexfactory") ||
-        source.includes("forexfactory.com/");
-
-      return isYahoo || isForexFactory;
-    });
-  const visualRows = pool.filter(item => Boolean(sourceLink(item.image ?? undefined)));
-  const rows = visualRows.slice(0, 18);
+  const [retry, setRetry] = useState(0);
+  const [failedImages, setFailedImages] = useState<Record<string, string>>({});
+  const feed = useFeed<NewsPayload>(`/api/news?per_page=18&page=${page}${retry ? `&retry=${retry}` : ""}`);
+  // The server payload belongs to page one only. Never reuse it under a later page label.
+  const pageRows = feed.data?.data ?? (page === 1 ? initialNews : []);
+  const rows = (Array.isArray(pageRows) ? pageRows : []).filter(item => item.title?.trim());
   const lastPage = feed.data?.last_page ?? initialLastPage;
   const total = feed.data?.total ?? initialTotal;
+  const loading = !feed.data && !feed.error && !(page === 1 && initialNews.length > 0);
 
   return (
     <div className="nt-workspace nt-newsroom-workspace">
@@ -66,32 +54,35 @@ export default function NewsroomWorkspace({
           <div className="nt-label nt-info">News / Research Feed</div>
           <h1>Market Newsroom</h1>
         </div>
-        <div className="nt-news-stat"><span>VISUAL</span><b>{visualRows.slice(0, 18).length}</b></div>
+        <div className="nt-news-stat"><span>ARTICLES</span><b>{rows.length}</b></div>
         <div className="nt-news-stat"><span>INDEXED</span><b>{total || "—"}</b></div>
         <div className="nt-news-stat"><span>PAGE</span><b>{page}</b></div>
       </section>
 
-      <section className="nt-newsroom-grid" aria-label="Market news articles">
+      {feed.error && <div className="nt-database-note" role="status" data-layout-key="newsroom:feed-status">
+        <span>{rows.length ? "News refresh failed. Showing the last available articles for this page." : `Could not load news page ${page}.`}</span>{" "}
+        <button type="button" onClick={() => setRetry(value => value + 1)}>Retry news</button>
+      </div>}
+
+      <section className="nt-newsroom-grid" aria-label="Market news articles" aria-busy={loading}>
         {rows.map((item, index) => {
           const image = sourceLink(item.image ?? undefined);
+          const showImage = image && failedImages[item.id] !== image;
           const external = sourceLink(item.source);
           return (
             <article
-              className={`nt-news-article ${index === 0 ? "nt-news-featured" : ""} ${image ? "nt-news-has-image" : "nt-news-text-only"}`}
+              className={`nt-news-article ${index === 0 ? "nt-news-featured" : ""} ${showImage ? "nt-news-has-image" : "nt-news-text-only"}`}
               data-layout-key={`news:${item.id}`}
               key={item.id}
             >
-              {image && (
+              {showImage && (
                 <Link className="nt-news-media" href={`/news/${encodeURIComponent(item.id)}`}>
                   <img
                     src={image}
                     alt=""
                     loading={index < 3 ? "eager" : "lazy"}
                     referrerPolicy="no-referrer"
-                    onError={event => {
-                      const article = event.currentTarget.closest<HTMLElement>(".nt-news-article");
-                      if (article) article.style.display = "none";
-                    }}
+                    onError={() => setFailedImages(previous => ({ ...previous, [item.id]: image }))}
                   />
                 </Link>
               )}
@@ -112,7 +103,9 @@ export default function NewsroomWorkspace({
             </article>
           );
         })}
-        {!rows.length && <div className="nt-database-note">No indexed news articles are currently available.</div>}
+        {!rows.length && !feed.error && <div className="nt-database-note" role="status">
+          {loading ? `Loading news page ${page}…` : "No indexed news articles are available on this page."}
+        </div>}
       </section>
 
       <div className="nt-toolbar nt-news-pager" data-layout-key="newsroom:pager">
@@ -126,6 +119,7 @@ export default function NewsroomWorkspace({
 
 export function NewsArticleWorkspace({ article }: { article: News }) {
   const image = sourceLink(article.image ?? undefined);
+  const [failedImage, setFailedImage] = useState<string>();
   const external = sourceLink(article.source);
   const paragraphs = (article.content ?? "")
     .split(/\n+/)
@@ -145,7 +139,7 @@ export function NewsArticleWorkspace({ article }: { article: News }) {
       </section>
 
       <article className="nt-news-reader nt-panel" data-layout-key={`news-reader:${article.id}`}>
-        {image && <img className="nt-news-reader-image" src={image} alt="" referrerPolicy="no-referrer" onError={event => { event.currentTarget.style.display = "none"; }} />}
+        {image && failedImage !== image && <img className="nt-news-reader-image" src={image} alt="" referrerPolicy="no-referrer" onError={() => setFailedImage(image)} />}
         <div className="nt-news-reader-body">
           <div className="nt-news-kicker">{article.symbol && <span title="Upstream feed symbol">Via <SymbolContext symbol={article.symbol} /></span>}<span>{articleMeta(article)}</span></div>
           <h1>{article.title}</h1>
