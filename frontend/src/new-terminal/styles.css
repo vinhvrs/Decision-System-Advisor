@@ -6297,7 +6297,12 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: minmax(80px, 1fr);
 }
-.nt-market-preset .nt-heat-cell { min-width: 0; }
+.nt-market-preset .nt-heat-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
 .nt-market-preset :is(.nt-heat-price, .nt-heat-change) { display: block; margin-left: 0; }
 .nt-market-preset .nt-heat-cell small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @container markets-heatmap (min-width: 340px) {

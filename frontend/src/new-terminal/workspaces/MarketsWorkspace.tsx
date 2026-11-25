@@ -105,7 +105,7 @@ export default function MarketsWorkspace({
   const macro = useFeed<Macro>("/api/v1/macro/dashboard", 300000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
   const calendar = useFeed<Calendar>(ECONOMIC_CALENDAR_PATH, 60000);
-  const news = useFeed<{ data: News[] }>("/api/news?per_page=40&page=1", 60000);
+  const news = useFeed<{ data: News[] }>("/api/news", 60000);
   const dailyData = daily.data ?? initialDaily;
   const macroData = macro.data ?? initialMacro;
   const cryptoData = crypto.data ?? initialCrypto;

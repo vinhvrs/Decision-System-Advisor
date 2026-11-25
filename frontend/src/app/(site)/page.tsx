@@ -16,7 +16,7 @@ export default async function HomePage() {
     readData<Macro>("/api/v1/macro/dashboard", 300),
     readData<Crypto>("/api/v1/crypto-context", 60),
     readData<Calendar>(ECONOMIC_CALENDAR_PATH, 60),
-    readData<{ data: News[] }>("/api/news?per_page=40&page=1", 60),
+    readData<{ data: News[] }>("/api/news?page=1", 60),
   ]);
 
   return (
