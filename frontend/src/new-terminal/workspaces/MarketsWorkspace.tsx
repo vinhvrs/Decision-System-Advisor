@@ -64,6 +64,7 @@ const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","COPPER","BTC","ETH","SPY
 const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100": "^NDX", DOW: "^DJI", "RUSSELL (IWM proxy)": "IWM", VIX: "^VIX" };
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
 const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const MARKET_TAPE_PAGE_SIZE = 18;
 const ecbCurrencies = ["USD", "GBP", "JPY", "CHF", "AUD"];
 const ecbReferencePage = "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html";
 const referenceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 });
@@ -110,6 +111,7 @@ export default function MarketsWorkspace({
   const newsData = news.data ?? initialNews;
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [connected, setConnected] = useState(false);
+  const [marketTapePage, setMarketTapePage] = useState(0);
   const subscriptionSymbols = useMemo(
     () => EQUITY_HEATMAP_UNIVERSE.map(item => item.symbol),
     [],
@@ -327,6 +329,9 @@ export default function MarketsWorkspace({
   const marketTape = [...sessionRows]
     .sort((a, b) => (b.traded_value ?? 0) - (a.traded_value ?? 0));
   const showMarketCap = marketTape.some(row => row.market_cap != null);
+  const tapePageCount = Math.max(1, Math.ceil(marketTape.length / MARKET_TAPE_PAGE_SIZE));
+  const tapePage = Math.min(marketTapePage, tapePageCount - 1);
+  const visibleMarketTape = marketTape.slice(tapePage * MARKET_TAPE_PAGE_SIZE, (tapePage + 1) * MARKET_TAPE_PAGE_SIZE);
   const sectorPerformance = sectors.map(sector => {
     const sample = sessionRows.filter(row => normalizeSector(row.sector) === sector);
     return {
@@ -339,7 +344,7 @@ export default function MarketsWorkspace({
   }).sort((a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity));
 
   return (
-    <div className="nt-workspace nt-market-workspace">
+    <div className="nt-workspace nt-market-workspace nt-market-fixed">
       <section className="nt-context-strip" data-layout-key="markets:summary">
         <div className="nt-context-title">
           <div className="nt-label nt-info">Markets / US Equities</div>
@@ -375,128 +380,73 @@ export default function MarketsWorkspace({
         ))}
       </div>
 
-      <div className="nt-grid nt-grid-markets nt-market-main-grid">
-        <aside className="nt-market-rail nt-flat-rail">
-          <section className="nt-flat-surface">
-            <div className="nt-subsection" data-layout-key="markets:sector-breadth">
-              <div className="nt-subsection-title"><strong>Sector breadth</strong><span>session · min. 3 observations</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
-                <tbody>{sectorPerformance.map(({ sector, sample, count, change, advance }) => {
-                  const ma = dailyGroup(sample, "above_sma50");
-                  const rvol = dailyGroup(sample, "rvol20");
-                  return <tr key={sector}><td>{sector} · n={count}</td><td>{percent(change)}</td><td>{advance == null ? "—" : `${advance.toFixed(0)}%`}</td><td>{ma.count < 3 ? "—" : breadthValue(ma)}</td><td>{rvol.count < 3 || rvol.value === null ? "—" : `${rvol.value.toFixed(2)}×`}</td></tr>;
-                })}</tbody>
-              </table>
-            </div>
-            <div className="nt-subsection" data-layout-key="markets:cross-asset">
-              <div className="nt-subsection-title"><strong>Cross asset</strong><span>macro context</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Asset</th><th>Last</th><th>Chg</th></tr></thead>
-                <tbody>{crossAsset.map(x => {
-                  const row = bySymbol.get(assetSymbols[x] ?? x);
-                  const rate = x === "US02Y" ? macroByCode.get("UST2Y") : x === "US10Y" ? macroByCode.get("UST10Y") : undefined;
-                  return <tr key={x}><td>{x}</td><td title={rate?.observed_at ?? row?.as_of ?? undefined}>{quoteText(rate?.value ?? row?.price)}</td><td>{percent(row?.change_pct)}</td></tr>;
-                })}</tbody>
-              </table>
-            </div>
-
-            <div className="nt-subsection" data-layout-key="markets:most-active">
-              <div className="nt-subsection-title"><strong>Most active</strong><span>traded value · final</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
-                <tbody>{mostActive.map(row => <tr key={row.symbol}><td>{row.symbol}</td><td>{row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`}</td><td className={(row.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(row.change_pct)}</td></tr>)}</tbody>
-              </table>
-            </div>
-          </section>
-        </aside>
-
-        <section className="nt-market-center">
-          <section className="nt-panel nt-market-heatmap-panel" data-layout-key="markets:heatmap">
-            <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {connected ? `${liveQuoteCount} live` : "stream offline"} · {snapshotQuoteCount} intraday snapshots</span></div>
-            <div className="nt-panel-body">
-              <div className="nt-heatmap">
-                {heatRows.length ? heatRows.map(row => {
-                  const symbol = row.symbol;
-                  const sector = normalizeSector(row.sector);
-                  const price = row.price;
-                  const change = row.change_pct;
-                  return (
-                    <Link
-                      className={`nt-heat-cell nt-heat-link ${directionClass(change)}`}
-                      href={`/companies?symbol=${encodeURIComponent(symbol)}`}
-                      key={symbol}
-                      aria-label={`Open ${symbol} company research`}
-                    >
-                      <div className="nt-heat-symbol-row"><b>{symbol}</b><span className={`nt-sector-dot ${sectorClass(sector)}`} aria-label={sector} /></div>
-                      <span className="nt-heat-price nt-mono">{price == null ? "No quote" : priceFormat.format(price)}</span>
-                      <span className={`nt-heat-change nt-mono ${change == null ? "nt-muted" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : ""}`}>{percent(change)}</span>
-                      <small title={row.as_of ?? undefined}><span className="nt-sector-name">{sector}</span></small>
-                    </Link>
-                  );
-                }) : <div className="nt-empty nt-empty-compact">No equity observations in the tracked universe.</div>}
+      <div className="nt-market-fixed-grid">
+        <div className="nt-market-fixed-content nt-market-fixed-stack">
+          <div className="nt-market-fixed-top">
+            <section className="nt-panel nt-market-heatmap-panel" data-layout-key="markets:heatmap">
+              <div className="nt-panel-title"><strong>Equity heatmap</strong><span className="nt-panel-meta">{heatRows.length}/{EQUITY_HEATMAP_SIZE} observed · {connected ? `${liveQuoteCount} live` : "stream offline"} · {snapshotQuoteCount} intraday snapshots</span></div>
+              <div className="nt-panel-body">
+                <div className="nt-heatmap">
+                  {heatRows.length ? heatRows.map(row => {
+                    const symbol = row.symbol;
+                    const sector = normalizeSector(row.sector);
+                    const price = row.price;
+                    const change = row.change_pct;
+                    return (
+                      <Link
+                        className={`nt-heat-cell nt-heat-link ${directionClass(change)}`}
+                        href={`/companies?symbol=${encodeURIComponent(symbol)}`}
+                        key={symbol}
+                        aria-label={`Open ${symbol} company research`}
+                      >
+                        <div className="nt-heat-symbol-row"><b>{symbol}</b><span className={`nt-sector-dot ${sectorClass(sector)}`} aria-label={sector} /></div>
+                        <span className="nt-heat-price nt-mono">{price == null ? "No quote" : priceFormat.format(price)}</span>
+                        <span className={`nt-heat-change nt-mono ${change == null ? "nt-muted" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : ""}`}>{percent(change)}</span>
+                        <small title={row.as_of ?? undefined}><span className="nt-sector-name">{sector}</span></small>
+                      </Link>
+                    );
+                  }) : <div className="nt-empty nt-empty-compact">No equity observations in the tracked universe.</div>}
+                </div>
               </div>
+            </section>
+            <div className="nt-subsection" data-layout-key="markets:calendar-events">
+              <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
+              <div className="nt-market-table-scroll"><table className="nt-microtable">
+                <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
+                <tbody>{calendarEvents.length ? calendarEvents.slice(0,8).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
+              </table></div>
             </div>
-          </section>
-
-          <section className="nt-flat-surface nt-market-summary-surface nt-market-breadth-only">
-            <div className="nt-summary-column" data-layout-key="markets:participation">
-              <div className="nt-subsection-title"><strong>Participation detail</strong><span>{equitySession ?? "Awaiting final session"} · n={sampleSize}</span></div>
-              <table className="nt-microtable"><tbody>
-                <tr><td>Advancing</td><td>{sampleSize ? up : "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
-                <tr><td>Declining</td><td>{sampleSize ? down : "—"}</td><td>{sampleSize ? `${(down / sampleSize * 100).toFixed(1)}%` : "—"}</td></tr>
-                <tr><td>Unchanged</td><td>{sampleSize ? unchanged : "—"}</td><td>{sampleSize ? `${(unchanged / sampleSize * 100).toFixed(1)}%` : "—"}</td></tr>
-                <tr><td>Adv / Decl ratio</td><td>{down ? (up/down).toFixed(2) : "—"}</td><td></td></tr>
-                <tr><td>Up value</td><td>{valueTotal(participation?.up_value)}</td><td></td></tr>
-                <tr><td>Down value</td><td>{valueTotal(participation?.down_value)}</td><td></td></tr>
-                <tr><td>Unchanged value</td><td>{valueTotal(participation?.flat_value)}</td><td></td></tr>
-              </tbody></table>
-            </div>
-          </section>
-
-          <DataTable
-            title="Market tape"
-            meta={`final equity session ${equitySession ?? "—"} · n=${sampleSize}`}
-            className="nt-primary-table nt-market-tape-table"
-            columns={showMarketCap
-              ? ["Symbol","Last","Change %","Traded value","Market cap","As of"]
-              : ["Symbol","Last","Change %","Traded value","As of"]}
-            rows={marketTape.map(row => ({ key: row.symbol, cells: showMarketCap
-              ? [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, valueText(row.market_cap), row.session_date]
-              : [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, row.session_date] }))}
-            empty="No market observations."
-          />
-
-          <div className="nt-supporting-grid nt-market-supporting-grid">
-            <DataTable
-              title="Macro observations & spreads"
-              meta="supporting context"
-              className="nt-secondary-table nt-market-macro-table"
-              columns={["Series","Value","Unit","Quality","Observed"]}
-              rows={[...(macroData?.data ?? []).filter(row => row.source !== "ECB"), ...(macroData?.spreads ?? [])].map(row => ({
-                key: row.series_code,
-                cells: [
-                  labelText(row.series_code),
-                  valueText(row.value),
-                  displayUnit(row.unit),
-                  row.quality,
-                  row.observed_at ?? (row.metadata?.source === "CALCULATED" ? "Derived" : "—"),
-                ],
-              }))}
-              empty="No macro observations."
-            />
-            <div className="nt-market-support-stack">
-              <DataTable
-                title="Crypto derivatives"
-                meta="supporting context"
-                className="nt-secondary-table"
-                columns={["Metric","Value","Unit","Venue","Quality","Observed"]}
-                rows={(cryptoData?.data ?? []).map(row => ({
-                  key: row.metric_code,
-                  cells: [labelText(row.metric_code), valueText(row.value), displayUnit(row.metadata?.unit), row.source, row.quality, row.observed_at],
-                }))}
-                empty="No crypto derivatives observations."
-              />
+          </div>
+          <div className="nt-market-fixed-middle">
+            <div className="nt-market-fixed-stack">
+              <div className="nt-market-fixed-tables">
+                <div className="nt-subsection" data-layout-key="markets:most-active">
+                  <div className="nt-subsection-title"><strong>Most active</strong><span>traded value · final</span></div>
+                  <div className="nt-market-table-scroll"><table className="nt-microtable">
+                    <thead><tr><th>Symbol</th><th>Value</th><th>Chg</th></tr></thead>
+                    <tbody>{mostActive.map(row => <tr key={row.symbol}><td>{row.symbol}</td><td>{row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`}</td><td className={(row.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{percent(row.change_pct)}</td></tr>)}</tbody>
+                  </table></div>
+                </div>
+                <DataTable
+                  title="Market tape"
+                  meta={`final equity session ${equitySession ?? "—"} · n=${sampleSize}`}
+                  className="nt-primary-table nt-market-tape-table"
+                  columns={showMarketCap
+                    ? ["Symbol","Last","Change %","Traded value","Market cap","As of"]
+                    : ["Symbol","Last","Change %","Traded value","As of"]}
+                  rows={visibleMarketTape.map(row => ({ key: row.symbol, cells: showMarketCap
+                    ? [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, valueText(row.market_cap), row.session_date]
+                    : [row.symbol, quoteText(row.price), row.change_pct == null ? "—" : percent(row.change_pct), row.traded_value == null ? "—" : `${(row.traded_value / 1e9).toFixed(2)}B`, row.session_date] }))}
+                  note={marketTape.length > MARKET_TAPE_PAGE_SIZE && <nav className="nt-market-pagination" aria-label="Market tape pages">
+                    <span aria-live="polite">{tapePage * MARKET_TAPE_PAGE_SIZE + 1}–{Math.min((tapePage + 1) * MARKET_TAPE_PAGE_SIZE, marketTape.length)} of {marketTape.length}</span>
+                    <div>
+                      <button type="button" aria-label="Previous market tape page" disabled={tapePage === 0} onClick={() => setMarketTapePage(tapePage - 1)}>Previous</button>
+                      <button type="button" aria-label="Next market tape page" disabled={tapePage + 1 >= tapePageCount} onClick={() => setMarketTapePage(tapePage + 1)}>Next</button>
+                    </div>
+                  </nav>}
+                  empty="No market observations."
+                />
+              </div>
               <DataTable
                 title="Latest headlines"
                 meta={`${recentHeadlines.length} observations`}
@@ -513,67 +463,116 @@ export default function MarketsWorkspace({
                 empty="No recent headlines."
               />
             </div>
-          </div>
-        </section>
-
-        <aside className="nt-market-rail nt-flat-rail">
-          <section className="nt-flat-surface">
-            <div className="nt-subsection" data-layout-key="markets:calendar-events">
-              <div className="nt-subsection-title"><strong>Calendar events</strong><span className={calendarState.valid ? "" : "nt-warning"}>{calendarState.valid ? "ET · declared coverage" : "SOURCE GAP"}</span></div>
-              <table className="nt-microtable">
-                <thead><tr><th>Event</th><th>Time</th><th>Impact</th></tr></thead>
-                <tbody>{calendarEvents.length ? calendarEvents.slice(0,8).map(event => <tr key={event.id}><td>{event.title} · {event.currency}</td><td>{event.scheduled_at ? eventTime.format(new Date(event.scheduled_at)) : "—"}</td><td>{event.impact}</td></tr>) : <tr><td colSpan={3} className="nt-data-gap">{calendarData ? calendarState.label : "Awaiting calendar feed"}</td></tr>}</tbody>
-              </table>
-            </div>
-
-            <div className="nt-subsection" data-layout-key="markets:leadership">
-              <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
-              <table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
-                {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
-              </tbody></table>
-            </div>
-
-            <div className="nt-subsection" data-layout-key="markets:relative-volume">
-              <div className="nt-subsection-title"><strong>Relative volume</strong><span>20D leaders</span></div>
-              <table className="nt-microtable"><thead><tr><th>Symbol</th><th>RVol</th></tr></thead><tbody>
-                {relativeVolumeLeaders.slice(0,6).map(item => <tr key={item.symbol}><td>{item.symbol}</td><td>{item.value.toFixed(2)}×</td></tr>)}
-                {!relativeVolumeLeaders.length && <tr><td colSpan={2}>No relative-volume observations</td></tr>}
-              </tbody></table>
-            </div>
-
-            <div className="nt-subsection" data-layout-key="markets:sector-performance">
-              <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
-              <table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
-                {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector} · n={item.count}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
-              </tbody></table>
-            </div>
-
-            <div className="nt-subsection" data-layout-key="markets:ecb-reference-rates">
-              <div className="nt-subsection-title">
-                <strong>ECB reference rates</strong>
-                <span><a href={ecbReferencePage} rel="noreferrer">ECB ↗</a></span>
+            <div className="nt-market-fixed-stack">
+              <div className="nt-subsection" data-layout-key="markets:sector-performance">
+                <div className="nt-subsection-title"><strong>Sector performance</strong><span>equal weight</span></div>
+                <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th></tr></thead><tbody>
+                  {sectorPerformance.map(item => <tr key={item.sector}><td>{item.sector} · n={item.count}</td><td className={(item.change ?? 0) > 0 ? "nt-positive" : (item.change ?? 0) < 0 ? "nt-negative" : ""}>{percent(item.change)}</td><td>{item.advance == null ? "—" : `${item.advance.toFixed(0)}%`}</td></tr>)}
+                </tbody></table></div>
               </div>
-              <table className="nt-microtable">
-                <thead><tr><th scope="col">Currency</th><th scope="col">Per EUR</th><th scope="col">Δ vs prior</th><th scope="col">As of</th></tr></thead>
-                <tbody>{ecbCurrencies.map(currency => {
-                  const row = macroByCode.get(`ECB_${currency}_EUR`);
-                  const change = row?.change_pct;
-                  const comparison = row?.previous_observed_at && row.previous_value != null
-                    ? `Previous ECB release (${row.previous_observed_at}): ${referenceFormat.format(row.previous_value)} ${currency} per EUR`
-                    : undefined;
-                  return <tr key={currency}>
-                    <th scope="row">{currency}</th>
-                    <td>{row?.value == null ? "—" : referenceFormat.format(row.value)}</td>
-                    <td title={comparison} className={change == null || change === 0 ? "" : change > 0 ? "nt-positive" : "nt-negative"}>{percent(change)}</td>
-                    <td className={row?.quality === "STALE" ? "nt-warning" : ""}>
-                      {row?.observed_at?.slice(0, 10) ?? "—"}{row?.quality === "STALE" ? " · Stale" : ""}
-                    </td>
-                  </tr>;
-                })}</tbody>
-              </table>
+              <div className="nt-subsection" data-layout-key="markets:sector-breadth">
+                <div className="nt-subsection-title"><strong>Sector breadth</strong><span>session · min. 3 observations</span></div>
+                <div className="nt-market-table-scroll"><table className="nt-microtable">
+                  <thead><tr><th>Sector</th><th>Chg</th><th>Adv%</th><th>&gt;50D</th><th>RVol</th></tr></thead>
+                  <tbody>{sectorPerformance.map(({ sector, sample, count, change, advance }) => {
+                    const ma = dailyGroup(sample, "above_sma50");
+                    const rvol = dailyGroup(sample, "rvol20");
+                    return <tr key={sector}><td>{sector} · n={count}</td><td>{percent(change)}</td><td>{advance == null ? "—" : `${advance.toFixed(0)}%`}</td><td>{ma.count < 3 ? "—" : breadthValue(ma)}</td><td>{rvol.count < 3 || rvol.value === null ? "—" : `${rvol.value.toFixed(2)}×`}</td></tr>;
+                  })}</tbody>
+                </table></div>
+              </div>
             </div>
-
-          </section>
+          </div>
+          <DataTable
+            title="Macro observations & spreads"
+            meta="supporting context"
+            className="nt-secondary-table nt-market-macro-table"
+            columns={["Series","Value","Unit","Quality","Observed"]}
+            rows={[...(macroData?.data ?? []).filter(row => row.source !== "ECB"), ...(macroData?.spreads ?? [])].map(row => ({
+              key: row.series_code,
+              cells: [
+                labelText(row.series_code),
+                valueText(row.value),
+                displayUnit(row.unit),
+                row.quality,
+                row.observed_at ?? (row.metadata?.source === "CALCULATED" ? "Derived" : "—"),
+              ],
+            }))}
+            empty="No macro observations."
+          />
+          <DataTable
+            title="Crypto derivatives"
+            meta="supporting context"
+            className="nt-secondary-table"
+            columns={["Metric","Value","Unit","Venue","Quality","Observed"]}
+            rows={(cryptoData?.data ?? []).map(row => ({
+              key: row.metric_code,
+              cells: [labelText(row.metric_code), valueText(row.value), displayUnit(row.metadata?.unit), row.source, row.quality, row.observed_at],
+            }))}
+            empty="No crypto derivatives observations."
+          />
+        </div>
+        <aside className="nt-market-fixed-rail nt-market-fixed-stack" aria-label="Market participation and reference data">
+          <div className="nt-subsection" data-layout-key="markets:leadership">
+            <div className="nt-subsection-title"><strong>Leadership / laggards</strong><span>{equitySession ?? "Awaiting final session"}</span></div>
+            <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>#</th><th>Leader</th><th>Laggard</th></tr></thead><tbody>
+              {Array.from({ length: Math.min(16, Math.max(leaders.length, laggards.length)) }, (_, i) => <tr key={i}><td>{i+1}</td><td className="nt-positive">{leaders[i]?.symbol ?? "—"} {percent(leaders[i]?.change_pct)}</td><td className="nt-negative">{laggards[i]?.symbol ?? "—"} {percent(laggards[i]?.change_pct)}</td></tr>)}
+            </tbody></table></div>
+          </div>
+          <div className="nt-subsection" data-layout-key="markets:ecb-reference-rates">
+            <div className="nt-subsection-title">
+              <strong>ECB reference rates</strong>
+              <span><a href={ecbReferencePage} rel="noreferrer">ECB ↗</a></span>
+            </div>
+            <div className="nt-market-table-scroll"><table className="nt-microtable">
+              <thead><tr><th scope="col">Currency</th><th scope="col">Per EUR</th><th scope="col">Δ vs prior</th><th scope="col">As of</th></tr></thead>
+              <tbody>{ecbCurrencies.map(currency => {
+                const row = macroByCode.get(`ECB_${currency}_EUR`);
+                const change = row?.change_pct;
+                const comparison = row?.previous_observed_at && row.previous_value != null
+                  ? `Previous ECB release (${row.previous_observed_at}): ${referenceFormat.format(row.previous_value)} ${currency} per EUR`
+                  : undefined;
+                return <tr key={currency}>
+                  <th scope="row">{currency}</th>
+                  <td>{row?.value == null ? "—" : referenceFormat.format(row.value)}</td>
+                  <td title={comparison} className={change == null || change === 0 ? "" : change > 0 ? "nt-positive" : "nt-negative"}>{percent(change)}</td>
+                  <td className={row?.quality === "STALE" ? "nt-warning" : ""}>
+                    {row?.observed_at?.slice(0, 10) ?? "—"}{row?.quality === "STALE" ? " · Stale" : ""}
+                  </td>
+                </tr>;
+              })}</tbody>
+            </table></div>
+          </div>
+          <div className="nt-subsection" data-layout-key="markets:participation">
+            <div className="nt-subsection-title"><strong>Participation detail</strong><span>{equitySession ?? "Awaiting final session"} · n={sampleSize}</span></div>
+            <div className="nt-market-table-scroll"><table className="nt-microtable"><tbody>
+              <tr><td>Advancing</td><td>{sampleSize ? up : "—"}</td><td>{breadthPct == null ? "—" : `${breadthPct.toFixed(1)}%`}</td></tr>
+              <tr><td>Declining</td><td>{sampleSize ? down : "—"}</td><td>{sampleSize ? `${(down / sampleSize * 100).toFixed(1)}%` : "—"}</td></tr>
+              <tr><td>Unchanged</td><td>{sampleSize ? unchanged : "—"}</td><td>{sampleSize ? `${(unchanged / sampleSize * 100).toFixed(1)}%` : "—"}</td></tr>
+              <tr><td>Adv / Decl ratio</td><td>{down ? (up/down).toFixed(2) : "—"}</td><td></td></tr>
+              <tr><td>Up value</td><td>{valueTotal(participation?.up_value)}</td><td></td></tr>
+              <tr><td>Down value</td><td>{valueTotal(participation?.down_value)}</td><td></td></tr>
+              <tr><td>Unchanged value</td><td>{valueTotal(participation?.flat_value)}</td><td></td></tr>
+            </tbody></table></div>
+          </div>
+          <div className="nt-subsection" data-layout-key="markets:relative-volume">
+            <div className="nt-subsection-title"><strong>Relative volume</strong><span>20D leaders</span></div>
+            <div className="nt-market-table-scroll"><table className="nt-microtable"><thead><tr><th>Symbol</th><th>RVol</th></tr></thead><tbody>
+              {relativeVolumeLeaders.slice(0,6).map(item => <tr key={item.symbol}><td>{item.symbol}</td><td>{item.value.toFixed(2)}×</td></tr>)}
+              {!relativeVolumeLeaders.length && <tr><td colSpan={2}>No relative-volume observations</td></tr>}
+            </tbody></table></div>
+          </div>
+          <div className="nt-subsection" data-layout-key="markets:cross-asset">
+            <div className="nt-subsection-title"><strong>Cross asset</strong><span>macro context</span></div>
+            <div className="nt-market-table-scroll"><table className="nt-microtable">
+              <thead><tr><th>Asset</th><th>Last</th><th>Chg</th></tr></thead>
+              <tbody>{crossAsset.map(x => {
+                const row = bySymbol.get(assetSymbols[x] ?? x);
+                const rate = x === "US02Y" ? macroByCode.get("UST2Y") : x === "US10Y" ? macroByCode.get("UST10Y") : undefined;
+                return <tr key={x}><td>{x}</td><td title={rate?.observed_at ?? row?.as_of ?? undefined}>{quoteText(rate?.value ?? row?.price)}</td><td>{percent(row?.change_pct)}</td></tr>;
+              })}</tbody>
+            </table></div>
+          </div>
         </aside>
       </div>
     </div>

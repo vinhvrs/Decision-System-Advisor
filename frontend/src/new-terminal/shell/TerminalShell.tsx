@@ -44,6 +44,7 @@ type LocalAlert = { id: string; symbol: string; condition: "above" | "below"; ta
 
 export default function TerminalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isMarkets = pathname === "/";
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
@@ -85,6 +86,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
   }, []);
 
   function runCommand(raw: string) {
+    if (isMarkets) return false;
     const command = raw.trim().replace(/^\//, "").toLowerCase();
     const action =
       command === "layout edit" ? "enable" :
@@ -104,10 +106,10 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
     { command: "layout export", description: "Download the site layout contract JSON" },
     { command: "layout reset", description: "Reset the saved layout for this route" },
     { command: "layout done", description: "Save the current route layout and exit edit mode" },
-  ].filter(item => !query.trim() || item.command.includes(query.trim().replace(/^\//, "").toLowerCase()));
+  ].filter(item => !isMarkets && (!query.trim() || item.command.includes(query.trim().replace(/^\//, "").toLowerCase())));
 
   return (
-    <div className="nt-shell">
+    <div className={`nt-shell${isMarkets ? " nt-shell-markets-fixed" : ""}`}>
       <header className="nt-topbar">
         <Link href="/" className="nt-brand" aria-label="DSA home">
           <span className="nt-brand-mark">D</span>
@@ -117,10 +119,10 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         <button type="button" className="nt-command" aria-label="Open command search" aria-expanded={searchOpen} onClick={() => setSearchOpen(value => !value)}>
           <Search size={13} aria-hidden />
           <kbd>⌘K</kbd>
-          <span>Search symbol, company, metric or command…</span>
+          <span>{isMarkets ? "Search symbol or company…" : "Search symbol, company, metric or command…"}</span>
         </button>
 
-        <button
+        {!isMarkets && <button
           type="button"
           className="nt-layout-toggle"
           aria-label="Grid layout"
@@ -128,7 +130,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
           onClick={() => window.dispatchEvent(new CustomEvent("dsa:layout-editor", { detail: { action: "toggle" } }))}
         >
           Layout
-        </button>
+        </button>}
 
         <div className="nt-top-context">
           <span>US Equities</span>
@@ -137,7 +139,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
       </header>
 
       {searchOpen && <section className="nt-panel nt-command-palette" aria-label="Search instruments and commands">
-        <div className="nt-toolbar"><label>Symbol, company or command <input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && runCommand(query)) event.preventDefault(); }} placeholder="Try: layout edit" /></label><button type="button" onClick={() => setSearchOpen(false)}>Close</button></div>
+        <div className="nt-toolbar"><label>{isMarkets ? "Symbol or company " : "Symbol, company or command "}<input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && runCommand(query)) event.preventDefault(); }} placeholder={isMarkets ? "Try: AAPL" : "Try: layout edit"} /></label><button type="button" onClick={() => setSearchOpen(false)}>Close</button></div>
         {layoutCommands.length > 0 && <div className="nt-command-results">
           {layoutCommands.map(item => <button key={item.command} type="button" className="nt-command-result" onClick={() => runCommand(item.command)}><kbd>{item.command}</kbd><span>{item.description}</span></button>)}
         </div>}
@@ -157,6 +159,16 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
 
       <div className="nt-layout">
         <main key={pathname} className="nt-main">{children}</main>
+        {isMarkets && <footer className="nt-markets-footer">
+          <div className="nt-markets-footer-brand">
+            <Link href="/" aria-label="Decision System Advisor home">DSA</Link>
+            <span>Decision System Advisor</span>
+          </div>
+          <nav aria-label="Footer links">
+            <Link href="/about">About</Link>
+            <Link href="/contact">Contact</Link>
+          </nav>
+        </footer>}
       </div>
 
       <aside className="nt-utility-dock" aria-label="Research utility rail">
@@ -220,7 +232,7 @@ export default function TerminalShell({ children }: { children: React.ReactNode 
         <div className="nt-database-note">Movers, headlines and saved price levels stay linked to the current research workflow.</div>
       </section>}
 
-      <SiteLayoutEditor />
+      {!isMarkets && <SiteLayoutEditor />}
     </div>
   );
 }
