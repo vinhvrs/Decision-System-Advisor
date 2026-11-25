@@ -64,6 +64,9 @@ const crossAsset = ["DXY","US02Y","US10Y","WTI","GOLD","COPPER","BTC","ETH","SPY
 const indexSymbols: Record<string, string> = { "S&P 500": "^GSPC", "NASDAQ 100": "^NDX", DOW: "^DJI", "RUSSELL (IWM proxy)": "IWM", VIX: "^VIX" };
 const assetSymbols: Record<string, string> = { DXY: "DX-Y.NYB", WTI: "CL=F", GOLD: "GC=F", COPPER: "HG=F", BTC: "BTC-USD", ETH: "ETH-USD", VIX: "^VIX" };
 const eventTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const ecbCurrencies = ["USD", "GBP", "JPY", "CHF", "AUD"];
+const ecbReferencePage = "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html";
+const referenceFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 });
 const displayUnit = (unit: string | undefined) => {
   if (!unit) return "";
   const mapped: Record<string, string> = {
@@ -96,7 +99,7 @@ export default function MarketsWorkspace({
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const rows = snapshot.data;
   const daily = useFeed<DailyAnalytics>("/api/market/daily-analytics", 300000);
-  const macro = useFeed<Macro>("/api/v1/macro/dashboard", 60000);
+  const macro = useFeed<Macro>("/api/v1/macro/dashboard", 300000);
   const crypto = useFeed<Crypto>("/api/v1/crypto-context", 60000);
   const calendar = useFeed<Calendar>(ECONOMIC_CALENDAR_PATH, 60000);
   const news = useFeed<{ data: News[] }>("/api/news", 60000);
@@ -470,7 +473,7 @@ export default function MarketsWorkspace({
               meta="supporting context"
               className="nt-secondary-table nt-market-macro-table"
               columns={["Series","Value","Unit","Quality","Observed"]}
-              rows={[...(macroData?.data ?? []), ...(macroData?.spreads ?? [])].map(row => ({
+              rows={[...(macroData?.data ?? []).filter(row => row.source !== "ECB"), ...(macroData?.spreads ?? [])].map(row => ({
                 key: row.series_code,
                 cells: [
                   labelText(row.series_code),
@@ -546,11 +549,28 @@ export default function MarketsWorkspace({
             </div>
 
             <div className="nt-subsection">
-              <div className="nt-subsection-title"><strong>Macro pulse</strong><span>latest observations</span></div>
-              <table className="nt-microtable"><thead><tr><th>Series</th><th>Value</th><th>As of</th></tr></thead><tbody>
-                {(macroData?.data ?? []).slice(0,7).map(row => <tr key={row.series_code}><td>{labelText(row.series_code)}</td><td>{valueText(row.value)} {displayUnit(row.unit)}</td><td className={row.quality === "STALE" ? "nt-warning" : ""}>{row.observed_at?.slice(0, 10) ?? "—"}{row.quality === "STALE" ? " · Stale" : ""}</td></tr>)}
-                {!macroData?.data?.length && <tr><td colSpan={3}>No macro observations</td></tr>}
-              </tbody></table>
+              <div className="nt-subsection-title">
+                <strong>ECB reference rates</strong>
+                <span><a href={ecbReferencePage} rel="noreferrer">ECB ↗</a></span>
+              </div>
+              <table className="nt-microtable">
+                <thead><tr><th scope="col">Currency</th><th scope="col">Per EUR</th><th scope="col">Δ vs prior</th><th scope="col">As of</th></tr></thead>
+                <tbody>{ecbCurrencies.map(currency => {
+                  const row = macroByCode.get(`ECB_${currency}_EUR`);
+                  const change = row?.change_pct;
+                  const comparison = row?.previous_observed_at && row.previous_value != null
+                    ? `Previous ECB release (${row.previous_observed_at}): ${referenceFormat.format(row.previous_value)} ${currency} per EUR`
+                    : undefined;
+                  return <tr key={currency}>
+                    <th scope="row">{currency}</th>
+                    <td>{row?.value == null ? "—" : referenceFormat.format(row.value)}</td>
+                    <td title={comparison} className={change == null || change === 0 ? "" : change > 0 ? "nt-positive" : "nt-negative"}>{percent(change)}</td>
+                    <td className={row?.quality === "STALE" ? "nt-warning" : ""}>
+                      {row?.observed_at?.slice(0, 10) ?? "—"}{row?.quality === "STALE" ? " · Stale" : ""}
+                    </td>
+                  </tr>;
+                })}</tbody>
+              </table>
             </div>
 
           </section>

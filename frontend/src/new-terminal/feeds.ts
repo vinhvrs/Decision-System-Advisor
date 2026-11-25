@@ -9,7 +9,19 @@ export type Datum = {
 export type Metrics = { quality: string; as_of?: string; metrics: Record<string, Datum> };
 export type DailyAnalytics = { data: Record<string, { as_of: string | null; metrics: Record<string, Datum> }> };
 export type Universe = { symbol: string; name: string; asset_class: string; volume_type: string; quote_currency: string };
-export type MacroRow = { series_code: string; value: number | null; quality: string; unit: string; source?: string; observed_at?: string; reason?: string; metadata?: { source?: string; inputs?: string[] } };
+export type MacroRow = {
+  series_code: string;
+  value: number | null;
+  quality: string;
+  unit: string;
+  source?: string;
+  observed_at?: string;
+  previous_value?: number | null;
+  previous_observed_at?: string | null;
+  change_pct?: number | null;
+  reason?: string;
+  metadata?: { source?: string; inputs?: string[] };
+};
 export type Macro = { data: MacroRow[]; spreads: MacroRow[]; generated_at: string; quality: string };
 export type Health = { quality: string; generated_at: string; pipeline: { covered: number; total: number }; sources: { source_code: string; status: string; last_data_at: string | null; last_error: string | null }[] };
 export const ECONOMIC_CALENDAR_PATH = "/api/v1/economic-calendar?limit=1000";
