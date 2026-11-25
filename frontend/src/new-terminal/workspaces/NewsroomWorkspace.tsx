@@ -75,29 +75,33 @@ export default function NewsroomWorkspace({
               data-layout-key={`news:${item.id}`}
               key={item.id}
             >
-              {showImage && (
-                <Link className="nt-news-media" href={`/news/${encodeURIComponent(item.id)}`}>
-                  <img
-                    src={image}
-                    alt=""
-                    loading={index < 3 ? "eager" : "lazy"}
-                    referrerPolicy="no-referrer"
-                    onError={() => setFailedImages(previous => ({ ...previous, [item.id]: image }))}
-                  />
-                </Link>
-              )}
-              <div className="nt-news-article-body">
-                <div className="nt-news-kicker">
-                  {item.symbol && <span title="Upstream feed symbol">Via <SymbolContext symbol={item.symbol} /></span>}
-                  <span>{articleMeta(item)}</span>
-                </div>
-                <h2><Link href={`/news/${encodeURIComponent(item.id)}`}>{item.title}</Link></h2>
-                <p>{excerpt(item)}</p>
-                <div className="nt-news-article-footer">
-                  <span>{item.content_status ? item.content_status.replace(/_/g, " ") : "indexed"}</span>
-                  {item.word_count ? <span>{item.word_count.toLocaleString("en-US")} words</span> : null}
-                  <Link href={`/news/${encodeURIComponent(item.id)}`}>Read article</Link>
-                  {external && <a href={external} rel="noreferrer">Source ↗</a>}
+              <h2 className="nt-panel-title nt-news-card-title">
+                <Link href={`/news/${encodeURIComponent(item.id)}`} title={item.title}>{item.title}</Link>
+              </h2>
+              <div className="nt-news-card-content">
+                {showImage && (
+                  <Link className="nt-news-media" href={`/news/${encodeURIComponent(item.id)}`}>
+                    <img
+                      src={image}
+                      alt=""
+                      loading={index < 3 ? "eager" : "lazy"}
+                      referrerPolicy="no-referrer"
+                      onError={() => setFailedImages(previous => ({ ...previous, [item.id]: image }))}
+                    />
+                  </Link>
+                )}
+                <div className="nt-news-article-body">
+                  <div className="nt-news-kicker">
+                    {item.symbol && <span title="Upstream feed symbol">Via <SymbolContext symbol={item.symbol} /></span>}
+                    <span>{articleMeta(item)}</span>
+                  </div>
+                  <p>{excerpt(item)}</p>
+                  <div className="nt-news-article-footer">
+                    <span>{item.content_status ? item.content_status.replace(/_/g, " ") : "indexed"}</span>
+                    {item.word_count ? <span>{item.word_count.toLocaleString("en-US")} words</span> : null}
+                    <Link href={`/news/${encodeURIComponent(item.id)}`}>Read article</Link>
+                    {external && <a href={external} rel="noreferrer">Source ↗</a>}
+                  </div>
                 </div>
               </div>
             </article>
