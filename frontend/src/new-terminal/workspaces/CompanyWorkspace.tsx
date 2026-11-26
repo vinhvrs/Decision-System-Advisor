@@ -189,7 +189,13 @@ export default function CompanyWorkspace({
   const overviewFinancialRows = overviewFinancials.data?.data ?? initialOverviewFinancials;
   const filingRows = filings.data?.data ?? initialFilings;
   const newsRows = news.data ?? initialNews;
-  const usableNewsRows = newsRows.filter(item => item.title?.trim());
+  const companyStem = overviewData?.profile?.company_name?.replace(/\s+(Inc\.?|Corporation|Corp\.?|Ltd\.?|PLC|Co\.?)$/i, "").trim();
+  const usableNewsRows = newsRows.filter(item => {
+    const title = item.title?.trim();
+    if (!title) return false;
+    const tickerInTitle = new RegExp(`(^|[^A-Za-z0-9])${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z0-9]|$)`, "i").test(title);
+    return tickerInTitle || Boolean(companyStem && companyStem.length >= 4 && title.toLowerCase().includes(companyStem.toLowerCase()));
+  });
   const historyRows = history.data?.data ?? initialHistory;
   const profile = overviewData?.profile;
   const quote = storedRows.find(row => row.symbol === normalized);

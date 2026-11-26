@@ -8,6 +8,19 @@ import { CurrencyContext, ImpactBadge, SymbolContext } from "../ContextBadges";
 import { useFeed } from "../useFeed";
 import type { MarketRow } from "../marketSnapshot";
 
+const quoteText = (value: number | null | undefined) => value == null || !Number.isFinite(value)
+  ? "—" : new Intl.NumberFormat("en-US", { maximumFractionDigits: value < 1 ? 4 : 2 }).format(value);
+const percentText = (value: number | null | undefined) => value == null || !Number.isFinite(value)
+  ? "—" : `${value > 0 ? "+" : ""}${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}%`;
+const observationText = (value: string | null | undefined) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(date) + " ET";
+};
+
 export function NewsWorkspace({ initialCalendar, initialRows = [] }: { initialCalendar?: Calendar; initialRows?: MarketRow[] }) {
   const calendar = useFeed<Calendar>(ECONOMIC_CALENDAR_PATH, 300000);
   const market = useFeed<{ data: MarketRow[] }>("/api/v1/market-heatmap", 30000);
@@ -139,11 +152,11 @@ export function IndicatorsWorkspace({ initialUniverse = [], initialRows = [], in
           const m = dailyData?.data[row.symbol]?.metrics;
           return { key: row.symbol, cells: [
             <SymbolContext key="symbol" symbol={row.symbol} />,
-            valueText(row.price),
-            row.change_pct == null ? "—" : `${row.change_pct > 0 ? "+" : ""}${valueText(row.change_pct)}%`,
-            valueText(m?.sma50?.value),
-            m?.rvol20?.value == null ? "—" : `${valueText(m.rvol20.value)}×`,
-            valueText(m?.trading_52w_high?.value),
+            quoteText(row.price),
+            percentText(row.change_pct),
+            quoteText(m?.sma50?.value),
+            m?.rvol20?.value == null ? "—" : `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(m.rvol20.value)}×`,
+            quoteText(m?.trading_52w_high?.value),
           ]};
         })}
         empty="No market technical context."
@@ -241,7 +254,7 @@ function WatchlistEditor({ token, initialUniverse, initialRows }: { token: strin
       return { key:item.symbol, cells:[
         <Link key="symbol" href={`/companies/profile/${encodeURIComponent(item.symbol)}`}>{item.symbol}</Link>,
         <SymbolContext key="context" symbol={item.symbol} />,
-        valueText(row?.price), valueText(row?.change_pct), row?.as_of, item.created_at,
+        quoteText(row?.price), percentText(row?.change_pct), observationText(row?.as_of), observationText(item.created_at),
         <button key="remove" type="button" disabled={busy} onClick={() => void update("DELETE", item.symbol)}>Remove</button>
       ]};
     })} empty="No saved symbols yet. Add one above." />}
@@ -250,7 +263,7 @@ function WatchlistEditor({ token, initialUniverse, initialRows }: { token: strin
       rows={quick.map(row => {
         const stored=bySymbol.get(row.symbol);
         return { key:row.symbol, cells:[
-          row.symbol,<SymbolContext key="context" symbol={row.symbol} />,row.name,valueText(stored?.price),valueText(stored?.change_pct),stored?.as_of,
+          row.symbol,<SymbolContext key="context" symbol={row.symbol} />,row.name,quoteText(stored?.price),percentText(stored?.change_pct),observationText(stored?.as_of),
           <span key="links"><Link href={`/companies/profile/${encodeURIComponent(row.symbol)}`}>Company</Link> · <Link href={`/investing?symbol=${encodeURIComponent(row.symbol)}`}>Chart</Link></span>
         ]};
       })}
