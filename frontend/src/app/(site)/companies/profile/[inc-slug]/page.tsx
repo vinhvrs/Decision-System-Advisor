@@ -15,7 +15,7 @@ export default async function CompanyProfileBySlugPage({ params, searchParams }:
   const { view } = await searchParams;
   const symbol = slug.trim().toUpperCase();
   const id = encodeURIComponent(symbol);
-  const activeTab = view ? view.charAt(0).toUpperCase() + view.slice(1) : "Overview";
+  const activeTab = view?.toLowerCase() === "kpis" ? "KPIs" : view ? view.charAt(0).toUpperCase() + view.slice(1).toLowerCase() : "Overview";
   const now = new Date();
   const from = new Date(now.getTime() - 160 * 86400000).toISOString().slice(0,10);
   const to = now.toISOString().slice(0,10);
