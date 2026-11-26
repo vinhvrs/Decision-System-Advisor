@@ -116,7 +116,8 @@ export default function SiteLayoutEditor() {
     const compact = main.clientWidth < 760;
     const routeKey = `${pathname}::${compact ? "compact" : "wide"}`;
     const preset = PRESETS[routeKey];
-    const routeRevision = pathname === "/" ? preset?.updatedAt : "nonmarket-content-fit-20261126";
+    const routeRevision = pathname === "/" ? preset?.updatedAt
+      : pathname === "/investing" ? "nonmarket-chart-rails-20261126" : "nonmarket-content-fit-20261126";
     const records = new Map<string, Card>();
     const knownPositions = new Map<string, GridRect>();
     const wrappers = new Set<HTMLElement>();
