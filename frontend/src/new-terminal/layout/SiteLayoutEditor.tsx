@@ -221,15 +221,20 @@ export default function SiteLayoutEditor() {
           const inspector = pathname === "/screener" && !compact
             && Boolean(item.element.closest(".nt-screener-inspector"));
           const screenerTable = pathname === "/screener" && item.label === "Instrument universe";
+          const chartRail = pathname === "/investing" && !compact
+            && Boolean(item.element.closest(".nt-chart-rail"));
+          const chartCenter = pathname === "/investing" && !compact
+            && Boolean(item.element.closest(".nt-chart-center"));
+          const chartRight = chartRail && box.left - bounds.left > bounds.width / 2;
           const naturalHeight = Math.max(box.height, item.element.scrollHeight);
           const contentHeight = pathname === "/" ? Math.min(box.height, item.handle ? 720 : 1000)
             : item.element.matches(".nt-data-table") ? Math.min(naturalHeight, 1200) : naturalHeight;
           const seed = clampRect({
             x: compact ? 0 : indicatorPair ? (item.label === "Published metric snapshot" ? 0 : 24)
-              : indicatorWide ? 0 : inspector ? 35 : Math.round((box.left - bounds.left) / cell),
+              : indicatorWide ? 0 : inspector ? 35 : chartCenter ? 10 : chartRail ? (chartRight ? 38 : 0) : Math.round((box.left - bounds.left) / cell),
             y: 0,
             w: compact || indicatorWide ? GRID_COLS : indicatorPair ? 24
-              : inspector ? 13 : screenerTable ? 35 : Math.round(box.width / cell),
+              : inspector ? 13 : screenerTable ? 35 : chartCenter ? 28 : chartRail ? 10 : Math.round(box.width / cell),
             h: Math.ceil((contentHeight + GAP) / ROW_PX),
           }, item.handle ? MIN_W : 1, item.handle ? MIN_H : 1);
           // Initial defaults are compact. User edits never compact neighbors.

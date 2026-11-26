@@ -6416,3 +6416,9 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   .dsa-grid-toolbar > div { flex-basis: 100%; text-align: center; }
   .nt-layout-toggle { padding-inline: 6px; }
 }
+
+/* Research workspaces: keep source thumbnails intact at any aspect ratio. */
+.nt-newsroom-grid .nt-news-media img {
+  object-fit: contain !important;
+  background: #0b141d;
+}
