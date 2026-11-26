@@ -69,6 +69,41 @@ export function quoteText(value: number | null | undefined) {
   return value.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
+const compactNumberFormat = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
+export function compactNumberText(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return Math.abs(value) < 1000 ? quoteText(value) : compactNumberFormat.format(value);
+}
+
+// Percentage feeds already contain percentage points, not decimal fractions.
+export function changeText(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${value > 0 ? "+" : ""}${(Object.is(value, -0) ? 0 : value).toFixed(2)}%`;
+}
+
+export function metricValueText(metric: Pick<Datum, "value" | "unit"> | undefined) {
+  const value = metric?.value;
+  if (value == null || !Number.isFinite(value)) return "—";
+  const unit = metric?.unit?.trim().toLowerCase();
+  if (unit === "price" || unit === "usd/shares") return quoteText(value);
+  if (["usd", "eur", "gbp", "jpy", "cad", "aud", "shares", "volume"].includes(unit ?? "")) {
+    return compactNumberText(value);
+  }
+  if (["percent", "%", "percentage_points", "pp"].includes(unit ?? "")) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  }
+  if (unit === "ratio") {
+    return value.toLocaleString("en-US", Math.abs(value) < 1
+      ? { maximumSignificantDigits: 4 }
+      : { maximumFractionDigits: 2 });
+  }
+  return valueText(value);
+}
+
 export const labelText = (key: string) => key.replace(/_/g, " ");
 export function sourceLink(value?: string) {
   try {

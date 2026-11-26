@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import DataTable from "../DataTable";
-import { type Universe, type Metrics, type DailyAnalytics, quoteText, valueText } from "../feeds";
+import { type Universe, type Metrics, type DailyAnalytics, changeText, compactNumberText, metricValueText, quoteText, valueText } from "../feeds";
 import { SymbolContext } from "../ContextBadges";
 import { type MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -60,9 +60,9 @@ export default function ScreenerWorkspace({
     .slice(0,20);
 
   return <div className="nt-workspace nt-full-workspace nt-screener-workspace">
-    <section className="nt-toolbar">
+    <section className="nt-toolbar nt-screener-toolbar">
       <strong>Screener</strong>
-      <label>Search <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Symbol or company" /></label>
+      <label className="nt-screener-search">Search <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Symbol or company" /></label>
       <label>Asset <select value={asset} onChange={event => setAsset(event.target.value)}><option value="">All</option>{[...new Set(all.map(row => row.asset_class))].sort().map(item => <option key={item}>{item}</option>)}</select></label>
       <label>Sort <select value={sort} onChange={event => setSort(event.target.value)}><option value="symbol">Symbol</option><option value="change">Session change</option><option value="traded">Traded value</option></select></label>
       <span className="nt-toolbar-count">{shown.length} / {all.length}</span>
@@ -77,11 +77,12 @@ export default function ScreenerWorkspace({
             return { key: row.symbol, cells: [
               <button key="pick" type="button" className="nt-tab" data-active={row.symbol === selected} onClick={() => setSelection(row.symbol)}>{row.symbol}</button>,
               <SymbolContext key="context" symbol={row.symbol} />,
-              row.name, row.asset_class, row.quote_currency, quoteText(stored?.price), stored?.change_pct == null ? "—" : `${stored.change_pct > 0 ? "+" : ""}${stored.change_pct.toFixed(2)}%`,
-              quoteText(stored?.traded_value), quoteText(stored?.market_cap)
+              row.name, row.asset_class, row.quote_currency, quoteText(stored?.price), changeText(stored?.change_pct),
+              <span key="traded" title={valueText(stored?.traded_value)}>{compactNumberText(stored?.traded_value)}</span>,
+              <span key="cap" title={valueText(stored?.market_cap)}>{compactNumberText(stored?.market_cap)}</span>
             ] };
           })}
-          note="Traded value is shown separately from share volume." />
+          note="Traded value is separate from share volume. K / M / B / T denote thousands / millions / billions / trillions." />
       </section>
 
       <aside className="nt-screener-inspector">
@@ -101,7 +102,7 @@ export default function ScreenerWorkspace({
           <div className="nt-subsection">
             <div className="nt-subsection-title"><strong>Fundamentals & valuation</strong><span>{selected ?? ""}</span></div>
             <table className="nt-microtable"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th></tr></thead><tbody>
-              {fundRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
+              {fundRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td title={valueText(metric?.value)}>{metricValueText(metric)}</td><td>{metric?.unit ?? ""}</td></tr>)}
               {!fundRows.length && <tr><td colSpan={3}>No fundamental values</td></tr>}
             </tbody></table>
           </div>
@@ -109,7 +110,7 @@ export default function ScreenerWorkspace({
           <div className="nt-subsection">
             <div className="nt-subsection-title"><strong>Technicals</strong><span>daily</span></div>
             <table className="nt-microtable"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th></tr></thead><tbody>
-              {technicalRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{valueText(metric?.value)}</td><td>{metric?.unit ?? ""}</td></tr>)}
+              {technicalRows.map(([key, metric]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td title={valueText(metric?.value)}>{metricValueText(metric)}</td><td>{metric?.unit ?? ""}</td></tr>)}
               {!technicalRows.length && <tr><td colSpan={3}>No technical values</td></tr>}
             </tbody></table>
           </div>
@@ -120,10 +121,12 @@ export default function ScreenerWorkspace({
               <thead><tr><th>Symbol</th><th>Chg</th><th>Last</th></tr></thead>
               <tbody>{sessionMovers.map(row => {
                 const market = bySymbol.get(row.symbol);
+                const change = market?.change_pct;
+                const direction = change == null || !Number.isFinite(change) ? "" : change > 0 ? "nt-positive" : change < 0 ? "nt-negative" : "";
                 return <tr key={row.symbol}>
                   <td>{row.symbol}</td>
-                  <td className={(market?.change_pct ?? 0) >= 0 ? "nt-positive" : "nt-negative"}>{market?.change_pct == null ? "—" : `${market.change_pct > 0 ? "+" : ""}${valueText(market.change_pct)}%`}</td>
-                  <td>{valueText(market?.price)}</td>
+                  <td className={direction}>{changeText(change)}</td>
+                  <td>{quoteText(market?.price)}</td>
                 </tr>;
               })}</tbody>
             </table>

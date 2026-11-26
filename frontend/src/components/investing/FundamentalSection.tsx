@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -156,44 +156,50 @@ export function FundamentalSection({
   symbol: string;
   onCoverageChange?: (coverage: FundamentalCoverage) => void;
 }) {
-  const [annual, setAnnual] = useState<AnnualRow[]>([]);
-  const [score, setScore] = useState<ScoreRow | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    symbol: string;
+    annual: AnnualRow[];
+    score: ScoreRow | null;
+    error: string | null;
+  }>();
   const [chartKind, setChartKind] = useState<FundamentalChartKind>("line");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErr(null);
-
-    const [annualResult, scoreResult] = await Promise.allSettled([
-      FundamentalsService.annual(symbol, 20),
-      FundamentalsService.score(symbol),
-    ]);
-
-    const annualRaw =
-      annualResult.status === "fulfilled"
-        ? (annualResult.value as { data?: unknown })?.data
-        : [];
-    const rows = Array.isArray(annualRaw) ? (annualRaw as AnnualRow[]) : [];
-    const scoreData =
-      scoreResult.status === "fulfilled"
-        ? ((scoreResult.value as { data?: ScoreRow | null })?.data ?? null)
-        : null;
-
-    setAnnual(rows);
-    setScore(scoreData);
-
-    if (annualResult.status === "rejected" && scoreResult.status === "rejected") {
-      setErr("Could not load fundamentals.");
-    }
-
-    setLoading(false);
-  }, [symbol]);
+  const current = result?.symbol === symbol ? result : undefined;
+  const annual = current?.annual ?? [];
+  const score = current?.score ?? null;
+  const loading = !current;
+  const err = current?.error ?? null;
 
   useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const [annualResult, scoreResult] = await Promise.allSettled([
+        FundamentalsService.annual(symbol, 20),
+        FundamentalsService.score(symbol),
+      ]);
+      if (cancelled) return;
+
+      const annualRaw =
+        annualResult.status === "fulfilled"
+          ? (annualResult.value as { data?: unknown })?.data
+          : [];
+      const rows = Array.isArray(annualRaw) ? (annualRaw as AnnualRow[]) : [];
+      const scoreData =
+        scoreResult.status === "fulfilled"
+          ? ((scoreResult.value as { data?: ScoreRow | null })?.data ?? null)
+          : null;
+
+      setResult({
+        symbol,
+        annual: rows,
+        score: scoreData,
+        error: annualResult.status === "rejected" && scoreResult.status === "rejected"
+          ? "Could not load fundamentals."
+          : null,
+      });
+    }
     void load();
-  }, [load]);
+    return () => { cancelled = true; };
+  }, [symbol]);
 
   const scoreCards = useMemo(
     () => [
