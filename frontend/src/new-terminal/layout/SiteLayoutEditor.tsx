@@ -116,6 +116,7 @@ export default function SiteLayoutEditor() {
     const compact = main.clientWidth < 760;
     const routeKey = `${pathname}::${compact ? "compact" : "wide"}`;
     const preset = PRESETS[routeKey];
+    const routeRevision = pathname === "/" ? preset?.updatedAt : "nonmarket-content-fit-20261126";
     const records = new Map<string, Card>();
     const knownPositions = new Map<string, GridRect>();
     const wrappers = new Set<HTMLElement>();
@@ -142,9 +143,9 @@ export default function SiteLayoutEditor() {
       const store = readStore();
       // Retain cards temporarily absent during a tab/feed refresh.
       const previous = store.routes[routeKey];
-      const items = { ...(preset && previous?.presetRevision !== preset.updatedAt ? preset.items : previous?.items ?? {}) };
+      const items = { ...(previous?.presetRevision !== routeRevision ? preset?.items ?? {} : previous?.items ?? {}) };
       for (const [id, card] of records) { items[id] = { ...card.rect }; knownPositions.set(id, { ...card.rect }); }
-      store.routes[routeKey] = { cols: GRID_COLS, rowPx: ROW_PX, updatedAt: new Date().toISOString(), presetRevision: preset?.updatedAt, items };
+      store.routes[routeKey] = { cols: GRID_COLS, rowPx: ROW_PX, updatedAt: new Date().toISOString(), presetRevision: routeRevision, items };
       if (!writeStore(store)) setStatus("Layout changed. Browser storage is unavailable; keep this tab open to retain it.");
     }
     function remember(state: Map<string, GridRect>) {
@@ -214,10 +215,22 @@ export default function SiteLayoutEditor() {
         for (const { item, bounds: box } of measured) {
           const approved = preset?.items[item.id];
           if (approved) { seeds.set(item.id, { ...approved }); continue; }
+          const indicatorPair = pathname === "/indicators" && !compact
+            && ["Published metric snapshot", "Additional technical calculations"].includes(item.label);
+          const indicatorWide = pathname === "/indicators" && item.label === "Market technical context";
+          const inspector = pathname === "/screener" && !compact
+            && Boolean(item.element.closest(".nt-screener-inspector"));
+          const screenerTable = pathname === "/screener" && item.label === "Instrument universe";
+          const naturalHeight = Math.max(box.height, item.element.scrollHeight);
+          const contentHeight = pathname === "/" ? Math.min(box.height, item.handle ? 720 : 1000)
+            : item.element.matches(".nt-data-table") ? Math.min(naturalHeight, 1200) : naturalHeight;
           const seed = clampRect({
-            x: compact ? 0 : Math.round((box.left - bounds.left) / cell), y: 0,
-            w: compact ? GRID_COLS : Math.round(box.width / cell),
-            h: Math.ceil((Math.min(box.height, item.handle ? 720 : 1000) + GAP) / ROW_PX),
+            x: compact ? 0 : indicatorPair ? (item.label === "Published metric snapshot" ? 0 : 24)
+              : indicatorWide ? 0 : inspector ? 35 : Math.round((box.left - bounds.left) / cell),
+            y: 0,
+            w: compact || indicatorWide ? GRID_COLS : indicatorPair ? 24
+              : inspector ? 13 : screenerTable ? 35 : Math.round(box.width / cell),
+            h: Math.ceil((contentHeight + GAP) / ROW_PX),
           }, item.handle ? MIN_W : 1, item.handle ? MIN_H : 1);
           // Initial defaults are compact. User edits never compact neighbors.
           seed.y = Math.max(0, ...defaults.filter(other => seed.x < other.x + other.w && seed.x + seed.w > other.x).map(other => other.y + other.h));
@@ -226,7 +239,7 @@ export default function SiteLayoutEditor() {
         const saved = readStore().routes[routeKey];
         // Adopt a newly approved preset once. Later drags/resizes save the
         // revision, so they continue to survive navigation and reloads.
-        const needsPresetMigration = Boolean(preset && saved?.presetRevision !== preset.updatedAt);
+        const needsPresetMigration = Boolean(routeRevision && saved?.presetRevision !== routeRevision);
         const savedItems = !needsPresetMigration && saved?.cols === GRID_COLS && saved?.rowPx === ROW_PX && saved.items && typeof saved.items === "object" ? saved.items : {};
         // Valid restored coordinates have priority over newly introduced cards.
         added.sort((a, b) => Number(Boolean(knownPositions.get(b.id) || savedItems[b.id] || preset?.items[b.id])) - Number(Boolean(knownPositions.get(a.id) || savedItems[a.id] || preset?.items[a.id])));
@@ -236,7 +249,7 @@ export default function SiteLayoutEditor() {
           const seed = seeds.get(item.id)!;
           const stored = knownPositions.get(item.id) || savedItems[item.id];
           const normalized = stored ? clampRect(stored, minW, minH) : seed;
-          const preferred = { ...normalized, h: Math.min(500, normalized.h) };
+          const preferred = { ...normalized, h: pathname === "/" ? Math.min(500, normalized.h) : normalized.h };
           return { item, seed, minW, minH, preferred };
         });
         const planned = new Map<string, GridRect>();
@@ -270,6 +283,23 @@ export default function SiteLayoutEditor() {
         }
         if (repaired) setStatus("An invalid saved layout was repaired using the workspace defaults.");
         if (repaired || needsPresetMigration) persist();
+      }
+      // Data feeds can fill a card after its first paint. Expand non-market cards
+      // and move later cards down, keeping each column and all content visible.
+      // Only content growth triggers this; user drag/resize remains independent.
+      if (pathname !== "/" && !gesture && !added.length) {
+        const ordered = [...records.values()].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+        const occupied: GridRect[] = [];
+        let grew = false;
+        for (const card of ordered) {
+          const contentHeight = card.element.matches(".nt-data-table") ? Math.min(card.element.scrollHeight, 1200) : card.element.scrollHeight;
+          const needed = Math.ceil((contentHeight + GAP) / ROW_PX);
+          const preferred = needed > card.rect.h ? { ...card.rect, h: needed } : card.rect;
+          const next = placeWithoutOverlap(preferred, occupied);
+          if (!sameRect(next, card.rect)) { apply(card, next); grew = true; }
+          occupied.push(next);
+        }
+        if (grew) { changed = true; refreshControls(); }
       }
       for (const card of records.values()) {
         // React may replace className while updating the feed. Reapply only
