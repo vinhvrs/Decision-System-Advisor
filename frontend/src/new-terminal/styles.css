@@ -6364,3 +6364,55 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 @media (max-width: 600px) {
   .nt-markets-footer-brand { flex-wrap: wrap; gap: 6px; }
 }
+
+/* Keep research content legible inside resizable cards and at laptop widths. */
+.nt-screener-results .nt-table-wrap {
+  max-width: 100%;
+  overflow-x: auto !important;
+  scrollbar-gutter: stable;
+}
+.nt-screener-results .nt-table { min-width: 940px; }
+.nt-screener-results .nt-table th:nth-child(3),
+.nt-screener-results .nt-table td:nth-child(3) {
+  min-width: 170px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nt-company-news-table { width: 100%; table-layout: fixed; }
+.nt-company-news-table th:first-child,
+.nt-company-news-table td:first-child { width: 76px; }
+.nt-company-news-table th:last-child,
+.nt-company-news-table td:last-child { width: 94px; }
+.nt-company-news-table td:nth-child(2) { overflow-wrap: anywhere; }
+.nt-company-event-body { grid-template-columns: minmax(0, 1fr); }
+.nt-event-timeline { min-width: 0; border-right: 0; }
+.nt-event-row { grid-template-columns: 70px 64px minmax(0, 1fr); }
+.nt-event-row > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.nt-event-price { border-top: 1px solid var(--nt-border); }
+.nt-main.dsa-grid .nt-data-table.dsa-grid-item .nt-table-wrap {
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+@media (max-width: 1300px) {
+  .nt-screener-layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  .nt-company-dashboard-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+  .nt-company-dashboard-column:last-child { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nt-company-dashboard-column:last-child > * { min-width: 0; }
+}
+@media (max-width: 900px) {
+  .nt-screener-layout, .nt-company-dashboard-columns { grid-template-columns: minmax(0, 1fr); }
+  .nt-company-dashboard-column:last-child { grid-column: auto; display: flex; }
+  .nt-chart-main-grid, .nt-grid-chart { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 520px) {
+  .nt-company-news-table th:last-child, .nt-company-news-table td:last-child { display: none; }
+  .nt-company-news-table th:first-child, .nt-company-news-table td:first-child { width: 72px; }
+  .nt-event-row { grid-template-columns: 65px 50px minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .dsa-grid-toolbar { flex-wrap: wrap; justify-content: center; }
+  .dsa-grid-toolbar > div { flex-basis: 100%; text-align: center; }
+  .nt-layout-toggle { padding-inline: 6px; }
+}
