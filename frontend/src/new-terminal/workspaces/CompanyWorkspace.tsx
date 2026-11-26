@@ -233,7 +233,7 @@ export default function CompanyWorkspace({
         </div>
         <form action="/companies" method="get"><label>Symbol <input name="symbol" value={search} required maxLength={20} onChange={event => setSearch(event.target.value.toUpperCase())} /></label></form>
         <div className="nt-company-quote">
-          <span>Last</span><strong className="nt-mono">{valueText(quote?.price)}</strong>
+          <span>Last</span><strong className="nt-mono">{quote?.price == null ? "—" : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(quote.price)}</strong>
           <b className={(quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{quote?.change_pct==null?"—":`${quote.change_pct>0?"+":""}${quote.change_pct.toFixed(2)}%`}</b>
           <Sparkline values={historyRows.slice(-32).map(row=>row.close)} width={118} height={26}/>
         </div>
@@ -371,6 +371,6 @@ export default function CompanyWorkspace({
     />}
     {activeTab === "Ownership" && <DataTable title="Ownership & positioning" columns={["Metric","Value"]} rows={(position.data?.data ?? []).map((item,index)=>({key:String(index),cells:[item.metric_code ?? item.series_code,valueText(item.value)]}))} empty="No ownership or positioning observations." />}
     {activeTab === "Estimates" && <section className="nt-flat-surface" data-layout-key="company:estimates"><div className="nt-subsection-title"><strong>Consensus estimates</strong><span>{normalized}</span></div><div className="nt-empty nt-empty-compact">Consensus estimates are not available for this symbol yet.</div></section>}
-    {activeTab === "Chart" && <section className="nt-flat-surface" data-layout-key="company:chart"><div className="nt-subsection-title"><strong>{normalized} chart</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div><PriceMonitor bars={historyRows} symbol={normalized}/><div className="nt-chart-handoff"><div><span>Last</span><b className="nt-mono">{valueText(quote?.price)}</b></div><div><span>Change</span><b className={(quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{quote?.change_pct==null?"—":`${quote.change_pct>0?"+":""}${valueText(quote.change_pct)}%`}</b></div><div className="nt-inline-links"><Link href={`/investing?symbol=${id}`}>Open in Chart Lab ↗</Link><Link href={`/screener?q=${id}`}>Compare in Screener ↗</Link></div></div></section>}
+    {activeTab === "Chart" && <section className="nt-flat-surface" data-layout-key="company:chart"><div className="nt-subsection-title"><strong>{normalized} chart</strong><span>{quote?.as_of?.slice(0,10) ?? ""}</span></div><PriceMonitor bars={historyRows} symbol={normalized}/><div className="nt-chart-handoff"><div><span>Last</span><b className="nt-mono">{quote?.price == null ? "—" : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(quote.price)}</b></div><div><span>Change</span><b className={(quote?.change_pct ?? 0)>=0?"nt-positive":"nt-negative"}>{quote?.change_pct==null?"—":`${quote.change_pct>0?"+":""}${valueText(quote.change_pct)}%`}</b></div><div className="nt-inline-links"><Link href={`/investing?symbol=${id}`}>Open in Chart Lab ↗</Link><Link href={`/screener?q=${id}`}>Compare in Screener ↗</Link></div></div></section>}
   </div>;
 }
