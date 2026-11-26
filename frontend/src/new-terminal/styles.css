@@ -6456,3 +6456,29 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
 .nt-news-reader-image { height: auto !important; max-height: 440px !important; aspect-ratio: auto !important; }
 @media (max-width: 760px) { .nt-news-reader-image { height: auto !important; max-height: 260px !important; } }
 .nt-main.dsa-grid .nt-info-page > .nt-info-intro.dsa-grid-handle { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+
+/* Keep every economic calendar value readable at phone width. */
+@media (max-width: 600px) {
+  .nt-main.dsa-grid .nt-news-workspace > .nt-primary-table.nt-data-table.dsa-grid-item .nt-table-wrap { overflow-x: hidden !important; }
+  .nt-news-workspace > .nt-primary-table .nt-table,
+  .nt-news-workspace > .nt-primary-table .nt-table tbody { display: block; width: 100%; min-width: 0; }
+  .nt-news-workspace > .nt-primary-table .nt-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 3px 10px; padding: 8px; border-bottom: 1px solid var(--nt-border);
+  }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td {
+    display: block; min-width: 0; padding: 0; border: 0; text-align: left;
+    overflow: visible; white-space: normal; text-overflow: clip;
+  }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td:nth-child(3) {
+    grid-column: 1 / -1; grid-row: 2; color: var(--nt-text); font-weight: 600;
+  }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td:nth-child(5),
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td:nth-child(6) {
+    grid-row: 3; color: var(--nt-muted);
+  }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td:nth-child(5)::before { content: "Forecast "; }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td:nth-child(6)::before { content: "Previous "; }
+  .nt-news-workspace > .nt-primary-table .nt-table tbody td:nth-child(6) { grid-column: 2 / -1; text-align: right; }
+}
