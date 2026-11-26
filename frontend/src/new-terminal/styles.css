@@ -6451,3 +6451,8 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   .nt-info-grid, .nt-contact-grid, .nt-contact-fields { grid-template-columns: minmax(0,1fr); }
   .nt-news-reader-image { height: 220px !important; }
 }
+
+/* Keep article imagery at its own ratio, including very wide source logos. */
+.nt-news-reader-image { height: auto !important; max-height: 440px !important; aspect-ratio: auto !important; }
+@media (max-width: 760px) { .nt-news-reader-image { height: auto !important; max-height: 260px !important; } }
+.nt-main.dsa-grid .nt-info-page > .nt-info-intro.dsa-grid-handle { background: transparent !important; border: 0 !important; box-shadow: none !important; }
