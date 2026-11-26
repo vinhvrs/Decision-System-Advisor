@@ -6422,3 +6422,32 @@ body.dsa-layout-pointer-dragging .dsa-layout-drag-handle {
   object-fit: contain !important;
   background: #0b141d;
 }
+
+/* Secondary public pages use the terminal's type and spacing scale. */
+.nt-info-page { width: 100%; padding: 24px 28px 48px; color: var(--nt-text); background: var(--nt-bg); }
+.nt-info-intro { max-width: 850px; margin-bottom: 24px; }
+.nt-info-intro h1 { margin: 8px 0 10px; font-size: clamp(24px, 2.5vw, 34px); line-height: 1.18; letter-spacing: -.025em; }
+.nt-info-intro p { margin: 0; color: var(--nt-muted); line-height: 1.55; font-size: 15px; }
+.nt-info-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.nt-info-panel { min-width: 0; padding: 20px; border: 1px solid var(--nt-border); background: var(--nt-s1); }
+.nt-info-panel h2 { margin: 14px 0 9px; font-size: 18px; line-height: 1.25; }
+.nt-info-panel p { color: var(--nt-muted); line-height: 1.55; }
+.nt-info-panel a { color: var(--nt-accent); overflow-wrap: anywhere; }
+.nt-info-footnote { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--nt-border); color: var(--nt-muted); font-size: 13px; }
+.nt-contact-grid { display: grid; grid-template-columns: minmax(240px,1fr) minmax(0,2fr); align-items: start; gap: 8px; }
+.nt-contact-grid aside svg { color: var(--nt-accent); }
+.nt-contact-form { display: grid; gap: 18px; }
+.nt-contact-form .nt-panel-title { margin: -20px -20px 2px; padding: 10px 20px; background: var(--nt-s3); }
+.nt-contact-form label { display: grid; gap: 6px; font-size: 13px; color: var(--nt-muted); }
+.nt-contact-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.nt-contact-form input, .nt-contact-form textarea { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--nt-border-strong); border-radius: 2px; background: var(--nt-s0); color: var(--nt-text); font: inherit; font-size: 16px; }
+.nt-contact-form :is(input,textarea):focus-visible { outline: 2px solid var(--nt-accent); outline-offset: 1px; }
+.nt-contact-form button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; justify-self: start; padding: 10px 16px; border: 1px solid var(--nt-accent); background: var(--nt-s3); color: var(--nt-text); cursor: pointer; }
+.nt-contact-form button:disabled { opacity: .5; cursor: wait; }
+.nt-contact-error { margin: 0; padding: 10px; border: 1px solid #b64b4b; color: #ffb9b9; }
+.nt-news-reader-image { width: 100% !important; height: min(38vw, 440px) !important; max-height: 440px !important; object-fit: contain !important; background: var(--nt-s0); }
+@media (max-width: 760px) {
+  .nt-info-page { padding: 18px 14px 32px; }
+  .nt-info-grid, .nt-contact-grid, .nt-contact-fields { grid-template-columns: minmax(0,1fr); }
+  .nt-news-reader-image { height: 220px !important; }
+}
