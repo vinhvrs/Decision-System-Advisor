@@ -227,7 +227,6 @@ export default function CompanyWorkspace({
   const sharesOutstanding = fundData?.metrics.shares_outstanding?.value ?? null;
   const trustedMarketCap = fundData?.metrics.market_cap?.value ??
     (quote?.price != null && sharesOutstanding != null && sharesOutstanding > 0 ? quote.price * sharesOutstanding : null);
-  const profileUrl = sourceLink(profile?.website);
   const tabBase = `/companies/profile/${id}`;
 
   const quarterly = useMemo(()=>[...overviewFinancialRows].sort((a,b)=>b.period_end.localeCompare(a.period_end)),[overviewFinancialRows]);
@@ -319,14 +318,9 @@ export default function CompanyWorkspace({
             <PriceMonitor bars={historyRows} symbol={normalized}/>
           </div>
 
-          <div className="nt-flat-surface" data-layout-key="company:research-links">
-            <div className="nt-subsection-title"><strong>Research links</strong><span>{normalized}</span></div>
-            <div className="nt-company-research-links">
-              {profileUrl && <a href={profileUrl} rel="noreferrer">Company website ↗</a>}
-              <Link href={`${tabBase}?view=filings`}>SEC filings ↗</Link>
-              <Link href={`${tabBase}?view=news`}>Company news ↗</Link>
-              <Link href={`/investing?symbol=${id}`}>Chart Lab ↗</Link>
-            </div>
+          <div className="nt-flat-surface" data-layout-key="company:recent-filings">
+            <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
+            <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
           </div>
         </div>
 
@@ -352,10 +346,6 @@ export default function CompanyWorkspace({
             </div>
           </div>
 
-          <div className="nt-flat-surface" data-layout-key="company:recent-filings">
-            <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
-            <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
-          </div>
         </div>
       </section>
 
