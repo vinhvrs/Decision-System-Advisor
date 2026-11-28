@@ -17,12 +17,19 @@
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  min-height: 0;
+  min-height: 190px;
   height: 100%;
   display: block !important;
   overflow: hidden;
   padding: 0 !important;
   background: var(--nt-chart-bg);
+}
+
+/* The grid editor measures natural content before the client enhancer runs.
+   That keeps a useful fresh-card seed. Once enhanced, the content follows the
+   actual card dimensions and no longer imposes a minimum during user resize. */
+[data-layout-key="company:snapshot"] > .nt-radar-wrap.nt-radar-content-fitted {
+  min-height: 0;
 }
 
 [data-layout-key="company:snapshot"] .nt-radar {
