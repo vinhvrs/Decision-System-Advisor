@@ -42,6 +42,11 @@ function enhanceSnapshot(snapshot: HTMLElement) {
   const metrics = readMetrics(table);
   if (metrics.length !== 6) return;
 
+  // CSS keeps a natural minimum height until the grid editor has measured and
+  // seeded a fresh card. Release it on the next animation frame so subsequent
+  // user resizing is governed by the card dimensions, not by chart content.
+  wrap.classList.add("nt-radar-content-fitted");
+
   const signature = metrics.map((metric) => `${metric.label}:${metric.value}`).join("|");
   const existingLayer = wrap.querySelector<HTMLElement>(":scope > .nt-radar-axis-label-layer");
   if (
