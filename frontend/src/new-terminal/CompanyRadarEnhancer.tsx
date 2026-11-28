@@ -2,36 +2,14 @@
 
 import { useEffect } from "react";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const SNAPSHOT_SELECTOR = '[data-layout-key="company:snapshot"]';
+const RADAR_VIEWBOX = "42 18 152 172";
 
 type Metric = { label: string; value: string };
-type LabelPosition = {
-  x: number;
-  y: number;
-  hitX: number;
-  hitY: number;
-  anchor: "start" | "middle" | "end";
-};
-
-// The radar viewBox is 236 x 208. Labels sit just outside each of the six
-// outer vertices and extend inward so long titles stay inside the plotting area.
-const LABEL_POSITIONS: readonly LabelPosition[] = [
-  { x: 118, y: 12, hitX: 118, hitY: 28, anchor: "middle" },
-  { x: 224, y: 54, hitX: 184, hitY: 66, anchor: "end" },
-  { x: 224, y: 158, hitX: 184, hitY: 142, anchor: "end" },
-  { x: 118, y: 201, hitX: 118, hitY: 180, anchor: "middle" },
-  { x: 12, y: 158, hitX: 52, hitY: 142, anchor: "start" },
-  { x: 12, y: 54, hitX: 52, hitY: 66, anchor: "start" },
-];
-
-function svgElement<K extends keyof SVGElementTagNameMap>(name: K): SVGElementTagNameMap[K] {
-  return document.createElementNS(SVG_NS, name);
-}
 
 function readMetrics(table: HTMLTableElement): Metric[] {
   return Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr"))
-    .slice(0, LABEL_POSITIONS.length)
+    .slice(0, 6)
     .map((row) => {
       const cells = row.querySelectorAll<HTMLTableCellElement>("td");
       return {
@@ -62,15 +40,25 @@ function enhanceSnapshot(snapshot: HTMLElement) {
   if (!wrap || !svg || !table) return;
 
   const metrics = readMetrics(table);
-  if (metrics.length !== LABEL_POSITIONS.length) return;
+  if (metrics.length !== 6) return;
 
   const signature = metrics.map((metric) => `${metric.label}:${metric.value}`).join("|");
+  const existingLayer = wrap.querySelector<HTMLElement>(":scope > .nt-radar-axis-label-layer");
   if (
     svg.dataset.axisLabelsSignature === signature
-    && svg.querySelector(".nt-radar-axis-label-layer")
+    && existingLayer
+    && svg.getAttribute("viewBox") === RADAR_VIEWBOX
+    && svg.getAttribute("preserveAspectRatio") === "none"
   ) return;
 
+  // Use the actual plot bounds rather than the original padded SVG bounds.
+  // preserveAspectRatio="none" lets the chart grow with both card dimensions;
+  // labels live in HTML so their typography stays crisp and undistorted.
+  svg.setAttribute("viewBox", RADAR_VIEWBOX);
+  svg.setAttribute("preserveAspectRatio", "none");
   svg.querySelector(".nt-radar-axis-label-layer")?.remove();
+  existingLayer?.remove();
+
   table.classList.add("nt-radar-values-source");
   table.setAttribute("aria-hidden", "true");
 
@@ -78,50 +66,36 @@ function enhanceSnapshot(snapshot: HTMLElement) {
   tooltip.hidden = true;
   tooltip.textContent = "";
 
-  const layer = svgElement("g");
-  layer.setAttribute("class", "nt-radar-axis-label-layer");
+  const layer = document.createElement("div");
+  layer.className = "nt-radar-axis-label-layer";
 
   metrics.forEach((metric, index) => {
-    const position = LABEL_POSITIONS[index];
-    const group = svgElement("g");
-    group.setAttribute("class", "nt-radar-axis-label");
-    group.setAttribute("tabindex", "0");
-    group.setAttribute("role", "img");
-    group.setAttribute("aria-label", `${metric.label}: ${metric.value}`);
-
-    const hitArea = svgElement("circle");
-    hitArea.setAttribute("class", "nt-radar-axis-label-hit");
-    hitArea.setAttribute("cx", String(position.hitX));
-    hitArea.setAttribute("cy", String(position.hitY));
-    hitArea.setAttribute("r", "15");
-
-    const label = svgElement("text");
-    label.setAttribute("x", String(position.x));
-    label.setAttribute("y", String(position.y));
-    label.setAttribute("text-anchor", position.anchor);
-    label.setAttribute("dominant-baseline", "middle");
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "nt-radar-axis-label";
+    label.dataset.axis = String(index);
     label.textContent = metric.label;
+    label.setAttribute("aria-label", `${metric.label}: ${metric.value}`);
 
     const showValue = () => {
       tooltip.textContent = metric.value;
       tooltip.hidden = false;
-      group.classList.add("is-active");
+      label.classList.add("is-active");
     };
     const hideValue = () => {
       tooltip.hidden = true;
       tooltip.textContent = "";
-      group.classList.remove("is-active");
+      label.classList.remove("is-active");
     };
 
-    group.addEventListener("pointerenter", showValue);
-    group.addEventListener("pointerleave", hideValue);
-    group.addEventListener("focus", showValue);
-    group.addEventListener("blur", hideValue);
-    group.append(hitArea, label);
-    layer.append(group);
+    label.addEventListener("pointerenter", showValue);
+    label.addEventListener("pointerleave", hideValue);
+    label.addEventListener("focus", showValue);
+    label.addEventListener("blur", hideValue);
+    layer.append(label);
   });
 
-  svg.append(layer);
+  wrap.append(layer);
   svg.dataset.axisLabelsSignature = signature;
 }
 
