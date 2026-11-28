@@ -17,7 +17,7 @@
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  min-height: 190px;
+  min-height: 0;
   height: 100%;
   display: block !important;
   overflow: hidden;
