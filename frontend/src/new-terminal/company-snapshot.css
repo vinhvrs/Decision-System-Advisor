@@ -27,12 +27,13 @@
 
 [data-layout-key="company:snapshot"] .nt-radar {
   position: absolute;
-  inset:
-    var(--nt-radar-vertical-space)
-    var(--nt-radar-side-space);
+  top: var(--nt-radar-vertical-space);
+  right: var(--nt-radar-side-space);
+  bottom: var(--nt-radar-vertical-space);
+  left: var(--nt-radar-side-space);
   display: block;
-  width: auto !important;
-  height: auto !important;
+  width: calc(100% - (2 * var(--nt-radar-side-space))) !important;
+  height: calc(100% - (2 * var(--nt-radar-vertical-space))) !important;
   min-height: 0 !important;
   padding: 0 !important;
   box-sizing: border-box;
