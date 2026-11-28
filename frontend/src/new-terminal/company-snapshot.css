@@ -1,0 +1,185 @@
+/* Company snapshot radar: the plot scales with the card in both dimensions.
+   Axis titles remain crisp HTML overlays and values appear only on hover/focus. */
+[data-layout-key="company:snapshot"] {
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+}
+
+[data-layout-key="company:snapshot"] > .nt-subsection-title {
+  flex: 0 0 auto;
+}
+
+[data-layout-key="company:snapshot"] > .nt-radar-wrap {
+  --nt-radar-side-space: clamp(34px, 8%, 60px);
+  --nt-radar-vertical-space: clamp(22px, 7%, 38px);
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 190px;
+  height: 100%;
+  display: block !important;
+  overflow: hidden;
+  padding: 0 !important;
+  background: var(--nt-chart-bg);
+}
+
+/* The grid editor measures natural content before the client enhancer runs.
+   That keeps a useful fresh-card seed. Once enhanced, the content follows the
+   actual card dimensions and no longer imposes a minimum during user resize. */
+[data-layout-key="company:snapshot"] > .nt-radar-wrap.nt-radar-content-fitted {
+  min-height: 0;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar {
+  position: absolute;
+  top: var(--nt-radar-vertical-space);
+  right: var(--nt-radar-side-space);
+  bottom: var(--nt-radar-vertical-space);
+  left: var(--nt-radar-side-space);
+  display: block;
+  width: calc(100% - (2 * var(--nt-radar-side-space))) !important;
+  height: calc(100% - (2 * var(--nt-radar-vertical-space))) !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+  overflow: visible;
+  background: transparent !important;
+  outline: 0 !important;
+}
+
+/* Keep grid lines visually stable even when the radar stretches with a
+   non-square card. */
+[data-layout-key="company:snapshot"] .nt-radar-grid,
+[data-layout-key="company:snapshot"] .nt-radar-axis,
+[data-layout-key="company:snapshot"] .nt-radar-shape {
+  vector-effect: non-scaling-stroke;
+}
+
+/* The original table remains the live data source for the client enhancer,
+   but never occupies visible card space. */
+[data-layout-key="company:snapshot"] .nt-radar-values {
+  display: none !important;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label {
+  position: absolute;
+  z-index: 2;
+  max-width: 104px;
+  min-height: 22px;
+  margin: 0;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: rgba(8, 15, 22, .72);
+  color: var(--nt-text-2);
+  font: 650 clamp(8.5px, .72vw, 10.5px)/1.15 var(--nt-font-ui);
+  letter-spacing: .01em;
+  text-align: center;
+  white-space: normal;
+  cursor: default;
+  pointer-events: auto;
+  transition: color .12s ease, background-color .12s ease;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label[data-axis="0"] {
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label[data-axis="1"] {
+  top: 29%;
+  right: 2px;
+  transform: translateY(-50%);
+  text-align: right;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label[data-axis="2"] {
+  top: 71%;
+  right: 2px;
+  transform: translateY(-50%);
+  text-align: right;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label[data-axis="3"] {
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label[data-axis="4"] {
+  top: 71%;
+  left: 2px;
+  transform: translateY(-50%);
+  text-align: left;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label[data-axis="5"] {
+  top: 29%;
+  left: 2px;
+  transform: translateY(-50%);
+  text-align: left;
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label:hover,
+[data-layout-key="company:snapshot"] .nt-radar-axis-label:focus,
+[data-layout-key="company:snapshot"] .nt-radar-axis-label.is-active {
+  background: rgba(13, 25, 36, .94);
+  color: var(--nt-accent);
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-axis-label:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--nt-accent);
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-hover-value {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  min-width: 54px;
+  padding: 5px 8px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--nt-border-strong);
+  background: rgba(5, 9, 13, .94);
+  color: var(--nt-text);
+  font: 700 clamp(12px, 1vw, 15px)/1 var(--nt-font-data);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .32);
+}
+
+[data-layout-key="company:snapshot"] .nt-radar-hover-value[hidden] {
+  display: none !important;
+}
+
+.nt-main.dsa-grid [data-layout-key="company:snapshot"].dsa-grid-item {
+  overflow: hidden !important;
+}
+
+@media (max-width: 760px) {
+  [data-layout-key="company:snapshot"] > .nt-radar-wrap {
+    --nt-radar-side-space: 42px;
+    --nt-radar-vertical-space: 24px;
+    height: 240px;
+    min-height: 240px;
+  }
+
+  [data-layout-key="company:snapshot"] .nt-radar-axis-label {
+    max-width: 88px;
+    min-height: 20px;
+    padding: 2px 4px;
+    font-size: 8px;
+  }
+}

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { clampRect, fitAtAnchor, fitResize, fits, GRID_COLS, layoutBottom, MIN_H, MIN_W, placeWithoutOverlap, ROW_PX, type GridRect } from "./gridGeometry";
+import { clampRect, fitAtAnchor, fitResize, fits, GRID_COLS, isValidRect, layoutBottom, MIN_H, MIN_W, placeWithoutOverlap, ROW_PX, type GridRect } from "./gridGeometry";
 import marketsPreset from "./presets/markets.json";
 
 // v3 coordinates came from the old, sometimes overlapping DOM layout. Keep
@@ -118,9 +118,11 @@ export default function SiteLayoutEditor() {
     const preset = PRESETS[routeKey];
     const routeRevision = pathname === "/" ? preset?.updatedAt
       : pathname === "/investing" ? "nonmarket-chart-rails-20261126"
-      : pathname.startsWith("/companies") ? "company-content-fit-20261126" : "nonmarket-content-fit-20261126";
+      : pathname.startsWith("/companies") ? (compact ? "company-content-fit-20261126" : "company-natural-columns-20261127")
+      : "nonmarket-content-fit-20261126";
     const records = new Map<string, Card>();
     const knownPositions = new Map<string, GridRect>();
+    const retiredIds = new Set<string>();
     const wrappers = new Set<HTMLElement>();
     const history: Map<string, GridRect>[] = [];
     let disposed = false;
@@ -146,6 +148,7 @@ export default function SiteLayoutEditor() {
       // Retain cards temporarily absent during a tab/feed refresh.
       const previous = store.routes[routeKey];
       const items = { ...(previous?.presetRevision !== routeRevision ? preset?.items ?? {} : previous?.items ?? {}) };
+      for (const id of retiredIds) delete items[id];
       for (const [id, card] of records) { items[id] = { ...card.rect }; knownPositions.set(id, { ...card.rect }); }
       store.routes[routeKey] = { cols: GRID_COLS, rowPx: ROW_PX, updatedAt: new Date().toISOString(), presetRevision: routeRevision, items };
       if (!writeStore(store)) setStatus("Layout changed. Browser storage is unavailable; keep this tab open to retain it.");
@@ -229,26 +232,74 @@ export default function SiteLayoutEditor() {
             && Boolean(item.element.closest(".nt-chart-center"));
           const chartRight = chartRail && box.left - bounds.left > bounds.width / 2;
           const companyOverview = pathname.startsWith("/companies") && !compact;
-          const companyLeft = companyOverview && ["Research links", "Peer comparison"].includes(item.label);
-          const companyRight = companyOverview && item.label === "Company signals & event reaction";
-          const companyFull = companyOverview && item.label === "Recent SEC filings";
           const naturalHeight = Math.max(box.height, item.element.scrollHeight);
           const contentHeight = pathname === "/" ? Math.min(box.height, item.handle ? 720 : 1000)
             : companyOverview && item.label === "Peer comparison" ? (item.element.querySelector("table")?.scrollHeight ?? 210) + 36
             : item.element.matches(".nt-data-table") ? Math.min(naturalHeight, 1200) : naturalHeight;
           const seed = clampRect({
             x: compact ? 0 : indicatorPair ? (item.label === "Published metric snapshot" ? 0 : 24)
-              : indicatorWide ? 0 : companyFull ? 0 : companyLeft ? 0 : companyRight ? 24 : inspector ? 35 : chartCenter ? 10 : chartRail ? (chartRight ? 38 : 0) : Math.round((box.left - bounds.left) / cell),
+              : indicatorWide ? 0 : inspector ? 35 : chartCenter ? 10 : chartRail ? (chartRight ? 38 : 0) : Math.round((box.left - bounds.left) / cell),
             y: 0,
-            w: compact || indicatorWide || companyFull ? GRID_COLS : indicatorPair ? 24
-              : companyLeft || companyRight ? 24 : inspector ? 13 : screenerTable ? 35 : chartCenter ? 28 : chartRail ? 10 : Math.round(box.width / cell),
+            w: compact || indicatorWide ? GRID_COLS : indicatorPair ? 24
+              : inspector ? 13 : screenerTable ? 35 : chartCenter ? 28 : chartRail ? 10
+              : companyOverview ? Math.round((box.right - bounds.left + GAP) / cell) - Math.round((box.left - bounds.left) / cell)
+              : Math.round(box.width / cell),
             h: Math.ceil((contentHeight + GAP) / ROW_PX),
           }, item.handle ? MIN_W : 1, item.handle ? MIN_H : 1);
           // Initial defaults are compact. User edits never compact neighbors.
           seed.y = Math.max(0, ...defaults.filter(other => seed.x < other.x + other.w && seed.x + seed.w > other.x).map(other => other.y + other.h));
           defaults.push(seed); seeds.set(item.id, seed);
         }
-        const saved = readStore().routes[routeKey];
+        const store = readStore();
+        let saved = store.routes[routeKey];
+        const retiredId = `${pathname}::company:research-links::0`;
+        const retired = saved?.items?.[retiredId];
+        if (pathname.startsWith("/companies") && retired
+          && descriptors.has(`${pathname}::company:snapshot::0`)) {
+          const items = { ...saved.items };
+          delete items[retiredId];
+          retiredIds.add(retiredId);
+          const overviewItems = Object.entries(items).filter(([id]) => descriptors.has(id));
+          // Close only the retired full-width band in a saved single-column
+          // overview. Custom arrangements and other tab positions stay intact.
+          if (compact && isValidRect(retired) && retired.x === 0 && retired.w === GRID_COLS
+            && overviewItems.every(([, rect]) => isValidRect(rect) && rect.x === 0 && rect.w === GRID_COLS
+              && (rect.y + rect.h <= retired.y || rect.y >= retired.y + retired.h))) {
+            for (const [id, rect] of overviewItems) {
+              if (rect.y >= retired.y + retired.h) items[id] = { ...rect, y: rect.y - retired.h };
+            }
+          }
+          const filingsId = `${pathname}::company:recent-filings::0`;
+          const filings = items[filingsId];
+          const price = items[`${pathname}::company:price-monitor::0`];
+          const signals = items[`${pathname}::company:signals::0`];
+          // Fill the removed panel's space only in the former default columns.
+          // A custom position or an occupied destination is never rearranged.
+          if (!compact && isValidRect(retired) && isValidRect(filings)
+            && isValidRect(price) && isValidRect(signals)
+            && retired.x === 15 && retired.w === 18 && filings.x === 33 && filings.w === 15
+            && price.x === retired.x && price.w === retired.w && retired.y === price.y + price.h
+            && signals.x === filings.x && signals.w === filings.w && filings.y === signals.y + signals.h
+            && overviewItems.every(([, rect]) => isValidRect(rect))) {
+            const next = { ...filings, x: retired.x, y: retired.y, w: retired.w };
+            if (fits(next, overviewItems.filter(([id]) => id !== filingsId).map(([, rect]) => rect))) {
+              items[filingsId] = next;
+              const reflowed = Object.entries(items).filter(([id]) => descriptors.has(id));
+              const bandEnd = filings.y + filings.h;
+              // Include the relocated panel: it may extend into the old band.
+              if (reflowed.every(([, rect]) => rect.y + rect.h <= filings.y
+                || (rect.y >= bandEnd && rect.x === 0 && rect.w === GRID_COLS))) {
+                for (const [id, rect] of reflowed) {
+                  if (rect.y >= bandEnd) items[id] = { ...rect, y: rect.y - filings.h };
+                }
+              }
+            }
+          }
+          knownPositions.delete(retiredId);
+          saved = { ...saved, items };
+          store.routes[routeKey] = saved;
+          writeStore(store);
+        }
         // Adopt a newly approved preset once. Later drags/resizes save the
         // revision, so they continue to survive navigation and reloads.
         const needsPresetMigration = Boolean(routeRevision && saved?.presetRevision !== routeRevision);

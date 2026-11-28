@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DataTable from "../DataTable";
-import { calendarCoverageState, calendarEventsInDeclaredCoverage, labelText, sourceLink, valueText, type Calendar, type Filing, type Metrics, type News, type Positioning } from "../feeds";
+import { calendarCoverageState, calendarEventsInDeclaredCoverage, getFeed, labelText, sourceLink, valueText, type Calendar, type Filing, type Metrics, type News, type Positioning } from "../feeds";
 import { CurrencyContext, ImpactBadge, SourceBadge, SymbolContext } from "../ContextBadges";
 import type { MarketRow } from "../marketSnapshot";
 import { useFeed } from "../useFeed";
@@ -29,7 +29,6 @@ type Props = {
 
 const tabs = ["Overview","Financials","KPIs","Estimates","Valuation","Earnings","Ownership","Filings","News","Chart"];
 const valuation = new Set(["pe_ttm", "ev_ebitda", "ps_ratio", "pb_ratio", "fcf_yield", "market_cap"]);
-const overviewMetrics = ["market_cap", "pe_ttm", "roe", "gross_margin", "fcf_yield", "debt_to_equity"];
 const eventTime = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
 });
@@ -47,6 +46,32 @@ const metricPercent = (metrics: Metrics | undefined, key: string) => {
   return datum.unit === "fraction" ? value * 100 : value;
 };
 const clamp = (value: number, min: number, max: number) => Math.max(0, Math.min(1, (value - min) / (max - min)));
+
+function useCompanyHistory(id: string, enabled: boolean) {
+  const [result, setResult] = useState<{ id: string; data: CompanyPriceBar[] }>();
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    async function load() {
+      const now = new Date();
+      const from = new Date(now.getTime() - 140 * 86400000).toISOString().slice(0, 10);
+      const to = now.toISOString().slice(0, 10);
+      try {
+        const payload = await getFeed<{ data: CompanyPriceBar[] }>(
+          `/api/market/daily-history/${id}?from=${from}&to=${to}`,
+          controller.signal,
+        );
+        if (!controller.signal.aborted) setResult({ id, data: payload.data });
+      } catch {
+        // Keep the initial or last successful history while a refresh is unavailable.
+      }
+    }
+    void load();
+    const timer = setInterval(() => void load(), 300000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [id, enabled]);
+  return enabled && result?.id === id ? result.data : undefined;
+}
 
 function Sparkline({ values, width = 92, height = 24 }: { values: Array<number | null>; width?: number; height?: number }) {
   const valid = values.map((value,index)=>({value,index})).filter((item): item is {value:number;index:number} => item.value != null && Number.isFinite(item.value));
@@ -175,7 +200,7 @@ export default function CompanyWorkspace({
   const overviewFinancials = useFeed<{ data: CompanyStatement[] }>(activeTab === "Overview" ? `/api/fundamentals/${id}/quarterly` : null, 300000);
   const filings = useFeed<{ data: Filing[] }>(activeTab === "Filings" || activeTab === "Overview" ? `/api/filings/${id}` : null, 120000);
   const news = useFeed<News[]>(activeTab === "News" || activeTab === "Overview" ? `/api/news/symbol/${id}` : null, 60000);
-  const history = useFeed<{ data: CompanyPriceBar[] }>(activeTab === "Overview" ? `/api/market/daily-history/${id}?from=${new Date(Date.now()-140*86400000).toISOString().slice(0,10)}&to=${new Date().toISOString().slice(0,10)}` : null, 300000);
+  const history = useCompanyHistory(id, activeTab === "Overview");
   const position = useFeed<Positioning>(activeTab === "Ownership" ? `/api/v1/positioning/${id}` : null, 300000);
   const calendar = useFeed<Calendar>(activeTab === "Earnings" ? `/api/v1/economic-calendar?symbol=${id}&limit=1000` : null, 120000);
   const calendarEvents = calendarEventsInDeclaredCoverage(calendar.data);
@@ -196,13 +221,12 @@ export default function CompanyWorkspace({
     const tickerInTitle = new RegExp(`(^|[^A-Za-z0-9])${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z0-9]|$)`, "i").test(title);
     return tickerInTitle || Boolean(companyStem && companyStem.length >= 4 && title.toLowerCase().includes(companyStem.toLowerCase()));
   });
-  const historyRows = history.data?.data ?? initialHistory;
+  const historyRows = history ?? initialHistory;
   const profile = overviewData?.profile;
   const quote = storedRows.find(row => row.symbol === normalized);
   const sharesOutstanding = fundData?.metrics.shares_outstanding?.value ?? null;
   const trustedMarketCap = fundData?.metrics.market_cap?.value ??
     (quote?.price != null && sharesOutstanding != null && sharesOutstanding > 0 ? quote.price * sharesOutstanding : null);
-  const profileUrl = sourceLink(profile?.website);
   const tabBase = `/companies/profile/${id}`;
 
   const quarterly = useMemo(()=>[...overviewFinancialRows].sort((a,b)=>b.period_end.localeCompare(a.period_end)),[overviewFinancialRows]);
@@ -294,14 +318,9 @@ export default function CompanyWorkspace({
             <PriceMonitor bars={historyRows} symbol={normalized}/>
           </div>
 
-          <div className="nt-flat-surface" data-layout-key="company:research-links">
-            <div className="nt-subsection-title"><strong>Research links</strong><span>{normalized}</span></div>
-            <div className="nt-company-research-links">
-              {profileUrl && <a href={profileUrl} rel="noreferrer">Company website ↗</a>}
-              <Link href={`${tabBase}?view=filings`}>SEC filings ↗</Link>
-              <Link href={`${tabBase}?view=news`}>Company news ↗</Link>
-              <Link href={`/investing?symbol=${id}`}>Chart Lab ↗</Link>
-            </div>
+          <div className="nt-flat-surface" data-layout-key="company:recent-filings">
+            <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
+            <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
           </div>
         </div>
 
@@ -327,10 +346,6 @@ export default function CompanyWorkspace({
             </div>
           </div>
 
-          <div className="nt-flat-surface" data-layout-key="company:recent-filings">
-            <div className="nt-subsection-title"><strong>Recent SEC filings</strong><Link href={`${tabBase}?view=filings`}>View all ↗</Link></div>
-            <table className="nt-microtable"><thead><tr><th>Date</th><th>Form</th><th>Reporting period</th></tr></thead><tbody>{filingRows.slice(0,6).map(item=><tr key={item.accession_number}><td>{item.filing_date?.slice(0,10)}</td><td><a href={sourceLink(item.filing_url)} rel="noreferrer">{item.form}</a></td><td>{item.report_date?.slice(0,10)}</td></tr>)}</tbody></table>
-          </div>
         </div>
       </section>
 
